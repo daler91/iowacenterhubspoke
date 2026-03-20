@@ -1,34 +1,96 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Calendar grid styles */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: 70px repeat(7, 1fr);
+  gap: 1px;
+  background-color: #e5e7eb;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.calendar-grid-day {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 1px;
+  background-color: #e5e7eb;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.time-slot {
+  min-height: 60px;
+  position: relative;
 }
 
-.App-link {
-    color: #61dafb;
+.schedule-block {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.schedule-block:hover {
+  transform: scale(1.02);
+  z-index: 20;
+}
+
+.class-block {
+  background-color: #4F46E5;
+  color: white;
+  border-left: 4px solid #3730A3;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+
+.drive-block {
+  background-color: #F3F4F6;
+  color: #6B7280;
+  border: 1px dashed #D1D5DB;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(209, 213, 219, 0.3) 5px,
+    rgba(209, 213, 219, 0.3) 10px
+  );
+}
+
+.warning-block {
+  background-color: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FCD34D;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.2);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Print styles for PDF */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
 }
