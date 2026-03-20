@@ -1,0 +1,146 @@
+{
+  "project_name": "HubSpoke Scheduler",
+  "theme": "light",
+  "design_philosophy": {
+    "identity": "The 'E1' Logistics Architect",
+    "core_principles": [
+      "Clarity is King: In logistics, ambiguity is fatal. Every pixel must serve a purpose.",
+      "Hub & Spoke Metaphor: Visuals should radiate from a central point (The Hub) to the edges (Spokes).",
+      "Time is Physical: Visualize time as tangible blocks. Drive time has 'weight' (gray, textured). Class time has 'energy' (vibrant).",
+      "Iowa Grounded: Use an earthy but modern palette—Deep Soil, Corn Gold, Sky Blue—translated into a clean SaaS aesthetic."
+    ],
+    "anti_patterns": [
+      "No generic 'Bootstrap' admin templates.",
+      "No gradient overload. Use flat, high-contrast surfaces for readability.",
+      "No hidden interactions. Logistics managers need to see the state at a glance.",
+      "Avoid 'floaty' elements. Everything must feel anchored to the grid or the map."
+    ]
+  },
+  "typography": {
+    "font_family_heading": "Manrope, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tight text-slate-900",
+      "h2": "text-3xl font-semibold tracking-tight text-slate-800",
+      "h3": "text-2xl font-semibold text-slate-800",
+      "body": "text-base font-normal text-slate-600 leading-relaxed",
+      "caption": "text-xs font-medium text-slate-500 uppercase tracking-wider"
+    },
+    "import_url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;700;800&display=swap"
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "name": "Hub Indigo",
+        "hex": "#4F46E5",
+        "usage": "Primary Actions, The Hub Location, Active States"
+      },
+      "secondary": {
+        "name": "Spoke Teal",
+        "hex": "#0D9488",
+        "usage": "Spoke Locations, Successful Routes"
+      },
+      "accent": {
+        "name": "Warning Amber",
+        "hex": "#F59E0B",
+        "usage": "Town-to-Town Warnings, Conflicts, Alerts"
+      },
+      "neutral": {
+        "name": "Drive Time Gray",
+        "hex": "#E5E7EB",
+        "usage": "Drive Time Blocks, Inactive States, Backgrounds"
+      },
+      "background": {
+        "name": "Canvas White",
+        "hex": "#F9FAFB",
+        "usage": "App Background"
+      },
+      "surface": {
+        "name": "Card White",
+        "hex": "#FFFFFF",
+        "usage": "Cards, Modals, Sidebar"
+      }
+    },
+    "semantic_assignments": {
+      "class_block": "bg-indigo-600 text-white border-l-4 border-indigo-800 shadow-sm hover:bg-indigo-700",
+      "drive_block": "bg-gray-100 text-gray-500 border border-gray-200 border-dashed pattern-diagonal-lines-sm hover:bg-gray-200",
+      "warning_block": "bg-amber-50 text-amber-700 border border-amber-200 shadow-sm",
+      "hub_marker": "text-indigo-600 fill-current h-8 w-8",
+      "spoke_marker": "text-teal-600 fill-current h-6 w-6"
+    }
+  },
+  "layout": {
+    "structure": "Split Layout: Fixed Sidebar (Left) + Scrollable Main Content (Right)",
+    "grid_system": "Bento Grid for Dashboard Overview (3-4 cols)",
+    "spacing": {
+      "container_padding": "p-6 md:p-8",
+      "card_padding": "p-6",
+      "gap_default": "gap-6"
+    },
+    "z_index": {
+      "modal": 50,
+      "dropdown": 40,
+      "sticky_header": 30,
+      "map_overlay": 20
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-medium transition-all shadow-sm hover:shadow-md",
+      "secondary": "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg px-4 py-2 font-medium transition-all",
+      "destructive": "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-lg px-4 py-2 font-medium"
+    },
+    "cards": {
+      "default": "bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200",
+      "metric": "bg-white rounded-xl border border-gray-100 p-6 flex flex-col justify-between"
+    },
+    "inputs": {
+      "default": "rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-50/50"
+    },
+    "calendar": {
+      "wrapper": "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden",
+      "header": "flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50",
+      "grid": "grid grid-cols-8 gap-px bg-gray-200",
+      "cell": "bg-white min-h-[120px] p-2 hover:bg-gray-50 transition-colors"
+    },
+    "map_view": {
+      "container": "rounded-xl overflow-hidden border border-gray-200 shadow-inner h-[500px] w-full relative",
+      "controls": "absolute top-4 right-4 bg-white rounded-lg shadow-md p-2 flex flex-col gap-2"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-200 ease-in-out",
+    "hover_lift": "hover:-translate-y-0.5 hover:shadow-md",
+    "page_transition": "animate-in fade-in slide-in-from-bottom-4 duration-500",
+    "libraries": ["tailwindcss-animate"]
+  },
+  "assets": {
+    "icons": "Lucide React (default)",
+    "image_urls": {
+      "avatars": [
+        "https://images.unsplash.com/photo-1758518731468-98e90ffd7430?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBlbXBsb3llZSUyMHBvcnRyYWl0JTIwZGl2ZXJzZXxlbnwwfHx8fDE3NzQwNDExNzF8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1758518731296-20e24e58846f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBlbXBsb3llZSUyMHBvcnRyYWl0JTIwZGl2ZXJzZXxlbnwwfHx8fDE3NzQwNDExNzF8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1696960181436-1b6d9576354e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBlbXBsb3llZSUyMHBvcnRyYWl0JTIwZGl2ZXJzZXxlbnwwfHx8fDE3NzQwNDExNzF8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1659353221237-6a1cfb73fd90?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBlbXBsb3llZSUyMHBvcnRyYWl0JTIwZGl2ZXJzZXxlbnwwfHx8fDE3NzQwNDExNzF8MA&ixlib=rb-4.1.0&q=85"
+      ],
+      "placeholders": [
+        "https://images.pexels.com/photos/1078850/pexels-photo-1078850.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      ]
+    }
+  },
+  "specific_instructions": {
+    "calendar_logic": "Implement a custom Weekly view where 'Drive Time' blocks are automatically inserted before and after 'Class Time' blocks based on distance from Hub (2210 Grand Ave). Visualize these blocks with a distinct gray/striped pattern.",
+    "map_integration": "Use @vis.gl/react-google-maps or a similar library. If API key is missing, fallback to a static map image with CSS markers overlaid.",
+    "pdf_export": "Use jspdf and html2canvas to capture the Calendar view as a report.",
+    "auth": "Simple JWT implementation. Store token in localStorage.",
+    "responsive": "On mobile, switch Calendar to 'Daily' view or 'List' view. Hide the Sidebar behind a hamburger menu."
+  },
+  "universal_guidelines": [
+    "Do NOT use gradients for the main background. Keep it clean.",
+    "Do NOT center text in the main dashboard area. Left-align for readability.",
+    "Use 'sonner' for all toast notifications (success/error).",
+    "All interactive elements MUST have data-testid attributes.",
+    "Use Lucide icons for all UI iconography.",
+    "Follow the file structure: /app/frontend/src/components/ui/ for Shadcn components."
+  ]
+}
