@@ -404,33 +404,28 @@ class TestRecurrenceRuleStorage(TestRecurrenceSetup):
         print(f"PASS: Schedule stores recurrence_rule correctly: {rule}")
 
 
+def _delete_matching(session, auth_headers, endpoint, filter_fn):
+    resp = session.get(f"{BASE_URL}/api/{endpoint}", headers=auth_headers)
+    if resp.status_code == 200:
+        for item in resp.json():
+            if filter_fn(item):
+                session.delete(f"{BASE_URL}/api/{endpoint}/{item['id']}", headers=auth_headers)
+
+
+def _is_recurrence_test_schedule(s):
+    notes = s.get("notes") or ""
+    notes_lower = notes.lower()
+    return "Test" in notes and ("recurrence" in notes_lower or "monthly" in notes_lower or "custom" in notes_lower)
+
+
 class TestRecurrenceCleanup(TestRecurrenceSetup):
     """Cleanup test data"""
-    
+
     def test_cleanup_test_data(self, session, auth_headers):
         """Clean up TEST_ prefixed data"""
-        # Get and delete test schedules
-        schedules_response = session.get(f"{BASE_URL}/api/schedules", headers=auth_headers)
-        if schedules_response.status_code == 200:
-            for s in schedules_response.json():
-                notes = s.get("notes") or ""
-                if "Test" in notes and ("recurrence" in notes.lower() or "monthly" in notes.lower() or "custom" in notes.lower()):
-                    session.delete(f"{BASE_URL}/api/schedules/{s['id']}", headers=auth_headers)
-        
-        # Get and delete test classes
-        classes_response = session.get(f"{BASE_URL}/api/classes", headers=auth_headers)
-        if classes_response.status_code == 200:
-            for c in classes_response.json():
-                if c["name"].startswith("TEST_Recurrence"):
-                    session.delete(f"{BASE_URL}/api/classes/{c['id']}", headers=auth_headers)
-        
-        # Get and delete test employees
-        emp_response = session.get(f"{BASE_URL}/api/employees", headers=auth_headers)
-        if emp_response.status_code == 200:
-            for e in emp_response.json():
-                if e["name"].startswith("TEST_Recurrence"):
-                    session.delete(f"{BASE_URL}/api/employees/{e['id']}", headers=auth_headers)
-        
+        _delete_matching(session, auth_headers, "schedules", _is_recurrence_test_schedule)
+        _delete_matching(session, auth_headers, "classes", lambda c: c["name"].startswith("TEST_Recurrence"))
+        _delete_matching(session, auth_headers, "employees", lambda e: e["name"].startswith("TEST_Recurrence"))
         print("PASS: Cleanup completed")
 
 

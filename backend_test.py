@@ -15,6 +15,12 @@ class HubSpokeAPITester:
         self.created_employee_id = None
         self.created_schedule_id = None
 
+    def _require_employee_and_location(self):
+        if not self.created_employee_id or not self.created_location_id:
+            print("   Skipping - need employee and location first")
+            return False
+        return True
+
     def _make_request(self, method, url, data, test_headers):
         """Execute the HTTP request based on method type."""
         if method == 'GET':
@@ -258,8 +264,7 @@ class HubSpokeAPITester:
 
     def test_schedules_create(self):
         """Test creating a new schedule"""
-        if not self.created_employee_id or not self.created_location_id:
-            print("   Skipping - need employee and location first")
+        if not self._require_employee_and_location():
             return True
         
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -476,8 +481,7 @@ class HubSpokeAPITester:
 
     def test_schedule_check_conflicts(self):
         """Test conflict pre-check endpoint (NEW FEATURE)"""
-        if not self.created_employee_id or not self.created_location_id:
-            print("   Skipping - need employee and location first")
+        if not self._require_employee_and_location():
             return True
         
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -507,8 +511,7 @@ class HubSpokeAPITester:
 
     def test_schedule_recurring(self):
         """Test recurring schedule creation (NEW FEATURE)"""
-        if not self.created_employee_id or not self.created_location_id:
-            print("   Skipping - need employee and location first")
+        if not self._require_employee_and_location():
             return True
         
         # Create a weekly recurring schedule for 3 weeks
@@ -542,8 +545,7 @@ class HubSpokeAPITester:
 
     def test_schedule_conflict_409(self):
         """Test schedule conflict detection returns 409 (NEW FEATURE)"""
-        if not self.created_employee_id or not self.created_location_id:
-            print("   Skipping - need employee and location first")
+        if not self._require_employee_and_location():
             return True
         
         # Try to create a conflicting schedule (same time as existing one)
