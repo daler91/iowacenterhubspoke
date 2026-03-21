@@ -28,6 +28,8 @@ import WeeklyReport from '../components/WeeklyReport';
 import ClassManager from '../components/ClassManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import StatModal from '../components/StatModal';
+
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState('calendar');
@@ -37,6 +39,12 @@ export default function DashboardPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
+
+  const [statModalOpen, setStatModalOpen] = useState(false);
+  const [statModalType, setStatModalType] = useState('today');
+  const [statModalData, setStatModalData] = useState([]);
+  const [statModalTitle, setStatModalTitle] = useState('');
+
 
   const [locations, setLocations] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -190,9 +198,40 @@ export default function DashboardPage() {
     }
   };
 
+  const handleStatClick = (type) => {
+    setStatModalType(type);
+
+    if (type === 'today') {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const todaySchedules = schedules.filter(s => s.date === todayStr);
+      setStatModalData(todaySchedules);
+      setStatModalTitle('Today\'s Schedule');
+    } else if (type === 'scheduled') {
+      const futureSchedules = schedules.filter(s => new Date(s.date) >= new Date(new Date().setHours(0,0,0,0)));
+      futureSchedules.sort((a, b) => new Date(a.date) - new Date(b.date));
+      setStatModalData(futureSchedules);
+      setStatModalTitle('All Scheduled Classes');
+    } else if (type === 'team') {
+      setStatModalData(employees);
+      setStatModalTitle('Team Members');
+    } else if (type === 'locations') {
+      setStatModalData(locations);
+      setStatModalTitle('All Locations');
+    }
+
+    setStatModalOpen(true);
+  };
+
+
   const renderCalendarStats = () => (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="calendar-stats-strip">
-      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+      <div
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all"
+        onClick={() => handleStatClick('today')}
+        role="button"
+        tabIndex={0}
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Today</p>
@@ -206,7 +245,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+      <div
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all"
+        onClick={() => handleStatClick('scheduled')}
+        role="button"
+        tabIndex={0}
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
@@ -220,7 +264,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+      <div
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all"
+        onClick={() => handleStatClick('team')}
+        role="button"
+        tabIndex={0}
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Team</p>
@@ -234,7 +283,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+      <div
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all"
+        onClick={() => handleStatClick('locations')}
+        role="button"
+        tabIndex={0}
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Locations</p>
@@ -485,6 +539,19 @@ export default function DashboardPage() {
         onSaved={handleScheduleSaved}
         onClassCreated={handleClassRefresh}
       />
+
+      {/* Stat Modals */}
+      <StatModal
+        isOpen={statModalOpen}
+        onClose={() => setStatModalOpen(false)}
+        title={statModalTitle}
+        type={statModalType}
+        data={statModalData}
+        classes={classes}
+        employees={employees}
+        locations={locations}
+      />
+
     </div>
   );
 }
