@@ -426,7 +426,7 @@ export default function DashboardPage() {
         />
       )}
       <div className={cn(
-        "fixed md:relative z-50 md:z-auto transition-transform md:translate-x-0",
+        "fixed top-0 left-0 h-full md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0",
         mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <Sidebar
