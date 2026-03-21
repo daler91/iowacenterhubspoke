@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, parseISO, addMinutes, isSameDay } from 'date-fns';
 import { Clock, Car, AlertTriangle, Trash2, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -6,6 +7,13 @@ import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 7 PM
+
+function formatHourLabel(hour) {
+  if (hour === 0) return '12 AM';
+  if (hour < 12) return `${hour} AM`;
+  if (hour === 12) return '12 PM';
+  return `${hour - 12} PM`;
+}
 
 function timeToMinutes(timeStr) {
   const [h, m] = timeStr.split(':').map(Number);
@@ -75,6 +83,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
           <Tooltip>
             <TooltipTrigger asChild>
               <div
+                role="button"
+                tabIndex={0}
                 data-testid={`class-block-${schedule.id}`}
                 draggable
                 onDragStart={(e) => {
@@ -94,6 +104,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   borderLeft: `4px solid ${classColor}`,
                 }}
                 onClick={() => onEditSchedule?.(schedule)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEditSchedule?.(schedule); }}
               >
                 <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
                 <div className="flex flex-col h-full justify-between">
@@ -196,7 +207,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             {HOURS.map(hour => (
               <div key={hour} className="h-[60px] px-2 flex items-start justify-end pt-1">
                 <span className="text-[11px] text-slate-400 font-medium">
-                  {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
+                  {formatHourLabel(hour)}
                 </span>
               </div>
             ))}
@@ -251,3 +262,11 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     </div>
   );
 }
+
+CalendarWeek.propTypes = {
+  currentDate: PropTypes.instanceOf(Date).isRequired,
+  schedules: PropTypes.array,
+  onDeleteSchedule: PropTypes.func,
+  onEditSchedule: PropTypes.func,
+  onRelocate: PropTypes.func,
+};

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import PropTypes from 'prop-types';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, isSameMonth, isSameDay, isToday
@@ -48,7 +49,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
       {/* Calendar grid */}
       <div className="divide-y divide-gray-100">
         {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 divide-x divide-gray-100">
+          <div key={format(week[0], 'yyyy-MM-dd')} className="grid grid-cols-7 divide-x divide-gray-100">
             {week.map(day => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const daySchedules = schedulesByDate[dateStr] || [];
@@ -58,8 +59,11 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
               return (
                 <div
                   key={dateStr}
+                  role="button"
+                  tabIndex={0}
                   data-testid={`month-cell-${dateStr}`}
                   onClick={() => onDateClick?.(day)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onDateClick?.(day); }}
                   className={cn(
                     "min-h-[100px] p-2 cursor-pointer transition-colors hover:bg-indigo-50/30",
                     !inMonth && "bg-gray-50/50"
@@ -107,3 +111,9 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
     </div>
   );
 }
+
+CalendarMonth.propTypes = {
+  currentDate: PropTypes.instanceOf(Date).isRequired,
+  schedules: PropTypes.array,
+  onDateClick: PropTypes.func,
+};

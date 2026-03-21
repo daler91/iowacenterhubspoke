@@ -1,8 +1,16 @@
+import PropTypes from 'prop-types';
 import { format, isSameDay } from 'date-fns';
 import { Car, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
+
+function formatHourLabel(hour) {
+  if (hour === 0) return '12 AM';
+  if (hour < 12) return `${hour} AM`;
+  if (hour === 12) return '12 PM';
+  return `${hour - 12} PM`;
+}
 
 function timeToMinutes(timeStr) {
   const [h, m] = timeStr.split(':').map(Number);
@@ -38,7 +46,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
             {HOURS.map(hour => (
               <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
                 <span className="text-xs text-slate-400 font-medium">
-                  {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
+                  {formatHourLabel(hour)}
                 </span>
               </div>
             ))}
@@ -81,6 +89,8 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
 
                   {/* Class */}
                   <div
+                    role="button"
+                    tabIndex={0}
                     className="schedule-block class-block cursor-pointer"
                     style={{
                       top: `${classTop}px`,
@@ -89,6 +99,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                       backgroundColor: classColor,
                     }}
                     onClick={() => onEditSchedule?.(schedule)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEditSchedule?.(schedule); }}
                     data-testid={`day-class-block-${schedule.id}`}
                   >
                     <div className="flex flex-col h-full justify-between">
@@ -140,3 +151,9 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
     </div>
   );
 }
+
+CalendarDay.propTypes = {
+  currentDate: PropTypes.instanceOf(Date).isRequired,
+  schedules: PropTypes.array,
+  onEditSchedule: PropTypes.func,
+};

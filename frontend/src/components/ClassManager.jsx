@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -73,6 +74,10 @@ export default function ClassManager({ classes, onRefresh }) {
       toast.error(err.response?.data?.detail || 'Failed to delete class');
     }
   };
+
+  let saveButtonLabel = 'Add Class';
+  if (loading) saveButtonLabel = 'Saving...';
+  else if (editing) saveButtonLabel = 'Update Class';
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="class-manager">
@@ -209,7 +214,7 @@ export default function ClassManager({ classes, onRefresh }) {
                 disabled={loading}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                {loading ? 'Saving...' : editing ? 'Update Class' : 'Add Class'}
+                {saveButtonLabel}
               </Button>
             </DialogFooter>
           </form>
@@ -218,3 +223,8 @@ export default function ClassManager({ classes, onRefresh }) {
     </div>
   );
 }
+
+ClassManager.propTypes = {
+  classes: PropTypes.array,
+  onRefresh: PropTypes.func,
+};
