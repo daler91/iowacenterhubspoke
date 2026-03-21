@@ -20,7 +20,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'hubspoke-scheduler-secret-key-2024')
+JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = 'HS256'
 
 app = FastAPI()
@@ -273,11 +273,10 @@ async def create_schedule(data: ScheduleCreate, user=Depends(get_current_user)):
     town_to_town = len(same_day_schedules) > 0
     town_to_town_warning = None
     if town_to_town:
-        other_cities = []
-        for s in same_day_schedules:
-            loc = await db.locations.find_one({"id": s['location_id']}, {"_id": 0})
-            if loc:
-                other_cities.append(loc['city_name'])
+        location_ids = list(set(s['location_id'] for s in same_day_schedules))
+        other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
+        loc_map = {loc['id']: loc for loc in other_locations}
+        other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
         town_to_town_warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
 
     schedule_id = str(uuid.uuid4())
