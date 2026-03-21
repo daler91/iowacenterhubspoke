@@ -403,7 +403,7 @@ async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
             sh, sm = s['start_time'].split(':')
             eh, em = s['end_time'].split(':')
             total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except:
+        except (KeyError, ValueError, AttributeError, TypeError):
             pass
 
     completed = sum(1 for s in all_schedules if s.get('status') == 'completed')
@@ -503,7 +503,7 @@ async def get_workload_stats(user=Depends(get_current_user)):
                 sh, sm = s['start_time'].split(':')
                 eh, em = s['end_time'].split(':')
                 total_class_mins += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-            except:
+            except (KeyError, ValueError, AttributeError, TypeError):
                 pass
             total_drive_mins += s.get('drive_time_minutes', 0) * 2
 
