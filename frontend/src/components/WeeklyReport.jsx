@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { useState, useEffect, useRef } from 'react';
 import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from 'date-fns';
 import { reportsAPI } from '../lib/api';
@@ -219,3 +220,7 @@ export default function WeeklyReport({ classes }) {
     </div>
   );
 }
+
+WeeklyReport.propTypes = {
+  classes: PropTypes.array,
+};
