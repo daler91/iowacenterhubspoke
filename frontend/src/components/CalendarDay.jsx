@@ -88,10 +88,9 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                   )}
 
                   {/* Class */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="schedule-block class-block cursor-pointer"
+                  <button
+                    type="button"
+                    className="schedule-block class-block cursor-pointer appearance-none border-0 p-0 text-left"
                     style={{
                       top: `${classTop}px`,
                       height: `${Math.max(classHeight, 40)}px`,
@@ -99,7 +98,6 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                       backgroundColor: classColor,
                     }}
                     onClick={() => onEditSchedule?.(schedule)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEditSchedule?.(schedule); }}
                     data-testid={`day-class-block-${schedule.id}`}
                   >
                     <div className="flex flex-col h-full justify-between">
@@ -115,7 +113,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                         <AlertTriangle className="w-3 h-3 text-white" />
                       </div>
                     )}
-                  </div>
+                  </button>
 
                   {/* Drive after */}
                   {driveMin > 0 && (

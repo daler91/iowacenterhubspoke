@@ -62,6 +62,8 @@ export default function EmployeeManager({ employees, onRefresh, onViewProfile })
     }
   };
 
+  const saveLabel = loading ? 'Saving...' : (editing ? 'Update Employee' : 'Add Employee');
+
   return (
     <div className="space-y-6 animate-slide-in" data-testid="employee-manager">
       {/* Header */}
@@ -220,7 +222,7 @@ export default function EmployeeManager({ employees, onRefresh, onViewProfile })
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
               >
-                {loading ? 'Saving...' : (editing ? 'Update Employee' : 'Add Employee')}
+                {saveLabel}
               </Button>
             </DialogFooter>
           </form>
