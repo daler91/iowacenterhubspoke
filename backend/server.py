@@ -3,14 +3,17 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import asyncio
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
+from collections import defaultdict
 import jwt
 import bcrypt
+from .utils import calculate_class_minutes
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -493,9 +496,14 @@ async def get_workload_stats(user=Depends(get_current_user)):
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
     all_schedules = await db.schedules.find({}, {"_id": 0}).to_list(1000)
 
+    schedules_by_emp = defaultdict(list)
+    for s in all_schedules:
+        if 'employee_id' in s:
+            schedules_by_emp[s['employee_id']].append(s)
+
     workload = []
     for emp in employees:
-        emp_schedules = [s for s in all_schedules if s['employee_id'] == emp['id']]
+        emp_schedules = schedules_by_emp.get(emp['id'], [])
         total_class_mins = 0
         total_drive_mins = 0
         for s in emp_schedules:
@@ -524,11 +532,14 @@ async def get_workload_stats(user=Depends(get_current_user)):
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(user=Depends(get_current_user)):
-    total_employees = await db.employees.count_documents({})
-    total_locations = await db.locations.count_documents({})
-    total_schedules = await db.schedules.count_documents({})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_schedules = await db.schedules.count_documents({"date": today})
+    results = await asyncio.gather(
+        db.employees.count_documents({}),
+        db.locations.count_documents({}),
+        db.schedules.count_documents({}),
+        db.schedules.count_documents({"date": today})
+    )
+    total_employees, total_locations, total_schedules, today_schedules = results
     return {
         "total_employees": total_employees,
         "total_locations": total_locations,

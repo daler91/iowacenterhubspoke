@@ -86,12 +86,14 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchLocations();
-    fetchEmployees();
-    fetchSchedules();
-    fetchStats();
-    fetchActivities();
-    fetchWorkload();
+    Promise.all([
+      fetchLocations(),
+      fetchEmployees(),
+      fetchSchedules(),
+      fetchStats(),
+      fetchActivities(),
+      fetchWorkload()
+    ]);
   }, [fetchLocations, fetchEmployees, fetchSchedules, fetchStats, fetchActivities, fetchWorkload]);
 
   const handleNewSchedule = () => {
