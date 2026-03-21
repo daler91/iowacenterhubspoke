@@ -17,6 +17,7 @@ const ACTION_CONFIG = {
   status_upcoming: { icon: Clock, color: 'text-indigo-500', bg: 'bg-indigo-50', label: 'Reset' },
 };
 
+/** @param {{ activities: Array<Object> }} props */
 export default function ActivityFeed({ activities }) {
   if (!activities || activities.length === 0) {
     return (

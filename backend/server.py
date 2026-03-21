@@ -412,11 +412,13 @@ def build_recurrence_rule(data: ScheduleCreate):
     from datetime import date as dt_date
 
     start_date = dt_date.fromisoformat(data.date)
-    end_mode = data.recurrence_end_mode or (
-        "on_date" if data.recurrence_end_date else
-        "after_occurrences" if data.recurrence_occurrences else
-        "never"
-    )
+    if data.recurrence_end_date:
+        default_end_mode = "on_date"
+    elif data.recurrence_occurrences:
+        default_end_mode = "after_occurrences"
+    else:
+        default_end_mode = "never"
+    end_mode = data.recurrence_end_mode or default_end_mode
 
     if not data.recurrence or data.recurrence == "none":
         return None
