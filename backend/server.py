@@ -455,54 +455,66 @@ def build_recurrence_rule(data: ScheduleCreate):
 
     return None
 
-def build_recurrence_dates(start_date_str: str, rule: Optional[RecurrenceRule]):
-    from datetime import date as dt_date, timedelta as td
+def _build_monthly_dates(start_date, interval, occurrence_limit, end_date):
+    dates = []
+    current = start_date
+    while True:
+        if end_date and current > end_date:
+            break
+        dates.append(current.isoformat())
+        if occurrence_limit and len(dates) >= occurrence_limit:
+            break
+        current = add_months(current, interval)
+    return dates
 
-    if not rule:
-        return [start_date_str]
 
-    start_date = dt_date.fromisoformat(start_date_str)
-    interval = max(rule.interval or 1, 1)
+def _build_weekly_dates(start_date, interval, weekdays, occurrence_limit, end_date):
+    from datetime import timedelta as td
+    dates = []
+    hard_stop = end_date or (start_date + td(days=366 * 2))
+    current = start_date
+    while current <= hard_stop:
+        weekday_value = (current.weekday() + 1) % 7
+        weeks_since_start = (current - start_date).days // 7
+        if weekday_value in weekdays and weeks_since_start % interval == 0:
+            dates.append(current.isoformat())
+            if occurrence_limit and len(dates) >= occurrence_limit:
+                break
+        current += td(days=1)
+    return dates
+
+
+def _parse_recurrence_limits(rule):
+    from datetime import date as dt_date
     default_limit = 24 if rule.frequency == "month" else 52
     occurrence_limit = None
     if rule.end_mode == "after_occurrences":
         occurrence_limit = max(rule.occurrences or 1, 1)
     elif rule.end_mode == "never":
         occurrence_limit = default_limit
-
     end_date = None
     if rule.end_mode == "on_date" and rule.end_date:
         end_date = dt_date.fromisoformat(rule.end_date)
+    return occurrence_limit, end_date
 
-    dates_to_schedule = []
+
+def build_recurrence_dates(start_date_str: str, rule: Optional[RecurrenceRule]):
+    from datetime import date as dt_date
+
+    if not rule:
+        return [start_date_str]
+
+    start_date = dt_date.fromisoformat(start_date_str)
+    interval = max(rule.interval or 1, 1)
+    occurrence_limit, end_date = _parse_recurrence_limits(rule)
 
     if rule.frequency == "month":
-        current = start_date
-        while True:
-            if end_date and current > end_date:
-                break
-            dates_to_schedule.append(current.isoformat())
-            if occurrence_limit and len(dates_to_schedule) >= occurrence_limit:
-                break
-            current = add_months(current, interval)
-        return dates_to_schedule or [start_date_str]
+        dates = _build_monthly_dates(start_date, interval, occurrence_limit, end_date)
+        return dates or [start_date_str]
 
     weekdays = sorted(set(rule.weekdays or [get_start_weekday_value(start_date)]))
-    current = start_date
-    hard_stop = end_date or (start_date + td(days=366 * 2))
-
-    while current <= hard_stop:
-        weekday_value = (current.weekday() + 1) % 7
-        weeks_since_start = (current - start_date).days // 7
-
-        if weekday_value in weekdays and weeks_since_start % interval == 0:
-            dates_to_schedule.append(current.isoformat())
-            if occurrence_limit and len(dates_to_schedule) >= occurrence_limit:
-                break
-
-        current += td(days=1)
-
-    return dates_to_schedule or [start_date_str]
+    dates = _build_weekly_dates(start_date, interval, weekdays, occurrence_limit, end_date)
+    return dates or [start_date_str]
 
 async def check_conflicts(employee_id: str, date: str, start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
     """Check if a proposed schedule conflicts with existing ones for the same employee on the same date."""
@@ -549,14 +561,57 @@ async def get_schedules(
     schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).to_list(1000)
     return await enrich_schedules_with_classes(schedules)
 
+async def _check_town_to_town(employee_id, sched_date, location_id):
+    same_day_schedules = await db.schedules.find({
+        "employee_id": employee_id,
+        "date": sched_date,
+        "location_id": {"$ne": location_id}
+    }, {"_id": 0}).to_list(100)
+
+    if not same_day_schedules:
+        return False, None
+
+    location_ids = list(set(s['location_id'] for s in same_day_schedules))
+    other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
+    loc_map = {loc['id']: loc for loc in other_locations}
+    other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
+    warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+    return True, warning
+
+
+def _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc):
+    return {
+        "id": str(uuid.uuid4()),
+        "employee_id": data.employee_id,
+        "location_id": data.location_id,
+        "date": sched_date,
+        "start_time": data.start_time,
+        "end_time": data.end_time,
+        "drive_time_minutes": drive_time,
+        "town_to_town": town_to_town,
+        "town_to_town_warning": town_to_town_warning,
+        "travel_override_minutes": data.travel_override_minutes,
+        "notes": data.notes,
+        "status": "upcoming",
+        "recurrence": data.recurrence,
+        "recurrence_end_mode": data.recurrence_end_mode,
+        "recurrence_end_date": data.recurrence_end_date,
+        "recurrence_occurrences": data.recurrence_occurrences,
+        "recurrence_rule": recurrence_rule.model_dump() if recurrence_rule else None,
+        "location_name": location['city_name'],
+        "employee_name": employee['name'],
+        "employee_color": employee.get('color', '#4F46E5'),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **get_class_snapshot(class_doc),
+    }
+
+
 @api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
 async def create_schedule(data: ScheduleCreate, user: CurrentUser):
-    # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
-    # Check employee exists
     employee = await db.employees.find_one({"id": data.employee_id}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
@@ -569,66 +624,23 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
 
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
     recurrence_rule = build_recurrence_rule(data)
-
-    # Build list of dates to schedule
     dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
 
     created = []
     conflicts_found = []
 
     for sched_date in dates_to_schedule:
-        # Check conflicts
         conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
         if conflicts:
             conflicts_found.append({"date": sched_date, "conflicts": conflicts})
             continue
 
-        # Check for town-to-town
-        same_day_schedules = await db.schedules.find({
-            "employee_id": data.employee_id,
-            "date": sched_date,
-            "location_id": {"$ne": data.location_id}
-        }, {"_id": 0}).to_list(100)
-
-        town_to_town = len(same_day_schedules) > 0
-        town_to_town_warning = None
-        if town_to_town:
-            location_ids = list(set(s['location_id'] for s in same_day_schedules))
-            other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
-            loc_map = {loc['id']: loc for loc in other_locations}
-            other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
-            town_to_town_warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
-
-        schedule_id = str(uuid.uuid4())
-        doc = {
-            "id": schedule_id,
-            "employee_id": data.employee_id,
-            "location_id": data.location_id,
-            "date": sched_date,
-            "start_time": data.start_time,
-            "end_time": data.end_time,
-            "drive_time_minutes": drive_time,
-            "town_to_town": town_to_town,
-            "town_to_town_warning": town_to_town_warning,
-            "travel_override_minutes": data.travel_override_minutes,
-            "notes": data.notes,
-            "status": "upcoming",
-            "recurrence": data.recurrence,
-            "recurrence_end_mode": data.recurrence_end_mode,
-            "recurrence_end_date": data.recurrence_end_date,
-            "recurrence_occurrences": data.recurrence_occurrences,
-            "recurrence_rule": recurrence_rule.model_dump() if recurrence_rule else None,
-            "location_name": location['city_name'],
-            "employee_name": employee['name'],
-            "employee_color": employee.get('color', '#4F46E5'),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            **get_class_snapshot(class_doc),
-        }
+        town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, sched_date, data.location_id)
+        doc = _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
         await db.schedules.insert_one(doc)
         doc.pop("_id", None)
         created.append(doc)
 
-    # Log activity for the batch
     if created:
         count_label = f"{len(created)} classes" if len(created) > 1 else "class"
         class_label = f" for {class_doc['name']}" if class_doc else ""
@@ -925,6 +937,87 @@ async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: Curr
 
 # ========== WEEKLY SUMMARY REPORT ==========
 
+def _init_employee_summary(emp):
+    return {
+        "employee_name": emp.get('name', '?'),
+        "employee_color": emp.get('color', '#4F46E5'),
+        "classes": 0,
+        "class_minutes": 0,
+        "drive_minutes": 0,
+        "locations_visited": set(),
+        "days_worked": set(),
+        "completed": 0,
+        "schedule_details": [],
+        "class_breakdown": {},
+    }
+
+
+def _get_class_key_entry(s):
+    return {
+        "class_id": s.get('class_id'),
+        "class_name": s.get('class_name') or 'Unassigned',
+        "class_color": s.get('class_color') or '#94A3B8',
+    }
+
+
+def _aggregate_schedule(summary, s, class_totals):
+    class_minutes = calculate_class_minutes(s['start_time'], s['end_time'])
+    drive_minutes = s.get('drive_time_minutes', 0) * 2
+    summary['classes'] += 1
+    summary['class_minutes'] += class_minutes
+    summary['drive_minutes'] += drive_minutes
+    summary['locations_visited'].add(s.get('location_name', '?'))
+    summary['days_worked'].add(s['date'])
+    if s.get('status') == 'completed':
+        summary['completed'] += 1
+
+    class_key = s.get('class_id') or f"archived::{s.get('class_name') or 'Unassigned'}"
+    if class_key not in summary['class_breakdown']:
+        summary['class_breakdown'][class_key] = {**_get_class_key_entry(s), "classes": 0, "class_minutes": 0, "drive_minutes": 0}
+    if class_key not in class_totals:
+        class_totals[class_key] = {**_get_class_key_entry(s), "classes": 0, "class_minutes": 0}
+
+    summary['class_breakdown'][class_key]['classes'] += 1
+    summary['class_breakdown'][class_key]['class_minutes'] += class_minutes
+    summary['class_breakdown'][class_key]['drive_minutes'] += drive_minutes
+    class_totals[class_key]['classes'] += 1
+    class_totals[class_key]['class_minutes'] += class_minutes
+
+    summary['schedule_details'].append({
+        "date": s['date'],
+        "location": s.get('location_name', '?'),
+        "time": f"{s['start_time']}-{s['end_time']}",
+        "drive_minutes": s.get('drive_time_minutes', 0),
+        "status": s.get('status', 'upcoming'),
+        **_get_class_key_entry(s),
+    })
+
+
+def _finalize_summaries(employee_summaries, class_totals):
+    result = []
+    for summary in employee_summaries.values():
+        summary['locations_visited'] = list(summary['locations_visited'])
+        summary['days_worked'] = len(summary['days_worked'])
+        summary['class_hours'] = round(summary['class_minutes'] / 60, 1)
+        summary['drive_hours'] = round(summary['drive_minutes'] / 60, 1)
+        summary['class_breakdown'] = sorted([
+            {**cd, "class_hours": round(cd['class_minutes'] / 60, 1), "drive_hours": round(cd['drive_minutes'] / 60, 1)}
+            for cd in summary['class_breakdown'].values()
+        ], key=lambda cd: (-cd['classes'], cd['class_name']))
+        result.append(summary)
+
+    total_classes = sum(s['classes'] for s in result)
+    total_drive_hrs = sum(s['drive_hours'] for s in result)
+    total_class_hrs = sum(s['class_hours'] for s in result)
+
+    finalized_class_totals = sorted([
+        {**cd, "class_hours": round(cd['class_minutes'] / 60, 1)}
+        for cd in class_totals.values()
+    ], key=lambda cd: (-cd['classes'], cd['class_name']))
+
+    return result, total_classes, total_class_hrs, total_drive_hrs, finalized_class_totals
+
+
 @api_router.get("/reports/weekly-summary")
 async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None, date_to: Optional[str] = None, class_id: Optional[str] = None):
     """Generate a weekly summary report."""
@@ -948,86 +1041,10 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
     for s in schedules:
         eid = s['employee_id']
         if eid not in employee_summaries:
-            emp = emp_map.get(eid, {})
-            employee_summaries[eid] = {
-                "employee_name": emp.get('name', '?'),
-                "employee_color": emp.get('color', '#4F46E5'),
-                "classes": 0,
-                "class_minutes": 0,
-                "drive_minutes": 0,
-                "locations_visited": set(),
-                "days_worked": set(),
-                "completed": 0,
-                "schedule_details": [],
-                "class_breakdown": {},
-            }
-        summary = employee_summaries[eid]
-        class_minutes = calculate_class_minutes(s['start_time'], s['end_time'])
-        drive_minutes = s.get('drive_time_minutes', 0) * 2
-        summary['classes'] += 1
-        summary['class_minutes'] += class_minutes
-        summary['drive_minutes'] += drive_minutes
-        summary['locations_visited'].add(s.get('location_name', '?'))
-        summary['days_worked'].add(s['date'])
-        if s.get('status') == 'completed':
-            summary['completed'] += 1
+            employee_summaries[eid] = _init_employee_summary(emp_map.get(eid, {}))
+        _aggregate_schedule(employee_summaries[eid], s, class_totals)
 
-        class_key = s.get('class_id') or f"archived::{s.get('class_name') or 'Unassigned'}"
-        if class_key not in summary['class_breakdown']:
-            summary['class_breakdown'][class_key] = {
-                "class_id": s.get('class_id'),
-                "class_name": s.get('class_name') or 'Unassigned',
-                "class_color": s.get('class_color') or '#94A3B8',
-                "classes": 0,
-                "class_minutes": 0,
-                "drive_minutes": 0,
-            }
-        if class_key not in class_totals:
-            class_totals[class_key] = {
-                "class_id": s.get('class_id'),
-                "class_name": s.get('class_name') or 'Unassigned',
-                "class_color": s.get('class_color') or '#94A3B8',
-                "classes": 0,
-                "class_minutes": 0,
-            }
-
-        summary['class_breakdown'][class_key]['classes'] += 1
-        summary['class_breakdown'][class_key]['class_minutes'] += class_minutes
-        summary['class_breakdown'][class_key]['drive_minutes'] += drive_minutes
-        class_totals[class_key]['classes'] += 1
-        class_totals[class_key]['class_minutes'] += class_minutes
-
-        summary['schedule_details'].append({
-            "date": s['date'],
-            "location": s.get('location_name', '?'),
-            "time": f"{s['start_time']}-{s['end_time']}",
-            "drive_minutes": s.get('drive_time_minutes', 0),
-            "status": s.get('status', 'upcoming'),
-            "class_id": s.get('class_id'),
-            "class_name": s.get('class_name') or 'Unassigned',
-            "class_color": s.get('class_color') or '#94A3B8',
-        })
-
-    # Convert sets to lists for JSON
-    result = []
-    for eid, summary in employee_summaries.items():
-        summary['locations_visited'] = list(summary['locations_visited'])
-        summary['days_worked'] = len(summary['days_worked'])
-        summary['class_hours'] = round(summary['class_minutes'] / 60, 1)
-        summary['drive_hours'] = round(summary['drive_minutes'] / 60, 1)
-        summary['class_breakdown'] = sorted([
-            {
-                **class_data,
-                "class_hours": round(class_data['class_minutes'] / 60, 1),
-                "drive_hours": round(class_data['drive_minutes'] / 60, 1),
-            }
-            for class_data in summary['class_breakdown'].values()
-        ], key=lambda class_data: (-class_data['classes'], class_data['class_name']))
-        result.append(summary)
-
-    total_classes = sum(s['classes'] for s in result)
-    total_drive_hrs = sum(s['drive_hours'] for s in result)
-    total_class_hrs = sum(s['class_hours'] for s in result)
+    result, total_classes, total_class_hrs, total_drive_hrs, finalized_class_totals = _finalize_summaries(employee_summaries, class_totals)
 
     return {
         "period": {"from": date_from, "to": date_to},
@@ -1037,13 +1054,7 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
             "drive_hours": total_drive_hrs,
             "employees_active": len(result),
         },
-        "class_totals": sorted([
-            {
-                **class_data,
-                "class_hours": round(class_data['class_minutes'] / 60, 1),
-            }
-            for class_data in class_totals.values()
-        ], key=lambda class_data: (-class_data['classes'], class_data['class_name'])),
+        "class_totals": finalized_class_totals,
         "employees": sorted(result, key=lambda x: x['classes'], reverse=True),
     }
 

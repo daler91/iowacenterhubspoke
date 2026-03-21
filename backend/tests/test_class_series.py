@@ -403,33 +403,22 @@ class TestWeeklyReportWithClass(TestSetup):
             print("SKIP: No classes available for filter test")
 
 
+def _delete_matching(session, auth_headers, endpoint, filter_fn):
+    resp = session.get(f"{BASE_URL}/api/{endpoint}", headers=auth_headers)
+    if resp.status_code == 200:
+        for item in resp.json():
+            if filter_fn(item):
+                session.delete(f"{BASE_URL}/api/{endpoint}/{item['id']}", headers=auth_headers)
+
+
 class TestCleanup(TestSetup):
     """Cleanup test data"""
-    
+
     def test_cleanup_test_data(self, session, auth_headers):
         """Clean up TEST_ prefixed data"""
-        # Get and delete test classes
-        classes_response = session.get(f"{BASE_URL}/api/classes", headers=auth_headers)
-        if classes_response.status_code == 200:
-            for c in classes_response.json():
-                if c["name"].startswith("TEST_"):
-                    session.delete(f"{BASE_URL}/api/classes/{c['id']}", headers=auth_headers)
-        
-        # Get and delete test employees
-        emp_response = session.get(f"{BASE_URL}/api/employees", headers=auth_headers)
-        if emp_response.status_code == 200:
-            for e in emp_response.json():
-                if e["name"].startswith("TEST_"):
-                    session.delete(f"{BASE_URL}/api/employees/{e['id']}", headers=auth_headers)
-        
-        # Get and delete test schedules
-        schedules_response = session.get(f"{BASE_URL}/api/schedules", headers=auth_headers)
-        if schedules_response.status_code == 200:
-            for s in schedules_response.json():
-                notes = s.get("notes") or ""
-                if notes.startswith("Test"):
-                    session.delete(f"{BASE_URL}/api/schedules/{s['id']}", headers=auth_headers)
-        
+        _delete_matching(session, auth_headers, "classes", lambda c: c["name"].startswith("TEST_"))
+        _delete_matching(session, auth_headers, "employees", lambda e: e["name"].startswith("TEST_"))
+        _delete_matching(session, auth_headers, "schedules", lambda s: (s.get("notes") or "").startswith("Test"))
         print("PASS: Cleanup completed")
 
 
