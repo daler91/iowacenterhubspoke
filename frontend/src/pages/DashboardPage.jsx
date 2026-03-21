@@ -3,12 +3,14 @@ import { format, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } fr
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   ChevronLeft, ChevronRight, Calendar as CalIcon,
   Users, MapPin, Clock, TrendingUp, FileDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI, employeesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
+import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import CalendarWeek from '../components/CalendarWeek';
 import CalendarDay from '../components/CalendarDay';
@@ -22,6 +24,7 @@ import KanbanBoard from '../components/KanbanBoard';
 import ActivityFeed from '../components/ActivityFeed';
 import EmployeeProfile from '../components/EmployeeProfile';
 import NotificationsPanel from '../components/NotificationsPanel';
+import WeeklyReport from '../components/WeeklyReport';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -30,6 +33,7 @@ export default function DashboardPage() {
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
 
@@ -40,8 +44,16 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState([]);
   const [workloadData, setWorkloadData] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+  const [filterEmployee, setFilterEmployee] = useState('all');
+  const [filterLocation, setFilterLocation] = useState('all');
 
   const calendarRef = useRef(null);
+
+  const filteredSchedules = (schedules || []).filter(s => {
+    if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
+    if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
+    return true;
+  });
 
   const fetchLocations = useCallback(async () => {
     try {
@@ -144,6 +156,21 @@ export default function DashboardPage() {
   const handleMonthDateClick = (date) => {
     setCurrentDate(date);
     setCalendarView('day');
+  };
+
+  const handleRelocate = async (scheduleId, newDate, newStart, newEnd) => {
+    try {
+      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd });
+      toast.success('Schedule moved');
+      fetchSchedules();
+      fetchActivities();
+    } catch (err) {
+      if (err.response?.status === 409) {
+        toast.error('Conflict at the new time slot');
+      } else {
+        toast.error('Failed to move schedule');
+      }
+    }
   };
 
   const renderDashboard = () => (
@@ -280,26 +307,64 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Filter:</span>
+        <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+          <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-employee">
+            <SelectValue placeholder="All employees" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Employees</SelectItem>
+            {(employees || []).map(emp => (
+              <SelectItem key={emp.id} value={emp.id}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: emp.color }} />
+                  {emp.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterLocation} onValueChange={setFilterLocation}>
+          <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-location">
+            <SelectValue placeholder="All locations" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Locations</SelectItem>
+            {(locations || []).map(loc => (
+              <SelectItem key={loc.id} value={loc.id}>{loc.city_name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(filterEmployee !== 'all' || filterLocation !== 'all') && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterEmployee('all'); setFilterLocation('all'); }} className="text-xs text-slate-400" data-testid="clear-filters">
+            Clear filters
+          </Button>
+        )}
+      </div>
+
       {/* Calendar body */}
       <div ref={calendarRef}>
         {calendarView === 'week' && (
           <CalendarWeek
             currentDate={currentDate}
-            schedules={schedules}
+            schedules={filteredSchedules}
             onEditSchedule={handleEditSchedule}
+            onRelocate={handleRelocate}
           />
         )}
         {calendarView === 'day' && (
           <CalendarDay
             currentDate={currentDate}
-            schedules={schedules}
+            schedules={filteredSchedules}
             onEditSchedule={handleEditSchedule}
           />
         )}
         {calendarView === 'month' && (
           <CalendarMonth
             currentDate={currentDate}
-            schedules={schedules}
+            schedules={filteredSchedules}
             onDateClick={handleMonthDateClick}
           />
         )}
@@ -333,6 +398,8 @@ export default function DashboardPage() {
         return <KanbanBoard schedules={schedules} onEditSchedule={handleEditSchedule} onRefresh={() => { fetchSchedules(); fetchActivities(); fetchWorkload(); }} />;
       case 'workload':
         return <WorkloadDashboard workloadData={workloadData} employees={employees} />;
+      case 'report':
+        return <WeeklyReport />;
       case 'activity':
         return <ActivityFeed activities={activities} />;
       case 'map':
@@ -351,19 +418,40 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden" data-testid="dashboard-page">
-      <Sidebar
-        activeView={activeView}
-        onViewChange={(view) => { setActiveView(view); setSelectedEmployeeId(null); }}
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onNewSchedule={handleNewSchedule}
-      />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar with notifications */}
-        <header className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white shrink-0" data-testid="top-bar">
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+      <div className={cn(
+        "fixed md:relative z-50 md:z-auto transition-transform md:translate-x-0",
+        mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <Sidebar
+          activeView={activeView}
+          onViewChange={(view) => { setActiveView(view); setSelectedEmployeeId(null); setMobileSidebarOpen(false); }}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onNewSchedule={() => { handleNewSchedule(); setMobileSidebarOpen(false); }}
+        />
+      </div>
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Top bar with hamburger + notifications */}
+        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-100 bg-white shrink-0" data-testid="top-bar">
+          <button
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            data-testid="mobile-menu-btn"
+          >
+            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           <NotificationsPanel />
         </header>
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {renderContent()}
         </main>
       </div>

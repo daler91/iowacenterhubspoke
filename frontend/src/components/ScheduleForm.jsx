@@ -18,6 +18,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     end_time: '12:00',
     notes: '',
     travel_override_minutes: null,
+    recurrence: 'none',
+    recurrence_end_date: '',
   });
   const [loading, setLoading] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
@@ -32,6 +34,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
+        recurrence: 'none',
+        recurrence_end_date: '',
       });
       if (editSchedule.town_to_town) setShowOverride(true);
     } else {
@@ -43,6 +47,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         end_time: '12:00',
         notes: '',
         travel_override_minutes: null,
+        recurrence: 'none',
+        recurrence_end_date: '',
       });
       setShowOverride(false);
     }
@@ -61,6 +67,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       const payload = {
         ...form,
         travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null,
+        recurrence: form.recurrence === 'none' ? null : form.recurrence,
+        recurrence_end_date: form.recurrence_end_date || null,
       };
       if (editSchedule) {
         await schedulesAPI.update(editSchedule.id, payload);
@@ -69,6 +77,9 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         const res = await schedulesAPI.create(payload);
         if (res.data.town_to_town_warning) {
           toast.warning(res.data.town_to_town_warning, { duration: 6000 });
+        } else if (res.data.total_created !== undefined) {
+          const skipped = res.data.conflicts_skipped?.length || 0;
+          toast.success(`${res.data.total_created} classes created${skipped ? `, ${skipped} skipped (conflicts)` : ''}`);
         } else {
           toast.success('Class scheduled successfully');
         }
@@ -76,7 +87,14 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       onSaved?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save schedule');
+      if (err.response?.status === 409) {
+        const detail = err.response.data?.detail;
+        const msg = detail?.message || 'Schedule conflict detected';
+        const conflicts = detail?.conflicts || [];
+        toast.error(`${msg}: ${conflicts.map(c => `${c.location} (${c.time})`).join(', ')}`, { duration: 8000 });
+      } else {
+        toast.error(err.response?.data?.detail || 'Failed to save schedule');
+      }
     } finally {
       setLoading(false);
     }
@@ -243,6 +261,35 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               className="h-10 bg-gray-50/50"
             />
           </div>
+
+          {/* Recurrence */}
+          {!editSchedule && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700">Repeat</Label>
+              <div className="flex items-center gap-3">
+                <Select value={form.recurrence || 'none'} onValueChange={(v) => setForm({ ...form, recurrence: v })}>
+                  <SelectTrigger data-testid="schedule-recurrence-select" className="h-10 bg-gray-50/50 flex-1">
+                    <SelectValue placeholder="No repeat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No repeat</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.recurrence && form.recurrence !== 'none' && (
+                  <Input
+                    type="date"
+                    data-testid="schedule-recurrence-end"
+                    value={form.recurrence_end_date || ''}
+                    onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })}
+                    className="h-10 bg-gray-50/50 flex-1"
+                    placeholder="End date"
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           <DialogFooter className="flex gap-2">
             {editSchedule && (

@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { format, startOfWeek, addDays, parseISO, addMinutes, isSameDay } from 'date-fns';
-import { Clock, Car, AlertTriangle, Trash2 } from 'lucide-react';
+import { Clock, Car, AlertTriangle, Trash2, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -17,7 +17,7 @@ function minutesToTop(minutes) {
   return ((minutes - startMinutes) / 60) * 60; // 60px per hour
 }
 
-export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule }) {
+export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule, onRelocate }) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -75,7 +75,17 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             <TooltipTrigger asChild>
               <div
                 data-testid={`class-block-${schedule.id}`}
-                className="schedule-block class-block cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('scheduleId', schedule.id);
+                  e.dataTransfer.setData('originalDate', dateStr);
+                  e.dataTransfer.setData('startTime', schedule.start_time);
+                  e.dataTransfer.setData('endTime', schedule.end_time);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.currentTarget.style.opacity = '0.4';
+                }}
+                onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
+                className="schedule-block class-block cursor-grab active:cursor-grabbing group"
                 style={{
                   top: `${classTop}px`,
                   height: `${Math.max(classHeight, 30)}px`,
@@ -84,6 +94,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 }}
                 onClick={() => onEditSchedule?.(schedule)}
               >
+                <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
                 <div className="flex flex-col h-full justify-between">
                   <div>
                     <p className="font-semibold text-[11px] truncate">{schedule.location_name}</p>
@@ -193,7 +204,34 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             const dateStr = format(day, 'yyyy-MM-dd');
             const daySchedules = schedulesByDay[dateStr] || [];
             return (
-              <div key={dateStr} className="border-r border-gray-100 last:border-r-0 relative">
+              <div
+                key={dateStr}
+                className="border-r border-gray-100 last:border-r-0 relative"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const scheduleId = e.dataTransfer.getData('scheduleId');
+                  const startTime = e.dataTransfer.getData('startTime');
+                  const endTime = e.dataTransfer.getData('endTime');
+                  if (scheduleId && onRelocate) {
+                    // Calculate drop hour from mouse position
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const y = e.clientY - rect.top;
+                    const hourOffset = Math.floor(y / 60);
+                    const dropHour = 6 + hourOffset;
+                    const duration = timeToMinutes(endTime) - timeToMinutes(startTime);
+                    const newStartMin = dropHour * 60;
+                    const newEndMin = newStartMin + duration;
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const newStart = `${pad(Math.floor(newStartMin / 60))}:${pad(newStartMin % 60)}`;
+                    const newEnd = `${pad(Math.floor(newEndMin / 60))}:${pad(newEndMin % 60)}`;
+                    onRelocate(scheduleId, dateStr, newStart, newEnd);
+                  }
+                }}
+              >
                 {HOURS.map(hour => (
                   <div
                     key={hour}

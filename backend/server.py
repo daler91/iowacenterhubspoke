@@ -88,6 +88,8 @@ class ScheduleCreate(BaseModel):
     end_time: str  # HH:MM
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None
+    recurrence: Optional[str] = None  # none, weekly, biweekly
+    recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
 
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
@@ -101,6 +103,11 @@ class ScheduleUpdate(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str  # upcoming, in_progress, completed
+
+class ScheduleRelocate(BaseModel):
+    date: str
+    start_time: str
+    end_time: str
 
 # ========== AUTH HELPERS ==========
 
@@ -247,6 +254,39 @@ async def delete_employee(employee_id: str, user: CurrentUser):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return {"message": "Employee deleted"}
 
+# ========== CONFLICT DETECTION HELPER ==========
+
+def time_to_minutes(time_str: str) -> int:
+    h, m = time_str.split(':')
+    return int(h) * 60 + int(m)
+
+def calculate_class_minutes(start_time: str, end_time: str) -> int:
+    return time_to_minutes(end_time) - time_to_minutes(start_time)
+
+async def check_conflicts(employee_id: str, date: str, start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
+    """Check if a proposed schedule conflicts with existing ones for the same employee on the same date."""
+    new_start = time_to_minutes(start_time) - drive_minutes
+    new_end = time_to_minutes(end_time) + drive_minutes
+
+    query = {"employee_id": employee_id, "date": date}
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
+
+    conflicts = []
+    for s in existing:
+        s_drive = s.get('drive_time_minutes', 0)
+        s_start = time_to_minutes(s['start_time']) - s_drive
+        s_end = time_to_minutes(s['end_time']) + s_drive
+        if new_start < s_end and new_end > s_start:
+            conflicts.append({
+                "schedule_id": s['id'],
+                "location": s.get('location_name', '?'),
+                "time": f"{s['start_time']}-{s['end_time']}",
+                "overlap": f"Blocks overlap (including {s_drive}m drive)"
+            })
+    return conflicts
+
 # ========== SCHEDULE ROUTES ==========
 
 @api_router.get("/schedules")
@@ -268,8 +308,9 @@ async def get_schedules(
     schedules = await db.schedules.find(query, {"_id": 0}).to_list(1000)
     return schedules
 
-@api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}})
+@api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
 async def create_schedule(data: ScheduleCreate, user: CurrentUser):
+    from datetime import timedelta as td
     # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
@@ -280,54 +321,87 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
-    drive_time = location['drive_time_minutes']
+    drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
 
-    # Check for town-to-town: other schedules same employee same day different location
-    same_day_schedules = await db.schedules.find({
-        "employee_id": data.employee_id,
-        "date": data.date,
-        "location_id": {"$ne": data.location_id}
-    }, {"_id": 0}).to_list(100)
+    # Build list of dates to schedule
+    dates_to_schedule = [data.date]
+    if data.recurrence and data.recurrence != 'none' and data.recurrence_end_date:
+        from datetime import date as dt_date
+        start_date = dt_date.fromisoformat(data.date)
+        end_date = dt_date.fromisoformat(data.recurrence_end_date)
+        delta = td(weeks=1) if data.recurrence == 'weekly' else td(weeks=2)
+        current = start_date + delta
+        while current <= end_date:
+            dates_to_schedule.append(current.isoformat())
+            current += delta
 
-    town_to_town = len(same_day_schedules) > 0
-    town_to_town_warning = None
-    if town_to_town:
-        location_ids = list(set(s['location_id'] for s in same_day_schedules))
-        other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
-        loc_map = {loc['id']: loc for loc in other_locations}
-        other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
-        town_to_town_warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+    created = []
+    conflicts_found = []
 
-    schedule_id = str(uuid.uuid4())
-    doc = {
-        "id": schedule_id,
-        "employee_id": data.employee_id,
-        "location_id": data.location_id,
-        "date": data.date,
-        "start_time": data.start_time,
-        "end_time": data.end_time,
-        "drive_time_minutes": data.travel_override_minutes if data.travel_override_minutes else drive_time,
-        "town_to_town": town_to_town,
-        "town_to_town_warning": town_to_town_warning,
-        "travel_override_minutes": data.travel_override_minutes,
-        "notes": data.notes,
-        "status": "upcoming",
-        "location_name": location['city_name'],
-        "employee_name": employee['name'],
-        "employee_color": employee.get('color', '#4F46E5'),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.schedules.insert_one(doc)
-    doc.pop("_id", None)
-    # Log activity
-    await log_activity(
-        action="schedule_created",
-        description=f"{employee['name']} assigned to {location['city_name']} on {data.date} ({data.start_time}-{data.end_time})",
-        entity_type="schedule",
-        entity_id=schedule_id,
-        user_name=user.get('name', 'System')
-    )
-    return doc
+    for sched_date in dates_to_schedule:
+        # Check conflicts
+        conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
+        if conflicts:
+            conflicts_found.append({"date": sched_date, "conflicts": conflicts})
+            continue
+
+        # Check for town-to-town
+        same_day_schedules = await db.schedules.find({
+            "employee_id": data.employee_id,
+            "date": sched_date,
+            "location_id": {"$ne": data.location_id}
+        }, {"_id": 0}).to_list(100)
+
+        town_to_town = len(same_day_schedules) > 0
+        town_to_town_warning = None
+        if town_to_town:
+            location_ids = list(set(s['location_id'] for s in same_day_schedules))
+            other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
+            loc_map = {loc['id']: loc for loc in other_locations}
+            other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
+            town_to_town_warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+
+        schedule_id = str(uuid.uuid4())
+        doc = {
+            "id": schedule_id,
+            "employee_id": data.employee_id,
+            "location_id": data.location_id,
+            "date": sched_date,
+            "start_time": data.start_time,
+            "end_time": data.end_time,
+            "drive_time_minutes": drive_time,
+            "town_to_town": town_to_town,
+            "town_to_town_warning": town_to_town_warning,
+            "travel_override_minutes": data.travel_override_minutes,
+            "notes": data.notes,
+            "status": "upcoming",
+            "recurrence": data.recurrence,
+            "location_name": location['city_name'],
+            "employee_name": employee['name'],
+            "employee_color": employee.get('color', '#4F46E5'),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.schedules.insert_one(doc)
+        doc.pop("_id", None)
+        created.append(doc)
+
+    # Log activity for the batch
+    if created:
+        count_label = f"{len(created)} classes" if len(created) > 1 else "class"
+        await log_activity(
+            action="schedule_created",
+            description=f"{employee['name']} assigned to {location['city_name']} — {count_label} starting {data.date}",
+            entity_type="schedule",
+            entity_id=created[0]['id'],
+            user_name=user.get('name', 'System')
+        )
+
+    if len(dates_to_schedule) == 1:
+        if conflicts_found:
+            raise HTTPException(status_code=409, detail={"message": "Schedule conflict detected", "conflicts": conflicts_found[0]['conflicts']})
+        return created[0]
+
+    return {"created": created, "conflicts_skipped": conflicts_found, "total_created": len(created)}
 
 @api_router.put("/schedules/{schedule_id}", responses=RESPONSES_404_SCHEDULE)
 async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentUser):
@@ -538,6 +612,111 @@ async def get_workload_stats(user: CurrentUser):
         })
 
     return workload
+
+# ========== DRAG-DROP RELOCATE ==========
+
+@api_router.put("/schedules/{schedule_id}/relocate", responses=RESPONSES_404_SCHEDULE)
+async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: CurrentUser):
+    """Move a schedule to a new date/time (drag-and-drop support)."""
+    schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    if not schedule:
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+
+    drive_time = schedule.get('drive_time_minutes', 0)
+    conflicts = await check_conflicts(schedule['employee_id'], data.date, data.start_time, data.end_time, drive_time, exclude_id=schedule_id)
+    if conflicts:
+        raise HTTPException(status_code=409, detail={"message": "Conflict at new time", "conflicts": conflicts})
+
+    await db.schedules.update_one({"id": schedule_id}, {"$set": {
+        "date": data.date,
+        "start_time": data.start_time,
+        "end_time": data.end_time,
+    }})
+    updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    await log_activity("schedule_relocated", f"Class at {updated.get('location_name', '?')} moved to {data.date} {data.start_time}-{data.end_time}", "schedule", schedule_id, user.get('name', 'System'))
+    return updated
+
+# ========== WEEKLY SUMMARY REPORT ==========
+
+@api_router.get("/reports/weekly-summary")
+async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None, date_to: Optional[str] = None):
+    """Generate a weekly summary report."""
+    from datetime import date as dt_date, timedelta as td
+    if not date_from:
+        today = dt_date.today()
+        start = today - td(days=today.weekday())
+        date_from = start.isoformat()
+        date_to = (start + td(days=6)).isoformat()
+
+    schedules = await db.schedules.find({"date": {"$gte": date_from, "$lte": date_to}}, {"_id": 0}).to_list(1000)
+    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
+    emp_map = {e['id']: e for e in employees}
+
+    employee_summaries = {}
+    for s in schedules:
+        eid = s['employee_id']
+        if eid not in employee_summaries:
+            emp = emp_map.get(eid, {})
+            employee_summaries[eid] = {
+                "employee_name": emp.get('name', '?'),
+                "employee_color": emp.get('color', '#4F46E5'),
+                "classes": 0,
+                "class_minutes": 0,
+                "drive_minutes": 0,
+                "locations_visited": set(),
+                "days_worked": set(),
+                "completed": 0,
+                "schedule_details": [],
+            }
+        summary = employee_summaries[eid]
+        summary['classes'] += 1
+        summary['class_minutes'] += calculate_class_minutes(s['start_time'], s['end_time'])
+        summary['drive_minutes'] += s.get('drive_time_minutes', 0) * 2
+        summary['locations_visited'].add(s.get('location_name', '?'))
+        summary['days_worked'].add(s['date'])
+        if s.get('status') == 'completed':
+            summary['completed'] += 1
+        summary['schedule_details'].append({
+            "date": s['date'],
+            "location": s.get('location_name', '?'),
+            "time": f"{s['start_time']}-{s['end_time']}",
+            "drive_minutes": s.get('drive_time_minutes', 0),
+            "status": s.get('status', 'upcoming'),
+        })
+
+    # Convert sets to lists for JSON
+    result = []
+    for eid, summary in employee_summaries.items():
+        summary['locations_visited'] = list(summary['locations_visited'])
+        summary['days_worked'] = len(summary['days_worked'])
+        summary['class_hours'] = round(summary['class_minutes'] / 60, 1)
+        summary['drive_hours'] = round(summary['drive_minutes'] / 60, 1)
+        result.append(summary)
+
+    total_classes = sum(s['classes'] for s in result)
+    total_drive_hrs = sum(s['drive_hours'] for s in result)
+    total_class_hrs = sum(s['class_hours'] for s in result)
+
+    return {
+        "period": {"from": date_from, "to": date_to},
+        "totals": {
+            "classes": total_classes,
+            "class_hours": total_class_hrs,
+            "drive_hours": total_drive_hrs,
+            "employees_active": len(result),
+        },
+        "employees": sorted(result, key=lambda x: x['classes'], reverse=True),
+    }
+
+# ========== CONFLICT CHECK ENDPOINT ==========
+
+@api_router.post("/schedules/check-conflicts")
+async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
+    """Pre-check for conflicts before creating a schedule."""
+    location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
+    drive_time = data.travel_override_minutes or (location['drive_time_minutes'] if location else 0)
+    conflicts = await check_conflicts(data.employee_id, data.date, data.start_time, data.end_time, drive_time)
+    return {"has_conflicts": len(conflicts) > 0, "conflicts": conflicts}
 
 # ========== DASHBOARD STATS ==========
 

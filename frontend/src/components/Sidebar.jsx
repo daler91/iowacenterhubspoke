@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users, LayoutDashboard,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, Activity, UserCircle
+  Kanban, BarChart3, Activity, UserCircle, FileText
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'kanban', label: 'Status Board', icon: Kanban },
   { id: 'workload', label: 'Workload', icon: BarChart3 },
+  { id: 'report', label: 'Weekly Report', icon: FileText },
   { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'map', label: 'Map View', icon: Map },
   { id: 'locations', label: 'Locations', icon: MapPin },

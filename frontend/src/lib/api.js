@@ -58,6 +58,8 @@ export const schedulesAPI = {
   update: (id, data) => api.put(`/schedules/${id}`, data),
   delete: (id) => api.delete(`/schedules/${id}`),
   updateStatus: (id, status) => api.put(`/schedules/${id}/status`, { status }),
+  relocate: (id, data) => api.put(`/schedules/${id}/relocate`, data),
+  checkConflicts: (data) => api.post('/schedules/check-conflicts', data),
 };
 
 // Dashboard
@@ -78,6 +80,11 @@ export const notificationsAPI = {
 // Workload
 export const workloadAPI = {
   getAll: () => api.get('/workload'),
+};
+
+// Reports
+export const reportsAPI = {
+  weeklySummary: (params) => api.get('/reports/weekly-summary', { params }),
 };
 
 export default api;

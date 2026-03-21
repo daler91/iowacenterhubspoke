@@ -473,6 +473,165 @@ class HubSpokeAPITester:
                     print(f"   ✅ Workload data structure correct")
         return success
 
+    def test_schedule_check_conflicts(self):
+        """Test conflict pre-check endpoint (NEW FEATURE)"""
+        if not self.created_employee_id or not self.created_location_id:
+            print("   Skipping - need employee and location first")
+            return True
+        
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        success, response = self.run_test(
+            "Check Schedule Conflicts",
+            "POST",
+            "schedules/check-conflicts",
+            200,
+            data={
+                "employee_id": self.created_employee_id,
+                "location_id": self.created_location_id,
+                "date": tomorrow,
+                "start_time": "09:00",
+                "end_time": "12:00"
+            }
+        )
+        if success:
+            expected_keys = ['has_conflicts', 'conflicts']
+            missing_keys = [key for key in expected_keys if key not in response]
+            if missing_keys:
+                print(f"   ⚠️  Missing keys in conflict check: {missing_keys}")
+                return False
+            else:
+                print(f"   ✅ Conflict check structure correct")
+                print(f"   Has conflicts: {response.get('has_conflicts', False)}")
+        return success
+
+    def test_schedule_recurring(self):
+        """Test recurring schedule creation (NEW FEATURE)"""
+        if not self.created_employee_id or not self.created_location_id:
+            print("   Skipping - need employee and location first")
+            return True
+        
+        # Create a weekly recurring schedule for 3 weeks
+        start_date = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
+        end_date = (datetime.now() + timedelta(days=21)).strftime('%Y-%m-%d')
+        
+        success, response = self.run_test(
+            "Create Recurring Schedule (Weekly)",
+            "POST",
+            "schedules",
+            200,
+            data={
+                "employee_id": self.created_employee_id,
+                "location_id": self.created_location_id,
+                "date": start_date,
+                "start_time": "10:00",
+                "end_time": "13:00",
+                "notes": "Weekly recurring test",
+                "recurrence": "weekly",
+                "recurrence_end_date": end_date
+            }
+        )
+        if success:
+            if 'total_created' in response:
+                print(f"   ✅ Created {response['total_created']} recurring schedules")
+                if response.get('conflicts_skipped'):
+                    print(f"   ⚠️  {len(response['conflicts_skipped'])} schedules skipped due to conflicts")
+            else:
+                print(f"   ✅ Single schedule created (no recurrence data)")
+        return success
+
+    def test_schedule_conflict_409(self):
+        """Test schedule conflict detection returns 409 (NEW FEATURE)"""
+        if not self.created_employee_id or not self.created_location_id:
+            print("   Skipping - need employee and location first")
+            return True
+        
+        # Try to create a conflicting schedule (same time as existing one)
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        success, response = self.run_test(
+            "Create Conflicting Schedule (Expect 409)",
+            "POST",
+            "schedules",
+            409,  # Expect conflict
+            data={
+                "employee_id": self.created_employee_id,
+                "location_id": self.created_location_id,
+                "date": tomorrow,
+                "start_time": "09:30",  # Overlaps with existing 09:00-12:00
+                "end_time": "11:30",
+                "notes": "Conflicting test schedule"
+            }
+        )
+        if success:
+            print(f"   ✅ Conflict properly detected (409 returned)")
+        return success
+
+    def test_schedule_relocate(self):
+        """Test schedule relocation endpoint (NEW FEATURE - drag-and-drop)"""
+        if not self.created_schedule_id:
+            print("   Skipping - no schedule to relocate")
+            return True
+        
+        # Move schedule to a different time
+        new_date = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')
+        success, response = self.run_test(
+            "Relocate Schedule",
+            "PUT",
+            f"schedules/{self.created_schedule_id}/relocate",
+            200,
+            data={
+                "date": new_date,
+                "start_time": "14:00",
+                "end_time": "17:00"
+            }
+        )
+        if success:
+            if response.get('date') == new_date and response.get('start_time') == '14:00':
+                print(f"   ✅ Schedule successfully relocated to {new_date} 14:00-17:00")
+            else:
+                print(f"   ⚠️  Schedule relocation may not have worked properly")
+        return success
+
+    def test_weekly_summary_report(self):
+        """Test weekly summary report endpoint (NEW FEATURE)"""
+        # Test with current week
+        success, response = self.run_test(
+            "Get Weekly Summary Report",
+            "GET",
+            "reports/weekly-summary",
+            200
+        )
+        if success:
+            expected_keys = ['period', 'totals', 'employees']
+            missing_keys = [key for key in expected_keys if key not in response]
+            if missing_keys:
+                print(f"   ⚠️  Missing keys in weekly report: {missing_keys}")
+                return False
+            else:
+                print(f"   ✅ Weekly report structure correct")
+                print(f"   Period: {response['period']['from']} to {response['period']['to']}")
+                print(f"   Totals: {response['totals']['classes']} classes, {response['totals']['employees_active']} active employees")
+                print(f"   Employee details: {len(response['employees'])} employees")
+        return success
+
+    def test_weekly_summary_custom_dates(self):
+        """Test weekly summary with custom date range (NEW FEATURE)"""
+        # Test with specific date range
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        
+        success, response = self.run_test(
+            "Get Weekly Summary (Custom Dates)",
+            "GET",
+            f"reports/weekly-summary?date_from={start_date}&date_to={end_date}",
+            200
+        )
+        if success:
+            if response.get('period', {}).get('from') == start_date:
+                print(f"   ✅ Custom date range working: {start_date} to {end_date}")
+            else:
+                print(f"   ⚠️  Custom date range may not be working properly")
+        return success
+
     def test_cleanup(self):
         """Clean up created test data"""
         cleanup_success = True
@@ -543,6 +702,14 @@ def main():
         ("PM Features - Employee Stats", tester.test_employee_stats),
         ("PM Features - Notifications", tester.test_notifications),
         ("PM Features - Workload Stats", tester.test_workload_stats),
+        
+        # NEW ITERATION 3 FEATURES - Conflict detection, recurring schedules, relocate, reports
+        ("NEW - Check Schedule Conflicts", tester.test_schedule_check_conflicts),
+        ("NEW - Recurring Schedules", tester.test_schedule_recurring),
+        ("NEW - Schedule Conflict 409", tester.test_schedule_conflict_409),
+        ("NEW - Schedule Relocate", tester.test_schedule_relocate),
+        ("NEW - Weekly Summary Report", tester.test_weekly_summary_report),
+        ("NEW - Weekly Summary Custom Dates", tester.test_weekly_summary_custom_dates),
         
         # Cleanup
         ("Cleanup - Delete Test Data", tester.test_cleanup),

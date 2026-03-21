@@ -94,3 +94,20 @@
   .no-print { display: none !important; }
   .print-only { display: block !important; }
 }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .calendar-grid {
+    grid-template-columns: 50px repeat(7, 1fr);
+    font-size: 10px;
+  }
+  .schedule-block {
+    padding: 2px 4px;
+    font-size: 10px;
+  }
+}
+
+/* Drag-drop visual feedback */
+.drag-over {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+}
