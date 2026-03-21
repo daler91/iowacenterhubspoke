@@ -291,8 +291,8 @@ class TestClassDeletion(TestSetup):
             "location_id": location_id,
             "class_id": TestClassDeletion.delete_class_id,
             "date": unique_date,
-            "start_time": "14:00",
-            "end_time": "16:00"
+            "start_time": "20:00",
+            "end_time": "22:00"
         }, headers=auth_headers)
         assert schedule_response.status_code == 200, f"Failed to create schedule: {schedule_response.text}"
         TestClassDeletion.delete_schedule_id = schedule_response.json()["id"]
