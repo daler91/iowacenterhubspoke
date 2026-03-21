@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import asyncio
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -530,11 +531,14 @@ async def get_workload_stats(user=Depends(get_current_user)):
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(user=Depends(get_current_user)):
-    total_employees = await db.employees.count_documents({})
-    total_locations = await db.locations.count_documents({})
-    total_schedules = await db.schedules.count_documents({})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_schedules = await db.schedules.count_documents({"date": today})
+    results = await asyncio.gather(
+        db.employees.count_documents({}),
+        db.locations.count_documents({}),
+        db.schedules.count_documents({}),
+        db.schedules.count_documents({"date": today})
+    )
+    total_employees, total_locations, total_schedules, today_schedules = results
     return {
         "total_employees": total_employees,
         "total_locations": total_locations,
