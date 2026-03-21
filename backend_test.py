@@ -67,13 +67,13 @@ class HubSpokeAPITester:
                 print("   Failed - Expected {expected_status}, got {response.status_code}")
                 try:
                     error_data = response.json()
-                    print("   Error: {error_data}")
+                    print(f"   Error: {error_data}")
                 except (ValueError, requests.exceptions.JSONDecodeError):
                     print("   Error: {response.text}")
                 return False, {}
 
         except requests.exceptions.RequestException as e:
-            print("   Failed - Error: {str(e)}")
+            print(f"   Failed - Error: {str(e)}")
             return False, {}
 
     def test_auth_register(self):
@@ -118,7 +118,7 @@ class HubSpokeAPITester:
 
     def test_auth_me(self):
         """Test getting current user info"""
-        success, response = self.run_test(
+        success, _ = self.run_test(
             "Get Current User",
             "GET",
             "auth/me",
@@ -190,7 +190,7 @@ class HubSpokeAPITester:
             print("   Skipping - no location to update")
             return True
         
-        success, response = self.run_test(
+        success, _ = self.run_test(
             "Update Location",
             "PUT",
             f"locations/{self.created_location_id}",
@@ -211,7 +211,7 @@ class HubSpokeAPITester:
             200
         )
         if success:
-            print("   Found {len(response)} employees")
+            print(f"   Found {len(response)} employees")
         return success
 
     def test_employees_create(self):
@@ -239,7 +239,7 @@ class HubSpokeAPITester:
             print("   Skipping - no employee to update")
             return True
         
-        success, response = self.run_test(
+        success, _ = self.run_test(
             "Update Employee",
             "PUT",
             f"employees/{self.created_employee_id}",
@@ -260,7 +260,7 @@ class HubSpokeAPITester:
             200
         )
         if success:
-            print("   Found {len(response)} schedules")
+            print(f"   Found {len(response)} schedules")
         return success
 
     def test_schedules_create(self):
@@ -347,7 +347,7 @@ class HubSpokeAPITester:
             print("   Skipping - no schedule to update")
             return True
         
-        success, response = self.run_test(
+        success, _ = self.run_test(
             "Update Schedule",
             "PUT",
             f"schedules/{self.created_schedule_id}",
@@ -551,7 +551,7 @@ class HubSpokeAPITester:
         
         # Try to create a conflicting schedule (same time as existing one)
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-        success, response = self.run_test(
+        success, _ = self.run_test(
             "Create Conflicting Schedule (Expect 409)",
             "POST",
             "schedules",

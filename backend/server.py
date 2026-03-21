@@ -573,7 +573,7 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     if not same_day_schedules:
         return False, None
 
-    location_ids = list(set(s['location_id'] for s in same_day_schedules))
+    location_ids = list({s['location_id'] for s in same_day_schedules})
     other_locations = await db.locations.find({"id": {"$in": location_ids}}, {"_id": 0}).to_list(100)
     loc_map = {loc['id']: loc for loc in other_locations}
     other_cities = [loc_map[s['location_id']]['city_name'] for s in same_day_schedules if s['location_id'] in loc_map]
@@ -838,7 +838,7 @@ async def get_notifications(user: CurrentUser):
 
     # Unassigned check - employees with no schedules this week
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
-    scheduled_emp_ids = set(s['employee_id'] for s in today_schedules)
+    scheduled_emp_ids = {s['employee_id'] for s in today_schedules}
     for emp in employees:
         if emp['id'] not in scheduled_emp_ids:
             notifications.append({
@@ -874,7 +874,6 @@ async def get_workload_stats(user: CurrentUser):
                 total_class_mins += class_minutes
             except (ValueError, KeyError):
                 class_minutes = 0
-                pass
             drive_minutes = s.get('drive_time_minutes', 0) * 2
             total_drive_mins += drive_minutes
 

@@ -1,4 +1,5 @@
 import * as React from "react"
+import PropTypes from "prop-types"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react"
@@ -67,6 +68,9 @@ const SheetHeader = ({
     {...props} />
 )
 SheetHeader.displayName = "SheetHeader"
+SheetHeader.propTypes = {
+  className: PropTypes.string,
+}
 
 const SheetFooter = ({
   className,
@@ -77,6 +81,9 @@ const SheetFooter = ({
     {...props} />
 )
 SheetFooter.displayName = "SheetFooter"
+SheetFooter.propTypes = {
+  className: PropTypes.string,
+}
 
 const SheetTitle = React.forwardRef(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
