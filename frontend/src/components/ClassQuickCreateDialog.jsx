@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -110,3 +111,9 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
     </Dialog>
   );
 }
+
+ClassQuickCreateDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onOpenChange: PropTypes.func.isRequired,
+  onCreated: PropTypes.func,
+};

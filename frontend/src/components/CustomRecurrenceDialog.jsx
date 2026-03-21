@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -35,11 +36,9 @@ export const formatCustomRecurrenceSummary = (rule) => {
     ? WEEKDAYS.filter((day) => rule.weekdays?.includes(day.value)).map((day) => day.label).join(', ')
     : 'same day of month';
 
-  const endText = rule.end_mode === 'on_date'
-    ? `Ends on ${rule.end_date}`
-    : rule.end_mode === 'after_occurrences'
-      ? `Ends after ${rule.occurrences} occurrences`
-      : 'Ends never (creates the next 52 occurrences for now)';
+  let endText = 'Ends never (creates the next 52 occurrences for now)';
+  if (rule.end_mode === 'on_date') endText = `Ends on ${rule.end_date}`;
+  else if (rule.end_mode === 'after_occurrences') endText = `Ends after ${rule.occurrences} occurrences`;
 
   return `Every ${rule.interval} ${unitLabel} • ${weekdaysText} • ${endText}`;
 };
@@ -65,8 +64,8 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
   };
 
   const handleSave = () => {
-    const interval = parseInt(draft.interval, 10);
-    const occurrences = parseInt(draft.occurrences, 10);
+    const interval = Number.parseInt(draft.interval, 10);
+    const occurrences = Number.parseInt(draft.occurrences, 10);
 
     if (!interval || interval < 1) {
       toast.error('Repeat interval must be at least 1');
@@ -236,3 +235,11 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
     </Dialog>
   );
 }
+
+CustomRecurrenceDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onOpenChange: PropTypes.func.isRequired,
+  startDate: PropTypes.string.isRequired,
+  value: PropTypes.object,
+  onSave: PropTypes.func,
+};
