@@ -1125,10 +1125,16 @@ if _static_dir.exists():
             return FileResponse(str(file_path))
         return FileResponse(str(_static_dir / "index.html"))
 
+_cors_origins_env = os.environ.get('CORS_ORIGINS', '')
+if _cors_origins_env:
+    _allow_origins = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
+else:
+    _allow_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=bool(_cors_origins_env),
+    allow_origins=_allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
