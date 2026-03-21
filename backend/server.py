@@ -398,11 +398,21 @@ async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
     total_classes = len(all_schedules)
     total_drive_minutes = sum(s.get('drive_time_minutes', 0) * 2 for s in all_schedules)
     total_class_minutes = 0
+    time_to_mins = {}
     for s in all_schedules:
         try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+            st = s['start_time']
+            et = s['end_time']
+
+            if st not in time_to_mins:
+                sh, sm = st.split(':')
+                time_to_mins[st] = int(sh) * 60 + int(sm)
+
+            if et not in time_to_mins:
+                eh, em = et.split(':')
+                time_to_mins[et] = int(eh) * 60 + int(em)
+
+            total_class_minutes += time_to_mins[et] - time_to_mins[st]
         except:
             pass
 
