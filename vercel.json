@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd frontend && yarn install --frozen-lockfile",
+  "installCommand": "cd frontend && yarn install",
   "buildCommand": "cd frontend && yarn build",
   "outputDirectory": "frontend/build",
   "framework": null,
@@ -7,6 +7,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://melodious-contentment-production-f2e0.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/((?!static|favicon|manifest|logo|robots).*)",
+      "destination": "/index.html"
     }
   ]
 }
