@@ -3,6 +3,15 @@
 ## Original Problem Statement
 Build a web-based employee scheduling application that visually accounts for drive times and travel blocks using a Hub and Spoke travel model (Hub: 2210 Grand Ave, Des Moines, IA 50312).
 
+### Added Product Requirements
+- Google Map view to visualize locations
+- PDF export functionality
+- Project management views: Kanban board, workload dashboard, activity feed, employee profiles, notifications
+- Scheduling enhancements: conflict detection, recurring schedules, weekly summary reports, drag-and-drop calendar interactions
+- Improved mobile responsiveness
+- Outlook Calendar integration (blocked pending user credentials)
+- Class Series tracking with on-the-fly class creation during scheduling
+
 ## Architecture
 - **Frontend**: React + Tailwind + Shadcn UI
 - **Backend**: FastAPI (Python)
@@ -24,6 +33,8 @@ Build a web-based employee scheduling application that visually accounts for dri
 6. Weekly/Daily/Monthly calendar views
 7. Google Maps view with Hub & Spoke markers
 8. PDF export of calendar
+9. Project dashboards and reporting
+10. Class Series tracking with reusable class types
 
 ## What's Been Implemented (March 20, 2026)
 - [x] Full JWT auth (register/login/protected routes)
@@ -47,21 +58,58 @@ Build a web-based employee scheduling application that visually accounts for dri
 - [x] Employee Profiles (detailed stats, location breakdown chart, recent assignments list)
 - [x] Notifications Panel (bell icon with alerts: upcoming classes, town-to-town warnings, idle employees)
 
+## What's Been Implemented (March 21, 2026)
+- [x] Class Series data model and `/api/classes` CRUD endpoints
+- [x] Schedule-to-class linkage with `class_id`, `class_name`, and `class_color`
+- [x] Class sync behavior: renaming a class updates linked schedules
+- [x] Safe class deletion: schedules retain readable class metadata even after class removal
+- [x] New Classes dashboard view and sidebar navigation item
+- [x] Inline class creation inside `ScheduleForm` via “Add New Class” flow
+- [x] Calendar, Kanban, Workload Dashboard, and Weekly Report now surface class info
+- [x] Weekly report supports class filtering; workload now includes class breakdown per employee
+- [x] Backend class feature test coverage added in `/app/backend/tests/test_class_series.py`
+
+## Key Endpoints
+- `/api/auth/{register,login,me}`
+- `/api/locations`
+- `/api/employees`
+- `/api/classes`
+- `/api/schedules`
+- `/api/schedules/check-conflicts`
+- `/api/schedules/{id}/relocate`
+- `/api/dashboard/stats`
+- `/api/workload`
+- `/api/activity-logs`
+- `/api/notifications`
+- `/api/reports/weekly-summary`
+
 ## Test Results
 - Backend: 100% (23/23 tests passed)
 - Frontend: 95% (all core + PM features working)
 
+### Latest Verification (March 21, 2026)
+- Self-tested backend via authenticated API flows for class CRUD, schedule linkage, class sync, and class deletion preservation
+- Smoke-tested frontend registration + Classes view on preview URL
+- Testing agent iteration 4: backend 100%, frontend 100% for Class Series feature
+
 ## Prioritized Backlog
 ### P0 (Done)
-- All core features implemented
+- Core scheduler MVP
+- Project management suite
+- Recurring schedules, conflict detection, PDF export, drag-and-drop relocation
+- Class Series tracking and on-the-fly class creation
 
 ### P1 (Next)
-- Drag-and-drop schedule rearrangement on calendar
-- Employee filtering on calendar
-- Conflict detection (prevent double-booking)
+- Outlook Calendar integration once Azure credentials are provided by the user
+- Kanban drag-and-drop polish / refinement for broader workflow management
 
 ### P2 (Future)
-- Email notifications for schedule changes
-- Recurring class schedules
-- Employee availability management
-- Reporting dashboard with drive time analytics
+- Email/SMS notifications for reminders and schedule changes
+- Team-wide weekly reports
+- Pagination for heavy API responses
+- Production hardening (e.g. rate limiting)
+
+## Current Status
+- App is functional end-to-end for scheduling, travel-time logic, maps, reporting, and class tracking
+- Outlook integration remains blocked by missing user credentials
+- No MOCKED core flows or APIs
