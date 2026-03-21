@@ -104,71 +104,62 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const validateRecurrence = () => {
     if (form.recurrence === 'none' || editSchedule) return true;
 
-    if (form.recurrence === 'custom') {
-      if (customRecurrence.frequency === 'week' && (!customRecurrence.weekdays || customRecurrence.weekdays.length === 0)) {
-        toast.error('Choose at least one weekday for custom recurrence');
-        return false;
-      }
-      if (customRecurrence.end_mode === 'on_date' && !customRecurrence.end_date) {
-        toast.error('Choose an end date for the custom recurrence');
-        return false;
-      }
-      if (customRecurrence.end_mode === 'after_occurrences' && (!customRecurrence.occurrences || parseInt(customRecurrence.occurrences, 10) < 1)) {
-        toast.error('Enter a valid number of occurrences');
-        return false;
-      }
-      return true;
-    }
+    const isCustom = form.recurrence === 'custom';
+    const recData = isCustom ? customRecurrence : {
+      end_mode: form.recurrence_end_mode,
+      end_date: form.recurrence_end_date,
+      occurrences: form.recurrence_occurrences,
+      frequency: null,
+      weekdays: null,
+    };
 
-    if (form.recurrence_end_mode === 'on_date' && !form.recurrence_end_date) {
-      toast.error('Choose an end date');
+    if (isCustom && recData.frequency === 'week' && (!recData.weekdays || recData.weekdays.length === 0)) {
+      toast.error('Choose at least one weekday for custom recurrence');
       return false;
     }
-
-    if (form.recurrence_end_mode === 'after_occurrences' && (!form.recurrence_occurrences || parseInt(form.recurrence_occurrences, 10) < 1)) {
+    if (recData.end_mode === 'on_date' && !recData.end_date) {
+      toast.error(isCustom ? 'Choose an end date for the custom recurrence' : 'Choose an end date');
+      return false;
+    }
+    if (recData.end_mode === 'after_occurrences' && (!recData.occurrences || parseInt(recData.occurrences, 10) < 1)) {
       toast.error('Enter a valid number of occurrences');
       return false;
     }
-
     return true;
   };
 
   const buildPayload = () => {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
-    const endMode = isCustom ? customRecurrence.end_mode : form.recurrence_end_mode;
+    const payload = { ...form, class_id: form.class_id || null, travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null };
 
-    let recurrenceEndDate = null;
-    if (isCustom && customRecurrence.end_mode === 'on_date') {
-      recurrenceEndDate = customRecurrence.end_date || null;
-    } else if (!isNone && form.recurrence_end_mode === 'on_date') {
-      recurrenceEndDate = form.recurrence_end_date || null;
+    if (isNone) {
+      return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
     }
 
-    let recurrenceOccurrences = null;
-    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
-      recurrenceOccurrences = parseInt(customRecurrence.occurrences, 10);
-    } else if (!isNone && form.recurrence_end_mode === 'after_occurrences') {
-      recurrenceOccurrences = parseInt(form.recurrence_occurrences, 10);
-    }
+    const recData = isCustom ? customRecurrence : {
+      end_mode: form.recurrence_end_mode,
+      end_date: form.recurrence_end_date,
+      occurrences: form.recurrence_occurrences
+    };
 
-    return {
-      ...form,
-      class_id: form.class_id || null,
-      travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null,
-      recurrence: isNone ? null : form.recurrence,
-      recurrence_end_mode: isNone ? null : endMode,
-      recurrence_end_date: recurrenceEndDate,
-      recurrence_occurrences: recurrenceOccurrences,
-      custom_recurrence: isCustom ? {
+    payload.recurrence_end_mode = recData.end_mode;
+    payload.recurrence_end_date = recData.end_mode === 'on_date' ? recData.end_date || null : null;
+    payload.recurrence_occurrences = recData.end_mode === 'after_occurrences' ? parseInt(recData.occurrences, 10) : null;
+
+    if (isCustom) {
+      payload.custom_recurrence = {
         interval: parseInt(customRecurrence.interval, 10),
         frequency: customRecurrence.frequency,
         weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
         end_mode: customRecurrence.end_mode,
-        end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
-        occurrences: customRecurrence.end_mode === 'after_occurrences' ? parseInt(customRecurrence.occurrences, 10) : null,
-      } : null,
-    };
+        end_date: payload.recurrence_end_date,
+        occurrences: payload.recurrence_occurrences,
+      };
+    } else {
+      payload.custom_recurrence = null;
+    }
+    return payload;
   };
 
   const handleCreateResponse = (res) => {

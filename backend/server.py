@@ -608,8 +608,7 @@ def _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town
     }
 
 
-@api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
-async def create_schedule(data: ScheduleCreate, user: CurrentUser):
+async def _fetch_schedule_entities(data: ScheduleCreate):
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
@@ -623,6 +622,13 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
         class_doc = await db.classes.find_one({"id": data.class_id}, {"_id": 0})
         if not class_doc:
             raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    return location, employee, class_doc
+
+
+@api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
+async def create_schedule(data: ScheduleCreate, user: CurrentUser):
+    location, employee, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
     recurrence_rule = build_recurrence_rule(data)
