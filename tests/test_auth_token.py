@@ -10,37 +10,29 @@ os.environ['MONGO_URL'] = 'mongodb://localhost:27017'
 os.environ['DB_NAME'] = 'testdb'
 os.environ['JWT_SECRET'] = 'test_secret_key'
 
-# Mock all dependencies of backend.server to allow importing create_token
-# without a full environment setup.
-@pytest.fixture(autouse=True)
-def mock_dependencies():
-    with patch.dict(sys.modules, {
-        'fastapi': MagicMock(),
-        'fastapi.middleware.cors': MagicMock(),
-        'motor': MagicMock(),
-        'motor.motor_asyncio': MagicMock(),
-        'bcrypt': MagicMock(),
-        'starlette.middleware.cors': MagicMock(),
-        'dotenv': MagicMock(),
-        'pydantic': MagicMock()
-    }):
-        yield
+# Instead of global sys.modules modification which bleeds to other tests,
+# we use the patch.dict context manager or fixture to ONLY mock during the test execution.
+# However, `from backend.server import create_token` imports it at module level.
+# To safely test without real dependencies breaking import, we can mock sys.modules
+# ONLY before the import, but then RESTORE them after the import, or just mock them for
+# the whole test run cleanly without breaking other tests.
+# The simplest fix is to NOT mock fastapi globally. `create_token` only requires `jwt` and `datetime`.
+# It doesn't need fastapi. It only needs `JWT_SECRET` and `JWT_ALGORITHM`.
+# Let's just import backend.server while safely mocking ONLY what prevents it from importing.
 
-# We import inside the tests or after the mock is set up.
-# However, importing at module level is easier if we mock before.
-# Since we already mocked them above at module level for the first run,
-# let's keep it consistent but cleaner.
-
-sys.modules['fastapi'] = MagicMock()
-sys.modules['fastapi.middleware.cors'] = MagicMock()
+# We only mock dotenv and motor which actually do work on import (load_dotenv, motor client)
+_original_modules = sys.modules.copy()
+sys.modules['dotenv'] = MagicMock()
 sys.modules['motor'] = MagicMock()
 sys.modules['motor.motor_asyncio'] = MagicMock()
-sys.modules['bcrypt'] = MagicMock()
-sys.modules['starlette.middleware.cors'] = MagicMock()
-sys.modules['dotenv'] = MagicMock()
-sys.modules['pydantic'] = MagicMock()
 
 from backend.server import create_token, JWT_SECRET, JWT_ALGORITHM
+
+# Restore sys.modules so we don't bleed mocks to other tests
+sys.modules.update(_original_modules)
+del sys.modules['dotenv']
+del sys.modules['motor']
+del sys.modules['motor.motor_asyncio']
 
 def test_create_token_success():
     user_id = "user123"
