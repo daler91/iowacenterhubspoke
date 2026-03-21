@@ -12,35 +12,38 @@ os.environ['JWT_SECRET'] = 'test_secret_key'
 
 # Mock all dependencies of backend.server to allow importing create_token
 # without a full environment setup.
-@pytest.fixture(autouse=True)
-def mock_dependencies():
-    with patch.dict(sys.modules, {
-        'fastapi': MagicMock(),
-        'fastapi.middleware.cors': MagicMock(),
-        'motor': MagicMock(),
-        'motor.motor_asyncio': MagicMock(),
-        'bcrypt': MagicMock(),
-        'starlette.middleware.cors': MagicMock(),
-        'dotenv': MagicMock(),
-        'pydantic': MagicMock()
-    }):
-        yield
+# USE patch.dict to avoid permanently polluting sys.modules!
+# Wait, let's just mock dependencies around the import of create_token.
 
-# We import inside the tests or after the mock is set up.
-# However, importing at module level is easier if we mock before.
-# Since we already mocked them above at module level for the first run,
-# let's keep it consistent but cleaner.
+# Actually, we can just use patch.dict at module level but it leaves sys.modules polluted.
+# Let's fix test_auth_token.py to NOT pollute sys.modules globally!
 
-sys.modules['fastapi'] = MagicMock()
-sys.modules['fastapi.middleware.cors'] = MagicMock()
-sys.modules['motor'] = MagicMock()
-sys.modules['motor.motor_asyncio'] = MagicMock()
-sys.modules['bcrypt'] = MagicMock()
-sys.modules['starlette.middleware.cors'] = MagicMock()
-sys.modules['dotenv'] = MagicMock()
-sys.modules['pydantic'] = MagicMock()
+# We do this by importing safely with a context manager.
+import importlib
 
-from backend.server import create_token, JWT_SECRET, JWT_ALGORITHM
+# Clean up any bad state before starting
+for mod in ['fastapi', 'fastapi.middleware.cors', 'motor', 'motor.motor_asyncio', 'bcrypt', 'starlette.middleware.cors', 'dotenv', 'pydantic', 'backend.server']:
+    if mod in sys.modules:
+        if isinstance(sys.modules[mod], MagicMock):
+            del sys.modules[mod]
+
+# Import with mocked dependencies just for this module by using a fixture
+# But since we need create_token, we can just mock the specific external calls
+# actually wait, create_token doesn't use fastapi, motor, etc.
+# But backend.server does on import!
+# Let's cleanly patch sys.modules ONLY around the import.
+
+with patch.dict(sys.modules, {
+    'fastapi': MagicMock(),
+    'fastapi.middleware.cors': MagicMock(),
+    'motor': MagicMock(),
+    'motor.motor_asyncio': MagicMock(),
+    'bcrypt': MagicMock(),
+    'starlette.middleware.cors': MagicMock(),
+    'dotenv': MagicMock(),
+    'pydantic': MagicMock()
+}):
+    from backend.server import create_token, JWT_SECRET, JWT_ALGORITHM
 
 def test_create_token_success():
     user_id = "user123"
