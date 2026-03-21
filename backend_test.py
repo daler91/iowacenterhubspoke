@@ -14,6 +14,18 @@ class HubSpokeAPITester:
         self.created_employee_id = None
         self.created_schedule_id = None
 
+    def _make_request(self, method, url, data, test_headers):
+        """Execute the HTTP request based on method type."""
+        if method == 'GET':
+            return requests.get(url, headers=test_headers, timeout=10)
+        if method == 'POST':
+            return requests.post(url, json=data, headers=test_headers, timeout=10)
+        if method == 'PUT':
+            return requests.put(url, json=data, headers=test_headers, timeout=10)
+        if method == 'DELETE':
+            return requests.delete(url, headers=test_headers, timeout=10)
+        raise ValueError(f"Unsupported method: {method}")
+
     def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
         """Run a single API test"""
         url = f"{self.base_url}/api/{endpoint}"
@@ -24,23 +36,16 @@ class HubSpokeAPITester:
             test_headers.update(headers)
 
         self.tests_run += 1
-        print(f"\n🔍 Testing {name}...")
+        print(f"\nTesting {name}...")
         print(f"   URL: {url}")
         
         try:
-            if method == 'GET':
-                response = requests.get(url, headers=test_headers, timeout=10)
-            elif method == 'POST':
-                response = requests.post(url, json=data, headers=test_headers, timeout=10)
-            elif method == 'PUT':
-                response = requests.put(url, json=data, headers=test_headers, timeout=10)
-            elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers, timeout=10)
+            response = self._make_request(method, url, data, test_headers)
 
             success = response.status_code == expected_status
             if success:
                 self.tests_passed += 1
-                print(f"✅ Passed - Status: {response.status_code}")
+                print(f"   Passed - Status: {response.status_code}")
                 try:
                     response_data = response.json()
                     if isinstance(response_data, dict) and len(str(response_data)) < 500:
@@ -48,19 +53,19 @@ class HubSpokeAPITester:
                     elif isinstance(response_data, list):
                         print(f"   Response: List with {len(response_data)} items")
                     return True, response_data
-                except:
+                except (ValueError, requests.exceptions.JSONDecodeError):
                     return True, {}
             else:
-                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
+                print(f"   Failed - Expected {expected_status}, got {response.status_code}")
                 try:
                     error_data = response.json()
                     print(f"   Error: {error_data}")
-                except:
+                except (ValueError, requests.exceptions.JSONDecodeError):
                     print(f"   Error: {response.text}")
                 return False, {}
 
-        except Exception as e:
-            print(f"❌ Failed - Error: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            print(f"   Failed - Error: {str(e)}")
             return False, {}
 
     def test_auth_register(self):

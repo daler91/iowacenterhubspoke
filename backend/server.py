@@ -29,6 +29,22 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ========== ERROR CONSTANTS ==========
+
+LOCATION_NOT_FOUND = "Location not found"
+EMPLOYEE_NOT_FOUND = "Employee not found"
+SCHEDULE_NOT_FOUND = "Schedule not found"
+NO_FIELDS_TO_UPDATE = "No fields to update"
+
+RESPONSES_400 = {400: {"description": "Bad request"}}
+RESPONSES_401 = {401: {"description": "Invalid credentials"}}
+RESPONSES_404_LOCATION = {404: {"description": LOCATION_NOT_FOUND}}
+RESPONSES_404_EMPLOYEE = {404: {"description": EMPLOYEE_NOT_FOUND}}
+RESPONSES_404_SCHEDULE = {404: {"description": SCHEDULE_NOT_FOUND}}
+RESPONSES_400_404_LOCATION = {400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": LOCATION_NOT_FOUND}}
+RESPONSES_400_404_EMPLOYEE = {400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": EMPLOYEE_NOT_FOUND}}
+RESPONSES_400_404_SCHEDULE = {400: {"description": "Invalid status"}, 404: {"description": SCHEDULE_NOT_FOUND}}
+
 # ========== MODELS ==========
 
 class UserRegister(BaseModel):
@@ -120,7 +136,7 @@ CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 # ========== AUTH ROUTES ==========
 
-@api_router.post("/auth/register")
+@api_router.post("/auth/register", responses={400: {"description": "Email already registered"}})
 async def register(data: UserRegister):
     existing = await db.users.find_one({"email": data.email}, {"_id": 0})
     if existing:
@@ -137,7 +153,7 @@ async def register(data: UserRegister):
     token = create_token(user_id, data.email, data.name)
     return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email}}
 
-@api_router.post("/auth/login")
+@api_router.post("/auth/login", responses=RESPONSES_401)
 async def login(data: UserLogin):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user or not verify_password(data.password, user['password_hash']):
@@ -172,22 +188,22 @@ async def create_location(data: LocationCreate, user: CurrentUser):
     await log_activity("location_created", f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)", "location", loc_id, user.get('name', 'System'))
     return doc
 
-@api_router.put("/locations/{location_id}")
+@api_router.put("/locations/{location_id}", responses=RESPONSES_400_404_LOCATION)
 async def update_location(location_id: str, data: LocationUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     result = await db.locations.update_one({"id": location_id}, {"$set": update_data})
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Location not found")
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
     return updated
 
-@api_router.delete("/locations/{location_id}")
+@api_router.delete("/locations/{location_id}", responses=RESPONSES_404_LOCATION)
 async def delete_location(location_id: str, user: CurrentUser):
     result = await db.locations.delete_one({"id": location_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Location not found")
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     return {"message": "Location deleted"}
 
 # ========== EMPLOYEE ROUTES ==========
@@ -213,22 +229,22 @@ async def create_employee(data: EmployeeCreate, user: CurrentUser):
     await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
-@api_router.put("/employees/{employee_id}")
+@api_router.put("/employees/{employee_id}", responses=RESPONSES_400_404_EMPLOYEE)
 async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     result = await db.employees.update_one({"id": employee_id}, {"$set": update_data})
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     return updated
 
-@api_router.delete("/employees/{employee_id}")
+@api_router.delete("/employees/{employee_id}", responses=RESPONSES_404_EMPLOYEE)
 async def delete_employee(employee_id: str, user: CurrentUser):
     result = await db.employees.delete_one({"id": employee_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return {"message": "Employee deleted"}
 
 # ========== SCHEDULE ROUTES ==========
@@ -252,17 +268,17 @@ async def get_schedules(
     schedules = await db.schedules.find(query, {"_id": 0}).to_list(1000)
     return schedules
 
-@api_router.post("/schedules")
+@api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}})
 async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
-        raise HTTPException(status_code=404, detail="Location not found")
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
     # Check employee exists
     employee = await db.employees.find_one({"id": data.employee_id}, {"_id": 0})
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
     drive_time = location['drive_time_minutes']
 
@@ -313,7 +329,7 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     )
     return doc
 
-@api_router.put("/schedules/{schedule_id}")
+@api_router.put("/schedules/{schedule_id}", responses=RESPONSES_404_SCHEDULE)
 async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
@@ -335,16 +351,16 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentU
 
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": update_data})
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     return updated
 
-@api_router.delete("/schedules/{schedule_id}")
+@api_router.delete("/schedules/{schedule_id}", responses=RESPONSES_404_SCHEDULE)
 async def delete_schedule(schedule_id: str, user: CurrentUser):
     schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     result = await db.schedules.delete_one({"id": schedule_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     if schedule:
         await log_activity("schedule_deleted", f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed", "schedule", schedule_id, user.get('name', 'System'))
     return {"message": "Schedule deleted"}
@@ -365,13 +381,13 @@ async def log_activity(action: str, description: str, entity_type: str, entity_i
 
 # ========== SCHEDULE STATUS ==========
 
-@api_router.put("/schedules/{schedule_id}/status")
+@api_router.put("/schedules/{schedule_id}/status", responses=RESPONSES_400_404_SCHEDULE)
 async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: CurrentUser):
     if data.status not in ["upcoming", "in_progress", "completed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     await log_activity(
         action=f"status_{data.status}",
@@ -391,11 +407,11 @@ async def get_activity_logs(user: CurrentUser, limit: int = 30):
 
 # ========== EMPLOYEE STATS ==========
 
-@api_router.get("/employees/{employee_id}/stats")
+@api_router.get("/employees/{employee_id}/stats", responses=RESPONSES_404_EMPLOYEE)
 async def get_employee_stats(employee_id: str, user: CurrentUser):
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
     all_schedules = await db.schedules.find({"employee_id": employee_id}, {"_id": 0}).to_list(1000)
     total_classes = len(all_schedules)
@@ -406,7 +422,7 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
             sh, sm = s['start_time'].split(':')
             eh, em = s['end_time'].split(':')
             total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except:
+        except (ValueError, KeyError):
             pass
 
     completed = sum(1 for s in all_schedules if s.get('status') == 'completed')
@@ -480,7 +496,7 @@ async def get_notifications(user: CurrentUser):
             notifications.append({
                 "id": f"idle-{emp['id']}",
                 "type": "idle_employee",
-                "title": f"No classes today",
+                "title": "No classes today",
                 "description": f"{emp['name']} has no classes scheduled for today",
                 "severity": "info",
                 "timestamp": today,
@@ -506,7 +522,7 @@ async def get_workload_stats(user: CurrentUser):
                 sh, sm = s['start_time'].split(':')
                 eh, em = s['end_time'].split(':')
                 total_class_mins += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-            except:
+            except (ValueError, KeyError):
                 pass
             total_drive_mins += s.get('drive_time_minutes', 0) * 2
 
