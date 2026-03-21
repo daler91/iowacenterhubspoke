@@ -19,10 +19,9 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
   const className = schedule.class_name || 'Unassigned Class';
 
   return (
-    <div
+    <button
+      type="button"
       data-testid={`kanban-card-${schedule.id}`}
-      role="button"
-      tabIndex={0}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('scheduleId', schedule.id);
@@ -30,14 +29,9 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
         setDragging(true);
       }}
       onDragEnd={() => setDragging(false)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onEdit?.(schedule);
-        }
-      }}
+      onClick={() => onEdit?.(schedule)}
       className={cn(
-        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group",
+        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group appearance-none text-left w-full",
         dragging && "opacity-50 scale-95"
       )}
       style={{ borderLeftColor: classColor }}
@@ -103,7 +97,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -162,9 +156,8 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
         {COLUMNS.map(col => {
           const items = getColumnSchedules(col.id);
           return (
-            <div
+            <section
               key={col.id}
-              role="group"
               aria-label={`${col.label} column`}
               data-testid={`kanban-column-${col.id}`}
               onDragOver={(e) => e.preventDefault()}
@@ -198,7 +191,7 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
                   </div>
                 )}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>

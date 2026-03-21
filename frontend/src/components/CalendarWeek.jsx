@@ -82,9 +82,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 data-testid={`class-block-${schedule.id}`}
                 draggable
                 onDragStart={(e) => {
@@ -96,7 +95,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   e.currentTarget.style.opacity = '0.4';
                 }}
                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
-                className="schedule-block class-block cursor-grab active:cursor-grabbing group"
+                className="schedule-block class-block cursor-grab active:cursor-grabbing group appearance-none border-0 p-0 text-left"
                 style={{
                   top: `${classTop}px`,
                   height: `${Math.max(classHeight, 30)}px`,
@@ -104,7 +103,6 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   borderLeft: `4px solid ${classColor}`,
                 }}
                 onClick={() => onEditSchedule?.(schedule)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEditSchedule?.(schedule); }}
               >
                 <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
                 <div className="flex flex-col h-full justify-between">
@@ -122,7 +120,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                     <AlertTriangle className="w-3 h-3 text-amber-300" />
                   </div>
                 )}
-              </div>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs">
               <div className="space-y-1">
@@ -220,6 +218,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             return (
               <div
                 key={dateStr}
+                role="region"
+                aria-label={`Schedule drop zone for ${dateStr}`}
                 className="border-r border-gray-100 last:border-r-0 relative"
                 onDragOver={(e) => {
                   e.preventDefault();

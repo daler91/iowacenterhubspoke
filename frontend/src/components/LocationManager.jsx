@@ -42,8 +42,8 @@ export default function LocationManager({ locations, onRefresh }) {
       const payload = {
         city_name: form.city_name,
         drive_time_minutes: Number.parseInt(form.drive_time_minutes, 10),
-        latitude: form.latitude ? parseFloat(form.latitude) : null,
-        longitude: form.longitude ? parseFloat(form.longitude) : null,
+        latitude: form.latitude ? Number.parseFloat(form.latitude) : null,
+        longitude: form.longitude ? Number.parseFloat(form.longitude) : null,
       };
       if (editing) {
         await locationsAPI.update(editing.id, payload);
@@ -70,6 +70,8 @@ export default function LocationManager({ locations, onRefresh }) {
       toast.error('Failed to delete location');
     }
   };
+
+  const saveLabel = loading ? 'Saving...' : (editing ? 'Update Location' : 'Add Location');
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="location-manager">
@@ -227,7 +229,7 @@ export default function LocationManager({ locations, onRefresh }) {
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
               >
-                {loading ? 'Saving...' : (editing ? 'Update Location' : 'Add Location')}
+                {saveLabel}
               </Button>
             </DialogFooter>
           </form>

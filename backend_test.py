@@ -106,7 +106,7 @@ class HubSpokeAPITester:
             200,
             data={
                 "email": "test@test.com",
-                "password": "password123"
+                "password": self.test_password
             }
         )
         if success and 'token' in response:

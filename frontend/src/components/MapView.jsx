@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { MapPin, Car, Clock, Navigation } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -144,3 +145,16 @@ export default function MapView({ locations, schedules }) {
     </div>
   );
 }
+
+MapView.propTypes = {
+  locations: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      city_name: PropTypes.string,
+      latitude: PropTypes.number,
+      longitude: PropTypes.number,
+      drive_time_minutes: PropTypes.number,
+    })
+  ),
+  schedules: PropTypes.array,
+};
