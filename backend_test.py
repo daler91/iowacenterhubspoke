@@ -67,9 +67,9 @@ class HubSpokeAPITester:
                 print("   Failed - Expected {expected_status}, got {response.status_code}")
                 try:
                     error_data = response.json()
-                    print(f"   Error: {error_data}")
+                    print("   Error: Server returned an error response (details omitted to avoid logging sensitive data)")
                 except (ValueError, requests.exceptions.JSONDecodeError):
-                    print("   Error: {response.text}")
+                    print("   Error: Unable to parse error response (details omitted to avoid logging sensitive data)")
                 return False, {}
 
         except requests.exceptions.RequestException as e:
