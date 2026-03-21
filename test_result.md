@@ -101,3 +101,112 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test the frontend sidebar reorganization on the HubSpoke scheduler app. Sidebar is now grouped into sections (Planning, Insights, Manage, Tools) instead of a flat list. Verify section grouping, navigation, New Schedule button, collapse/expand toggle, and mobile sidebar functionality."
+
+frontend:
+  - task: "Sidebar section grouping and order"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify expanded sidebar renders section labels (Planning, Insights, Manage, Tools) in correct order."
+
+  - task: "Manage section items order"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify Manage section contains Classes, Employees, Locations in that specific order."
+
+  - task: "Navigation functionality for all items"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify clicking each nav item switches main content correctly."
+
+  - task: "New Schedule button functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify New Schedule button opens the schedule modal."
+
+  - task: "Collapse/expand toggle functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify sidebar collapse/expand toggle works and collapsed sidebar shows icons only."
+
+  - task: "Mobile sidebar functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/DashboardPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify mobile hamburger menu opens/closes sidebar correctly."
+
+  - task: "Visual integrity (no overlap, clipping, active states)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify no visual issues like overlap, clipping, or broken active states."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+
+test_plan:
+  current_focus:
+    - "Sidebar section grouping and order"
+    - "Manage section items order"
+    - "Navigation functionality for all items"
+    - "New Schedule button functionality"
+    - "Collapse/expand toggle functionality"
+    - "Mobile sidebar functionality"
+    - "Visual integrity (no overlap, clipping, active states)"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "testing"
+    message: "Starting comprehensive sidebar reorganization testing. Will verify section grouping, navigation, buttons, collapse/expand, mobile functionality, and visual integrity."

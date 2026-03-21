@@ -7,21 +7,69 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'calendar', label: 'Calendar', icon: CalendarDays },
-  { id: 'kanban', label: 'Status Board', icon: Kanban },
-  { id: 'workload', label: 'Workload', icon: BarChart3 },
-  { id: 'report', label: 'Weekly Report', icon: FileText },
-  { id: 'activity', label: 'Activity', icon: Activity },
-  { id: 'map', label: 'Map View', icon: Map },
-  { id: 'locations', label: 'Locations', icon: MapPin },
-  { id: 'classes', label: 'Classes', icon: BookOpen },
-  { id: 'employees', label: 'Employees', icon: Users },
+const NAV_SECTIONS = [
+  {
+    id: 'planning',
+    label: 'Planning',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+      { id: 'kanban', label: 'Status Board', icon: Kanban },
+    ],
+  },
+  {
+    id: 'insights',
+    label: 'Insights',
+    items: [
+      { id: 'workload', label: 'Workload', icon: BarChart3 },
+      { id: 'report', label: 'Weekly Report', icon: FileText },
+      { id: 'activity', label: 'Activity', icon: Activity },
+    ],
+  },
+  {
+    id: 'manage',
+    label: 'Manage',
+    items: [
+      { id: 'classes', label: 'Classes', icon: BookOpen },
+      { id: 'employees', label: 'Employees', icon: Users },
+      { id: 'locations', label: 'Locations', icon: MapPin },
+    ],
+  },
+  {
+    id: 'tools',
+    label: 'Tools',
+    items: [
+      { id: 'map', label: 'Map View', icon: Map },
+    ],
+  },
 ];
 
 export default function Sidebar({ activeView, onViewChange, collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
+  const flatNavItems = NAV_SECTIONS.flatMap((section) => section.items);
+
+  const renderNavItem = (item) => {
+    const Icon = item.icon;
+    const isActive = activeView === item.id;
+
+    return (
+      <button
+        key={item.id}
+        data-testid={`nav-${item.id}`}
+        onClick={() => onViewChange(item.id)}
+        className={cn(
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+          isActive
+            ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+            : 'text-slate-500 hover:bg-gray-50 hover:text-slate-700',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <Icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+        {!collapsed && <span>{item.label}</span>}
+      </button>
+    );
+  };
 
   return (
     <div
@@ -59,27 +107,25 @@ export default function Sidebar({ activeView, onViewChange, collapsed, onToggle,
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.id;
-          return (
-            <button
-              key={item.id}
-              data-testid={`nav-${item.id}`}
-              onClick={() => onViewChange(item.id)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                isActive
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-slate-500 hover:bg-gray-50 hover:text-slate-700"
-              )}
-            >
-              <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-indigo-600" : "text-slate-400")} />
-              {!collapsed && <span>{item.label}</span>}
-            </button>
-          );
-        })}
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        {collapsed ? (
+          <div className="space-y-1">
+            {flatNavItems.map(renderNavItem)}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.id} className="space-y-1.5" data-testid={`nav-section-${section.id}`}>
+                <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  {section.label}
+                </p>
+                <div className="space-y-1">
+                  {section.items.map(renderNavItem)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* User section */}
