@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Clock, Car, User, GripVertical, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
