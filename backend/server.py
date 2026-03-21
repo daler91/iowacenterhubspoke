@@ -7,7 +7,7 @@ import asyncio
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from collections import defaultdict
