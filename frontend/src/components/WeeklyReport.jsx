@@ -3,20 +3,22 @@ import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from 'date-fns';
 import { reportsAPI } from '../lib/api';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users, CheckCircle2 } from 'lucide-react';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export default function WeeklyReport() {
+export default function WeeklyReport({ classes }) {
   const [weekDate, setWeekDate] = useState(new Date());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState('all');
   const reportRef = useRef(null);
 
   const weekStart = startOfWeek(weekDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(weekDate, { weekStartsOn: 1 });
-
   const dateFrom = format(weekStart, 'yyyy-MM-dd');
   const dateTo = format(weekEnd, 'yyyy-MM-dd');
 
@@ -25,11 +27,12 @@ export default function WeeklyReport() {
     reportsAPI.weeklySummary({
       date_from: dateFrom,
       date_to: dateTo,
+      class_id: selectedClassId === 'all' ? undefined : selectedClassId,
     })
-      .then(res => setReport(res.data))
+      .then((res) => setReport(res.data))
       .catch(() => toast.error('Failed to load report'))
       .finally(() => setLoading(false));
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, selectedClassId]);
 
   const exportPDF = async () => {
     if (!reportRef.current) return;
@@ -53,16 +56,16 @@ export default function WeeklyReport() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Weekly Summary</h2>
-          <p className="text-sm text-slate-500 mt-1">Report for the week</p>
+          <p className="text-sm text-slate-500 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => setWeekDate(d => subWeeks(d, 1))} data-testid="report-prev">
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev">
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <span className="text-sm font-medium text-slate-700 min-w-[180px] text-center">
             {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
           </span>
-          <Button variant="outline" size="sm" onClick={() => setWeekDate(d => addWeeks(d, 1))} data-testid="report-next">
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next">
             <ChevronRight className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={exportPDF} data-testid="report-export-pdf">
@@ -71,22 +74,35 @@ export default function WeeklyReport() {
         </div>
       </div>
 
+      <div className="max-w-[280px] space-y-2">
+        <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400" htmlFor="report-class-filter">Filter by Class</Label>
+        <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+          <SelectTrigger id="report-class-filter" className="bg-white" data-testid="report-class-filter">
+            <SelectValue placeholder="All classes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Classes</SelectItem>
+            {(classes || []).map((classItem) => (
+              <SelectItem key={classItem.id} value={classItem.id}>{classItem.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {loading && (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center py-20" data-testid="weekly-report-loading-state">
           <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
       {report && !loading && (
         <div ref={reportRef} className="space-y-6 bg-white rounded-xl border border-gray-200 p-6">
-          {/* Report header */}
           <div className="border-b border-gray-100 pb-4 mb-2">
             <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
               Weekly Summary: {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
             </h3>
           </div>
 
-          {/* Totals */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-indigo-50 rounded-xl p-4 text-center">
               <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
@@ -110,10 +126,22 @@ export default function WeeklyReport() {
             </div>
           </div>
 
-          {/* Per-employee breakdown */}
-          {(report.employees || []).map((emp, i) => (
-            <div key={i} className="border border-gray-100 rounded-xl p-4" data-testid={`report-employee-${i}`}>
-              <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap gap-2" data-testid="report-class-totals">
+            {(report.class_totals || []).map((classItem) => (
+              <Badge
+                key={classItem.class_id || classItem.class_name}
+                className="border-0 text-xs"
+                style={{ backgroundColor: `${classItem.class_color}20`, color: classItem.class_color }}
+                data-testid={`report-class-chip-${classItem.class_id || classItem.class_name}`}
+              >
+                {classItem.class_name}: {classItem.classes}
+              </Badge>
+            ))}
+          </div>
+
+          {(report.employees || []).map((emp, index) => (
+            <div key={index} className="border border-gray-100 rounded-xl p-4" data-testid={`report-employee-${index}`}>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: emp.employee_color }}>
                     {emp.employee_name?.charAt(0)?.toUpperCase()}
@@ -123,37 +151,57 @@ export default function WeeklyReport() {
                     <p className="text-xs text-slate-400">{emp.days_worked} day{emp.days_worked !== 1 ? 's' : ''} worked</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{emp.classes} classes</Badge>
                   <Badge className="bg-teal-50 text-teal-700 border-0 text-[10px]">{emp.class_hours}h class</Badge>
                   <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px]">{emp.drive_hours}h drive</Badge>
                   <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{emp.completed} done</Badge>
                 </div>
               </div>
+
+              <div className="flex flex-wrap gap-2 mb-3" data-testid={`report-employee-class-breakdown-${index}`}>
+                {(emp.class_breakdown || []).map((classItem) => (
+                  <Badge
+                    key={classItem.class_id || classItem.class_name}
+                    className="border-0 text-[10px]"
+                    style={{ backgroundColor: `${classItem.class_color}20`, color: classItem.class_color }}
+                  >
+                    {classItem.class_name}: {classItem.classes}
+                  </Badge>
+                ))}
+              </div>
+
               <div className="bg-gray-50/50 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-5 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <div className="grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   <div className="bg-gray-50 px-3 py-2">Date</div>
+                  <div className="bg-gray-50 px-3 py-2">Class</div>
                   <div className="bg-gray-50 px-3 py-2">Location</div>
                   <div className="bg-gray-50 px-3 py-2">Time</div>
                   <div className="bg-gray-50 px-3 py-2">Drive</div>
                   <div className="bg-gray-50 px-3 py-2">Status</div>
                 </div>
-                {(emp.schedule_details || []).map((d, j) => (
-                  <div key={j} className="grid grid-cols-5 gap-px bg-gray-200 text-xs">
-                    <div className="bg-white px-3 py-2 text-slate-700">{d.date}</div>
-                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{d.location}</div>
-                    <div className="bg-white px-3 py-2 text-slate-700">{d.time}</div>
-                    <div className="bg-white px-3 py-2 text-slate-500">{d.drive_minutes}m x2</div>
+                {(emp.schedule_details || []).map((scheduleDetail, detailIndex) => (
+                  <div key={detailIndex} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
+                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
+                    <div className="bg-white px-3 py-2">
+                      <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>
+                        {scheduleDetail.class_name}
+                      </Badge>
+                    </div>
+                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{scheduleDetail.location}</div>
+                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
+                    <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
                     <div className="bg-white px-3 py-2">
                       <Badge className={`border-0 text-[10px] ${
-                        d.status === 'completed' ? 'bg-green-50 text-green-700' :
-                        d.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
+                        scheduleDetail.status === 'completed' ? 'bg-green-50 text-green-700' :
+                        scheduleDetail.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
                         'bg-indigo-50 text-indigo-700'
-                      }`}>{d.status.replace('_', ' ')}</Badge>
+                      }`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
                     </div>
                   </div>
                 ))}
               </div>
+
               <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
                 <span>Locations: {(emp.locations_visited || []).join(', ')}</span>
               </div>
@@ -161,7 +209,7 @@ export default function WeeklyReport() {
           ))}
 
           {(!report.employees || report.employees.length === 0) && (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-slate-400" data-testid="weekly-report-empty-state">
               <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No classes scheduled for this week</p>
             </div>

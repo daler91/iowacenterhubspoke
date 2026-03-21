@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 class HubSpokeAPITester:
-    def __init__(self, base_url="https://schedule-hub-spoke.preview.emergentagent.com"):
+    def __init__(self, base_url="https://employee-dispatch-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0

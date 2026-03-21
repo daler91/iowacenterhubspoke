@@ -51,6 +51,14 @@ export const employeesAPI = {
   delete: (id) => api.delete(`/employees/${id}`),
 };
 
+// Classes
+export const classesAPI = {
+  getAll: () => api.get('/classes'),
+  create: (data) => api.post('/classes', data),
+  update: (id, data) => api.put(`/classes/${id}`, data),
+  delete: (id) => api.delete(`/classes/${id}`),
+};
+
 // Schedules
 export const schedulesAPI = {
   getAll: (params) => api.get('/schedules', { params }),

@@ -1,45 +1,141 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Car, BookOpen, TrendingUp } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
+const ALL_CLASSES_VALUE = 'all';
 
-export default function WorkloadDashboard({ workloadData, employees }) {
-  const chartData = (workloadData || []).map(w => ({
-    name: w.employee_name?.split(' ')[0] || '?',
-    fullName: w.employee_name,
-    'Class Hours': w.total_class_hours,
-    'Drive Hours': w.total_drive_hours,
-    classes: w.total_classes,
-    completed: w.completed,
-    upcoming: w.upcoming,
-    color: w.employee_color,
+export default function WorkloadDashboard({ workloadData, classes }) {
+  const [selectedClassId, setSelectedClassId] = useState(ALL_CLASSES_VALUE);
+
+  const classOptions = useMemo(() => {
+    const map = new Map();
+
+    (classes || []).forEach((classItem) => {
+      map.set(classItem.id, {
+        class_id: classItem.id,
+        class_name: classItem.name,
+        class_color: classItem.color || '#0F766E',
+        classes: 0,
+        class_hours: 0,
+        drive_hours: 0,
+      });
+    });
+
+    (workloadData || []).forEach((employeeWorkload) => {
+      (employeeWorkload.class_breakdown || []).forEach((classItem) => {
+        const key = classItem.class_id || `archived-${classItem.class_name}`;
+        const existing = map.get(key) || {
+          class_id: classItem.class_id,
+          class_name: classItem.class_name,
+          class_color: classItem.class_color || '#94A3B8',
+          classes: 0,
+          class_hours: 0,
+          drive_hours: 0,
+        };
+
+        existing.classes += classItem.classes || 0;
+        existing.class_hours += classItem.class_hours || 0;
+        existing.drive_hours += classItem.drive_hours || 0;
+        map.set(key, existing);
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.classes - a.classes || a.class_name.localeCompare(b.class_name));
+  }, [classes, workloadData]);
+
+  const scopedWorkload = useMemo(() => (
+    (workloadData || []).map((employeeWorkload) => {
+      if (selectedClassId === ALL_CLASSES_VALUE) {
+        return {
+          ...employeeWorkload,
+          display_classes: employeeWorkload.total_classes,
+          display_class_hours: employeeWorkload.total_class_hours,
+          display_drive_hours: employeeWorkload.total_drive_hours,
+        };
+      }
+
+      const matchedClass = (employeeWorkload.class_breakdown || []).find(
+        (classItem) => classItem.class_id === selectedClassId,
+      );
+
+      return {
+        ...employeeWorkload,
+        display_classes: matchedClass?.classes || 0,
+        display_class_hours: matchedClass?.class_hours || 0,
+        display_drive_hours: matchedClass?.drive_hours || 0,
+      };
+    }).filter((employeeWorkload) => selectedClassId === ALL_CLASSES_VALUE || employeeWorkload.display_classes > 0)
+  ), [selectedClassId, workloadData]);
+
+  const chartData = scopedWorkload.map((employeeWorkload) => ({
+    name: employeeWorkload.employee_name?.split(' ')[0] || '?',
+    fullName: employeeWorkload.employee_name,
+    'Class Hours': employeeWorkload.display_class_hours,
+    'Drive Hours': employeeWorkload.display_drive_hours,
+    classes: employeeWorkload.display_classes,
+    completed: employeeWorkload.completed,
+    upcoming: employeeWorkload.upcoming,
+    color: employeeWorkload.employee_color,
   }));
 
-  const totals = (workloadData || []).reduce((acc, w) => ({
-    classes: acc.classes + w.total_classes,
-    classHours: acc.classHours + w.total_class_hours,
-    driveHours: acc.driveHours + w.total_drive_hours,
-    completed: acc.completed + w.completed,
+  const totals = scopedWorkload.reduce((acc, employeeWorkload) => ({
+    classes: acc.classes + employeeWorkload.display_classes,
+    classHours: acc.classHours + employeeWorkload.display_class_hours,
+    driveHours: acc.driveHours + employeeWorkload.display_drive_hours,
+    completed: acc.completed + employeeWorkload.completed,
   }), { classes: 0, classHours: 0, driveHours: 0, completed: 0 });
 
-  const pieData = (workloadData || []).filter(w => w.total_classes > 0).map(w => ({
-    name: w.employee_name,
-    value: w.total_classes,
-    color: w.employee_color || '#4F46E5',
+  const pieData = scopedWorkload.filter((employeeWorkload) => employeeWorkload.display_classes > 0).map((employeeWorkload) => ({
+    name: employeeWorkload.employee_name,
+    value: employeeWorkload.display_classes,
+    color: employeeWorkload.employee_color || '#4F46E5',
   }));
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">
-      <div>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Workload Overview
         </h2>
-        <p className="text-sm text-slate-500 mt-1">Team resource allocation and time distribution</p>
+        <div className="min-w-[240px] space-y-2">
+          <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400" htmlFor="workload-class-filter">
+            Filter by Class
+          </Label>
+          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <SelectTrigger id="workload-class-filter" className="bg-white" data-testid="workload-class-filter">
+              <SelectValue placeholder="All classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_CLASSES_VALUE}>All Classes</SelectItem>
+              {classOptions.map((classItem) => (
+                <SelectItem key={classItem.class_id || classItem.class_name} value={classItem.class_id || `archived-${classItem.class_name}`} disabled={!classItem.class_id}>
+                  {classItem.class_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="w-full text-sm text-slate-500 mt-1" data-testid="workload-subtitle">
+          Team resource allocation and time distribution by class series.
+        </p>
       </div>
 
-      {/* Summary cards */}
+      <div className="flex flex-wrap gap-2" data-testid="workload-class-chips">
+        {classOptions.slice(0, 6).map((classItem) => (
+          <Badge
+            key={classItem.class_id || classItem.class_name}
+            className="border-0 text-xs"
+            style={{ backgroundColor: `${classItem.class_color}20`, color: classItem.class_color }}
+            data-testid={`workload-class-chip-${classItem.class_id || classItem.class_name}`}
+          >
+            {classItem.class_name}: {classItem.classes}
+          </Badge>
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
@@ -87,9 +183,7 @@ export default function WorkloadDashboard({ workloadData, employees }) {
         </div>
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bar chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
           <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Hours by Employee
@@ -110,13 +204,12 @@ export default function WorkloadDashboard({ workloadData, employees }) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">
+            <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm" data-testid="workload-chart-empty-state">
               No schedule data yet. Create some classes to see workload distribution.
             </div>
           )}
         </div>
 
-        {/* Pie chart */}
         <div className="bg-white rounded-xl border border-gray-100 p-6">
           <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
             Class Distribution
@@ -133,62 +226,69 @@ export default function WorkloadDashboard({ workloadData, employees }) {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[220px] flex items-center justify-center text-slate-400 text-sm">
+            <div className="h-[220px] flex items-center justify-center text-slate-400 text-sm" data-testid="workload-pie-empty-state">
               No data yet
             </div>
           )}
           <div className="space-y-2 mt-2">
-            {pieData.map((d, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
+            {pieData.map((pieItem, index) => (
+              <div key={index} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span className="text-slate-600 truncate max-w-[120px]">{d.name}</span>
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieItem.color }} />
+                  <span className="text-slate-600 truncate max-w-[120px]">{pieItem.name}</span>
                 </div>
-                <span className="font-semibold text-slate-800">{d.value}</span>
+                <span className="font-semibold text-slate-800">{pieItem.value}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Employee cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(workloadData || []).map(w => (
-          <div key={w.employee_id} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${w.employee_id}`}>
+        {scopedWorkload.map((employeeWorkload) => (
+          <div key={employeeWorkload.employee_id} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
             <div className="flex items-center gap-3 mb-4">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                style={{ backgroundColor: w.employee_color }}
+                style={{ backgroundColor: employeeWorkload.employee_color }}
               >
-                {w.employee_name?.charAt(0)?.toUpperCase()}
+                {employeeWorkload.employee_name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <p className="font-semibold text-slate-800 text-sm">{w.employee_name}</p>
-                <p className="text-xs text-slate-400">{w.total_classes} classes total</p>
+                <p className="font-semibold text-slate-800 text-sm">{employeeWorkload.employee_name}</p>
+                <p className="text-xs text-slate-400" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
+                  {employeeWorkload.display_classes} class{employeeWorkload.display_classes !== 1 ? 'es' : ''} in scope
+                </p>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500">Class Time</span>
-                <span className="font-semibold text-slate-700">{w.total_class_hours}h</span>
+                <span className="font-semibold text-slate-700">{employeeWorkload.display_class_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2">
-                <div className="h-2 rounded-full" style={{ width: `${Math.min((w.total_class_hours / Math.max(...(workloadData || []).map(x => x.total_class_hours), 1)) * 100, 100)}%`, backgroundColor: w.employee_color }} />
+                <div className="h-2 rounded-full" style={{ width: `${Math.min((employeeWorkload.display_class_hours / Math.max(...scopedWorkload.map((item) => item.display_class_hours), 1)) * 100, 100)}%`, backgroundColor: employeeWorkload.employee_color }} />
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500">Drive Time</span>
-                <span className="font-semibold text-slate-700">{w.total_drive_hours}h</span>
+                <span className="font-semibold text-slate-700">{employeeWorkload.display_drive_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2">
-                <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((w.total_drive_hours / Math.max(...(workloadData || []).map(x => x.total_drive_hours), 1)) * 100, 100)}%` }} />
+                <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / Math.max(...scopedWorkload.map((item) => item.display_drive_hours), 1)) * 100, 100)}%` }} />
               </div>
               <div className="flex gap-2 mt-3">
-                <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{w.completed} done</Badge>
-                <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{w.upcoming} upcoming</Badge>
+                <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
+                <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{employeeWorkload.upcoming} upcoming</Badge>
               </div>
             </div>
           </div>
         ))}
+
+        {scopedWorkload.length === 0 && (
+          <div className="col-span-full text-center py-10 text-slate-400" data-testid="workload-empty-state">
+            No workload found for the selected class.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ const COLUMNS = [
 
 function KanbanCard({ schedule, onStatusChange, onEdit }) {
   const [dragging, setDragging] = useState(false);
+  const classColor = schedule.class_color || '#0F766E';
+  const className = schedule.class_name || 'Unassigned Class';
 
   return (
     <div
@@ -26,18 +28,21 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
       }}
       onDragEnd={() => setDragging(false)}
       className={cn(
-        "bg-white rounded-lg border border-gray-100 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group",
+        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group",
         dragging && "opacity-50 scale-95"
       )}
+      style={{ borderLeftColor: classColor }}
     >
       <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: schedule.employee_color || '#4F46E5' }}
-          />
-          <span className="text-sm font-semibold text-slate-800">{schedule.location_name}</span>
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
+            style={{ backgroundColor: classColor }}
+            data-testid={`kanban-class-name-${schedule.id}`}
+          >
+            {className}
+          </span>
         </div>
         {schedule.town_to_town && (
           <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -45,6 +50,10 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
       </div>
 
       <div className="pl-[26px] space-y-2">
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <MapPin className="w-3 h-3" />
+          <span>{schedule.location_name}</span>
+        </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <User className="w-3 h-3" />
           <span>{schedule.employee_name}</span>
@@ -118,7 +127,7 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
         <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Status Board
         </h2>
-        <p className="text-sm text-slate-500 mt-1">Drag cards between columns to update class status</p>
+        <p className="text-sm text-slate-500 mt-1" data-testid="kanban-subtitle">Drag cards between columns to update class status</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

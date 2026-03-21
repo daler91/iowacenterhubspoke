@@ -42,7 +42,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     const driveAfterTop = minutesToTop(endMin);
     const driveAfterHeight = (driveMin / 60) * 60;
 
-    const empColor = schedule.employee_color || '#4F46E5';
+    const classColor = schedule.class_color || schedule.employee_color || '#0F766E';
+    const className = schedule.class_name || 'Unassigned Class';
 
     return (
       <div key={schedule.id}>
@@ -89,16 +90,17 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 style={{
                   top: `${classTop}px`,
                   height: `${Math.max(classHeight, 30)}px`,
-                  backgroundColor: empColor,
-                  borderLeftColor: empColor.replace(/E5$/, 'A3'),
+                  backgroundColor: classColor,
+                  borderLeft: `4px solid ${classColor}`,
                 }}
                 onClick={() => onEditSchedule?.(schedule)}
               >
                 <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
                 <div className="flex flex-col h-full justify-between">
                   <div>
-                    <p className="font-semibold text-[11px] truncate">{schedule.location_name}</p>
-                    <p className="text-[10px] opacity-80">{schedule.employee_name}</p>
+                    <p className="font-semibold text-[10px] uppercase tracking-wide truncate" data-testid={`calendar-class-name-${schedule.id}`}>{className}</p>
+                    <p className="text-[10px] opacity-90 truncate">{schedule.location_name}</p>
+                    <p className="text-[10px] opacity-75 truncate">{schedule.employee_name}</p>
                   </div>
                   <p className="text-[10px] opacity-70">
                     {schedule.start_time} - {schedule.end_time}
@@ -113,7 +115,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs">
               <div className="space-y-1">
-                <p className="font-semibold">{schedule.location_name}</p>
+                <p className="font-semibold">{className}</p>
+                <p className="text-xs">Location: {schedule.location_name}</p>
                 <p className="text-xs">Employee: {schedule.employee_name}</p>
                 <p className="text-xs">Time: {schedule.start_time} - {schedule.end_time}</p>
                 <p className="text-xs">Drive: {schedule.drive_time_minutes}m each way</p>

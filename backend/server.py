@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 LOCATION_NOT_FOUND = "Location not found"
 EMPLOYEE_NOT_FOUND = "Employee not found"
 SCHEDULE_NOT_FOUND = "Schedule not found"
+CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 RESPONSES_400 = {400: {"description": "Bad request"}}
@@ -41,9 +42,11 @@ RESPONSES_401 = {401: {"description": "Invalid credentials"}}
 RESPONSES_404_LOCATION = {404: {"description": LOCATION_NOT_FOUND}}
 RESPONSES_404_EMPLOYEE = {404: {"description": EMPLOYEE_NOT_FOUND}}
 RESPONSES_404_SCHEDULE = {404: {"description": SCHEDULE_NOT_FOUND}}
+RESPONSES_404_CLASS = {404: {"description": CLASS_NOT_FOUND}}
 RESPONSES_400_404_LOCATION = {400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": LOCATION_NOT_FOUND}}
 RESPONSES_400_404_EMPLOYEE = {400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": EMPLOYEE_NOT_FOUND}}
 RESPONSES_400_404_SCHEDULE = {400: {"description": "Invalid status"}, 404: {"description": SCHEDULE_NOT_FOUND}}
+RESPONSES_400_404_CLASS = {400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": CLASS_NOT_FOUND}}
 
 # ========== MODELS ==========
 
@@ -80,9 +83,20 @@ class EmployeeUpdate(BaseModel):
     phone: Optional[str] = None
     color: Optional[str] = None
 
+class ClassCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = "#0F766E"
+
+class ClassUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
 class ScheduleCreate(BaseModel):
     employee_id: str
     location_id: str
+    class_id: Optional[str] = None
     date: str  # YYYY-MM-DD
     start_time: str  # HH:MM
     end_time: str  # HH:MM
@@ -94,6 +108,7 @@ class ScheduleCreate(BaseModel):
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
     location_id: Optional[str] = None
+    class_id: Optional[str] = None
     date: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -254,6 +269,109 @@ async def delete_employee(employee_id: str, user: CurrentUser):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return {"message": "Employee deleted"}
 
+# ========== CLASS ROUTES ==========
+
+def get_class_snapshot(class_doc: Optional[dict]) -> dict:
+    if not class_doc:
+        return {
+            "class_id": None,
+            "class_name": None,
+            "class_color": None,
+            "class_description": None,
+        }
+
+    return {
+        "class_id": class_doc["id"],
+        "class_name": class_doc["name"],
+        "class_color": class_doc.get("color", "#0F766E"),
+        "class_description": class_doc.get("description"),
+    }
+
+async def sync_class_snapshot(class_doc: dict):
+    snapshot = get_class_snapshot(class_doc)
+    await db.schedules.update_many(
+        {"class_id": class_doc["id"]},
+        {"$set": {
+            "class_name": snapshot["class_name"],
+            "class_color": snapshot["class_color"],
+            "class_description": snapshot["class_description"],
+        }}
+    )
+
+async def enrich_schedules_with_classes(schedules: List[dict]):
+    class_ids = list({schedule.get("class_id") for schedule in schedules if schedule.get("class_id")})
+    class_map = {}
+
+    if class_ids:
+        classes = await db.classes.find({"id": {"$in": class_ids}}, {"_id": 0}).to_list(len(class_ids))
+        class_map = {class_doc["id"]: class_doc for class_doc in classes}
+
+    for schedule in schedules:
+        class_doc = class_map.get(schedule.get("class_id"))
+        if class_doc:
+            schedule.update(get_class_snapshot(class_doc))
+            continue
+
+        schedule.setdefault("class_name", None)
+        schedule.setdefault("class_color", None)
+        schedule.setdefault("class_description", None)
+
+    return schedules
+
+@api_router.get("/classes")
+async def get_classes(user: CurrentUser):
+    classes = await db.classes.find({}, {"_id": 0}).sort("name", 1).to_list(200)
+    return classes
+
+@api_router.post("/classes")
+async def create_class(data: ClassCreate, user: CurrentUser):
+    class_id = str(uuid.uuid4())
+    doc = {
+        "id": class_id,
+        "name": data.name,
+        "description": data.description,
+        "color": data.color,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.classes.insert_one(doc)
+    doc.pop("_id", None)
+    await log_activity("class_created", f"Class type '{data.name}' added", "class", class_id, user.get('name', 'System'))
+    return doc
+
+@api_router.put("/classes/{class_id}", responses=RESPONSES_400_404_CLASS)
+async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+
+    result = await db.classes.update_one({"id": class_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    updated = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    await sync_class_snapshot(updated)
+    await log_activity("class_updated", f"Class type '{updated['name']}' updated", "class", class_id, user.get('name', 'System'))
+    return updated
+
+@api_router.delete("/classes/{class_id}", responses=RESPONSES_404_CLASS)
+async def delete_class(class_id: str, user: CurrentUser):
+    class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    await db.schedules.update_many(
+        {"class_id": class_id},
+        {"$set": {
+            "class_id": None,
+            "class_name": class_doc["name"],
+            "class_color": class_doc.get("color", "#0F766E"),
+            "class_description": class_doc.get("description"),
+        }}
+    )
+    await db.classes.delete_one({"id": class_id})
+    await log_activity("class_deleted", f"Class type '{class_doc['name']}' deleted", "class", class_id, user.get('name', 'System'))
+    return {"message": "Class deleted"}
+
 # ========== CONFLICT DETECTION HELPER ==========
 
 def time_to_minutes(time_str: str) -> int:
@@ -305,12 +423,13 @@ async def get_schedules(
         query["date"] = {"$lte": date_to}
     if employee_id:
         query["employee_id"] = employee_id
-    schedules = await db.schedules.find(query, {"_id": 0}).to_list(1000)
-    return schedules
+    schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).to_list(1000)
+    return await enrich_schedules_with_classes(schedules)
 
 @api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
 async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     from datetime import timedelta as td
+
     # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
@@ -320,6 +439,12 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     employee = await db.employees.find_one({"id": data.employee_id}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+
+    class_doc = None
+    if data.class_id:
+        class_doc = await db.classes.find_one({"id": data.class_id}, {"_id": 0})
+        if not class_doc:
+            raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
 
@@ -379,7 +504,8 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
             "location_name": location['city_name'],
             "employee_name": employee['name'],
             "employee_color": employee.get('color', '#4F46E5'),
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            **get_class_snapshot(class_doc),
         }
         await db.schedules.insert_one(doc)
         doc.pop("_id", None)
@@ -388,9 +514,10 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     # Log activity for the batch
     if created:
         count_label = f"{len(created)} classes" if len(created) > 1 else "class"
+        class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
             action="schedule_created",
-            description=f"{employee['name']} assigned to {location['city_name']} — {count_label} starting {data.date}",
+            description=f"{employee['name']} assigned to {location['city_name']}{class_label} — {count_label} starting {data.date}",
             entity_type="schedule",
             entity_id=created[0]['id'],
             user_name=user.get('name', 'System')
@@ -406,19 +533,34 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
 @api_router.put("/schedules/{schedule_id}", responses=RESPONSES_404_SCHEDULE)
 async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     
     if 'location_id' in update_data:
         location = await db.locations.find_one({"id": update_data['location_id']}, {"_id": 0})
-        if location:
-            update_data['location_name'] = location['city_name']
-            if 'travel_override_minutes' not in update_data:
-                update_data['drive_time_minutes'] = location['drive_time_minutes']
+        if not location:
+            raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+        update_data['location_name'] = location['city_name']
+        if 'travel_override_minutes' not in update_data:
+            update_data['drive_time_minutes'] = location['drive_time_minutes']
     
     if 'employee_id' in update_data:
         employee = await db.employees.find_one({"id": update_data['employee_id']}, {"_id": 0})
-        if employee:
-            update_data['employee_name'] = employee['name']
-            update_data['employee_color'] = employee.get('color', '#4F46E5')
+        if not employee:
+            raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+        update_data['employee_name'] = employee['name']
+        update_data['employee_color'] = employee.get('color', '#4F46E5')
+
+    if 'class_id' in update_data:
+        class_doc = await db.classes.find_one({"id": update_data['class_id']}, {"_id": 0})
+        if not class_doc:
+            raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+        update_data.update({
+            "class_name": class_doc['name'],
+            "class_color": class_doc.get('color', '#0F766E'),
+            "class_description": class_doc.get('description'),
+        })
 
     if 'travel_override_minutes' in update_data and update_data['travel_override_minutes']:
         update_data['drive_time_minutes'] = update_data['travel_override_minutes']
@@ -539,10 +681,11 @@ async def get_notifications(user: CurrentUser):
     today_schedules = await db.schedules.find({"date": today}, {"_id": 0}).to_list(100)
     for s in today_schedules:
         if s.get('status', 'upcoming') == 'upcoming':
+            class_title = s.get('class_name') or s.get('location_name', '?')
             notifications.append({
                 "id": f"upcoming-{s['id']}",
                 "type": "upcoming_class",
-                "title": f"Upcoming: {s.get('location_name', '?')}",
+                "title": f"Upcoming: {class_title}",
                 "description": f"{s.get('employee_name', '?')} at {s.get('start_time', '?')} - {s.get('end_time', '?')}",
                 "severity": "info",
                 "timestamp": s.get('created_at', today),
@@ -591,14 +734,33 @@ async def get_workload_stats(user: CurrentUser):
         emp_schedules = [s for s in all_schedules if s['employee_id'] == emp['id']]
         total_class_mins = 0
         total_drive_mins = 0
+        class_breakdown = {}
         for s in emp_schedules:
             try:
                 sh, sm = s['start_time'].split(':')
                 eh, em = s['end_time'].split(':')
-                total_class_mins += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+                class_minutes = (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+                total_class_mins += class_minutes
             except (ValueError, KeyError):
+                class_minutes = 0
                 pass
-            total_drive_mins += s.get('drive_time_minutes', 0) * 2
+            drive_minutes = s.get('drive_time_minutes', 0) * 2
+            total_drive_mins += drive_minutes
+
+            class_key = s.get('class_id') or f"archived::{s.get('class_name') or 'Unassigned'}"
+            if class_key not in class_breakdown:
+                class_breakdown[class_key] = {
+                    "class_id": s.get('class_id'),
+                    "class_name": s.get('class_name') or 'Unassigned',
+                    "class_color": s.get('class_color') or '#94A3B8',
+                    "classes": 0,
+                    "class_minutes": 0,
+                    "drive_minutes": 0,
+                }
+
+            class_breakdown[class_key]['classes'] += 1
+            class_breakdown[class_key]['class_minutes'] += class_minutes
+            class_breakdown[class_key]['drive_minutes'] += drive_minutes
 
         workload.append({
             "employee_id": emp['id'],
@@ -609,6 +771,14 @@ async def get_workload_stats(user: CurrentUser):
             "total_drive_hours": round(total_drive_mins / 60, 1),
             "completed": sum(1 for s in emp_schedules if s.get('status') == 'completed'),
             "upcoming": sum(1 for s in emp_schedules if s.get('status', 'upcoming') == 'upcoming'),
+            "class_breakdown": sorted([
+                {
+                    **class_data,
+                    "class_hours": round(class_data['class_minutes'] / 60, 1),
+                    "drive_hours": round(class_data['drive_minutes'] / 60, 1),
+                }
+                for class_data in class_breakdown.values()
+            ], key=lambda class_data: (-class_data['classes'], class_data['class_name'])),
         })
 
     return workload
@@ -639,7 +809,7 @@ async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: Curr
 # ========== WEEKLY SUMMARY REPORT ==========
 
 @api_router.get("/reports/weekly-summary")
-async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None, date_to: Optional[str] = None):
+async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None, date_to: Optional[str] = None, class_id: Optional[str] = None):
     """Generate a weekly summary report."""
     from datetime import date as dt_date, timedelta as td
     if not date_from:
@@ -648,11 +818,16 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
         date_from = start.isoformat()
         date_to = (start + td(days=6)).isoformat()
 
-    schedules = await db.schedules.find({"date": {"$gte": date_from, "$lte": date_to}}, {"_id": 0}).to_list(1000)
+    query = {"date": {"$gte": date_from, "$lte": date_to}}
+    if class_id:
+        query["class_id"] = class_id
+
+    schedules = await db.schedules.find(query, {"_id": 0}).to_list(1000)
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
     emp_map = {e['id']: e for e in employees}
 
     employee_summaries = {}
+    class_totals = {}
     for s in schedules:
         eid = s['employee_id']
         if eid not in employee_summaries:
@@ -667,21 +842,53 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
                 "days_worked": set(),
                 "completed": 0,
                 "schedule_details": [],
+                "class_breakdown": {},
             }
         summary = employee_summaries[eid]
+        class_minutes = calculate_class_minutes(s['start_time'], s['end_time'])
+        drive_minutes = s.get('drive_time_minutes', 0) * 2
         summary['classes'] += 1
-        summary['class_minutes'] += calculate_class_minutes(s['start_time'], s['end_time'])
-        summary['drive_minutes'] += s.get('drive_time_minutes', 0) * 2
+        summary['class_minutes'] += class_minutes
+        summary['drive_minutes'] += drive_minutes
         summary['locations_visited'].add(s.get('location_name', '?'))
         summary['days_worked'].add(s['date'])
         if s.get('status') == 'completed':
             summary['completed'] += 1
+
+        class_key = s.get('class_id') or f"archived::{s.get('class_name') or 'Unassigned'}"
+        if class_key not in summary['class_breakdown']:
+            summary['class_breakdown'][class_key] = {
+                "class_id": s.get('class_id'),
+                "class_name": s.get('class_name') or 'Unassigned',
+                "class_color": s.get('class_color') or '#94A3B8',
+                "classes": 0,
+                "class_minutes": 0,
+                "drive_minutes": 0,
+            }
+        if class_key not in class_totals:
+            class_totals[class_key] = {
+                "class_id": s.get('class_id'),
+                "class_name": s.get('class_name') or 'Unassigned',
+                "class_color": s.get('class_color') or '#94A3B8',
+                "classes": 0,
+                "class_minutes": 0,
+            }
+
+        summary['class_breakdown'][class_key]['classes'] += 1
+        summary['class_breakdown'][class_key]['class_minutes'] += class_minutes
+        summary['class_breakdown'][class_key]['drive_minutes'] += drive_minutes
+        class_totals[class_key]['classes'] += 1
+        class_totals[class_key]['class_minutes'] += class_minutes
+
         summary['schedule_details'].append({
             "date": s['date'],
             "location": s.get('location_name', '?'),
             "time": f"{s['start_time']}-{s['end_time']}",
             "drive_minutes": s.get('drive_time_minutes', 0),
             "status": s.get('status', 'upcoming'),
+            "class_id": s.get('class_id'),
+            "class_name": s.get('class_name') or 'Unassigned',
+            "class_color": s.get('class_color') or '#94A3B8',
         })
 
     # Convert sets to lists for JSON
@@ -691,6 +898,14 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
         summary['days_worked'] = len(summary['days_worked'])
         summary['class_hours'] = round(summary['class_minutes'] / 60, 1)
         summary['drive_hours'] = round(summary['drive_minutes'] / 60, 1)
+        summary['class_breakdown'] = sorted([
+            {
+                **class_data,
+                "class_hours": round(class_data['class_minutes'] / 60, 1),
+                "drive_hours": round(class_data['drive_minutes'] / 60, 1),
+            }
+            for class_data in summary['class_breakdown'].values()
+        ], key=lambda class_data: (-class_data['classes'], class_data['class_name']))
         result.append(summary)
 
     total_classes = sum(s['classes'] for s in result)
@@ -705,6 +920,13 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
             "drive_hours": total_drive_hrs,
             "employees_active": len(result),
         },
+        "class_totals": sorted([
+            {
+                **class_data,
+                "class_hours": round(class_data['class_minutes'] / 60, 1),
+            }
+            for class_data in class_totals.values()
+        ], key=lambda class_data: (-class_data['classes'], class_data['class_name'])),
         "employees": sorted(result, key=lambda x: x['classes'], reverse=True),
     }
 

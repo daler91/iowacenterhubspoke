@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users, LayoutDashboard,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, Activity, UserCircle, FileText
+  Kanban, BarChart3, Activity, FileText, BookOpen
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'map', label: 'Map View', icon: Map },
   { id: 'locations', label: 'Locations', icon: MapPin },
+  { id: 'classes', label: 'Classes', icon: BookOpen },
   { id: 'employees', label: 'Employees', icon: Users },
 ];
 

@@ -54,7 +54,8 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
               const startMin = timeToMinutes(schedule.start_time);
               const endMin = timeToMinutes(schedule.end_time);
               const driveMin = schedule.drive_time_minutes || 0;
-              const empColor = schedule.employee_color || '#4F46E5';
+              const classColor = schedule.class_color || schedule.employee_color || '#0F766E';
+              const className = schedule.class_name || 'Unassigned Class';
 
               const classTop = minutesToTop(startMin);
               const classHeight = ((endMin - startMin) / 60) * 80;
@@ -85,14 +86,15 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                       top: `${classTop}px`,
                       height: `${Math.max(classHeight, 40)}px`,
                       right: '16px',
-                      backgroundColor: empColor,
+                      backgroundColor: classColor,
                     }}
                     onClick={() => onEditSchedule?.(schedule)}
                     data-testid={`day-class-block-${schedule.id}`}
                   >
                     <div className="flex flex-col h-full justify-between">
                       <div>
-                        <p className="font-semibold text-sm">{schedule.location_name}</p>
+                        <p className="font-semibold text-xs uppercase tracking-wide">{className}</p>
+                        <p className="text-sm">{schedule.location_name}</p>
                         <p className="text-xs opacity-80">{schedule.employee_name}</p>
                       </div>
                       <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>

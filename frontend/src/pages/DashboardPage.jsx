@@ -9,7 +9,7 @@ import {
   Users, MapPin, Clock, TrendingUp, FileDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { locationsAPI, employeesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
+import { locationsAPI, employeesAPI, classesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import CalendarWeek from '../components/CalendarWeek';
@@ -25,6 +25,7 @@ import ActivityFeed from '../components/ActivityFeed';
 import EmployeeProfile from '../components/EmployeeProfile';
 import NotificationsPanel from '../components/NotificationsPanel';
 import WeeklyReport from '../components/WeeklyReport';
+import ClassManager from '../components/ClassManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -39,6 +40,7 @@ export default function DashboardPage() {
 
   const [locations, setLocations] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [stats, setStats] = useState({});
   const [activities, setActivities] = useState([]);
@@ -67,6 +69,13 @@ export default function DashboardPage() {
       const res = await employeesAPI.getAll();
       setEmployees(res.data);
     } catch (err) { console.error('Failed to fetch employees', err); }
+  }, []);
+
+  const fetchClasses = useCallback(async () => {
+    try {
+      const res = await classesAPI.getAll();
+      setClasses(res.data);
+    } catch (err) { console.error('Failed to fetch classes', err); }
   }, []);
 
   const fetchSchedules = useCallback(async () => {
@@ -100,11 +109,19 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchLocations();
     fetchEmployees();
+    fetchClasses();
     fetchSchedules();
     fetchStats();
     fetchActivities();
     fetchWorkload();
-  }, [fetchLocations, fetchEmployees, fetchSchedules, fetchStats, fetchActivities, fetchWorkload]);
+  }, [fetchLocations, fetchEmployees, fetchClasses, fetchSchedules, fetchStats, fetchActivities, fetchWorkload]);
+
+  const handleClassRefresh = useCallback(() => {
+    fetchClasses();
+    fetchSchedules();
+    fetchActivities();
+    fetchWorkload();
+  }, [fetchActivities, fetchClasses, fetchSchedules, fetchWorkload]);
 
   const handleNewSchedule = () => {
     setEditingSchedule(null);
@@ -397,15 +414,17 @@ export default function DashboardPage() {
       case 'kanban':
         return <KanbanBoard schedules={schedules} onEditSchedule={handleEditSchedule} onRefresh={() => { fetchSchedules(); fetchActivities(); fetchWorkload(); }} />;
       case 'workload':
-        return <WorkloadDashboard workloadData={workloadData} employees={employees} />;
+        return <WorkloadDashboard workloadData={workloadData} classes={classes} />;
       case 'report':
-        return <WeeklyReport />;
+        return <WeeklyReport classes={classes} />;
       case 'activity':
         return <ActivityFeed activities={activities} />;
       case 'map':
         return <MapView locations={locations} schedules={schedules} />;
       case 'locations':
         return <LocationManager locations={locations} onRefresh={() => { fetchLocations(); fetchActivities(); }} />;
+      case 'classes':
+        return <ClassManager classes={classes} onRefresh={handleClassRefresh} />;
       case 'employees':
         if (selectedEmployeeId) {
           return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
@@ -462,8 +481,10 @@ export default function DashboardPage() {
         onOpenChange={setScheduleFormOpen}
         locations={locations}
         employees={employees}
+        classes={classes}
         editSchedule={editingSchedule}
         onSaved={handleScheduleSaved}
+        onClassCreated={handleClassRefresh}
       />
     </div>
   );

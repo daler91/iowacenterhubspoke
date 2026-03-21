@@ -5,13 +5,17 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
-import { AlertTriangle, Clock, MapPin, Car, Trash2 } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Car, Trash2, PlusCircle, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
+import ClassQuickCreateDialog from './ClassQuickCreateDialog';
 
-export default function ScheduleForm({ open, onOpenChange, locations, employees, editSchedule, onSaved }) {
+const CREATE_CLASS_VALUE = '__add_new_class__';
+
+export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
   const [form, setForm] = useState({
     employee_id: '',
+    class_id: '',
     location_id: '',
     date: '',
     start_time: '09:00',
@@ -23,11 +27,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   });
   const [loading, setLoading] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
+  const [quickClassOpen, setQuickClassOpen] = useState(false);
 
   useEffect(() => {
     if (editSchedule) {
       setForm({
         employee_id: editSchedule.employee_id,
+        class_id: editSchedule.class_id || '',
         location_id: editSchedule.location_id,
         date: editSchedule.date,
         start_time: editSchedule.start_time,
@@ -41,6 +47,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     } else {
       setForm({
         employee_id: '',
+        class_id: '',
         location_id: '',
         date: new Date().toISOString().split('T')[0],
         start_time: '09:00',
@@ -55,6 +62,20 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   }, [editSchedule, open]);
 
   const selectedLocation = locations?.find(l => l.id === form.location_id);
+  const selectedClass = classes?.find(c => c.id === form.class_id);
+
+  const handleClassSelection = (value) => {
+    if (value === CREATE_CLASS_VALUE) {
+      setQuickClassOpen(true);
+      return;
+    }
+    setForm((prev) => ({ ...prev, class_id: value }));
+  };
+
+  const handleQuickClassCreated = (classDoc) => {
+    onClassCreated?.(classDoc);
+    setForm((prev) => ({ ...prev, class_id: classDoc.id }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,10 +83,15 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       toast.error('Please fill all required fields');
       return;
     }
+    if (!editSchedule && !form.class_id) {
+      toast.error('Please select or create a class type');
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
         ...form,
+        class_id: form.class_id || null,
         travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null,
         recurrence: form.recurrence === 'none' ? null : form.recurrence,
         recurrence_end_date: form.recurrence_end_date || null,
@@ -146,6 +172,57 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Class Select */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-sm font-medium text-slate-700">Class Type</Label>
+              <button
+                type="button"
+                data-testid="schedule-add-class-inline-button"
+                onClick={() => setQuickClassOpen(true)}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              >
+                <PlusCircle className="w-3 h-3" />
+                Add New Class
+              </button>
+            </div>
+            <Select value={form.class_id || undefined} onValueChange={handleClassSelection}>
+              <SelectTrigger data-testid="schedule-class-select" className="h-10 bg-gray-50/50">
+                <SelectValue placeholder="Select a class type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CREATE_CLASS_VALUE} data-testid="schedule-class-add-new-option">
+                  <div className="flex items-center gap-2 text-indigo-700">
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    Add New Class...
+                  </div>
+                </SelectItem>
+                {(classes || []).map(classItem => (
+                  <SelectItem key={classItem.id} value={classItem.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classItem.color || '#0F766E' }} />
+                      <span>{classItem.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {selectedClass && (
+              <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-emerald-50/60 px-3 py-2" data-testid="schedule-selected-class-preview">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: selectedClass.color || '#0F766E' }}>
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800" data-testid="schedule-selected-class-name">{selectedClass.name}</p>
+                  <p className="text-xs text-slate-500 break-words" data-testid="schedule-selected-class-description">
+                    {selectedClass.description || 'No class description added.'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Location Select */}
@@ -316,6 +393,11 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           </DialogFooter>
         </form>
       </DialogContent>
+      <ClassQuickCreateDialog
+        open={quickClassOpen}
+        onOpenChange={setQuickClassOpen}
+        onCreated={handleQuickClassCreated}
+      />
     </Dialog>
   );
 }

@@ -84,13 +84,14 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
                     {daySchedules.slice(0, 3).map(s => (
                       <div
                         key={s.id}
+                        data-testid={`month-class-pill-${s.id}`}
                         className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
                         style={{
-                          backgroundColor: `${s.employee_color || '#4F46E5'}20`,
-                          color: s.employee_color || '#4F46E5',
+                          backgroundColor: `${s.class_color || s.employee_color || '#0F766E'}20`,
+                          color: s.class_color || s.employee_color || '#0F766E',
                         }}
                       >
-                        {s.location_name}
+                        {s.class_name || s.location_name}
                       </div>
                     ))}
                     {daySchedules.length > 3 && (
