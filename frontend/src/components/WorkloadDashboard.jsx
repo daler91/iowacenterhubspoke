@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Car, BookOpen, TrendingUp } from 'lucide-react';
 import { Badge } from './ui/badge';
