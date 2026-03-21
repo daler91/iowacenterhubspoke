@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  addDays, isSameMonth, isSameDay, isToday
+  addDays, isSameMonth, isToday
 } from 'date-fns';
 import { cn } from '../lib/utils';
 

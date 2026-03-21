@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { MapPin, Plus, Pencil, Trash2, Clock, Car } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
 
