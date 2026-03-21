@@ -220,7 +220,7 @@ export default function WorkloadDashboard({ workloadData, classes }) {
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
                   {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
@@ -233,7 +233,7 @@ export default function WorkloadDashboard({ workloadData, classes }) {
           )}
           <div className="space-y-2 mt-2">
             {pieData.map((pieItem, index) => (
-              <div key={index} className="flex items-center justify-between text-xs">
+              <div key={pieItem.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieItem.color }} />
                   <span className="text-slate-600 truncate max-w-[120px]">{pieItem.name}</span>
@@ -258,7 +258,7 @@ export default function WorkloadDashboard({ workloadData, classes }) {
               <div>
                 <p className="font-semibold text-slate-800 text-sm">{employeeWorkload.employee_name}</p>
                 <p className="text-xs text-slate-400" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
-                  {employeeWorkload.display_classes} class{employeeWorkload.display_classes !== 1 ? 'es' : ''} in scope
+                  {employeeWorkload.display_classes} class{employeeWorkload.display_classes === 1 ? '' : 'es'} in scope
                 </p>
               </div>
             </div>
