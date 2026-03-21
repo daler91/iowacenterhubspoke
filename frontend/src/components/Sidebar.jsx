@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 import {
@@ -158,3 +159,11 @@ export default function Sidebar({ activeView, onViewChange, collapsed, onToggle,
     </div>
   );
 }
+
+Sidebar.propTypes = {
+  activeView: PropTypes.string,
+  onViewChange: PropTypes.func,
+  collapsed: PropTypes.bool,
+  onToggle: PropTypes.func,
+  onNewSchedule: PropTypes.func,
+};
