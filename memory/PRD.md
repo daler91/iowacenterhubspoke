@@ -40,9 +40,16 @@ Build a web-based employee scheduling application that visually accounts for dri
 - [x] Sidebar navigation
 - [x] Responsive design
 
+### PM Features Added (March 20, 2026)
+- [x] Employee Workload Dashboard (bar charts, pie chart, per-employee cards with class/drive time breakdown)
+- [x] Kanban/Status Board (Upcoming → In Progress → Completed columns with drag-and-drop cards)
+- [x] Activity Feed (timeline of recent actions: schedules created/deleted, employees added, status changes)
+- [x] Employee Profiles (detailed stats, location breakdown chart, recent assignments list)
+- [x] Notifications Panel (bell icon with alerts: upcoming classes, town-to-town warnings, idle employees)
+
 ## Test Results
-- Backend: 100% (17/17 tests passed)
-- Frontend: 95% (all core functionality working)
+- Backend: 100% (23/23 tests passed)
+- Frontend: 95% (all core + PM features working)
 
 ## Prioritized Backlog
 ### P0 (Done)
