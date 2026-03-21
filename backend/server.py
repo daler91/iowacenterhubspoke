@@ -2,7 +2,6 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -27,20 +26,6 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret-change-in-production')
 JWT_ALGORITHM = 'HS256'
 
 app = FastAPI()
-
-_cors_origins_env = os.environ.get('CORS_ORIGINS', '')
-if _cors_origins_env:
-    _allow_origins = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
-else:
-    _allow_origins = ["*"]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=bool(_cors_origins_env),
-    allow_origins=_allow_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 api_router = APIRouter(prefix="/api")
 
