@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Badge } from './ui/badge';
-import { Users, MapPin, Clock, Calendar as CalIcon } from 'lucide-react';
+import { Users, MapPin, Clock } from 'lucide-react';
 
 export default function StatModal({ isOpen, onClose, title, type, data, classes, employees, locations }) {
   if (!isOpen) return null;

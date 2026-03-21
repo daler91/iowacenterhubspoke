@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
-  CheckCircle2, CalendarDays, TrendingUp, Mail, Phone
+  CheckCircle2, CalendarDays, Mail, Phone
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';

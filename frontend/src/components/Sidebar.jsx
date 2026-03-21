@@ -2,7 +2,7 @@ import PropTypes from 'prop-types';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 import {
-  CalendarDays, MapPin, Users, LayoutDashboard,
+  CalendarDays, MapPin, Users,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
   Kanban, BarChart3, Activity, FileText, BookOpen
 } from 'lucide-react';

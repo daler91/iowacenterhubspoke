@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, AlertTriangle, CalendarDays, UserX, X, Clock } from 'lucide-react';
+import { Bell, AlertTriangle, CalendarDays, UserX, X } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 import { cn } from '../lib/utils';

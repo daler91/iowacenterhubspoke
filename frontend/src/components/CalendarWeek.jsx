@@ -1,9 +1,8 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { format, startOfWeek, addDays, parseISO, addMinutes, isSameDay } from 'date-fns';
-import { Clock, Car, AlertTriangle, Trash2, GripVertical } from 'lucide-react';
+import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
+import { Car, AlertTriangle, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 7 PM

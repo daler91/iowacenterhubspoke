@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
-import { MapPin, Car, Clock, Navigation } from 'lucide-react';
+import { MapPin, Car, Navigation } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 const MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
