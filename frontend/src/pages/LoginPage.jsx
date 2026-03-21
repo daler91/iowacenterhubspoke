@@ -150,7 +150,10 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
               >
-                {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
+                {(() => {
+                  if (loading) return 'Please wait...';
+                  return isLogin ? 'Sign In' : 'Create Account';
+                })()}
               </Button>
             </form>
             <div className="mt-6 text-center">

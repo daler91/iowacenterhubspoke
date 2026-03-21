@@ -3,10 +3,10 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import App from "@/App";
 
-const resizeObserverMessages = [
+const resizeObserverMessages = new Set([
   "ResizeObserver loop completed with undelivered notifications.",
   "ResizeObserver loop limit exceeded",
-];
+]);
 
 if (typeof window !== "undefined") {
   const NativeResizeObserver = window.ResizeObserver;
@@ -24,7 +24,7 @@ if (typeof window !== "undefined") {
   window.addEventListener(
     "error",
     (event) => {
-      if (resizeObserverMessages.includes(event.message)) {
+      if (resizeObserverMessages.has(event.message)) {
         event.stopImmediatePropagation();
         event.preventDefault();
       }

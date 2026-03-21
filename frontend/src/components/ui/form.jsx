@@ -1,4 +1,5 @@
 import * as React from "react"
+import PropTypes from "prop-types"
 import { Slot } from "@radix-ui/react-slot"
 import { Controller, FormProvider, useFormContext } from "react-hook-form";
 
@@ -14,11 +15,15 @@ const FormField = (
     ...props
   }
 ) => {
+  const fieldValue = React.useMemo(() => ({ name: props.name }), [props.name]);
   return (
-    <FormFieldContext.Provider value={{ name: props.name }}>
+    <FormFieldContext.Provider value={fieldValue}>
       <Controller {...props} />
     </FormFieldContext.Provider>
   );
+}
+FormField.propTypes = {
+  name: PropTypes.string.isRequired,
 }
 
 const useFormField = () => {
@@ -48,9 +53,10 @@ const FormItemContext = React.createContext({})
 
 const FormItem = React.forwardRef(({ className, ...props }, ref) => {
   const id = React.useId()
+  const itemValue = React.useMemo(() => ({ id }), [id]);
 
   return (
-    <FormItemContext.Provider value={{ id }}>
+    <FormItemContext.Provider value={itemValue}>
       <div ref={ref} className={cn("space-y-2", className)} {...props} />
     </FormItemContext.Provider>
   );

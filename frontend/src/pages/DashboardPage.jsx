@@ -274,11 +274,11 @@ export default function DashboardPage() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            {calendarView === 'month'
-              ? format(currentDate, 'MMMM yyyy')
-              : calendarView === 'day'
-              ? format(currentDate, 'MMMM d, yyyy')
-              : `Week of ${format(currentDate, 'MMM d, yyyy')}`}
+            {(() => {
+              if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
+              if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
+              return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
+            })()}
           </h2>
           <Button
             variant="outline"
@@ -435,8 +435,12 @@ export default function DashboardPage() {
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Close sidebar"
           className="fixed inset-0 bg-black/30 z-40 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setMobileSidebarOpen(false); }}
         />
       )}
       <div className={cn(
