@@ -1,6 +1,7 @@
 import requests
 import sys
 import json
+import os
 from datetime import datetime, timedelta
 
 class HubSpokeAPITester:
@@ -9,7 +10,7 @@ class HubSpokeAPITester:
         self.token = None
         self.tests_run = 0
         self.tests_passed = 0
-        self.test_password = "testpass123"  # nosec - test-only credential
+        self.test_password = os.environ.get('TEST_PASSWORD', 'testpass123')
         self.user_id = None
         self.created_location_id = None
         self.created_employee_id = None
@@ -636,7 +637,7 @@ class HubSpokeAPITester:
     def test_cleanup(self):
         """Clean up created test data"""
         cleanup_success = True
-        
+
         if self.created_schedule_id:
             success, _ = self.run_test(
                 "Delete Test Schedule",
@@ -644,7 +645,7 @@ class HubSpokeAPITester:
                 f"schedules/{self.created_schedule_id}",
                 200
             )
-            cleanup_success = cleanup_success and success
+            cleanup_success = success
         
         if self.created_employee_id:
             success, _ = self.run_test(

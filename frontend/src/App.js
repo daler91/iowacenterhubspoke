@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 
+/** @param {{ children: React.ReactNode }} props */
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) {
@@ -20,6 +21,7 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+/** @param {{ children: React.ReactNode }} props */
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;

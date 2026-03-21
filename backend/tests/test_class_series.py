@@ -11,7 +11,7 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
 # Test user credentials
 TEST_EMAIL = f"test_class_{uuid.uuid4().hex[:8]}@test.com"
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = os.environ.get('TEST_PASSWORD', 'testpass123')
 TEST_NAME = "Test Class User"
 
 
@@ -91,7 +91,7 @@ class TestClassCRUD(TestSetup):
         data = response.json()
         class_ids = [c["id"] for c in data]
         assert TestClassCRUD.created_class_id in class_ids, "Created class should be in list"
-        print(f"PASS: GET /api/classes contains created class")
+        print("PASS: GET /api/classes contains created class")
     
     def test_update_class(self, session, auth_headers):
         """PUT /api/classes/{id} - update class"""
@@ -218,7 +218,7 @@ class TestScheduleWithClass(TestSetup):
         assert test_schedule, "Test schedule should be in list"
         assert test_schedule.get("class_name"), "Schedule should have class_name"
         assert test_schedule.get("class_color"), "Schedule should have class_color"
-        print(f"PASS: GET /api/schedules returns class info for schedule")
+        print("PASS: GET /api/schedules returns class info for schedule")
     
     def test_update_class_syncs_to_schedule(self, session, auth_headers):
         """PUT /api/classes/{id} - updating class should sync to linked schedules"""
@@ -382,7 +382,7 @@ class TestWeeklyReportWithClass(TestSetup):
                 assert "class_name" in detail, "Schedule detail should have class_name"
                 assert "class_color" in detail, "Schedule detail should have class_color"
         
-        print(f"PASS: GET /api/reports/weekly-summary has class_totals and employee class_breakdown")
+        print("PASS: GET /api/reports/weekly-summary has class_totals and employee class_breakdown")
     
     def test_weekly_report_class_filter(self, session, auth_headers):
         """GET /api/reports/weekly-summary with class_id filter"""
@@ -398,7 +398,7 @@ class TestWeeklyReportWithClass(TestSetup):
                 headers=auth_headers
             )
             assert response.status_code == 200, f"Failed to get filtered report: {response.text}"
-            print(f"PASS: GET /api/reports/weekly-summary with class_id filter works")
+            print("PASS: GET /api/reports/weekly-summary with class_id filter works")
         else:
             print("SKIP: No classes available for filter test")
 
