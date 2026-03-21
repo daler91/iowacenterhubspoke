@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types';
-import { format, isSameDay } from 'date-fns';
+import { format } from 'date-fns';
 import { Car, AlertTriangle } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
 
@@ -34,7 +34,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
           {format(currentDate, 'MMMM d, yyyy')}
         </p>
         {daySchedules.length > 0 && (
-          <p className="text-sm text-slate-500 mt-1">{daySchedules.length} class{daySchedules.length !== 1 ? 'es' : ''} scheduled</p>
+          <p className="text-sm text-slate-500 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
         )}
       </div>
 

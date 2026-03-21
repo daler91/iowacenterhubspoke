@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   CalendarPlus, UserPlus, MapPinPlus, Trash2, CheckCircle2,
-  PlayCircle, Clock, AlertTriangle, Activity
+  PlayCircle, Clock, Activity
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';

@@ -6,7 +6,7 @@ from datetime import datetime
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 TEST_EMAIL = f"test_workload_{uuid.uuid4().hex[:8]}@test.com"
-TEST_PASSWORD = os.environ.get('TEST_PASSWORD', 'testpass123')
+TEST_PASSWORD = os.environ['TEST_PASSWORD']
 TEST_NAME = "Test Workload User"
 
 class TestSetup:
@@ -107,7 +107,7 @@ class TestWorkloadErrors(TestSetup):
         assert emp_workload is not None
 
         # Due to invalid time, class_minutes is set to 0, which means total_class_hours should be 0.0
-        assert emp_workload["total_class_hours"] == 0.0
+        assert emp_workload["total_class_hours"] == pytest.approx(0.0)
 
         # Also check employee stats endpoint which has a similar try/except block
         emp_stats_response = session.get(f"{BASE_URL}/api/employees/{TestWorkloadErrors.employee_id}/stats", headers=auth_headers)
