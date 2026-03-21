@@ -18,7 +18,12 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://mongodb.railway.internal:27017')
+mongo_url = (
+    os.environ.get('MONGO_URL')
+    or os.environ.get('DATABASE_URL')
+    or os.environ.get('MONGODB_URL')
+    or 'mongodb://mongodb.railway.internal:27017'
+)
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'iowa_center_hub')]
 
@@ -1103,17 +1108,20 @@ async def seed_data():
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
         raise
-    count = await db.locations.count_documents({})
-    if count == 0:
-        default_locations = [
-            {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
-        ]
-        await db.locations.insert_many(default_locations)
-        logger.info("Seeded default locations")
+    try:
+        count = await db.locations.count_documents({})
+        if count == 0:
+            default_locations = [
+                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
+            ]
+            await db.locations.insert_many(default_locations)
+            logger.info("Seeded default locations")
+    except Exception as e:
+        logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
 # ========== APP SETUP ==========
 
