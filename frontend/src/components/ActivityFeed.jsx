@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   CalendarPlus, UserPlus, MapPinPlus, Trash2, CheckCircle2,
@@ -93,3 +94,15 @@ export default function ActivityFeed({ activities }) {
     </div>
   );
 }
+
+ActivityFeed.propTypes = {
+  activities: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      action: PropTypes.string,
+      description: PropTypes.string,
+      user_name: PropTypes.string,
+      timestamp: PropTypes.string,
+    })
+  ),
+};

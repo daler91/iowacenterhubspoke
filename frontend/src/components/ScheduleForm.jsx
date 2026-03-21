@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -104,24 +105,28 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const validateRecurrence = () => {
     if (form.recurrence === 'none' || editSchedule) return true;
 
-    const isCustom = form.recurrence === 'custom';
-    const recData = isCustom ? customRecurrence : {
-      end_mode: form.recurrence_end_mode,
-      end_date: form.recurrence_end_date,
-      occurrences: form.recurrence_occurrences,
-      frequency: null,
-      weekdays: null,
-    };
+    if (form.recurrence === 'custom') {
+      if (customRecurrence.frequency === 'week' && (!customRecurrence.weekdays || customRecurrence.weekdays.length === 0)) {
+        toast.error('Choose at least one weekday for custom recurrence');
+        return false;
+      }
+      if (customRecurrence.end_mode === 'on_date' && !customRecurrence.end_date) {
+        toast.error('Choose an end date for the custom recurrence');
+        return false;
+      }
+      if (customRecurrence.end_mode === 'after_occurrences' && (!customRecurrence.occurrences || Number.parseInt(customRecurrence.occurrences, 10) < 1)) {
+        toast.error('Enter a valid number of occurrences');
+        return false;
+      }
+      return true;
+    }
 
     if (isCustom && recData.frequency === 'week' && (!recData.weekdays || recData.weekdays.length === 0)) {
       toast.error('Choose at least one weekday for custom recurrence');
       return false;
     }
-    if (recData.end_mode === 'on_date' && !recData.end_date) {
-      toast.error(isCustom ? 'Choose an end date for the custom recurrence' : 'Choose an end date');
-      return false;
-    }
-    if (recData.end_mode === 'after_occurrences' && (!recData.occurrences || parseInt(recData.occurrences, 10) < 1)) {
+
+    if (form.recurrence_end_mode === 'after_occurrences' && (!form.recurrence_occurrences || Number.parseInt(form.recurrence_occurrences, 10) < 1)) {
       toast.error('Enter a valid number of occurrences');
       return false;
     }
@@ -137,29 +142,30 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
     }
 
-    const recData = isCustom ? customRecurrence : {
-      end_mode: form.recurrence_end_mode,
-      end_date: form.recurrence_end_date,
-      occurrences: form.recurrence_occurrences
-    };
+    let recurrenceOccurrences = null;
+    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
+      recurrenceOccurrences = Number.parseInt(customRecurrence.occurrences, 10);
+    } else if (!isNone && form.recurrence_end_mode === 'after_occurrences') {
+      recurrenceOccurrences = Number.parseInt(form.recurrence_occurrences, 10);
+    }
 
-    payload.recurrence_end_mode = recData.end_mode;
-    payload.recurrence_end_date = recData.end_mode === 'on_date' ? recData.end_date || null : null;
-    payload.recurrence_occurrences = recData.end_mode === 'after_occurrences' ? parseInt(recData.occurrences, 10) : null;
-
-    if (isCustom) {
-      payload.custom_recurrence = {
-        interval: parseInt(customRecurrence.interval, 10),
+    return {
+      ...form,
+      class_id: form.class_id || null,
+      travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
+      recurrence: isNone ? null : form.recurrence,
+      recurrence_end_mode: isNone ? null : endMode,
+      recurrence_end_date: recurrenceEndDate,
+      recurrence_occurrences: recurrenceOccurrences,
+      custom_recurrence: isCustom ? {
+        interval: Number.parseInt(customRecurrence.interval, 10),
         frequency: customRecurrence.frequency,
         weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
         end_mode: customRecurrence.end_mode,
-        end_date: payload.recurrence_end_date,
-        occurrences: payload.recurrence_occurrences,
-      };
-    } else {
-      payload.custom_recurrence = null;
-    }
-    return payload;
+        end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
+        occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
+      } : null,
+    };
   };
 
   const handleCreateResponse = (res) => {
@@ -167,7 +173,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       toast.warning(res.data.town_to_town_warning, { duration: 6000 });
     } else if (res.data.total_created !== undefined) {
       const skipped = res.data.conflicts_skipped?.length || 0;
-      toast.success(`${res.data.total_created} classes created${skipped ? `, ${skipped} skipped (conflicts)` : ''}`);
+      const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
+      toast.success(`${res.data.total_created} classes created${skippedMsg}`);
     } else {
       toast.success('Class scheduled successfully');
     }
@@ -202,7 +209,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         const detail = err.response.data?.detail;
         const msg = detail?.message || 'Schedule conflict detected';
         const conflicts = detail?.conflicts || [];
-        toast.error(`${msg}: ${conflicts.map(c => `${c.location} (${c.time})`).join(', ')}`, { duration: 8000 });
+        const conflictList = conflicts.map(c => `${c.location} (${c.time})`).join(', ');
+        toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
       } else {
         toast.error(err.response?.data?.detail || 'Failed to save schedule');
       }
@@ -225,6 +233,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       setLoading(false);
     }
   };
+
+  const submitLabel = loading ? 'Saving...' : (editSchedule ? 'Update Schedule' : 'Schedule Class');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -562,7 +572,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
             >
-              {loading ? 'Saving...' : editSchedule ? 'Update Schedule' : 'Schedule Class'}
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>
@@ -582,3 +592,25 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     </Dialog>
   );
 }
+
+ScheduleForm.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onOpenChange: PropTypes.func.isRequired,
+  locations: PropTypes.array,
+  employees: PropTypes.array,
+  classes: PropTypes.array,
+  editSchedule: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    employee_id: PropTypes.string,
+    class_id: PropTypes.string,
+    location_id: PropTypes.string,
+    date: PropTypes.string,
+    start_time: PropTypes.string,
+    end_time: PropTypes.string,
+    notes: PropTypes.string,
+    travel_override_minutes: PropTypes.number,
+    town_to_town: PropTypes.bool,
+  }),
+  onSaved: PropTypes.func,
+  onClassCreated: PropTypes.func,
+};
