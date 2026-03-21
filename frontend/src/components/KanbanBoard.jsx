@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -20,6 +21,8 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
   return (
     <div
       data-testid={`kanban-card-${schedule.id}`}
+      role="button"
+      tabIndex={0}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('scheduleId', schedule.id);
@@ -27,6 +30,12 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
         setDragging(true);
       }}
       onDragEnd={() => setDragging(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onEdit?.(schedule);
+        }
+      }}
       className={cn(
         "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group",
         dragging && "opacity-50 scale-95"
@@ -98,6 +107,25 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
   );
 }
 
+KanbanCard.propTypes = {
+  schedule: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    class_color: PropTypes.string,
+    class_name: PropTypes.string,
+    status: PropTypes.string,
+    town_to_town: PropTypes.bool,
+    location_name: PropTypes.string,
+    employee_name: PropTypes.string,
+    date: PropTypes.string,
+    start_time: PropTypes.string,
+    end_time: PropTypes.string,
+    drive_time_minutes: PropTypes.number,
+    notes: PropTypes.string,
+  }).isRequired,
+  onStatusChange: PropTypes.func.isRequired,
+  onEdit: PropTypes.func,
+};
+
 export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
   const handleStatusChange = async (scheduleId, newStatus) => {
     try {
@@ -136,6 +164,8 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
           return (
             <div
               key={col.id}
+              role="group"
+              aria-label={`${col.label} column`}
               data-testid={`kanban-column-${col.id}`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDrop(e, col.id)}
@@ -175,3 +205,16 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
     </div>
   );
 }
+
+KanbanBoard.propTypes = {
+  schedules: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      status: PropTypes.string,
+      date: PropTypes.string,
+      start_time: PropTypes.string,
+    })
+  ),
+  onEditSchedule: PropTypes.func,
+  onRefresh: PropTypes.func,
+};
