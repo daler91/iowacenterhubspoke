@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -40,7 +41,7 @@ export default function LocationManager({ locations, onRefresh }) {
     try {
       const payload = {
         city_name: form.city_name,
-        drive_time_minutes: parseInt(form.drive_time_minutes),
+        drive_time_minutes: Number.parseInt(form.drive_time_minutes, 10),
         latitude: form.latitude ? parseFloat(form.latitude) : null,
         longitude: form.longitude ? parseFloat(form.longitude) : null,
       };
@@ -226,7 +227,7 @@ export default function LocationManager({ locations, onRefresh }) {
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
               >
-                {loading ? 'Saving...' : editing ? 'Update Location' : 'Add Location'}
+                {loading ? 'Saving...' : (editing ? 'Update Location' : 'Add Location')}
               </Button>
             </DialogFooter>
           </form>
@@ -235,3 +236,16 @@ export default function LocationManager({ locations, onRefresh }) {
     </div>
   );
 }
+
+LocationManager.propTypes = {
+  locations: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      city_name: PropTypes.string.isRequired,
+      drive_time_minutes: PropTypes.number,
+      latitude: PropTypes.number,
+      longitude: PropTypes.number,
+    })
+  ),
+  onRefresh: PropTypes.func,
+};

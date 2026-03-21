@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
   CheckCircle2, CalendarDays, TrendingUp, Mail, Phone
@@ -32,8 +33,13 @@ export default function EmployeeProfile({ employeeId, onBack }) {
 
   if (!data) return null;
 
-  const { employee, total_classes, total_drive_minutes, total_class_minutes, completed, upcoming, in_progress, location_breakdown, recent_schedules } = data;
-  const totalHours = ((total_class_minutes + total_drive_minutes) / 60).toFixed(1);
+  const { employee, total_classes, total_drive_minutes, total_class_minutes, completed, upcoming, location_breakdown, recent_schedules } = data;
+
+  const getStatusStyle = (status) => {
+    if (status === 'completed') return 'bg-green-50 text-green-700';
+    if (status === 'in_progress') return 'bg-amber-50 text-amber-700';
+    return 'bg-indigo-50 text-indigo-700';
+  };
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="employee-profile">
@@ -153,9 +159,7 @@ export default function EmployeeProfile({ employeeId, onBack }) {
                     <p className="text-xs text-slate-400">{s.date} | {s.start_time}-{s.end_time}</p>
                   </div>
                   <Badge className={`border-0 text-[10px] ${
-                    s.status === 'completed' ? 'bg-green-50 text-green-700' :
-                    s.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
-                    'bg-indigo-50 text-indigo-700'
+                    getStatusStyle(s.status)
                   }`}>
                     {(s.status || 'upcoming').replace('_', ' ')}
                   </Badge>
@@ -171,3 +175,8 @@ export default function EmployeeProfile({ employeeId, onBack }) {
     </div>
   );
 }
+
+EmployeeProfile.propTypes = {
+  employeeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  onBack: PropTypes.func.isRequired,
+};

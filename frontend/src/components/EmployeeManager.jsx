@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -219,7 +220,7 @@ export default function EmployeeManager({ employees, onRefresh, onViewProfile })
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
               >
-                {loading ? 'Saving...' : editing ? 'Update Employee' : 'Add Employee'}
+                {loading ? 'Saving...' : (editing ? 'Update Employee' : 'Add Employee')}
               </Button>
             </DialogFooter>
           </form>
@@ -228,3 +229,17 @@ export default function EmployeeManager({ employees, onRefresh, onViewProfile })
     </div>
   );
 }
+
+EmployeeManager.propTypes = {
+  employees: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      name: PropTypes.string.isRequired,
+      email: PropTypes.string,
+      phone: PropTypes.string,
+      color: PropTypes.string,
+    })
+  ),
+  onRefresh: PropTypes.func,
+  onViewProfile: PropTypes.func,
+};
