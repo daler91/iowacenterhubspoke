@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import calendar
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Annotated, List, Optional
@@ -83,6 +84,14 @@ class EmployeeUpdate(BaseModel):
     phone: Optional[str] = None
     color: Optional[str] = None
 
+class RecurrenceRule(BaseModel):
+    interval: int = 1
+    frequency: str  # week, month
+    weekdays: Optional[List[int]] = None  # 0=Sun ... 6=Sat
+    end_mode: Optional[str] = "never"  # never, on_date, after_occurrences
+    end_date: Optional[str] = None
+    occurrences: Optional[int] = None
+
 class ClassCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -104,6 +113,9 @@ class ScheduleCreate(BaseModel):
     travel_override_minutes: Optional[int] = None
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
+    recurrence_end_mode: Optional[str] = None
+    recurrence_occurrences: Optional[int] = None
+    custom_recurrence: Optional[RecurrenceRule] = None
 
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
@@ -115,6 +127,11 @@ class ScheduleUpdate(BaseModel):
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None
     status: Optional[str] = None
+    recurrence: Optional[str] = None
+    recurrence_end_date: Optional[str] = None
+    recurrence_end_mode: Optional[str] = None
+    recurrence_occurrences: Optional[int] = None
+    custom_recurrence: Optional[RecurrenceRule] = None
 
 class StatusUpdate(BaseModel):
     status: str  # upcoming, in_progress, completed
@@ -381,6 +398,112 @@ def time_to_minutes(time_str: str) -> int:
 def calculate_class_minutes(start_time: str, end_time: str) -> int:
     return time_to_minutes(end_time) - time_to_minutes(start_time)
 
+def add_months(source_date, months: int):
+    month_index = source_date.month - 1 + months
+    year = source_date.year + (month_index // 12)
+    month = month_index % 12 + 1
+    day = min(source_date.day, calendar.monthrange(year, month)[1])
+    return source_date.replace(year=year, month=month, day=day)
+
+def get_start_weekday_value(start_date):
+    return (start_date.weekday() + 1) % 7
+
+def build_recurrence_rule(data: ScheduleCreate):
+    from datetime import date as dt_date
+
+    start_date = dt_date.fromisoformat(data.date)
+    end_mode = data.recurrence_end_mode or (
+        "on_date" if data.recurrence_end_date else
+        "after_occurrences" if data.recurrence_occurrences else
+        "never"
+    )
+
+    if not data.recurrence or data.recurrence == "none":
+        return None
+
+    if data.recurrence == "custom":
+        return data.custom_recurrence
+
+    if data.recurrence == "weekly":
+        return RecurrenceRule(
+            interval=1,
+            frequency="week",
+            weekdays=[get_start_weekday_value(start_date)],
+            end_mode=end_mode,
+            end_date=data.recurrence_end_date,
+            occurrences=data.recurrence_occurrences,
+        )
+
+    if data.recurrence == "biweekly":
+        return RecurrenceRule(
+            interval=2,
+            frequency="week",
+            weekdays=[get_start_weekday_value(start_date)],
+            end_mode=end_mode,
+            end_date=data.recurrence_end_date,
+            occurrences=data.recurrence_occurrences,
+        )
+
+    if data.recurrence == "monthly":
+        return RecurrenceRule(
+            interval=1,
+            frequency="month",
+            end_mode=end_mode,
+            end_date=data.recurrence_end_date,
+            occurrences=data.recurrence_occurrences,
+        )
+
+    return None
+
+def build_recurrence_dates(start_date_str: str, rule: Optional[RecurrenceRule]):
+    from datetime import date as dt_date, timedelta as td
+
+    if not rule:
+        return [start_date_str]
+
+    start_date = dt_date.fromisoformat(start_date_str)
+    interval = max(rule.interval or 1, 1)
+    default_limit = 24 if rule.frequency == "month" else 52
+    occurrence_limit = None
+    if rule.end_mode == "after_occurrences":
+        occurrence_limit = max(rule.occurrences or 1, 1)
+    elif rule.end_mode == "never":
+        occurrence_limit = default_limit
+
+    end_date = None
+    if rule.end_mode == "on_date" and rule.end_date:
+        end_date = dt_date.fromisoformat(rule.end_date)
+
+    dates_to_schedule = []
+
+    if rule.frequency == "month":
+        current = start_date
+        while True:
+            if end_date and current > end_date:
+                break
+            dates_to_schedule.append(current.isoformat())
+            if occurrence_limit and len(dates_to_schedule) >= occurrence_limit:
+                break
+            current = add_months(current, interval)
+        return dates_to_schedule or [start_date_str]
+
+    weekdays = sorted(set(rule.weekdays or [get_start_weekday_value(start_date)]))
+    current = start_date
+    hard_stop = end_date or (start_date + td(days=366 * 2))
+
+    while current <= hard_stop:
+        weekday_value = (current.weekday() + 1) % 7
+        weeks_since_start = (current - start_date).days // 7
+
+        if weekday_value in weekdays and weeks_since_start % interval == 0:
+            dates_to_schedule.append(current.isoformat())
+            if occurrence_limit and len(dates_to_schedule) >= occurrence_limit:
+                break
+
+        current += td(days=1)
+
+    return dates_to_schedule or [start_date_str]
+
 async def check_conflicts(employee_id: str, date: str, start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
     """Check if a proposed schedule conflicts with existing ones for the same employee on the same date."""
     new_start = time_to_minutes(start_time) - drive_minutes
@@ -428,8 +551,6 @@ async def get_schedules(
 
 @api_router.post("/schedules", responses={404: {"description": "Location or Employee not found"}, 409: {"description": "Schedule conflict detected"}})
 async def create_schedule(data: ScheduleCreate, user: CurrentUser):
-    from datetime import timedelta as td
-
     # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
@@ -447,18 +568,10 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
             raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
+    recurrence_rule = build_recurrence_rule(data)
 
     # Build list of dates to schedule
-    dates_to_schedule = [data.date]
-    if data.recurrence and data.recurrence != 'none' and data.recurrence_end_date:
-        from datetime import date as dt_date
-        start_date = dt_date.fromisoformat(data.date)
-        end_date = dt_date.fromisoformat(data.recurrence_end_date)
-        delta = td(weeks=1) if data.recurrence == 'weekly' else td(weeks=2)
-        current = start_date + delta
-        while current <= end_date:
-            dates_to_schedule.append(current.isoformat())
-            current += delta
+    dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
 
     created = []
     conflicts_found = []
@@ -501,6 +614,10 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
             "notes": data.notes,
             "status": "upcoming",
             "recurrence": data.recurrence,
+            "recurrence_end_mode": data.recurrence_end_mode,
+            "recurrence_end_date": data.recurrence_end_date,
+            "recurrence_occurrences": data.recurrence_occurrences,
+            "recurrence_rule": recurrence_rule.model_dump() if recurrence_rule else None,
             "location_name": location['city_name'],
             "employee_name": employee['name'],
             "employee_color": employee.get('color', '#4F46E5'),

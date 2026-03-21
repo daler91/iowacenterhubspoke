@@ -1,0 +1,62 @@
+{
+  "summary": "Comprehensive testing of Monthly and Custom recurrence features completed. Backend: 9/9 tests passed (100%). Frontend: All recurrence UI features verified - Monthly option, Custom recurrence dialog with weekday selection, end mode options (Never/On date/After).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: POST /api/schedules with monthly recurrence and after_occurrences - creates 3 monthly schedules",
+    "Backend: POST /api/schedules with monthly recurrence and on_date end mode - creates schedules within date range",
+    "Backend: POST /api/schedules with monthly recurrence and never end mode - creates 24 occurrences (default limit)",
+    "Backend: POST /api/schedules with custom weekly recurrence selecting Mon/Wed/Fri - creates 6 occurrences",
+    "Backend: POST /api/schedules with custom biweekly recurrence - creates 4 occurrences",
+    "Backend: POST /api/schedules with custom monthly recurrence - creates 3 monthly occurrences",
+    "Backend: POST /api/schedules with custom recurrence and on_date end mode - creates schedules within date range",
+    "Backend: Schedule stores recurrence_rule correctly with interval, frequency, weekdays, end_mode",
+    "Frontend: Repeat dropdown shows all options (No repeat, Weekly, Every 2 weeks, Monthly, Custom...)",
+    "Frontend: Monthly option shows ENDS section with Never/On date/After buttons",
+    "Frontend: Custom option opens Custom Recurrence Dialog",
+    "Frontend: Custom Recurrence Dialog has Repeat every interval input",
+    "Frontend: Custom Recurrence Dialog has Unit dropdown (Week/Month)",
+    "Frontend: Custom Recurrence Dialog has Repeat on weekday buttons (S,M,T,W,T,F,S)",
+    "Frontend: Custom Recurrence Dialog has Ends section with Never/On/After options",
+    "Frontend: ResizeObserver shim in index.js prevents runtime overlay errors"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_recurrence_features.py",
+    "/app/test_reports/pytest/pytest_recurrence_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Code quality is excellent - RecurrenceRule model properly handles all recurrence types",
+    "build_recurrence_rule function correctly maps monthly and custom recurrence to RecurrenceRule",
+    "build_recurrence_dates function properly generates dates for monthly frequency with add_months helper",
+    "CustomRecurrenceDialog component has proper validation for weekdays, end_date, and occurrences",
+    "ResizeObserver shim in index.js properly prevents runtime overlay errors"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_recurrence_features.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "Test users created during testing: test_recurrence_*, test_ui_*, test_full_*, test_custom_*, test_monthly_* prefixed emails",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Monthly and Custom recurrence features fully implemented and tested. Backend correctly generates recurring schedules for monthly (with add_months helper for proper month handling) and custom (weekly/monthly with weekday selection) recurrence types. All end modes (never, on_date, after_occurrences) work correctly. Frontend CustomRecurrenceDialog opens from schedule form and allows flexible recurrence configuration. ResizeObserver shim prevents runtime overlay errors.",
+  "features_verified": {
+    "monthly_recurrence_backend": "PASS - Creates correct monthly dates with all end modes",
+    "custom_recurrence_backend": "PASS - Creates correct dates with weekday selection and all end modes",
+    "recurrence_rule_storage": "PASS - Schedules store recurrence_rule with all parameters",
+    "repeat_dropdown_options": "PASS - Shows No repeat, Weekly, Every 2 weeks, Monthly, Custom...",
+    "monthly_end_settings": "PASS - Shows Never/On date/After buttons when Monthly selected",
+    "custom_recurrence_dialog": "PASS - Opens with interval, frequency, weekdays, and end options",
+    "resize_observer_fix": "PASS - No runtime overlay errors when opening recurrence controls"
+  }
+}

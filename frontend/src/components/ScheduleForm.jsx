@@ -9,8 +9,10 @@ import { AlertTriangle, Clock, MapPin, Car, Trash2, PlusCircle, BookOpen } from 
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import ClassQuickCreateDialog from './ClassQuickCreateDialog';
+import CustomRecurrenceDialog, { createDefaultCustomRecurrence, formatCustomRecurrenceSummary } from './CustomRecurrenceDialog';
 
 const CREATE_CLASS_VALUE = '__add_new_class__';
+const getDayValue = (dateStr) => new Date(`${dateStr}T00:00:00`).getDay();
 
 export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
   const [form, setForm] = useState({
@@ -23,11 +25,15 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     notes: '',
     travel_override_minutes: null,
     recurrence: 'none',
+    recurrence_end_mode: 'never',
     recurrence_end_date: '',
+    recurrence_occurrences: '',
   });
   const [loading, setLoading] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
+  const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
+  const [customRecurrence, setCustomRecurrence] = useState(createDefaultCustomRecurrence(new Date().toISOString().split('T')[0]));
 
   useEffect(() => {
     if (editSchedule) {
@@ -41,22 +47,28 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
         recurrence: 'none',
+        recurrence_end_mode: 'never',
         recurrence_end_date: '',
+        recurrence_occurrences: '',
       });
       if (editSchedule.town_to_town) setShowOverride(true);
     } else {
+      const startDate = new Date().toISOString().split('T')[0];
       setForm({
         employee_id: '',
         class_id: '',
         location_id: '',
-        date: new Date().toISOString().split('T')[0],
+        date: startDate,
         start_time: '09:00',
         end_time: '12:00',
         notes: '',
         travel_override_minutes: null,
         recurrence: 'none',
+        recurrence_end_mode: 'never',
         recurrence_end_date: '',
+        recurrence_occurrences: '',
       });
+      setCustomRecurrence(createDefaultCustomRecurrence(startDate));
       setShowOverride(false);
     }
   }, [editSchedule, open]);
@@ -77,6 +89,50 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     setForm((prev) => ({ ...prev, class_id: classDoc.id }));
   };
 
+  const handleRecurrenceChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      recurrence: value,
+      recurrence_end_mode: value === 'none' ? 'never' : prev.recurrence_end_mode,
+    }));
+
+    if (value === 'custom') {
+      setCustomRecurrenceOpen(true);
+    }
+  };
+
+  const validateRecurrence = () => {
+    if (form.recurrence === 'none' || editSchedule) return true;
+
+    if (form.recurrence === 'custom') {
+      if (customRecurrence.frequency === 'week' && (!customRecurrence.weekdays || customRecurrence.weekdays.length === 0)) {
+        toast.error('Choose at least one weekday for custom recurrence');
+        return false;
+      }
+      if (customRecurrence.end_mode === 'on_date' && !customRecurrence.end_date) {
+        toast.error('Choose an end date for the custom recurrence');
+        return false;
+      }
+      if (customRecurrence.end_mode === 'after_occurrences' && (!customRecurrence.occurrences || parseInt(customRecurrence.occurrences, 10) < 1)) {
+        toast.error('Enter a valid number of occurrences');
+        return false;
+      }
+      return true;
+    }
+
+    if (form.recurrence_end_mode === 'on_date' && !form.recurrence_end_date) {
+      toast.error('Choose an end date');
+      return false;
+    }
+
+    if (form.recurrence_end_mode === 'after_occurrences' && (!form.recurrence_occurrences || parseInt(form.recurrence_occurrences, 10) < 1)) {
+      toast.error('Enter a valid number of occurrences');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
@@ -87,6 +143,9 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       toast.error('Please select or create a class type');
       return;
     }
+    if (!validateRecurrence()) {
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -94,7 +153,21 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         class_id: form.class_id || null,
         travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null,
         recurrence: form.recurrence === 'none' ? null : form.recurrence,
-        recurrence_end_date: form.recurrence_end_date || null,
+        recurrence_end_mode: form.recurrence === 'custom' ? customRecurrence.end_mode : form.recurrence === 'none' ? null : form.recurrence_end_mode,
+        recurrence_end_date: form.recurrence === 'custom'
+          ? (customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null)
+          : form.recurrence_end_mode === 'on_date' ? form.recurrence_end_date || null : null,
+        recurrence_occurrences: form.recurrence === 'custom'
+          ? (customRecurrence.end_mode === 'after_occurrences' ? parseInt(customRecurrence.occurrences, 10) : null)
+          : form.recurrence_end_mode === 'after_occurrences' ? parseInt(form.recurrence_occurrences, 10) : null,
+        custom_recurrence: form.recurrence === 'custom' ? {
+          interval: parseInt(customRecurrence.interval, 10),
+          frequency: customRecurrence.frequency,
+          weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
+          end_mode: customRecurrence.end_mode,
+          end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
+          occurrences: customRecurrence.end_mode === 'after_occurrences' ? parseInt(customRecurrence.occurrences, 10) : null,
+        } : null,
       };
       if (editSchedule) {
         await schedulesAPI.update(editSchedule.id, payload);
@@ -264,7 +337,15 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 type="date"
                 data-testid="schedule-date-input"
                 value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                onChange={(e) => {
+                  const nextDate = e.target.value;
+                  setForm({ ...form, date: nextDate });
+                  setCustomRecurrence((prev) => (
+                    prev.frequency === 'week' && (!prev.weekdays || prev.weekdays.length === 0)
+                      ? { ...prev, weekdays: [getDayValue(nextDate)] }
+                      : prev
+                  ));
+                }}
                 className="h-10 bg-gray-50/50"
                 required
               />
@@ -343,26 +424,107 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           {!editSchedule && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-slate-700">Repeat</Label>
-              <div className="flex items-center gap-3">
-                <Select value={form.recurrence || 'none'} onValueChange={(v) => setForm({ ...form, recurrence: v })}>
-                  <SelectTrigger data-testid="schedule-recurrence-select" className="h-10 bg-gray-50/50 flex-1">
-                    <SelectValue placeholder="No repeat" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No repeat</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="biweekly">Every 2 weeks</SelectItem>
-                  </SelectContent>
-                </Select>
-                {form.recurrence && form.recurrence !== 'none' && (
-                  <Input
-                    type="date"
-                    data-testid="schedule-recurrence-end"
-                    value={form.recurrence_end_date || ''}
-                    onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })}
-                    className="h-10 bg-gray-50/50 flex-1"
-                    placeholder="End date"
-                  />
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Select value={form.recurrence || 'none'} onValueChange={handleRecurrenceChange}>
+                    <SelectTrigger data-testid="schedule-recurrence-select" className="h-10 bg-gray-50/50 flex-1">
+                      <SelectValue placeholder="No repeat" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No repeat</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="custom">Custom...</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {form.recurrence === 'custom' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => setCustomRecurrenceOpen(true)}
+                      data-testid="schedule-custom-recurrence-button"
+                    >
+                      Customize
+                    </Button>
+                  )}
+                </div>
+
+                {form.recurrence !== 'none' && form.recurrence !== 'custom' && (
+                  <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3 space-y-3" data-testid="schedule-repeat-settings">
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase tracking-[0.18em] text-slate-400">Ends</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          data-testid="repeat-end-never"
+                          onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'never' }))}
+                          className={`rounded-lg border px-3 py-2 text-xs font-medium ${form.recurrence_end_mode === 'never' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                        >
+                          Never
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="repeat-end-on-date"
+                          onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'on_date' }))}
+                          className={`rounded-lg border px-3 py-2 text-xs font-medium ${form.recurrence_end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                        >
+                          On date
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="repeat-end-after-count"
+                          onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'after_occurrences' }))}
+                          className={`rounded-lg border px-3 py-2 text-xs font-medium ${form.recurrence_end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                        >
+                          After
+                        </button>
+                      </div>
+                    </div>
+
+                    {form.recurrence_end_mode === 'on_date' && (
+                      <Input
+                        type="date"
+                        data-testid="schedule-recurrence-end"
+                        value={form.recurrence_end_date || ''}
+                        onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })}
+                        className="h-10 bg-white"
+                        placeholder="End date"
+                      />
+                    )}
+
+                    {form.recurrence_end_mode === 'after_occurrences' && (
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="1"
+                          data-testid="schedule-recurrence-occurrences"
+                          value={form.recurrence_occurrences || ''}
+                          onChange={(e) => setForm({ ...form, recurrence_occurrences: e.target.value })}
+                          className="h-10 bg-white max-w-[160px]"
+                          placeholder="12"
+                        />
+                        <span className="text-sm text-slate-500">occurrences</span>
+                      </div>
+                    )}
+
+                    {form.recurrence_end_mode === 'never' && (
+                      <p className="text-xs text-slate-400" data-testid="schedule-recurrence-never-note">
+                        Never creates the next 52 occurrences for now.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {form.recurrence === 'custom' && (
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3" data-testid="schedule-custom-recurrence-summary">
+                    <p className="text-xs uppercase tracking-[0.18em] text-indigo-400">Custom rule</p>
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      {formatCustomRecurrenceSummary(customRecurrence)}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -397,6 +559,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         open={quickClassOpen}
         onOpenChange={setQuickClassOpen}
         onCreated={handleQuickClassCreated}
+      />
+      <CustomRecurrenceDialog
+        open={customRecurrenceOpen}
+        onOpenChange={setCustomRecurrenceOpen}
+        startDate={form.date}
+        value={customRecurrence}
+        onSave={setCustomRecurrence}
       />
     </Dialog>
   );
