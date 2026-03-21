@@ -18,7 +18,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://mongodb.railway.internal:27017')
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'iowa_center_hub')]
 
@@ -1097,6 +1097,12 @@ async def get_dashboard_stats(user: CurrentUser):
 
 @app.on_event("startup")
 async def seed_data():
+    try:
+        await client.admin.command('ping')
+        logger.info(f"Connected to MongoDB at {mongo_url}")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
+        raise
     count = await db.locations.count_documents({})
     if count == 0:
         default_locations = [
