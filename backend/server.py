@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Annotated, List, Optional
 import uuid
 from datetime import datetime, timezone
 import jwt
@@ -103,7 +103,7 @@ def create_token(user_id: str, email: str, name: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-async def get_current_user(authorization: Optional[str] = Header(None)):
+async def get_current_user(authorization: Annotated[Optional[str], Header()] = None):
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=401, detail='Not authenticated')
     token = authorization.split(' ')[1]
@@ -114,6 +114,9 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail='Token expired')
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail='Invalid token')
+
+# Reusable annotated dependency
+CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 # ========== AUTH ROUTES ==========
 
@@ -143,18 +146,18 @@ async def login(data: UserLogin):
     return {"token": token, "user": {"id": user['id'], "name": user['name'], "email": user['email']}}
 
 @api_router.get("/auth/me")
-async def get_me(user=Depends(get_current_user)):
+async def get_me(user: CurrentUser):
     return {"user_id": user['user_id'], "email": user['email'], "name": user['name']}
 
 # ========== LOCATION ROUTES ==========
 
 @api_router.get("/locations")
-async def get_locations(user=Depends(get_current_user)):
+async def get_locations(user: CurrentUser):
     locations = await db.locations.find({}, {"_id": 0}).to_list(100)
     return locations
 
 @api_router.post("/locations")
-async def create_location(data: LocationCreate, user=Depends(get_current_user)):
+async def create_location(data: LocationCreate, user: CurrentUser):
     loc_id = str(uuid.uuid4())
     doc = {
         "id": loc_id,
@@ -170,7 +173,7 @@ async def create_location(data: LocationCreate, user=Depends(get_current_user)):
     return doc
 
 @api_router.put("/locations/{location_id}")
-async def update_location(location_id: str, data: LocationUpdate, user=Depends(get_current_user)):
+async def update_location(location_id: str, data: LocationUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -181,7 +184,7 @@ async def update_location(location_id: str, data: LocationUpdate, user=Depends(g
     return updated
 
 @api_router.delete("/locations/{location_id}")
-async def delete_location(location_id: str, user=Depends(get_current_user)):
+async def delete_location(location_id: str, user: CurrentUser):
     result = await db.locations.delete_one({"id": location_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -190,12 +193,12 @@ async def delete_location(location_id: str, user=Depends(get_current_user)):
 # ========== EMPLOYEE ROUTES ==========
 
 @api_router.get("/employees")
-async def get_employees(user=Depends(get_current_user)):
+async def get_employees(user: CurrentUser):
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
     return employees
 
 @api_router.post("/employees")
-async def create_employee(data: EmployeeCreate, user=Depends(get_current_user)):
+async def create_employee(data: EmployeeCreate, user: CurrentUser):
     emp_id = str(uuid.uuid4())
     doc = {
         "id": emp_id,
@@ -211,7 +214,7 @@ async def create_employee(data: EmployeeCreate, user=Depends(get_current_user)):
     return doc
 
 @api_router.put("/employees/{employee_id}")
-async def update_employee(employee_id: str, data: EmployeeUpdate, user=Depends(get_current_user)):
+async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -222,7 +225,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user=Depends(g
     return updated
 
 @api_router.delete("/employees/{employee_id}")
-async def delete_employee(employee_id: str, user=Depends(get_current_user)):
+async def delete_employee(employee_id: str, user: CurrentUser):
     result = await db.employees.delete_one({"id": employee_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -232,10 +235,10 @@ async def delete_employee(employee_id: str, user=Depends(get_current_user)):
 
 @api_router.get("/schedules")
 async def get_schedules(
+    user: CurrentUser,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
-    user=Depends(get_current_user)
 ):
     query = {}
     if date_from and date_to:
@@ -250,7 +253,7 @@ async def get_schedules(
     return schedules
 
 @api_router.post("/schedules")
-async def create_schedule(data: ScheduleCreate, user=Depends(get_current_user)):
+async def create_schedule(data: ScheduleCreate, user: CurrentUser):
     # Get location for drive time
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
@@ -311,7 +314,7 @@ async def create_schedule(data: ScheduleCreate, user=Depends(get_current_user)):
     return doc
 
 @api_router.put("/schedules/{schedule_id}")
-async def update_schedule(schedule_id: str, data: ScheduleUpdate, user=Depends(get_current_user)):
+async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
     if 'location_id' in update_data:
@@ -337,7 +340,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user=Depends(g
     return updated
 
 @api_router.delete("/schedules/{schedule_id}")
-async def delete_schedule(schedule_id: str, user=Depends(get_current_user)):
+async def delete_schedule(schedule_id: str, user: CurrentUser):
     schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     result = await db.schedules.delete_one({"id": schedule_id})
     if result.deleted_count == 0:
@@ -363,7 +366,7 @@ async def log_activity(action: str, description: str, entity_type: str, entity_i
 # ========== SCHEDULE STATUS ==========
 
 @api_router.put("/schedules/{schedule_id}/status")
-async def update_schedule_status(schedule_id: str, data: StatusUpdate, user=Depends(get_current_user)):
+async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: CurrentUser):
     if data.status not in ["upcoming", "in_progress", "completed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
@@ -382,14 +385,14 @@ async def update_schedule_status(schedule_id: str, data: StatusUpdate, user=Depe
 # ========== ACTIVITY LOGS ==========
 
 @api_router.get("/activity-logs")
-async def get_activity_logs(limit: int = 30, user=Depends(get_current_user)):
+async def get_activity_logs(user: CurrentUser, limit: int = 30):
     logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     return logs
 
 # ========== EMPLOYEE STATS ==========
 
 @api_router.get("/employees/{employee_id}/stats")
-async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
+async def get_employee_stats(employee_id: str, user: CurrentUser):
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -438,7 +441,7 @@ async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
 # ========== NOTIFICATIONS ==========
 
 @api_router.get("/notifications")
-async def get_notifications(user=Depends(get_current_user)):
+async def get_notifications(user: CurrentUser):
     notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -489,7 +492,7 @@ async def get_notifications(user=Depends(get_current_user)):
 # ========== WORKLOAD STATS ==========
 
 @api_router.get("/workload")
-async def get_workload_stats(user=Depends(get_current_user)):
+async def get_workload_stats(user: CurrentUser):
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
     all_schedules = await db.schedules.find({}, {"_id": 0}).to_list(1000)
 
@@ -523,7 +526,7 @@ async def get_workload_stats(user=Depends(get_current_user)):
 # ========== DASHBOARD STATS ==========
 
 @api_router.get("/dashboard/stats")
-async def get_dashboard_stats(user=Depends(get_current_user)):
+async def get_dashboard_stats(user: CurrentUser):
     total_employees = await db.employees.count_documents({})
     total_locations = await db.locations.count_documents({})
     total_schedules = await db.schedules.count_documents({})
