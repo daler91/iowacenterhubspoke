@@ -12,7 +12,8 @@ os.environ['JWT_SECRET'] = 'test_secret_key'
 
 # Mock all dependencies of backend.server to allow importing create_token
 # without a full environment setup.
-@pytest.fixture(autouse=True)
+# We use patch.dict to ensure that changes to sys.modules are isolated to this fixture's lifecycle.
+@pytest.fixture(autouse=True, scope="module")
 def mock_dependencies():
     with patch.dict(sys.modules, {
         'fastapi': MagicMock(),
@@ -25,20 +26,6 @@ def mock_dependencies():
         'pydantic': MagicMock()
     }):
         yield
-
-# We import inside the tests or after the mock is set up.
-# However, importing at module level is easier if we mock before.
-# Since we already mocked them above at module level for the first run,
-# let's keep it consistent but cleaner.
-
-sys.modules['fastapi'] = MagicMock()
-sys.modules['fastapi.middleware.cors'] = MagicMock()
-sys.modules['motor'] = MagicMock()
-sys.modules['motor.motor_asyncio'] = MagicMock()
-sys.modules['bcrypt'] = MagicMock()
-sys.modules['starlette.middleware.cors'] = MagicMock()
-sys.modules['dotenv'] = MagicMock()
-sys.modules['pydantic'] = MagicMock()
 
 from backend.server import create_token, JWT_SECRET, JWT_ALGORITHM
 
