@@ -30,7 +30,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 export default function DashboardPage() {
-  const [activeView, setActiveView] = useState('dashboard');
+  const [activeView, setActiveView] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -126,7 +126,7 @@ export default function DashboardPage() {
   const handleNewSchedule = () => {
     setEditingSchedule(null);
     setScheduleFormOpen(true);
-    if (activeView !== 'calendar' && activeView !== 'dashboard') {
+    if (activeView !== 'calendar') {
       setActiveView('calendar');
     }
   };
@@ -190,80 +190,77 @@ export default function DashboardPage() {
     }
   };
 
-  const renderDashboard = () => (
-    <div className="space-y-6 animate-slide-in" data-testid="dashboard-overview">
-      <div>
-        <h2 className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Dashboard
-        </h2>
-        <p className="text-slate-500 mt-1">Overview of your scheduling hub</p>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
-              <CalIcon className="w-5 h-5 text-indigo-600" />
-            </div>
-            <Badge className="bg-indigo-100 text-indigo-700 border-0 text-[10px]">Today</Badge>
+  const renderCalendarStats = () => (
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="calendar-stats-strip">
+      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Today</p>
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-today">
+              {stats.today_schedules || 0}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-today">
-            {stats.today_schedules || 0}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">Classes today</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-teal-600" />
-            </div>
+          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <CalIcon className="w-5 h-5 text-indigo-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-total-schedules">
-            {stats.total_schedules || 0}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">Total schedules</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-violet-50 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-violet-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-employees">
-            {stats.total_employees || 0}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">Active employees</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-amber-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-locations">
-            {stats.total_locations || 0}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">Spoke locations</p>
         </div>
       </div>
 
-      {/* Quick calendar */}
-      <div ref={calendarRef}>
-        <CalendarWeek
-          currentDate={currentDate}
-          schedules={schedules}
-          onEditSchedule={handleEditSchedule}
-        />
+      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-total-schedules">
+              {stats.total_schedules || 0}
+            </p>
+          </div>
+          <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-teal-600" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Team</p>
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-employees">
+              {stats.total_employees || 0}
+            </p>
+          </div>
+          <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
+            <Users className="w-5 h-5 text-violet-600" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Locations</p>
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-locations">
+              {stats.total_locations || 0}
+            </p>
+          </div>
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-amber-600" />
+          </div>
+        </div>
       </div>
     </div>
   );
 
   const renderCalendar = () => (
-    <div className="space-y-4 animate-slide-in" data-testid="calendar-view">
+    <div className="space-y-5 animate-slide-in" data-testid="calendar-view">
+      <div className="space-y-2" data-testid="calendar-home-header">
+        <h2 className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          Scheduling Calendar
+        </h2>
+        <p className="text-slate-500">Your main planning view — focused on classes, travel time, and weekly flow.</p>
+      </div>
+
+      {renderCalendarStats()}
+
       {/* Calendar controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -407,8 +404,6 @@ export default function DashboardPage() {
 
   const renderContent = () => {
     switch (activeView) {
-      case 'dashboard':
-        return renderDashboard();
       case 'calendar':
         return renderCalendar();
       case 'kanban':
@@ -431,7 +426,7 @@ export default function DashboardPage() {
         }
         return <EmployeeManager employees={employees} onRefresh={() => { fetchEmployees(); fetchActivities(); fetchWorkload(); }} onViewProfile={(id) => setSelectedEmployeeId(id)} />;
       default:
-        return renderDashboard();
+        return renderCalendar();
     }
   };
 

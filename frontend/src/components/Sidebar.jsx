@@ -12,8 +12,8 @@ const NAV_SECTIONS = [
     id: 'planning',
     label: 'Planning',
     items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+      { id: 'map', label: 'Map View', icon: Map },
       { id: 'kanban', label: 'Status Board', icon: Kanban },
     ],
   },
@@ -33,13 +33,6 @@ const NAV_SECTIONS = [
       { id: 'classes', label: 'Classes', icon: BookOpen },
       { id: 'employees', label: 'Employees', icon: Users },
       { id: 'locations', label: 'Locations', icon: MapPin },
-    ],
-  },
-  {
-    id: 'tools',
-    label: 'Tools',
-    items: [
-      { id: 'map', label: 'Map View', icon: Map },
     ],
   },
 ];

@@ -102,111 +102,166 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the frontend sidebar reorganization on the HubSpoke scheduler app. Sidebar is now grouped into sections (Planning, Insights, Manage, Tools) instead of a flat list. Verify section grouping, navigation, New Schedule button, collapse/expand toggle, and mobile sidebar functionality."
+user_problem_statement: "Test the latest frontend navigation/layout change for the HubSpoke scheduler app. Dashboard has been merged into Calendar. Calendar should now be the default home view after login. The old Dashboard nav item should be gone. The calendar page should have a slim stats strip above the main calendar. Sidebar Planning section order should now be: Calendar, Map View, Status Board."
 
 frontend:
-  - task: "Sidebar section grouping and order"
+  - task: "Calendar is default home view after login"
     implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/Sidebar.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Initial task created. Need to verify expanded sidebar renders section labels (Planning, Insights, Manage, Tools) in correct order."
-
-  - task: "Manage section items order"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/Sidebar.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Initial task created. Need to verify Manage section contains Classes, Employees, Locations in that specific order."
-
-  - task: "Navigation functionality for all items"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/Sidebar.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Initial task created. Need to verify clicking each nav item switches main content correctly."
-
-  - task: "New Schedule button functionality"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/Sidebar.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Initial task created. Need to verify New Schedule button opens the schedule modal."
-
-  - task: "Collapse/expand toggle functionality"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/Sidebar.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Initial task created. Need to verify sidebar collapse/expand toggle works and collapsed sidebar shows icons only."
-
-  - task: "Mobile sidebar functionality"
-    implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/DashboardPage.jsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
-        comment: "Initial task created. Need to verify mobile hamburger menu opens/closes sidebar correctly."
+        comment: "Initial task created. Need to verify that after login/registration, the app lands on Calendar view by default (activeView defaults to 'calendar')."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Registered new user (sarah.johnson50414@hubspoke.com) and verified Calendar view is the default home view after registration. The calendar-view element is present immediately after login."
 
-  - task: "Visual integrity (no overlap, clipping, active states)"
+  - task: "Dashboard navigation item removed"
     implemented: true
-    working: "NA"
+    working: true
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify there is no Dashboard navigation item in the sidebar anymore."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Verified that Dashboard navigation item (nav-dashboard) does not exist in the sidebar. The NAV_SECTIONS array in Sidebar.jsx only contains Planning, Insights, and Manage sections with no Dashboard item."
+
+  - task: "Calendar view shows stats strip above calendar"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/DashboardPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify Calendar view shows a slim stats strip (Today, Scheduled, Team, Locations) above the calendar controls/body."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Verified Calendar view shows stats strip (calendar-stats-strip) with all four stat cards: Today (stat-today), Scheduled (stat-total-schedules), Team (stat-employees), and Locations (stat-locations). Stats strip is positioned above the calendar controls as expected."
+
+  - task: "Calendar remains visually emphasized over stats"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/DashboardPage.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify calendar is visually emphasized compared with stats strip (stats should be slim/compact)."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Verified calendar is visually emphasized. Stats strip uses compact grid layout (grid-cols-2 xl:grid-cols-4) with small cards (px-4 py-3), while calendar has prominent header and large calendar body. Visual hierarchy is correct."
+
+  - task: "Planning section order: Calendar → Map View → Status Board"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify Planning section order is exactly Calendar → Map View → Status Board."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Verified Planning section order is correct. Checked Y-axis positions of nav items and confirmed order: Calendar (top) → Map View (middle) → Status Board (bottom). NAV_SECTIONS array in code also confirms this order."
+
+  - task: "Map View works from new position"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify Map View works correctly from its new position in the Planning section."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Clicked Map View navigation from its new position in Planning section. Navigation works correctly, active state is applied (indigo styling), and content switches properly. Navigated back to Calendar successfully."
+
+  - task: "New Schedule button still opens modal"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/Sidebar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify New Schedule button still opens the schedule modal after nav changes."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Clicked New Schedule button and verified modal/dialog opened successfully. Modal was detected using role='dialog' selector. Closed modal with Escape key successfully."
+
+  - task: "Mobile sidebar works after nav change"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/DashboardPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial task created. Need to verify mobile sidebar still works correctly after the navigation changes."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Tested on mobile viewport (390x844). Mobile menu button is visible, clicking it opens the sidebar correctly, and clicking outside closes it. Mobile sidebar functionality works perfectly after nav changes."
+
+  - task: "No broken active states, overlaps, or blank content"
+    implemented: true
+    working: true
     file: "/app/frontend/src/components/Sidebar.jsx"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
-        comment: "Initial task created. Need to verify no visual issues like overlap, clipping, or broken active states."
+        comment: "Initial task created. Need to verify no regressions like broken active states, overlaps, or blank content from removing Dashboard."
+      - working: true
+        agent: "testing"
+        comment: "PASSED: Tested active states for all Planning items (Calendar, Map View, Status Board). All show correct active styling (indigo class applied). No blank content detected, all pages render properly. No visual overlaps or regressions observed."
 
 metadata:
   created_by: "testing_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "1.1"
+  test_sequence: 2
 
 test_plan:
   current_focus:
-    - "Sidebar section grouping and order"
-    - "Manage section items order"
-    - "Navigation functionality for all items"
-    - "New Schedule button functionality"
-    - "Collapse/expand toggle functionality"
-    - "Mobile sidebar functionality"
-    - "Visual integrity (no overlap, clipping, active states)"
+    - "Calendar is default home view after login"
+    - "Dashboard navigation item removed"
+    - "Calendar view shows stats strip above calendar"
+    - "Calendar remains visually emphasized over stats"
+    - "Planning section order: Calendar → Map View → Status Board"
+    - "Map View works from new position"
+    - "New Schedule button still opens modal"
+    - "Mobile sidebar works after nav change"
+    - "No broken active states, overlaps, or blank content"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
 
 agent_communication:
   - agent: "testing"
-    message: "Starting comprehensive sidebar reorganization testing. Will verify section grouping, navigation, buttons, collapse/expand, mobile functionality, and visual integrity."
+    message: "Starting comprehensive testing of Dashboard-to-Calendar merge. Will verify default view, navigation changes, stats strip, Planning section order, Map View functionality, New Schedule button, mobile sidebar, and visual integrity after removing Dashboard."
+  - agent: "testing"
+    message: "TESTING COMPLETE - ALL TESTS PASSED (9/9). Calendar is default view after login, Dashboard nav item removed, stats strip displays correctly above calendar, visual hierarchy maintained, Planning section order correct (Calendar → Map View → Status Board), Map View works from new position, New Schedule button opens modal, mobile sidebar functional, and no broken active states or visual regressions detected. No console errors or network failures. Ready for main agent to summarize and finish."
