@@ -81,6 +81,10 @@ class ScheduleUpdate(BaseModel):
     end_time: Optional[str] = None
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None
+    status: Optional[str] = None
+
+class StatusUpdate(BaseModel):
+    status: str  # upcoming, in_progress, completed
 
 # ========== AUTH HELPERS ==========
 
@@ -162,6 +166,7 @@ async def create_location(data: LocationCreate, user=Depends(get_current_user)):
     }
     await db.locations.insert_one(doc)
     doc.pop("_id", None)
+    await log_activity("location_created", f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)", "location", loc_id, user.get('name', 'System'))
     return doc
 
 @api_router.put("/locations/{location_id}")
@@ -202,6 +207,7 @@ async def create_employee(data: EmployeeCreate, user=Depends(get_current_user)):
     }
     await db.employees.insert_one(doc)
     doc.pop("_id", None)
+    await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
 @api_router.put("/employees/{employee_id}")
@@ -287,6 +293,7 @@ async def create_schedule(data: ScheduleCreate, user=Depends(get_current_user)):
         "town_to_town_warning": town_to_town_warning,
         "travel_override_minutes": data.travel_override_minutes,
         "notes": data.notes,
+        "status": "upcoming",
         "location_name": location['city_name'],
         "employee_name": employee['name'],
         "employee_color": employee.get('color', '#4F46E5'),
@@ -294,6 +301,14 @@ async def create_schedule(data: ScheduleCreate, user=Depends(get_current_user)):
     }
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
+    # Log activity
+    await log_activity(
+        action="schedule_created",
+        description=f"{employee['name']} assigned to {location['city_name']} on {data.date} ({data.start_time}-{data.end_time})",
+        entity_type="schedule",
+        entity_id=schedule_id,
+        user_name=user.get('name', 'System')
+    )
     return doc
 
 @api_router.put("/schedules/{schedule_id}")
@@ -324,10 +339,187 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user=Depends(g
 
 @api_router.delete("/schedules/{schedule_id}")
 async def delete_schedule(schedule_id: str, user=Depends(get_current_user)):
+    schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     result = await db.schedules.delete_one({"id": schedule_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    if schedule:
+        await log_activity("schedule_deleted", f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed", "schedule", schedule_id, user.get('name', 'System'))
     return {"message": "Schedule deleted"}
+
+# ========== ACTIVITY LOG HELPER ==========
+
+async def log_activity(action: str, description: str, entity_type: str, entity_id: str, user_name: str = "System"):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "action": action,
+        "description": description,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "user_name": user_name,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.activity_logs.insert_one(doc)
+
+# ========== SCHEDULE STATUS ==========
+
+@api_router.put("/schedules/{schedule_id}/status")
+async def update_schedule_status(schedule_id: str, data: StatusUpdate, user=Depends(get_current_user)):
+    if data.status not in ["upcoming", "in_progress", "completed"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    await log_activity(
+        action=f"status_{data.status}",
+        description=f"Class at {updated.get('location_name', '?')} marked as {data.status.replace('_', ' ')}",
+        entity_type="schedule",
+        entity_id=schedule_id,
+        user_name=user.get('name', 'System')
+    )
+    return updated
+
+# ========== ACTIVITY LOGS ==========
+
+@api_router.get("/activity-logs")
+async def get_activity_logs(limit: int = 30, user=Depends(get_current_user)):
+    logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
+    return logs
+
+# ========== EMPLOYEE STATS ==========
+
+@api_router.get("/employees/{employee_id}/stats")
+async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    all_schedules = await db.schedules.find({"employee_id": employee_id}, {"_id": 0}).to_list(1000)
+    total_classes = len(all_schedules)
+    total_drive_minutes = sum(s.get('drive_time_minutes', 0) * 2 for s in all_schedules)
+    total_class_minutes = 0
+    for s in all_schedules:
+        try:
+            sh, sm = s['start_time'].split(':')
+            eh, em = s['end_time'].split(':')
+            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+        except:
+            pass
+
+    completed = sum(1 for s in all_schedules if s.get('status') == 'completed')
+    upcoming = sum(1 for s in all_schedules if s.get('status', 'upcoming') == 'upcoming')
+    in_progress = sum(1 for s in all_schedules if s.get('status') == 'in_progress')
+
+    # Locations breakdown
+    loc_counts = {}
+    for s in all_schedules:
+        name = s.get('location_name', 'Unknown')
+        loc_counts[name] = loc_counts.get(name, 0) + 1
+
+    # Weekly breakdown (last 4 weeks by date)
+    weekly = {}
+    for s in all_schedules:
+        week_key = s['date'][:7]  # YYYY-MM grouping
+        weekly[week_key] = weekly.get(week_key, 0) + 1
+
+    return {
+        "employee": employee,
+        "total_classes": total_classes,
+        "total_drive_minutes": total_drive_minutes,
+        "total_class_minutes": total_class_minutes,
+        "completed": completed,
+        "upcoming": upcoming,
+        "in_progress": in_progress,
+        "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
+        "monthly_breakdown": [{"month": k, "count": v} for k, v in sorted(weekly.items())],
+        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+    }
+
+# ========== NOTIFICATIONS ==========
+
+@api_router.get("/notifications")
+async def get_notifications(user=Depends(get_current_user)):
+    notifications = []
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Today's upcoming classes
+    today_schedules = await db.schedules.find({"date": today}, {"_id": 0}).to_list(100)
+    for s in today_schedules:
+        if s.get('status', 'upcoming') == 'upcoming':
+            notifications.append({
+                "id": f"upcoming-{s['id']}",
+                "type": "upcoming_class",
+                "title": f"Upcoming: {s.get('location_name', '?')}",
+                "description": f"{s.get('employee_name', '?')} at {s.get('start_time', '?')} - {s.get('end_time', '?')}",
+                "severity": "info",
+                "timestamp": s.get('created_at', today),
+                "entity_id": s['id']
+            })
+
+    # Town-to-town warnings
+    t2t_schedules = await db.schedules.find({"town_to_town": True}, {"_id": 0}).to_list(100)
+    for s in t2t_schedules:
+        notifications.append({
+            "id": f"t2t-{s['id']}",
+            "type": "town_to_town",
+            "title": "Town-to-Town Travel",
+            "description": s.get('town_to_town_warning', 'Verify drive time manually'),
+            "severity": "warning",
+            "timestamp": s.get('created_at', today),
+            "entity_id": s['id']
+        })
+
+    # Unassigned check - employees with no schedules this week
+    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
+    scheduled_emp_ids = set(s['employee_id'] for s in today_schedules)
+    for emp in employees:
+        if emp['id'] not in scheduled_emp_ids:
+            notifications.append({
+                "id": f"idle-{emp['id']}",
+                "type": "idle_employee",
+                "title": f"No classes today",
+                "description": f"{emp['name']} has no classes scheduled for today",
+                "severity": "info",
+                "timestamp": today,
+                "entity_id": emp['id']
+            })
+
+    return sorted(notifications, key=lambda x: x.get('severity') == 'warning', reverse=True)
+
+# ========== WORKLOAD STATS ==========
+
+@api_router.get("/workload")
+async def get_workload_stats(user=Depends(get_current_user)):
+    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
+    all_schedules = await db.schedules.find({}, {"_id": 0}).to_list(1000)
+
+    workload = []
+    for emp in employees:
+        emp_schedules = [s for s in all_schedules if s['employee_id'] == emp['id']]
+        total_class_mins = 0
+        total_drive_mins = 0
+        for s in emp_schedules:
+            try:
+                sh, sm = s['start_time'].split(':')
+                eh, em = s['end_time'].split(':')
+                total_class_mins += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+            except:
+                pass
+            total_drive_mins += s.get('drive_time_minutes', 0) * 2
+
+        workload.append({
+            "employee_id": emp['id'],
+            "employee_name": emp['name'],
+            "employee_color": emp.get('color', '#4F46E5'),
+            "total_classes": len(emp_schedules),
+            "total_class_hours": round(total_class_mins / 60, 1),
+            "total_drive_hours": round(total_drive_mins / 60, 1),
+            "completed": sum(1 for s in emp_schedules if s.get('status') == 'completed'),
+            "upcoming": sum(1 for s in emp_schedules if s.get('status', 'upcoming') == 'upcoming'),
+        })
+
+    return workload
 
 # ========== DASHBOARD STATS ==========
 

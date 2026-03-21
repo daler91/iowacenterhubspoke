@@ -348,6 +348,126 @@ class HubSpokeAPITester:
         )
         return success
 
+    def test_schedule_status_update(self):
+        """Test updating schedule status (new PM feature)"""
+        if not self.created_schedule_id:
+            print("   Skipping - no schedule to update status")
+            return True
+        
+        # Test updating to in_progress
+        success, response = self.run_test(
+            "Update Schedule Status to In Progress",
+            "PUT",
+            f"schedules/{self.created_schedule_id}/status",
+            200,
+            data={"status": "in_progress"}
+        )
+        if success and response.get('status') == 'in_progress':
+            print("   ✅ Status updated to in_progress")
+        
+        # Test updating to completed
+        success2, response2 = self.run_test(
+            "Update Schedule Status to Completed",
+            "PUT",
+            f"schedules/{self.created_schedule_id}/status",
+            200,
+            data={"status": "completed"}
+        )
+        if success2 and response2.get('status') == 'completed':
+            print("   ✅ Status updated to completed")
+        
+        return success and success2
+
+    def test_activity_logs(self):
+        """Test activity logs endpoint (new PM feature)"""
+        success, response = self.run_test(
+            "Get Activity Logs",
+            "GET",
+            "activity-logs",
+            200
+        )
+        if success:
+            print(f"   Found {len(response)} activity log entries")
+            if len(response) > 0:
+                # Check structure of first log entry
+                first_log = response[0]
+                expected_keys = ['id', 'action', 'description', 'entity_type', 'entity_id', 'user_name', 'timestamp']
+                missing_keys = [key for key in expected_keys if key not in first_log]
+                if missing_keys:
+                    print(f"   ⚠️  Missing keys in activity log: {missing_keys}")
+                else:
+                    print(f"   ✅ Activity log structure correct")
+        return success
+
+    def test_employee_stats(self):
+        """Test employee stats endpoint (new PM feature)"""
+        if not self.created_employee_id:
+            print("   Skipping - no employee to get stats for")
+            return True
+        
+        success, response = self.run_test(
+            "Get Employee Stats",
+            "GET",
+            f"employees/{self.created_employee_id}/stats",
+            200
+        )
+        if success:
+            expected_keys = ['employee', 'total_classes', 'total_drive_minutes', 'total_class_minutes', 
+                           'completed', 'upcoming', 'in_progress', 'location_breakdown', 'recent_schedules']
+            missing_keys = [key for key in expected_keys if key not in response]
+            if missing_keys:
+                print(f"   ⚠️  Missing keys in employee stats: {missing_keys}")
+                return False
+            else:
+                print(f"   ✅ Employee stats structure correct")
+                print(f"   Stats: {response['total_classes']} classes, {response['completed']} completed")
+        return success
+
+    def test_notifications(self):
+        """Test notifications endpoint (new PM feature)"""
+        success, response = self.run_test(
+            "Get Notifications",
+            "GET",
+            "notifications",
+            200
+        )
+        if success:
+            print(f"   Found {len(response)} notifications")
+            if len(response) > 0:
+                # Check structure of first notification
+                first_notification = response[0]
+                expected_keys = ['id', 'type', 'title', 'description', 'severity', 'timestamp']
+                missing_keys = [key for key in expected_keys if key not in first_notification]
+                if missing_keys:
+                    print(f"   ⚠️  Missing keys in notification: {missing_keys}")
+                else:
+                    print(f"   ✅ Notification structure correct")
+                    print(f"   Types found: {list(set(n.get('type', 'unknown') for n in response))}")
+        return success
+
+    def test_workload_stats(self):
+        """Test workload stats endpoint (new PM feature)"""
+        success, response = self.run_test(
+            "Get Workload Stats",
+            "GET",
+            "workload",
+            200
+        )
+        if success:
+            print(f"   Found workload data for {len(response)} employees")
+            if len(response) > 0:
+                # Check structure of first workload entry
+                first_workload = response[0]
+                expected_keys = ['employee_id', 'employee_name', 'employee_color', 'total_classes', 
+                               'total_class_hours', 'total_drive_hours', 'completed', 'upcoming']
+                missing_keys = [key for key in expected_keys if key not in first_workload]
+                if missing_keys:
+                    print(f"   ⚠️  Missing keys in workload data: {missing_keys}")
+                    return False
+                else:
+                    print(f"   ✅ Workload data structure correct")
+        return success
+
     def test_cleanup(self):
         """Clean up created test data"""
         cleanup_success = True
@@ -411,6 +531,13 @@ def main():
         ("Schedules - Create", tester.test_schedules_create),
         ("Schedules - Town-to-Town", tester.test_schedules_town_to_town),
         ("Schedules - Update", tester.test_schedules_update),
+        
+        # NEW PM FEATURES - Backend API tests
+        ("PM Features - Schedule Status Update", tester.test_schedule_status_update),
+        ("PM Features - Activity Logs", tester.test_activity_logs),
+        ("PM Features - Employee Stats", tester.test_employee_stats),
+        ("PM Features - Notifications", tester.test_notifications),
+        ("PM Features - Workload Stats", tester.test_workload_stats),
         
         # Cleanup
         ("Cleanup - Delete Test Data", tester.test_cleanup),

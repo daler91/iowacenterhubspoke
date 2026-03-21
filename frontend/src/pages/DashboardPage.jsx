@@ -8,7 +8,7 @@ import {
   Users, MapPin, Clock, TrendingUp, FileDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { locationsAPI, employeesAPI, schedulesAPI, dashboardAPI } from '../lib/api';
+import { locationsAPI, employeesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
 import Sidebar from '../components/Sidebar';
 import CalendarWeek from '../components/CalendarWeek';
 import CalendarDay from '../components/CalendarDay';
@@ -17,6 +17,11 @@ import ScheduleForm from '../components/ScheduleForm';
 import LocationManager from '../components/LocationManager';
 import EmployeeManager from '../components/EmployeeManager';
 import MapView from '../components/MapView';
+import WorkloadDashboard from '../components/WorkloadDashboard';
+import KanbanBoard from '../components/KanbanBoard';
+import ActivityFeed from '../components/ActivityFeed';
+import EmployeeProfile from '../components/EmployeeProfile';
+import NotificationsPanel from '../components/NotificationsPanel';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -32,6 +37,9 @@ export default function DashboardPage() {
   const [employees, setEmployees] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [stats, setStats] = useState({});
+  const [activities, setActivities] = useState([]);
+  const [workloadData, setWorkloadData] = useState([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
   const calendarRef = useRef(null);
 
@@ -63,12 +71,28 @@ export default function DashboardPage() {
     } catch (err) { console.error('Failed to fetch stats', err); }
   }, []);
 
+  const fetchActivities = useCallback(async () => {
+    try {
+      const res = await activityAPI.getAll(50);
+      setActivities(res.data);
+    } catch (err) { console.error('Failed to fetch activities', err); }
+  }, []);
+
+  const fetchWorkload = useCallback(async () => {
+    try {
+      const res = await workloadAPI.getAll();
+      setWorkloadData(res.data);
+    } catch (err) { console.error('Failed to fetch workload', err); }
+  }, []);
+
   useEffect(() => {
     fetchLocations();
     fetchEmployees();
     fetchSchedules();
     fetchStats();
-  }, [fetchLocations, fetchEmployees, fetchSchedules, fetchStats]);
+    fetchActivities();
+    fetchWorkload();
+  }, [fetchLocations, fetchEmployees, fetchSchedules, fetchStats, fetchActivities, fetchWorkload]);
 
   const handleNewSchedule = () => {
     setEditingSchedule(null);
@@ -86,6 +110,8 @@ export default function DashboardPage() {
   const handleScheduleSaved = () => {
     fetchSchedules();
     fetchStats();
+    fetchActivities();
+    fetchWorkload();
   };
 
   const navigateDate = (direction) => {
@@ -303,12 +329,21 @@ export default function DashboardPage() {
         return renderDashboard();
       case 'calendar':
         return renderCalendar();
+      case 'kanban':
+        return <KanbanBoard schedules={schedules} onEditSchedule={handleEditSchedule} onRefresh={() => { fetchSchedules(); fetchActivities(); fetchWorkload(); }} />;
+      case 'workload':
+        return <WorkloadDashboard workloadData={workloadData} employees={employees} />;
+      case 'activity':
+        return <ActivityFeed activities={activities} />;
       case 'map':
         return <MapView locations={locations} schedules={schedules} />;
       case 'locations':
-        return <LocationManager locations={locations} onRefresh={fetchLocations} />;
+        return <LocationManager locations={locations} onRefresh={() => { fetchLocations(); fetchActivities(); }} />;
       case 'employees':
-        return <EmployeeManager employees={employees} onRefresh={fetchEmployees} />;
+        if (selectedEmployeeId) {
+          return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
+        }
+        return <EmployeeManager employees={employees} onRefresh={() => { fetchEmployees(); fetchActivities(); fetchWorkload(); }} onViewProfile={(id) => setSelectedEmployeeId(id)} />;
       default:
         return renderDashboard();
     }
@@ -318,14 +353,20 @@ export default function DashboardPage() {
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden" data-testid="dashboard-page">
       <Sidebar
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={(view) => { setActiveView(view); setSelectedEmployeeId(null); }}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         onNewSchedule={handleNewSchedule}
       />
-      <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        {renderContent()}
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar with notifications */}
+        <header className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white shrink-0" data-testid="top-bar">
+          <NotificationsPanel />
+        </header>
+        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+          {renderContent()}
+        </main>
+      </div>
 
       {/* Schedule Form Modal */}
       <ScheduleForm

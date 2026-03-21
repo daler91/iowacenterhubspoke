@@ -3,13 +3,13 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Users, Plus, Pencil, Trash2, Mail, Phone } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
-export default function EmployeeManager({ employees, onRefresh }) {
+export default function EmployeeManager({ employees, onRefresh, onViewProfile }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
@@ -113,6 +113,15 @@ export default function EmployeeManager({ employees, onRefresh }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`view-employee-${emp.id}`}
+                onClick={() => onViewProfile?.(emp.id)}
+                className="text-slate-400 hover:text-teal-600"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

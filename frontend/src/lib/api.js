@@ -57,11 +57,27 @@ export const schedulesAPI = {
   create: (data) => api.post('/schedules', data),
   update: (id, data) => api.put(`/schedules/${id}`, data),
   delete: (id) => api.delete(`/schedules/${id}`),
+  updateStatus: (id, status) => api.put(`/schedules/${id}/status`, { status }),
 };
 
 // Dashboard
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
+};
+
+// Activity Logs
+export const activityAPI = {
+  getAll: (limit = 30) => api.get('/activity-logs', { params: { limit } }),
+};
+
+// Notifications
+export const notificationsAPI = {
+  getAll: () => api.get('/notifications'),
+};
+
+// Workload
+export const workloadAPI = {
+  getAll: () => api.get('/workload'),
 };
 
 export default api;

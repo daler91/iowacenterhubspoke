@@ -2,13 +2,17 @@ import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users, LayoutDashboard,
-  Map, LogOut, ChevronLeft, ChevronRight, Plus
+  Map, LogOut, ChevronLeft, ChevronRight, Plus,
+  Kanban, BarChart3, Activity, UserCircle
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+  { id: 'kanban', label: 'Status Board', icon: Kanban },
+  { id: 'workload', label: 'Workload', icon: BarChart3 },
+  { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'map', label: 'Map View', icon: Map },
   { id: 'locations', label: 'Locations', icon: MapPin },
   { id: 'employees', label: 'Employees', icon: Users },
