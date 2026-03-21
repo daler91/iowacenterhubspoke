@@ -68,6 +68,8 @@ Build a web-based employee scheduling application that visually accounts for dri
 - [x] Calendar, Kanban, Workload Dashboard, and Weekly Report now surface class info
 - [x] Weekly report supports class filtering; workload now includes class breakdown per employee
 - [x] Backend class feature test coverage added in `/app/backend/tests/test_class_series.py`
+- [x] Dashboard merged into a calendar-first home view with a slim stats strip
+- [x] Sidebar reorganized into Planning / Insights / Manage groups; Map View moved into Planning
 
 ## Key Endpoints
 - `/api/auth/{register,login,me}`
@@ -91,6 +93,7 @@ Build a web-based employee scheduling application that visually accounts for dri
 - Self-tested backend via authenticated API flows for class CRUD, schedule linkage, class sync, and class deletion preservation
 - Smoke-tested frontend registration + Classes view on preview URL
 - Testing agent iteration 4: backend 100%, frontend 100% for Class Series feature
+- UI testing confirmed calendar is now the default home, dashboard nav is removed, stats strip is compact, and the reorganized sidebar works on desktop and mobile
 
 ## Prioritized Backlog
 ### P0 (Done)
