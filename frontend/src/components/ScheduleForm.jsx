@@ -121,8 +121,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       return true;
     }
 
-    if (form.recurrence_end_mode === 'on_date' && !form.recurrence_end_date) {
-      toast.error('Choose an end date');
+    if (isCustom && recData.frequency === 'week' && (!recData.weekdays || recData.weekdays.length === 0)) {
+      toast.error('Choose at least one weekday for custom recurrence');
       return false;
     }
 
@@ -130,20 +130,16 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       toast.error('Enter a valid number of occurrences');
       return false;
     }
-
     return true;
   };
 
   const buildPayload = () => {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
-    const endMode = isCustom ? customRecurrence.end_mode : form.recurrence_end_mode;
+    const payload = { ...form, class_id: form.class_id || null, travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null };
 
-    let recurrenceEndDate = null;
-    if (isCustom && customRecurrence.end_mode === 'on_date') {
-      recurrenceEndDate = customRecurrence.end_date || null;
-    } else if (!isNone && form.recurrence_end_mode === 'on_date') {
-      recurrenceEndDate = form.recurrence_end_date || null;
+    if (isNone) {
+      return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
     }
 
     let recurrenceOccurrences = null;
