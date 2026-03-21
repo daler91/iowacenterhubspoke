@@ -104,7 +104,7 @@ class WebpackHealthPlugin {
 
   // Reset statistics (useful for testing)
   reset() {
-    this.status = {
+    Object.assign(this.status, {
       state: 'idle',
       errors: [],
       warnings: [],
@@ -113,7 +113,7 @@ class WebpackHealthPlugin {
       compileDuration: 0,
       totalCompiles: 0,
       firstCompileTime: null,
-    };
+    });
   }
 }
 

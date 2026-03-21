@@ -1,5 +1,5 @@
 // craco.config.js
-const path = require("path");
+const path = require("node:path");
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)

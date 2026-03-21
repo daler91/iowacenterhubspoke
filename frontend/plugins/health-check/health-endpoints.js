@@ -1,7 +1,7 @@
 // health-endpoints.js
 // API endpoints for health checks and monitoring
 
-const os = require('os');
+const os = require('node:os');
 
 const SERVER_START_TIME = Date.now();
 
@@ -11,7 +11,7 @@ const SERVER_START_TIME = Date.now();
  * @param {Object} healthPlugin - Instance of WebpackHealthPlugin
  */
 function setupHealthEndpoints(devServer, healthPlugin) {
-  if (!devServer || !devServer.app) {
+  if (!devServer?.app) {
     console.warn('[Health Check] Dev server not available, skipping health endpoints');
     return;
   }
