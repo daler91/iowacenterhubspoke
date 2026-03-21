@@ -70,6 +70,10 @@ Build a web-based employee scheduling application that visually accounts for dri
 - [x] Backend class feature test coverage added in `/app/backend/tests/test_class_series.py`
 - [x] Dashboard merged into a calendar-first home view with a slim stats strip
 - [x] Sidebar reorganized into Planning / Insights / Manage groups; Map View moved into Planning
+- [x] Repeat field expanded with Monthly recurrence
+- [x] Custom recurrence dialog added with week/month units, weekday selection, and end rules (Never / On / After)
+- [x] Backend recurrence engine now supports monthly and custom recurrence generation
+- [x] ResizeObserver shim added to prevent recurrence-control runtime overlay noise in preview
 
 ## Key Endpoints
 - `/api/auth/{register,login,me}`
@@ -94,6 +98,7 @@ Build a web-based employee scheduling application that visually accounts for dri
 - Smoke-tested frontend registration + Classes view on preview URL
 - Testing agent iteration 4: backend 100%, frontend 100% for Class Series feature
 - UI testing confirmed calendar is now the default home, dashboard nav is removed, stats strip is compact, and the reorganized sidebar works on desktop and mobile
+- Testing agent iteration 5: backend 100%, frontend 100% for monthly + custom recurrence
 
 ## Prioritized Backlog
 ### P0 (Done)
