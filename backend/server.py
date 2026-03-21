@@ -400,7 +400,14 @@ async def get_employee_stats(employee_id: str, user=Depends(get_current_user)):
     all_schedules = await db.schedules.find({"employee_id": employee_id}, {"_id": 0}).to_list(1000)
     total_classes = len(all_schedules)
     total_drive_minutes = sum(s.get('drive_time_minutes', 0) * 2 for s in all_schedules)
-    total_class_minutes = sum(calculate_class_minutes(s.get('start_time', ''), s.get('end_time', '')) for s in all_schedules)
+    total_class_minutes = 0
+    for s in all_schedules:
+        try:
+            sh, sm = s['start_time'].split(':')
+            eh, em = s['end_time'].split(':')
+            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+        except (KeyError, ValueError, AttributeError, TypeError):
+            pass
 
     completed = sum(1 for s in all_schedules if s.get('status') == 'completed')
     upcoming = sum(1 for s in all_schedules if s.get('status', 'upcoming') == 'upcoming')
@@ -500,7 +507,12 @@ async def get_workload_stats(user=Depends(get_current_user)):
         total_class_mins = 0
         total_drive_mins = 0
         for s in emp_schedules:
-            total_class_mins += calculate_class_minutes(s.get('start_time', ''), s.get('end_time', ''))
+            try:
+                sh, sm = s['start_time'].split(':')
+                eh, em = s['end_time'].split(':')
+                total_class_mins += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+            except (KeyError, ValueError, AttributeError, TypeError):
+                pass
             total_drive_mins += s.get('drive_time_minutes', 0) * 2
 
         workload.append({
