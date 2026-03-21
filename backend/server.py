@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
+from collections import defaultdict
 import jwt
 import bcrypt
 
@@ -493,9 +494,14 @@ async def get_workload_stats(user=Depends(get_current_user)):
     employees = await db.employees.find({}, {"_id": 0}).to_list(100)
     all_schedules = await db.schedules.find({}, {"_id": 0}).to_list(1000)
 
+    schedules_by_emp = defaultdict(list)
+    for s in all_schedules:
+        if 'employee_id' in s:
+            schedules_by_emp[s['employee_id']].append(s)
+
     workload = []
     for emp in employees:
-        emp_schedules = [s for s in all_schedules if s['employee_id'] == emp['id']]
+        emp_schedules = schedules_by_emp.get(emp['id'], [])
         total_class_mins = 0
         total_drive_mins = 0
         for s in emp_schedules:
