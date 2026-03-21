@@ -10,7 +10,7 @@ class HubSpokeAPITester:
         self.token = None
         self.tests_run = 0
         self.tests_passed = 0
-        self.test_password = os.environ.get('TEST_PASSWORD', 'testpass123')
+        self.test_password = os.environ['TEST_PASSWORD']
         self.user_id = None
         self.created_location_id = None
         self.created_employee_id = None
@@ -66,7 +66,7 @@ class HubSpokeAPITester:
             else:
                 print("   Failed - Expected {expected_status}, got {response.status_code}")
                 try:
-                    error_data = response.json()
+                    response.json()
                     print("   Error: Server returned an error response (details omitted to avoid logging sensitive data)")
                 except (ValueError, requests.exceptions.JSONDecodeError):
                     print("   Error: Unable to parse error response (details omitted to avoid logging sensitive data)")
