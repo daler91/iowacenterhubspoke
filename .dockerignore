@@ -1,0 +1,9 @@
+.git
+.emergent
+memory
+test_reports
+tests
+data_export
+node_modules
+__pycache__
+*.pyc
