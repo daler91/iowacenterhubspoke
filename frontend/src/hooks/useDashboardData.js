@@ -26,12 +26,12 @@ export function useDashboardData() {
   }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
 
   return {
-    locations, 
-    employees, 
-    classes, 
-    schedules, 
-    stats, 
-    activities, 
+    locations,
+    employees,
+    classes,
+    schedules,
+    stats,
+    activities,
     workloadData,
     fetchLocations: mutateLocations,
     fetchEmployees: mutateEmployees,
