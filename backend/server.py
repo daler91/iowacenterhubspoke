@@ -1,4 +1,6 @@
+import os
 from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import logging
@@ -13,6 +15,17 @@ from database import client, db, mongo_url, ROOT_DIR
 from routers import auth, locations, employees, classes, schedules, reports, system
 
 app = FastAPI()
+
+cors_origins_str = os.getenv("CORS_ORIGINS", "")
+origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)
