@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
+import PropTypes from "prop-types"
 
 import { cn } from "@/lib/utils"
 
@@ -136,6 +137,9 @@ const ContextMenuShortcut = ({
   );
 }
 ContextMenuShortcut.displayName = "ContextMenuShortcut"
+ContextMenuShortcut.propTypes = {
+  className: PropTypes.string,
+}
 
 export {
   ContextMenu,

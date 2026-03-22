@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { format, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   ChevronLeft, ChevronRight, Calendar as CalIcon,
-  Users, MapPin, Clock, TrendingUp, FileDown
+  Users, MapPin, TrendingUp, FileDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI, employeesAPI, classesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
@@ -174,6 +173,7 @@ export default function DashboardPage() {
       pdf.save(`schedule-${format(currentDate, 'yyyy-MM-dd')}.pdf`);
       toast.success('PDF exported successfully');
     } catch (err) {
+      console.error(err);
       toast.error('Failed to export PDF');
     }
   };
@@ -226,11 +226,10 @@ export default function DashboardPage() {
 
   const renderCalendarStats = () => (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="calendar-stats-strip">
-      <div
-        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all"
+      <button
+        type="button"
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all text-left"
         onClick={() => handleStatClick('today')}
-        role="button"
-        tabIndex={0}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -243,13 +242,12 @@ export default function DashboardPage() {
             <CalIcon className="w-5 h-5 text-indigo-600" />
           </div>
         </div>
-      </div>
+      </button>
 
-      <div
-        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all"
+      <button
+        type="button"
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all text-left"
         onClick={() => handleStatClick('scheduled')}
-        role="button"
-        tabIndex={0}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -262,13 +260,12 @@ export default function DashboardPage() {
             <TrendingUp className="w-5 h-5 text-teal-600" />
           </div>
         </div>
-      </div>
+      </button>
 
-      <div
-        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all"
+      <button
+        type="button"
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all text-left"
         onClick={() => handleStatClick('team')}
-        role="button"
-        tabIndex={0}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -281,13 +278,12 @@ export default function DashboardPage() {
             <Users className="w-5 h-5 text-violet-600" />
           </div>
         </div>
-      </div>
+      </button>
 
-      <div
-        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all"
+      <button
+        type="button"
+        className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all text-left"
         onClick={() => handleStatClick('locations')}
-        role="button"
-        tabIndex={0}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -300,7 +296,7 @@ export default function DashboardPage() {
             <MapPin className="w-5 h-5 text-amber-600" />
           </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 
@@ -488,13 +484,11 @@ export default function DashboardPage() {
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden" data-testid="dashboard-page">
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           aria-label="Close sidebar"
           className="fixed inset-0 bg-black/30 z-40 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setMobileSidebarOpen(false); }}
         />
       )}
       <div className={cn(
