@@ -7,7 +7,7 @@ export function useDashboardData() {
   const { data: employees = [], mutate: mutateEmployees } = useSWR('employees', () => employeesAPI.getAll().then(res => res.data.items || res.data));
   const { data: classes = [], mutate: mutateClasses } = useSWR('classes', () => classesAPI.getAll().then(res => res.data.items || res.data));
   const { data: schedules = [], mutate: mutateSchedules } = useSWR('schedules', () => schedulesAPI.getAll().then(res => res.data.items || res.data));
-  const { data: stats = {}, mutate: mutateStats } = useSWR('stats', () => dashboardAPI.getStats().then(res => res.data));
+  const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR('stats', () => dashboardAPI.getStats().then(res => res.data));
   const { data: activities = [], mutate: mutateActivities } = useSWR('activities', () => activityAPI.getAll(50).then(res => res.data.items || res.data));
   const { data: workloadData = [], mutate: mutateWorkload } = useSWR('workload', () => workloadAPI.getAll().then(res => res.data.items || res.data));
 
