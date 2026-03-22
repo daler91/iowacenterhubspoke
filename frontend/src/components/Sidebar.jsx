@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, Activity, FileText, BookOpen
+  Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -25,6 +25,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'workload', path: '/workload', label: 'Workload', icon: BarChart3 },
       { id: 'report', path: '/report', label: 'Weekly Report', icon: FileText },
+      { id: 'analytics', path: '/analytics', label: 'Analytics', icon: TrendingUp },
       { id: 'activity', path: '/activity', label: 'Activity', icon: Activity },
     ],
   },

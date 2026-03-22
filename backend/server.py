@@ -21,7 +21,7 @@ from slowapi.errors import RateLimitExceeded
 from core.rate_limit import limiter
 
 from database import client, db, mongo_url, ROOT_DIR
-from routers import auth, locations, employees, classes, schedules, reports, system
+from routers import auth, locations, employees, classes, schedules, reports, system, analytics
 
 app = FastAPI()
 
@@ -95,6 +95,7 @@ api_router.include_router(classes.router)
 api_router.include_router(schedules.router)
 api_router.include_router(reports.router)
 api_router.include_router(system.router)
+api_router.include_router(analytics.router)
 
 # ========== SEED DATA ==========
 
