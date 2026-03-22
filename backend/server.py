@@ -62,8 +62,11 @@ app.include_router(api_router)
 
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"
-if _static_dir.exists():
+# Serving built frontend assets
+if (_static_dir / "static").exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir / "static")), name="frontend-static")
+elif (_static_dir / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(_static_dir / "assets")), name="frontend-assets")
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
