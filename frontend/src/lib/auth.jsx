@@ -9,17 +9,24 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const stored = localStorage.getItem('auth_user');
-    if (token && stored) {
-      setUser(JSON.parse(stored));
-    }
-    setLoading(false);
+    const initAuth = async () => {
+      try {
+        const res = await authAPI.me();
+        const userData = { id: res.data.user_id, name: res.data.name, email: res.data.email };
+        setUser(userData);
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+      } catch (error) {
+        localStorage.removeItem('auth_user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initAuth();
   }, []);
 
   const login = useCallback(async (email, password) => {
     const res = await authAPI.login({ email, password });
-    localStorage.setItem('auth_token', res.data.token);
     localStorage.setItem('auth_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data;
@@ -27,14 +34,17 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (name, email, password) => {
     const res = await authAPI.register({ name, email, password });
-    localStorage.setItem('auth_token', res.data.token);
     localStorage.setItem('auth_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('auth_token');
+  const logout = useCallback(async () => {
+    try {
+      await authAPI.logout();
+    } catch (e) {
+      console.error(e);
+    }
     localStorage.removeItem('auth_user');
     setUser(null);
   }, []);

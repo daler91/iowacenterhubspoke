@@ -2,7 +2,7 @@ import os
 import bcrypt
 import jwt
 from datetime import datetime, timezone
-from fastapi import HTTPException, Depends, Header
+from fastapi import HTTPException, Depends, Header, Request
 from typing import Annotated, Optional
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
@@ -27,10 +27,14 @@ def create_token(user_id: str, email: str, name: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def get_current_user(authorization: Annotated[Optional[str], Header()] = None):
-    if not authorization or not authorization.startswith('Bearer '):
+def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
+    token = request.cookies.get('auth_token')
+    if not token and authorization and authorization.startswith('Bearer '):
+        token = authorization.split(' ')[1]
+        
+    if not token:
         raise HTTPException(status_code=401, detail='Not authenticated')
-    token = authorization.split(' ')[1]
+        
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload

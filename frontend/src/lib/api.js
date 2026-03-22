@@ -6,13 +6,10 @@ const API_BASE = `${BACKEND_URL}/api`;
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   return config;
 });
 
@@ -20,7 +17,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
       globalThis.location.href = '/login';
     }
@@ -32,6 +28,7 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
 };
 

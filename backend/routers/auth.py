@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from database import db
 from models.schemas import UserRegister, UserLogin
 from core.auth import hash_password, verify_password, create_token, CurrentUser
@@ -8,7 +8,7 @@ from core.auth import hash_password, verify_password, create_token, CurrentUser
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", responses={400: {"description": "Email already registered"}})
-async def register(data: UserRegister):
+async def register(data: UserRegister, response: Response):
     existing = await db.users.find_one({"email": data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -22,15 +22,22 @@ async def register(data: UserRegister):
     }
     await db.users.insert_one(user_doc)
     token = create_token(user_id, data.email, data.name)
+    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
     return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email}}
 
 @router.post("/login", responses={401: {"description": "Invalid credentials"}})
-async def login(data: UserLogin):
+async def login(data: UserLogin, response: Response):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user or not verify_password(data.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(user['id'], user['email'], user['name'])
+    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
     return {"token": token, "user": {"id": user['id'], "name": user['name'], "email": user['email']}}
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
+    return {"message": "Logged out successfully"}
 
 @router.get("/me")
 async def get_me(user: CurrentUser):
