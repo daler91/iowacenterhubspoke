@@ -95,7 +95,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, se
                     type="button"
                     className={cn(
                       "schedule-block class-block appearance-none border-0 p-0 text-left",
-                      selectionMode ? "cursor-pointer" : "cursor-pointer",
+                      selectionMode ? "cursor-pointer" : "cursor-default",
                       selected && "ring-2 ring-indigo-500 ring-offset-1"
                     )}
                     style={{

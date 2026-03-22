@@ -103,7 +103,11 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
                 className={cn(
                   "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
-                  canEdit && !selectionMode ? "cursor-grab" : selectionMode ? "cursor-pointer" : "cursor-default",
+                  (() => {
+                    if (selectionMode) return "cursor-pointer";
+                    if (canEdit) return "cursor-grab";
+                    return "cursor-default";
+                  })(),
                   selected && "ring-2 ring-indigo-500 ring-offset-1"
                 )}
                 style={{

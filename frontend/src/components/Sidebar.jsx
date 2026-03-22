@@ -55,7 +55,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
         data-testid={`nav-${item.id}`}
         onClick={() => {
           navigate(item.path);
-          if (window.innerWidth < 768) {
+          if (globalThis.innerWidth < 768) {
              // Close mobile sidebar if needed, but Sidebar is usually managed by parent
              // This component currently doesn't have a closeSidebar prop, but onViewChange used to handle it in DashboardPage
           }

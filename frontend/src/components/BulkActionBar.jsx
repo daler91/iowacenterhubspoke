@@ -27,7 +27,7 @@ import { SCHEDULE_STATUS } from '../lib/constants';
 
 export default function BulkActionBar({ selectedCount, selectedIds, onComplete, onDeselectAll, employees }) {
   const [loading, setLoading] = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null); // { type, label, description, onConfirm }
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const ids = Array.from(selectedIds);
 
@@ -183,7 +183,11 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               onClick={(e) => { e.preventDefault(); confirmAction?.onConfirm(); }}
               className={confirmAction?.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : ''}
             >
-              {loading ? 'Processing...' : confirmAction?.type === 'delete' ? 'Delete' : 'Reassign'}
+              {(() => {
+                if (loading) return 'Processing...';
+                if (confirmAction?.type === 'delete') return 'Delete';
+                return 'Reassign';
+              })()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

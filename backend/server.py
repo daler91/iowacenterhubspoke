@@ -30,9 +30,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = getattr(exc, "detail", str(exc))
+    status_code = getattr(exc, "status_code", 500)
     return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": str(exc.detail), "code": str(exc.status_code), "errors": None}
+        status_code=status_code,
+        content={"detail": detail, "code": str(status_code), "errors": None}
     )
 
 @app.exception_handler(RequestValidationError)

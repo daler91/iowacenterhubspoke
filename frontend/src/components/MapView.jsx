@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { MapPin, Car, Navigation } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -149,4 +148,3 @@ export default function MapView() {
   );
 }
 
-MapView.propTypes = {};

@@ -19,7 +19,6 @@ export default function CalendarView() {
   const {
     locations,
     employees,
-    classes,
     schedules,
     stats: rawStats,
     fetchSchedules,
@@ -38,7 +37,6 @@ export default function CalendarView() {
     selectedCount,
     toggleSelectionMode,
     toggleItem,
-    selectAll,
     deselectAll,
     isSelected,
     clearSelection,

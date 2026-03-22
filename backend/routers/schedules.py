@@ -397,6 +397,54 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     )
 
 
+async def _get_location_update(location_id: str, update_data: dict):
+    location = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    update_data["location_name"] = location["city_name"]
+    if "travel_override_minutes" not in update_data:
+        update_data["drive_time_minutes"] = location["drive_time_minutes"]
+
+
+async def _get_employee_update(employee_id: str, update_data: dict):
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    update_data["employee_name"] = employee["name"]
+    update_data["employee_color"] = employee.get("color", DEFAULT_EMPLOYEE_COLOR)
+
+
+async def _get_class_update(class_id: str, update_data: dict):
+    class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+    update_data.update(
+        {
+            "class_name": class_doc["name"],
+            "class_color": class_doc.get("color", "#0F766E"),
+            "class_description": class_doc.get("description"),
+        }
+    )
+
+
+async def _handle_travel_override(schedule_id: str, update_data: dict):
+    if update_data["travel_override_minutes"]:
+        update_data["drive_time_minutes"] = update_data["travel_override_minutes"]
+        return
+
+    # Override cleared — recalculate from location
+    location_id = update_data.get("location_id")
+    if not location_id:
+        existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+        if existing:
+            location_id = existing.get("location_id")
+    
+    if location_id:
+        loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
+        if loc:
+            update_data["drive_time_minutes"] = loc["drive_time_minutes"]
+
+
 @router.put(
     "/{schedule_id}",
     responses={
@@ -408,71 +456,26 @@ async def update_schedule(
     schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
 
     if "location_id" in update_data:
-        location = await db.locations.find_one(
-            {"id": update_data["location_id"]}, {"_id": 0}
-        )
-        if not location:
-            raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-        update_data["location_name"] = location["city_name"]
-        if "travel_override_minutes" not in update_data:
-            update_data["drive_time_minutes"] = location["drive_time_minutes"]
-
+        await _get_location_update(update_data["location_id"], update_data)
     if "employee_id" in update_data:
-        employee = await db.employees.find_one(
-            {"id": update_data["employee_id"]}, {"_id": 0}
-        )
-        if not employee:
-            raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
-        update_data["employee_name"] = employee["name"]
-        update_data["employee_color"] = employee.get("color", DEFAULT_EMPLOYEE_COLOR)
-
+        await _get_employee_update(update_data["employee_id"], update_data)
     if "class_id" in update_data:
-        class_doc = await db.classes.find_one(
-            {"id": update_data["class_id"]}, {"_id": 0}
-        )
-        if not class_doc:
-            raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
-        update_data.update(
-            {
-                "class_name": class_doc["name"],
-                "class_color": class_doc.get("color", "#0F766E"),
-                "class_description": class_doc.get("description"),
-            }
-        )
-
-    if 'travel_override_minutes' in update_data:
-        if update_data['travel_override_minutes']:
-            update_data['drive_time_minutes'] = update_data['travel_override_minutes']
-        else:
-            # Override cleared — recalculate from location
-            location_id = update_data.get('location_id')
-            if not location_id:
-                existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
-                if existing:
-                    location_id = existing.get('location_id')
-            if location_id:
-                loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
-                if loc:
-                    update_data['drive_time_minutes'] = loc['drive_time_minutes']
+        await _get_class_update(update_data["class_id"], update_data)
+    if "travel_override_minutes" in update_data:
+        await _handle_travel_override(schedule_id, update_data)
 
     result = await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None}, {"$set": update_data}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
-    logger.info(
-        f"Schedule updated: {schedule_id}",
-        extra={"entity": {"schedule_id": schedule_id}},
-    )
-    updated = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
-    return updated
+    
+    logger.info(f"Schedule updated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
+    return await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
 
 
 @router.delete(
@@ -622,7 +625,10 @@ async def relocate_schedule(
     return updated
 
 
-@router.post("/check-conflicts")
+@router.post(
+    "/check-conflicts",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
 async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
     if not location:
@@ -655,7 +661,10 @@ async def bulk_delete_schedules(data: BulkDeleteRequest, user: SchedulerRequired
     return {"deleted_count": deleted_count}
 
 
-@router.put("/bulk-status")
+@router.put(
+    "/bulk-status",
+    responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
+)
 async def bulk_update_status(data: BulkStatusUpdateRequest, user: SchedulerRequired):
     if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -679,7 +688,10 @@ async def bulk_update_status(data: BulkStatusUpdateRequest, user: SchedulerRequi
     return {"updated_count": updated_count}
 
 
-@router.put("/bulk-reassign")
+@router.put(
+    "/bulk-reassign",
+    responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
+)
 async def bulk_reassign_schedules(data: BulkReassignRequest, user: SchedulerRequired):
     employee = await db.employees.find_one(
         {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
