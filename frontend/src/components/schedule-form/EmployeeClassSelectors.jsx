@@ -1,6 +1,7 @@
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { PlusCircle, BookOpen } from 'lucide-react';
+import { COLORS } from '../../lib/constants';
 
 const CREATE_CLASS_VALUE = '__add_new_class__';
 
@@ -65,7 +66,7 @@ export function EmployeeClassSelectors({
             {(classes || []).map(classItem => (
               <SelectItem key={classItem.id} value={classItem.id}>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classItem.color || '#0F766E' }} />
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classItem.color || COLORS.DEFAULT_CLASS }} />
                   <span>{classItem.name}</span>
                 </div>
               </SelectItem>
@@ -75,7 +76,7 @@ export function EmployeeClassSelectors({
 
         {selectedClass && (
           <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-emerald-50/60 px-3 py-2" data-testid="schedule-selected-class-preview">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: selectedClass.color || '#0F766E' }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: selectedClass.color || COLORS.DEFAULT_CLASS }}>
               <BookOpen className="w-4 h-4" />
             </div>
             <div className="min-w-0">

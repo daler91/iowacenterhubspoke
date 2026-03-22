@@ -11,6 +11,7 @@ from services.schedule_utils import (
     build_recurrence_rule, build_recurrence_dates, check_conflicts, time_to_minutes
 )
 from core.logger import get_logger
+from core.constants import STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED, DEFAULT_EMPLOYEE_COLOR
 
 logger = get_logger(__name__)
 
@@ -31,7 +32,7 @@ async def get_schedules(
     skip: int = 0,
     limit: int = 1000
 ):
-    query = {}
+    query = {"deleted_at": None}
     if date_from and date_to:
         query["date"] = {"$gte": date_from, "$lte": date_to}
     elif date_from:
@@ -45,11 +46,19 @@ async def get_schedules(
     schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).skip(skip).limit(limit).to_list(limit)
     return {"items": schedules, "total": total, "skip": skip, "limit": limit}
 
+@router.get("/{schedule_id}", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
+async def get_schedule(schedule_id: str, user: CurrentUser):
+    schedule = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
+    if not schedule:
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    return schedule
+
 async def _check_town_to_town(employee_id, sched_date, location_id):
     same_day_schedules = await db.schedules.find({
         "employee_id": employee_id,
         "date": sched_date,
-        "location_id": {"$ne": location_id}
+        "location_id": {"$ne": location_id},
+        "deleted_at": None
     }, {"_id": 0}).to_list(100)
 
     if not same_day_schedules:
@@ -76,7 +85,7 @@ def _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town
         "town_to_town_warning": town_to_town_warning,
         "travel_override_minutes": data.travel_override_minutes,
         "notes": data.notes,
-        "status": "upcoming",
+        "status": STATUS_UPCOMING,
         "recurrence": data.recurrence,
         "recurrence_end_mode": data.recurrence_end_mode,
         "recurrence_end_date": data.recurrence_end_date,
@@ -86,22 +95,23 @@ def _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town
         "employee_name": employee['name'],
         "employee_color": employee.get('color', '#4F46E5'),
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "deleted_at": None,
         **get_class_snapshot(class_doc),
     }
 
 
 async def _fetch_schedule_entities(data: ScheduleCreate):
-    location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
+    location = await db.locations.find_one({"id": data.location_id, "deleted_at": None}, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
-    employee = await db.employees.find_one({"id": data.employee_id}, {"_id": 0})
+    employee = await db.employees.find_one({"id": data.employee_id, "deleted_at": None}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
     class_doc = None
     if data.class_id:
-        class_doc = await db.classes.find_one({"id": data.class_id}, {"_id": 0})
+        class_doc = await db.classes.find_one({"id": data.class_id, "deleted_at": None}, {"_id": 0})
         if not class_doc:
             raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
@@ -215,7 +225,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: Schedule
         if not employee:
             raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
         update_data['employee_name'] = employee['name']
-        update_data['employee_color'] = employee.get('color', '#4F46E5')
+        update_data['employee_color'] = employee.get('color', DEFAULT_EMPLOYEE_COLOR)
 
     if 'class_id' in update_data:
         class_doc = await db.classes.find_one({"id": update_data['class_id']}, {"_id": 0})
@@ -230,33 +240,51 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: Schedule
     if 'travel_override_minutes' in update_data and update_data['travel_override_minutes']:
         update_data['drive_time_minutes'] = update_data['travel_override_minutes']
 
-    result = await db.schedules.update_one({"id": schedule_id}, {"$set": update_data})
+    result = await db.schedules.update_one({"id": schedule_id, "deleted_at": None}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     logger.info(f"Schedule updated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
-    updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    updated = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
     return updated
 
 @router.delete("/{schedule_id}", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
 async def delete_schedule(schedule_id: str, user: SchedulerRequired):
-    schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
-    result = await db.schedules.delete_one({"id": schedule_id})
-    if result.deleted_count == 0:
+    schedule = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
+    if not schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
-    logger.info(f"Schedule deleted: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
+    
+    result = await db.schedules.update_one(
+        {"id": schedule_id, "deleted_at": None}, 
+        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    logger.info(f"Schedule soft-deleted: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
     if schedule:
         await log_activity("schedule_deleted", f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed", "schedule", schedule_id, user.get('name', 'System'))
     return {"message": "Schedule deleted"}
 
+@router.post("/{schedule_id}/restore", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
+async def restore_schedule(schedule_id: str, user: SchedulerRequired):
+    result = await db.schedules.update_one(
+        {"id": schedule_id}, 
+        {"$set": {"deleted_at": None}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    logger.info(f"Schedule restored: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
+    await log_activity("schedule_restored", f"Schedule with ID '{schedule_id}' restored", "schedule", schedule_id, user.get('name', 'System'))
+    return {"message": "Schedule restored"}
+
 @router.put("/{schedule_id}/status", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
 async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: SchedulerRequired):
-    if data.status not in ["upcoming", "in_progress", "completed"]:
+    if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
         raise HTTPException(status_code=400, detail="Invalid status")
-    result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
+    result = await db.schedules.update_one({"id": schedule_id, "deleted_at": None}, {"$set": {"status": data.status}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     logger.info(f"Schedule status updated: {schedule_id} to {data.status}", extra={"entity": {"schedule_id": schedule_id, "status": data.status}})
-    updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    updated = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
     await log_activity(
         action=f"status_{data.status}",
         description=f"Class at {updated.get('location_name', '?')} marked as {data.status.replace('_', ' ')}",
@@ -268,7 +296,7 @@ async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: Sch
 
 @router.put("/{schedule_id}/relocate", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
 async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: SchedulerRequired):
-    schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    schedule = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
     if not schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
@@ -277,12 +305,12 @@ async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: Sche
     if conflicts:
         raise HTTPException(status_code=409, detail={"message": "Conflict at new time", "conflicts": conflicts})
 
-    await db.schedules.update_one({"id": schedule_id}, {"$set": {
+    await db.schedules.update_one({"id": schedule_id, "deleted_at": None}, {"$set": {
         "start_time": data.start_time,
         "end_time": data.end_time,
     }})
     logger.info(f"Schedule relocated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}})
-    updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+    updated = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
     await log_activity("schedule_relocated", f"Class at {updated.get('location_name', '?')} moved to {data.date} {data.start_time}-{data.end_time}", "schedule", schedule_id, user.get('name', 'System'))
     return updated
 

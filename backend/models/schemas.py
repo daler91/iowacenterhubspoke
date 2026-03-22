@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
+from core.constants import ROLE_VIEWER, DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
 class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
-    role: Optional[str] = "viewer"
+    role: Optional[str] = ROLE_VIEWER
 
 class UserLogin(BaseModel):
     email: str
@@ -22,36 +23,39 @@ class LocationUpdate(BaseModel):
     drive_time_minutes: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    deleted_at: Optional[str] = None
 
 class EmployeeCreate(BaseModel):
     name: str
     email: Optional[str] = None
     phone: Optional[str] = None
-    color: Optional[str] = "#4F46E5"
+    color: Optional[str] = DEFAULT_EMPLOYEE_COLOR
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     color: Optional[str] = None
+    deleted_at: Optional[str] = None
 
 class RecurrenceRule(BaseModel):
     interval: int = 1
     frequency: str  # week, month
     weekdays: Optional[List[int]] = None  # 0=Sun ... 6=Sat
-    end_mode: Optional[str] = "never"  # never, on_date, after_occurrences
+    end_mode: Optional[str] = END_MODE_NEVER  # never, on_date, after_occurrences
     end_date: Optional[str] = None
     occurrences: Optional[int] = None
 
 class ClassCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    color: Optional[str] = "#0F766E"
+    color: Optional[str] = DEFAULT_CLASS_COLOR
 
 class ClassUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
+    deleted_at: Optional[str] = None
 
 class ScheduleCreate(BaseModel):
     employee_id: str
@@ -83,6 +87,7 @@ class ScheduleUpdate(BaseModel):
     recurrence_end_mode: Optional[str] = None
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
+    deleted_at: Optional[str] = None
 
 class StatusUpdate(BaseModel):
     status: str  # upcoming, in_progress, completed

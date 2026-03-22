@@ -5,6 +5,7 @@ import { Car, AlertTriangle, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAuth } from '../lib/auth';
+import { COLORS } from '../lib/constants';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 7 PM
 
@@ -53,7 +54,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     const driveAfterTop = minutesToTop(endMin);
     const driveAfterHeight = (driveMin / 60) * 60;
 
-    const classColor = schedule.class_color || schedule.employee_color || '#0F766E';
+    const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
     const className = schedule.class_name || 'Unassigned Class';
 
     return (

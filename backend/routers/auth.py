@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Response
 from database import db
 from models.schemas import UserRegister, UserLogin, ErrorResponse
 from core.auth import hash_password, verify_password, create_token, CurrentUser
+from core.constants import ROLE_VIEWER, ROLE_ADMIN
 from fastapi import Request
 from core.rate_limit import limiter
 from core.logger import get_logger, user_var
@@ -24,7 +25,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "name": data.name,
         "email": data.email,
         "password_hash": hash_password(data.password),
-        "role": data.role or "viewer",
+        "role": data.role or ROLE_VIEWER,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
@@ -39,7 +40,7 @@ async def login(request: Request, data: UserLogin, response: Response):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user or not verify_password(data.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    role = user.get("role", "viewer")
+    role = user.get("role", ROLE_VIEWER)
     token = create_token(user['id'], user['email'], user['name'], role)
     user_var.set(user['email'])
     logger.info(f"User logged in: {user['email']}", extra={"entity": {"user_id": user['id']}})
@@ -59,5 +60,5 @@ async def get_me(user: CurrentUser):
         "user_id": user['user_id'], 
         "email": user['email'], 
         "name": user['name'],
-        "role": user.get("role", "viewer")
+        "role": user.get("role", ROLE_VIEWER)
     }

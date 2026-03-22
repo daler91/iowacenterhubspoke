@@ -7,16 +7,17 @@ import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 import { mutate } from 'swr';
+import { SCHEDULE_STATUS, COLORS } from '../lib/constants';
 
 const COLUMNS = [
-  { id: 'upcoming', label: 'Upcoming', color: 'bg-indigo-500', lightColor: 'bg-indigo-50', textColor: 'text-indigo-700' },
-  { id: 'in_progress', label: 'In Progress', color: 'bg-amber-500', lightColor: 'bg-amber-50', textColor: 'text-amber-700' },
-  { id: 'completed', label: 'Completed', color: 'bg-green-500', lightColor: 'bg-green-50', textColor: 'text-green-700' },
+  { id: SCHEDULE_STATUS.UPCOMING, label: 'Upcoming', color: COLORS.STATUS.UPCOMING, lightColor: COLORS.STATUS_LIGHT.UPCOMING, textColor: COLORS.STATUS_TEXT.UPCOMING },
+  { id: SCHEDULE_STATUS.IN_PROGRESS, label: 'In Progress', color: COLORS.STATUS.IN_PROGRESS, lightColor: COLORS.STATUS_LIGHT.IN_PROGRESS, textColor: COLORS.STATUS_TEXT.IN_PROGRESS },
+  { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
 
 function KanbanCard({ schedule, onStatusChange, onEdit }) {
   const [dragging, setDragging] = useState(false);
-  const classColor = schedule.class_color || '#0F766E';
+  const classColor = schedule.class_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
 
   return (
@@ -26,7 +27,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('scheduleId', schedule.id);
-        e.dataTransfer.setData('currentStatus', schedule.status || 'upcoming');
+        e.dataTransfer.setData('currentStatus', schedule.status || SCHEDULE_STATUS.UPCOMING);
         setDragging(true);
       }}
       onDragEnd={() => setDragging(false)}
@@ -88,7 +89,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
+              onClick={() => onStatusChange(schedule.id, (schedule.status || SCHEDULE_STATUS.UPCOMING) === SCHEDULE_STATUS.UPCOMING ? SCHEDULE_STATUS.IN_PROGRESS : SCHEDULE_STATUS.COMPLETED)}
               className="h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700"
               data-testid={`kanban-advance-${schedule.id}`}
             >
@@ -158,7 +159,7 @@ export default function KanbanBoard() {
   };
 
   const getColumnSchedules = (status) =>
-    (schedules || []).filter(s => (s.status || 'upcoming') === status)
+    (schedules || []).filter(s => (s.status || SCHEDULE_STATUS.UPCOMING) === status)
       .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
 
   return (

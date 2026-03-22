@@ -5,7 +5,8 @@ import bcrypt
 import jwt
 from datetime import datetime, timezone
 from fastapi import HTTPException, Depends, Header, Request
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
+from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_VIEWER
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
@@ -64,5 +65,5 @@ class RoleRequired:
             )
         return user
 
-AdminRequired = Annotated[dict, Depends(RoleRequired(["admin"]))]
-SchedulerRequired = Annotated[dict, Depends(RoleRequired(["admin", "scheduler"]))]
+AdminRequired = Annotated[dict, Depends(RoleRequired([ROLE_ADMIN]))]
+SchedulerRequired = Annotated[dict, Depends(RoleRequired([ROLE_ADMIN, ROLE_SCHEDULER]))]

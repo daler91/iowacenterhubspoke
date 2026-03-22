@@ -14,11 +14,11 @@ router = APIRouter(tags=["reports"])
 
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(user: CurrentUser):
-    total_employees = await db.employees.count_documents({})
-    total_locations = await db.locations.count_documents({})
-    total_schedules = await db.schedules.count_documents({})
+    total_employees = await db.employees.count_documents({"deleted_at": None})
+    total_locations = await db.locations.count_documents({"deleted_at": None})
+    total_schedules = await db.schedules.count_documents({"deleted_at": None})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_schedules = await db.schedules.count_documents({"date": today})
+    today_schedules = await db.schedules.count_documents({"date": today, "deleted_at": None})
     return {
         "total_employees": total_employees,
         "total_locations": total_locations,
@@ -29,8 +29,8 @@ async def get_dashboard_stats(user: CurrentUser):
 
 @router.get("/workload")
 async def get_workload_stats(user: CurrentUser):
-    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
-    all_schedules = await db.schedules.find({}, {"_id": 0}).to_list(1000)
+    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
+    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(1000)
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:
@@ -240,12 +240,12 @@ async def get_weekly_summary(
         },
     )
 
-    query = {"date": {"$gte": date_from, "$lte": date_to}}
+    query = {"date": {"$gte": date_from, "$lte": date_to}, "deleted_at": None}
     if class_id:
         query["class_id"] = class_id
 
     schedules = await db.schedules.find(query, {"_id": 0}).to_list(1000)
-    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
+    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
     emp_map = {e["id"]: e for e in employees}
 
     employee_summaries = {}

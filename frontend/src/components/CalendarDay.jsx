@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { Car, AlertTriangle } from 'lucide-react';
+import { COLORS } from '../lib/constants';
 
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
@@ -62,7 +63,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
               const startMin = timeToMinutes(schedule.start_time);
               const endMin = timeToMinutes(schedule.end_time);
               const driveMin = schedule.drive_time_minutes || 0;
-              const classColor = schedule.class_color || schedule.employee_color || '#0F766E';
+              const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
               const className = schedule.class_name || 'Unassigned Class';
 
               const classTop = minutesToTop(startMin);

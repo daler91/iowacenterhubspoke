@@ -6,6 +6,7 @@ from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
 from services.activity import log_activity
 from core.logger import get_logger
+from core.queue import get_redis_pool
 
 logger = get_logger(__name__)
 
@@ -16,9 +17,17 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 
 @router.get("")
 async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
-    total = await db.locations.count_documents({})
-    locations = await db.locations.find({}, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    query = {"deleted_at": None}
+    total = await db.locations.count_documents(query)
+    locations = await db.locations.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return {"items": locations, "total": total, "skip": skip, "limit": limit}
+
+@router.get("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+async def get_location(location_id: str, user: CurrentUser):
+    location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    return location
 
 @router.post("")
 async def create_location(data: LocationCreate, user: AdminRequired):
@@ -29,7 +38,8 @@ async def create_location(data: LocationCreate, user: AdminRequired):
         "drive_time_minutes": data.drive_time_minutes,
         "latitude": data.latitude,
         "longitude": data.longitude,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "deleted_at": None
     }
     await db.locations.insert_one(doc)
     doc.pop("_id", None)
@@ -47,12 +57,34 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     logger.info(f"Location updated: {location_id}", extra={"entity": {"location_id": location_id}})
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    
+    # Trigger background sync for denormalized fields
+    pool = await get_redis_pool()
+    if pool:
+        await pool.enqueue_job("sync_schedules_denormalized", entity_type="location", entity_id=location_id)
+        
     return updated
 
 @router.delete("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def delete_location(location_id: str, user: AdminRequired):
-    result = await db.locations.delete_one({"id": location_id})
-    if result.deleted_count == 0:
+    result = await db.locations.update_one(
+        {"id": location_id, "deleted_at": None}, 
+        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    logger.info(f"Location deleted: {location_id}", extra={"entity": {"location_id": location_id}})
+    logger.info(f"Location soft-deleted: {location_id}", extra={"entity": {"location_id": location_id}})
+    await log_activity("location_deleted", f"Location '{location_id}' marked as deleted", "location", location_id, user.get('name', 'System'))
     return {"message": "Location deleted"}
+
+@router.post("/{location_id}/restore", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+async def restore_location(location_id: str, user: AdminRequired):
+    result = await db.locations.update_one(
+        {"id": location_id}, 
+        {"$set": {"deleted_at": None}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    logger.info(f"Location restored: {location_id}", extra={"entity": {"location_id": location_id}})
+    await log_activity("location_restored", f"Location '{location_id}' restored", "location", location_id, user.get('name', 'System'))
+    return {"message": "Location restored"}

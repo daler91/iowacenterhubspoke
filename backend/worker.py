@@ -51,8 +51,49 @@ async def generate_bulk_schedules(ctx, data_dict: dict, dates_to_schedule: list,
     logger.info(f"Bulk schedule generation completed. Created: {len(created)}, Skipped due to conflicts: {len(conflicts_found)}", extra={"entity": {"employee_id": data.employee_id, "created_count": len(created), "conflicts_count": len(conflicts_found)}})
     return {"created": len(created), "conflicts": len(conflicts_found)}
 
+async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
+    from database import db
+    from routers.classes import get_class_snapshot
+    
+    logger.info(f"Syncing denormalized fields for {entity_type}: {entity_id}")
+    
+    if entity_type == "employee":
+        employee = await db.employees.find_one({"id": entity_id}, {"_id": 0})
+        if employee:
+            await db.schedules.update_many(
+                {"employee_id": entity_id},
+                {"$set": {
+                    "employee_name": employee["name"],
+                    "employee_color": employee.get("color", "#4F46E5")
+                }}
+            )
+    elif entity_type == "location":
+        location = await db.locations.find_one({"id": entity_id}, {"_id": 0})
+        if location:
+            await db.schedules.update_many(
+                {"location_id": entity_id},
+                {"$set": {
+                    "location_name": location["city_name"],
+                    "drive_time_minutes": location["drive_time_minutes"]  # Note: travel_override_minutes in schedule takes precedence in router logic, but this syncs the base drive time
+                }}
+            )
+    elif entity_type == "class":
+        class_doc = await db.classes.find_one({"id": entity_id}, {"_id": 0})
+        if class_doc:
+            snapshot = get_class_snapshot(class_doc)
+            await db.schedules.update_many(
+                {"class_id": entity_id},
+                {"$set": {
+                    "class_name": snapshot["class_name"],
+                    "class_color": snapshot["class_color"],
+                    "class_description": snapshot["class_description"]
+                }}
+            )
+    
+    logger.info(f"Sync completed for {entity_type}: {entity_id}")
+
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
 class WorkerSettings:
-    functions = [generate_bulk_schedules]
+    functions = [generate_bulk_schedules, sync_schedules_denormalized]
     redis_settings = RedisSettings.from_dsn(redis_url)

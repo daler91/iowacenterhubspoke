@@ -5,6 +5,7 @@ import {
   addDays, isSameMonth, isToday
 } from 'date-fns';
 import { cn } from '../lib/utils';
+import { COLORS } from '../lib/constants';
 
 export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
   const monthStart = startOfMonth(currentDate);
@@ -89,8 +90,8 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
                         data-testid={`month-class-pill-${s.id}`}
                         className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
                         style={{
-                          backgroundColor: `${s.class_color || s.employee_color || '#0F766E'}20`,
-                          color: s.class_color || s.employee_color || '#0F766E',
+                          backgroundColor: `${s.class_color || s.employee_color || COLORS.DEFAULT_CLASS}20`,
+                          color: s.class_color || s.employee_color || COLORS.DEFAULT_CLASS,
                         }}
                       >
                         {s.class_name || s.location_name}
