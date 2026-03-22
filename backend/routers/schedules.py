@@ -8,7 +8,7 @@ from core.auth import CurrentUser, SchedulerRequired, AdminRequired
 from services.activity import log_activity
 from routers.classes import get_class_snapshot
 from services.schedule_utils import (
-    build_recurrence_rule, build_recurrence_dates, check_conflicts, time_to_minutes
+    build_recurrence_rule, build_recurrence_dates, check_conflicts
 )
 from core.logger import get_logger
 from core.constants import STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED, DEFAULT_EMPLOYEE_COLOR
