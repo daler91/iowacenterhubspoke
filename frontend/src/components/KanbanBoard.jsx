@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
+import { mutate } from 'swr';
 
 const COLUMNS = [
   { id: 'upcoming', label: 'Upcoming', color: 'bg-indigo-500', lightColor: 'bg-indigo-50', textColor: 'text-indigo-700' },
@@ -122,6 +123,12 @@ KanbanCard.propTypes = {
 
 export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
   const handleStatusChange = async (scheduleId, newStatus) => {
+    // Optimistic UI cache swap for instantaneous feedback
+    mutate('schedules', (currentData) => {
+      if (!currentData) return currentData;
+      return currentData.map(s => s.id === scheduleId ? { ...s, status: newStatus } : s);
+    }, { revalidate: false });
+
     try {
       await schedulesAPI.updateStatus(scheduleId, newStatus);
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
@@ -129,6 +136,8 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
+      // Rollback cache
+      mutate('schedules');
     }
   };
 
