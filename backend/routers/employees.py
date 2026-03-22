@@ -5,6 +5,9 @@ from database import db
 from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -29,6 +32,7 @@ async def create_employee(data: EmployeeCreate, user: CurrentUser):
     }
     await db.employees.insert_one(doc)
     doc.pop("_id", None)
+    logger.info(f"Employee created: {data.name}", extra={"entity": {"employee_id": emp_id}})
     await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
@@ -40,6 +44,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentU
     result = await db.employees.update_one({"id": employee_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    logger.info(f"Employee updated: {employee_id}", extra={"entity": {"employee_id": employee_id}})
     updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     return updated
 
@@ -48,6 +53,7 @@ async def delete_employee(employee_id: str, user: CurrentUser):
     result = await db.employees.delete_one({"id": employee_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    logger.info(f"Employee deleted: {employee_id}", extra={"entity": {"employee_id": employee_id}})
     return {"message": "Employee deleted"}
 
 @router.get("/{employee_id}/stats", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})

@@ -10,6 +10,9 @@ from routers.classes import get_class_snapshot
 from services.schedule_utils import (
     build_recurrence_rule, build_recurrence_dates, check_conflicts, time_to_minutes
 )
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 
@@ -119,6 +122,7 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
         doc = _build_schedule_doc(data, dates_to_schedule[0], drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
         await db.schedules.insert_one(doc)
         doc.pop("_id", None)
+        logger.info(f"Schedule created: {doc['id']}", extra={"entity": {"schedule_id": doc['id'], "employee_id": data.employee_id, "location_id": data.location_id}})
         
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
@@ -147,6 +151,7 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
             class_doc=class_doc,
             user_name=user.get('name', 'System')
         )
+        logger.info(f"Bulk schedules enqueued for {employee['name']}", extra={"entity": {"employee_id": data.employee_id, "location_id": data.location_id, "dates_count": len(dates_to_schedule)}})
         
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
@@ -224,6 +229,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentU
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    logger.info(f"Schedule updated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
     updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     return updated
 
@@ -233,6 +239,7 @@ async def delete_schedule(schedule_id: str, user: CurrentUser):
     result = await db.schedules.delete_one({"id": schedule_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    logger.info(f"Schedule deleted: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
     if schedule:
         await log_activity("schedule_deleted", f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed", "schedule", schedule_id, user.get('name', 'System'))
     return {"message": "Schedule deleted"}
@@ -244,6 +251,7 @@ async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: Cur
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    logger.info(f"Schedule status updated: {schedule_id} to {data.status}", extra={"entity": {"schedule_id": schedule_id, "status": data.status}})
     updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     await log_activity(
         action=f"status_{data.status}",
@@ -266,10 +274,10 @@ async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: Curr
         raise HTTPException(status_code=409, detail={"message": "Conflict at new time", "conflicts": conflicts})
 
     await db.schedules.update_one({"id": schedule_id}, {"$set": {
-        "date": data.date,
         "start_time": data.start_time,
         "end_time": data.end_time,
     }})
+    logger.info(f"Schedule relocated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}})
     updated = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     await log_activity("schedule_relocated", f"Class at {updated.get('location_name', '?')} moved to {data.date} {data.start_time}-{data.end_time}", "schedule", schedule_id, user.get('name', 'System'))
     return updated

@@ -6,6 +6,9 @@ from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/classes", tags=["classes"])
 
@@ -55,6 +58,7 @@ async def create_class(data: ClassCreate, user: CurrentUser):
     }
     await db.classes.insert_one(doc)
     doc.pop("_id", None)
+    logger.info(f"Class created: {data.name}", extra={"entity": {"class_id": class_id}})
     await log_activity("class_created", f"Class type '{data.name}' added", "class", class_id, user.get('name', 'System'))
     return doc
 
@@ -70,6 +74,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
 
     updated = await db.classes.find_one({"id": class_id}, {"_id": 0})
     await sync_class_snapshot(updated)
+    logger.info(f"Class updated: {updated['name']}", extra={"entity": {"class_id": class_id}})
     await log_activity("class_updated", f"Class type '{updated['name']}' updated", "class", class_id, user.get('name', 'System'))
     return updated
 
@@ -89,5 +94,6 @@ async def delete_class(class_id: str, user: CurrentUser):
         }}
     )
     await db.classes.delete_one({"id": class_id})
+    logger.info(f"Class deleted: {class_doc['name']}", extra={"entity": {"class_id": class_id}})
     await log_activity("class_deleted", f"Class type '{class_doc['name']}' deleted", "class", class_id, user.get('name', 'System'))
     return {"message": "Class deleted"}

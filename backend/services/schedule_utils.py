@@ -2,6 +2,9 @@ import calendar
 from typing import Optional
 from database import db
 from models.schemas import RecurrenceRule, ScheduleCreate
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 def time_to_minutes(time_str: str) -> int:
     h, m = time_str.split(':')
@@ -134,6 +137,9 @@ async def check_conflicts(employee_id: str, date: str, start_time: str, end_time
     query = {"employee_id": employee_id, "date": date}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
+    
+    logger.debug(f"Checking conflicts for employee {employee_id} on {date}", extra={"context": {"start_time": start_time, "end_time": end_time}})
+    
     existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
 
     conflicts = []

@@ -2,6 +2,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 from database import db
 from core.auth import CurrentUser
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["system"])
 
@@ -12,6 +15,7 @@ async def get_activity_logs(user: CurrentUser, limit: int = 30):
 
 @router.get("/notifications")
 async def get_notifications(user: CurrentUser):
+    logger.info("Fetching system notifications")
     notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

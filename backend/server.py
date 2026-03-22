@@ -7,9 +7,11 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-# Set up logging early just in case
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+from core.logger import setup_logging, get_logger, request_id_var
+
+# Set up JSON structured logging
+setup_logging()
+logger = get_logger(__name__)
 
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -42,7 +44,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}")
+    logger.error(f"Unhandled exception: {exc}", exc_info=exc)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error", "code": "500", "errors": None}
@@ -71,6 +73,17 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:;"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    token = request_id_var.set(request_id)
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        request_id_var.reset(token)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)

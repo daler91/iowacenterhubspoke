@@ -4,6 +4,9 @@ from typing import Optional
 from database import db
 from core.auth import CurrentUser
 from services.schedule_utils import calculate_class_minutes
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["reports"])
 
@@ -164,6 +167,8 @@ async def get_weekly_summary(user: CurrentUser, date_from: Optional[str] = None,
         start = today - td(days=today.weekday())
         date_from = start.isoformat()
         date_to = (start + td(days=6)).isoformat()
+    
+    logger.info(f"Generating weekly summary report: {date_from} to {date_to}", extra={"context": {"date_from": date_from, "date_to": date_to, "class_id": class_id}})
 
     query = {"date": {"$gte": date_from, "$lte": date_to}}
     if class_id:

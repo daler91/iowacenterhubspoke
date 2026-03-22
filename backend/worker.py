@@ -4,9 +4,12 @@ import logging
 from arq.connections import RedisSettings
 from dotenv import load_dotenv
 
+from core.logger import setup_logging, get_logger
+
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('Worker')
+# Set up JSON structured logging
+setup_logging()
+logger = get_logger('Worker')
 
 async def generate_bulk_schedules(ctx, data_dict: dict, dates_to_schedule: list, drive_time: int, recurrence_rule_dict: dict, location: dict, employee: dict, class_doc: dict, user_name: str):
     from models.schemas import ScheduleCreate, RecurrenceRule
@@ -45,7 +48,7 @@ async def generate_bulk_schedules(ctx, data_dict: dict, dates_to_schedule: list,
             user_name=user_name
         )
         
-    logger.info(f"Bulk schedule generation completed. Created: {len(created)}, Skipped due to conflicts: {len(conflicts_found)}")
+    logger.info(f"Bulk schedule generation completed. Created: {len(created)}, Skipped due to conflicts: {len(conflicts_found)}", extra={"entity": {"employee_id": data.employee_id, "created_count": len(created), "conflicts_count": len(conflicts_found)}})
     return {"created": len(created), "conflicts": len(conflicts_found)}
 
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")

@@ -5,6 +5,9 @@ from database import db
 from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -29,6 +32,7 @@ async def create_location(data: LocationCreate, user: CurrentUser):
     }
     await db.locations.insert_one(doc)
     doc.pop("_id", None)
+    logger.info(f"Location created: {data.city_name}", extra={"entity": {"location_id": loc_id}})
     await log_activity("location_created", f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)", "location", loc_id, user.get('name', 'System'))
     return doc
 
@@ -40,6 +44,7 @@ async def update_location(location_id: str, data: LocationUpdate, user: CurrentU
     result = await db.locations.update_one({"id": location_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    logger.info(f"Location updated: {location_id}", extra={"entity": {"location_id": location_id}})
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
     return updated
 
@@ -48,4 +53,5 @@ async def delete_location(location_id: str, user: CurrentUser):
     result = await db.locations.delete_one({"id": location_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    logger.info(f"Location deleted: {location_id}", extra={"entity": {"location_id": location_id}})
     return {"message": "Location deleted"}
