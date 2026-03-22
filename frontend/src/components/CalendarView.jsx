@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { useRef, useCallback } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
@@ -12,19 +12,21 @@ import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
-import PropTypes from 'prop-types';
 
-export default function CalendarView({ 
-  locations, 
-  employees, 
-  classes, 
-  schedules, 
-  stats,
-  fetchSchedules,
-  fetchActivities,
-  onEditSchedule,
-  onStatClick
-}) {
+export default function CalendarView() {
+  const {
+    locations,
+    employees,
+    classes,
+    schedules,
+    stats: rawStats,
+    fetchSchedules,
+    fetchActivities,
+    onEditSchedule,
+    onStatClick,
+  } = useOutletContext();
+
+  const stats = rawStats ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
   const calendarRef = useRef(null);
 
@@ -239,14 +241,3 @@ export default function CalendarView({
   );
 }
 
-CalendarView.propTypes = {
-  locations: PropTypes.array.isRequired,
-  employees: PropTypes.array.isRequired,
-  classes: PropTypes.array.isRequired,
-  schedules: PropTypes.array.isRequired,
-  stats: PropTypes.object.isRequired,
-  fetchSchedules: PropTypes.func.isRequired,
-  fetchActivities: PropTypes.func.isRequired,
-  onEditSchedule: PropTypes.func.isRequired,
-  onStatClick: PropTypes.func.isRequired
-};

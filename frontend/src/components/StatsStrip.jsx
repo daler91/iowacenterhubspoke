@@ -2,7 +2,14 @@ import PropTypes from 'prop-types';
 import { Calendar as CalIcon, TrendingUp, Users, MapPin } from 'lucide-react';
 
 export default function StatsStrip({ stats = {}, onStatClick }) {
-  const safeStats = stats || {};
+  const safeStats = {
+    today_schedules: 0,
+    total_schedules: 0,
+    total_employees: 0,
+    total_locations: 0,
+    ...stats,
+  };
+
   return (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="calendar-stats-strip">
       <button
@@ -14,7 +21,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Today</p>
             <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-today">
-              {safeStats.today_schedules || 0}
+              {safeStats.today_schedules}
             </p>
           </div>
           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
@@ -32,7 +39,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
             <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-total-schedules">
-              {safeStats.total_schedules || 0}
+              {safeStats.total_schedules}
             </p>
           </div>
           <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
@@ -50,7 +57,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Team</p>
             <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-employees">
-              {safeStats.total_employees || 0}
+              {safeStats.total_employees}
             </p>
           </div>
           <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
@@ -68,7 +75,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Locations</p>
             <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="stat-locations">
-              {safeStats.total_locations || 0}
+              {safeStats.total_locations}
             </p>
           </div>
           <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
