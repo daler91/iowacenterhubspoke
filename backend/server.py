@@ -33,6 +33,14 @@ async def seed_data():
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
         raise
+    
+    # Create required indexes
+    try:
+        await db.schedules.create_index([("employee_id", 1), ("date", 1)])
+        logger.info("Ensured index on schedules collection for employee_id and date")
+    except Exception as e:
+        logger.warning(f"Failed to create indexes: {e}")
+
     try:
         count = await db.locations.count_documents({})
         if count == 0:
