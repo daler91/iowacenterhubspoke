@@ -218,8 +218,20 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentU
             "class_description": class_doc.get('description'),
         })
 
-    if 'travel_override_minutes' in update_data and update_data['travel_override_minutes']:
-        update_data['drive_time_minutes'] = update_data['travel_override_minutes']
+    if 'travel_override_minutes' in update_data:
+        if update_data['travel_override_minutes']:
+            update_data['drive_time_minutes'] = update_data['travel_override_minutes']
+        else:
+            # Override cleared — recalculate from location
+            location_id = update_data.get('location_id')
+            if not location_id:
+                existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+                if existing:
+                    location_id = existing.get('location_id')
+            if location_id:
+                loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
+                if loc:
+                    update_data['drive_time_minutes'] = loc['drive_time_minutes']
 
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": update_data})
     if result.matched_count == 0:
@@ -277,6 +289,8 @@ async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: Curr
 @router.post("/check-conflicts")
 async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
-    drive_time = data.travel_override_minutes or (location['drive_time_minutes'] if location else 0)
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
     conflicts = await check_conflicts(data.employee_id, data.date, data.start_time, data.end_time, drive_time)
     return {"has_conflicts": len(conflicts) > 0, "conflicts": conflicts}

@@ -20,6 +20,7 @@ export default function WeeklyReport({ classes }) {
   const [weekDate, setWeekDate] = useState(new Date());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('all');
   const reportRef = useRef(null);
 
@@ -30,13 +31,14 @@ export default function WeeklyReport({ classes }) {
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     reportsAPI.weeklySummary({
       date_from: dateFrom,
       date_to: dateTo,
       class_id: selectedClassId === 'all' ? undefined : selectedClassId,
     })
-      .then((res) => setReport(res.data))
-      .catch(() => toast.error('Failed to load report'))
+      .then((res) => { setReport(res.data); setError(false); })
+      .catch(() => { setReport(null); setError(true); toast.error('Failed to load report'); })
       .finally(() => setLoading(false));
   }, [dateFrom, dateTo, selectedClassId]);
 
@@ -101,7 +103,13 @@ export default function WeeklyReport({ classes }) {
         </div>
       )}
 
-      {report && !loading && (
+      {error && !loading && (
+        <div className="text-center py-12 text-slate-500">
+          <p className="text-sm">Failed to load report. Please try again.</p>
+        </div>
+      )}
+
+      {report && !loading && !error && (
         <div ref={reportRef} className="space-y-6 bg-white rounded-xl border border-gray-200 p-6">
           <div className="border-b border-gray-100 pb-4 mb-2">
             <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>

@@ -8,10 +8,14 @@ import os
 import uuid
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+if not BASE_URL:
+    pytest.skip("REACT_APP_BACKEND_URL not set", allow_module_level=True)
 
 # Test user credentials
 TEST_EMAIL = f"test_class_{uuid.uuid4().hex[:8]}@test.com"
-TEST_PASSWORD = os.environ['TEST_PASSWORD']
+TEST_PASSWORD = os.environ.get('TEST_PASSWORD')
+if not TEST_PASSWORD:
+    pytest.skip("TEST_PASSWORD not set", allow_module_level=True)
 TEST_NAME = "Test Class User"
 
 

@@ -80,10 +80,10 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 {data.map((emp) => (
                   <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-xl">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium" style={{ backgroundColor: emp.color }}>
-                      {emp.name.charAt(0)}
+                      {(emp.name || '?').charAt(0)}
                     </div>
                     <div>
-                      <div className="font-medium text-slate-800">{emp.name}</div>
+                      <div className="font-medium text-slate-800">{emp.name || 'Unknown'}</div>
                       {emp.email && <div className="text-xs text-slate-500">{emp.email}</div>}
                     </div>
                   </div>

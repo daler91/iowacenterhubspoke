@@ -67,7 +67,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
 
               const classTop = minutesToTop(startMin);
               const classHeight = ((endMin - startMin) / 60) * 80;
-              const driveBeforeTop = minutesToTop(startMin - driveMin);
+              const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveMin));
               const driveBeforeHeight = (driveMin / 60) * 80;
               const driveAfterTop = minutesToTop(endMin);
               const driveAfterHeight = (driveMin / 60) * 80;

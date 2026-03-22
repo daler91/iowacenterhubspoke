@@ -19,7 +19,7 @@ export default function EmployeeProfile({ employeeId, onBack }) {
     setLoading(true);
     api.get(`/employees/${employeeId}/stats`)
       .then(res => setData(res.data))
-      .catch(() => {})
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [employeeId]);
 
@@ -31,7 +31,12 @@ export default function EmployeeProfile({ employeeId, onBack }) {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <div className="text-center py-12 text-slate-500">
+      <p className="text-sm">Failed to load employee profile.</p>
+      <Button variant="ghost" onClick={onBack} className="mt-2 text-indigo-600">Go back</Button>
+    </div>
+  );
 
   const { employee, total_classes, total_drive_minutes, total_class_minutes, completed, upcoming, location_breakdown, recent_schedules } = data;
 
