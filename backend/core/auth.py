@@ -1,4 +1,6 @@
 import os
+import secrets
+import logging
 import bcrypt
 import jwt
 from datetime import datetime, timezone
@@ -9,7 +11,8 @@ JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
     if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT'):
         raise ValueError("CRITICAL: JWT_SECRET environment variable is missing. It must be explicitly set in production environments.")
-    JWT_SECRET = 'dev-secret-change-in-production'
+    JWT_SECRET = secrets.token_urlsafe(32)
+    logging.warning("JWT_SECRET environment variable is missing. Using a randomly generated secret. All user sessions will be invalidated when the server restarts. Do not use this configuration in production.")
 JWT_ALGORITHM = 'HS256'
 
 def hash_password(password: str) -> str:
