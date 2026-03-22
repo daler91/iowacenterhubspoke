@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, Depends, Header
 from typing import Annotated, Optional
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret-change-in-production')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT'):
+        raise ValueError("CRITICAL: JWT_SECRET environment variable is missing. It must be explicitly set in production environments.")
+    JWT_SECRET = 'dev-secret-change-in-production'
 JWT_ALGORITHM = 'HS256'
 
 def hash_password(password: str) -> str:
