@@ -8,7 +8,8 @@ import {
   Users, MapPin, TrendingUp, FileDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { locationsAPI, employeesAPI, classesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
+import { schedulesAPI } from '../lib/api';
+import { useDashboardData } from '../hooks/useDashboardData';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import CalendarWeek from '../components/CalendarWeek';
@@ -44,14 +45,12 @@ export default function DashboardPage() {
   const [statModalData, setStatModalData] = useState([]);
   const [statModalTitle, setStatModalTitle] = useState('');
 
+  const {
+    locations, employees, classes, schedules, stats, activities, workloadData,
+    fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
+    handleClassRefresh, handleScheduleSaved
+  } = useDashboardData();
 
-  const [locations, setLocations] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [stats, setStats] = useState({});
-  const [activities, setActivities] = useState([]);
-  const [workloadData, setWorkloadData] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [filterEmployee, setFilterEmployee] = useState('all');
   const [filterLocation, setFilterLocation] = useState('all');
@@ -64,72 +63,6 @@ export default function DashboardPage() {
     return true;
   });
 
-  const fetchLocations = useCallback(async () => {
-    try {
-      const res = await locationsAPI.getAll();
-      setLocations(res.data);
-    } catch (err) { console.error('Failed to fetch locations', err); }
-  }, []);
-
-  const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await employeesAPI.getAll();
-      setEmployees(res.data);
-    } catch (err) { console.error('Failed to fetch employees', err); }
-  }, []);
-
-  const fetchClasses = useCallback(async () => {
-    try {
-      const res = await classesAPI.getAll();
-      setClasses(res.data);
-    } catch (err) { console.error('Failed to fetch classes', err); }
-  }, []);
-
-  const fetchSchedules = useCallback(async () => {
-    try {
-      const res = await schedulesAPI.getAll();
-      setSchedules(res.data);
-    } catch (err) { console.error('Failed to fetch schedules', err); }
-  }, []);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await dashboardAPI.getStats();
-      setStats(res.data);
-    } catch (err) { console.error('Failed to fetch stats', err); }
-  }, []);
-
-  const fetchActivities = useCallback(async () => {
-    try {
-      const res = await activityAPI.getAll(50);
-      setActivities(res.data);
-    } catch (err) { console.error('Failed to fetch activities', err); }
-  }, []);
-
-  const fetchWorkload = useCallback(async () => {
-    try {
-      const res = await workloadAPI.getAll();
-      setWorkloadData(res.data);
-    } catch (err) { console.error('Failed to fetch workload', err); }
-  }, []);
-
-  useEffect(() => {
-    fetchLocations();
-    fetchEmployees();
-    fetchClasses();
-    fetchSchedules();
-    fetchStats();
-    fetchActivities();
-    fetchWorkload();
-  }, [fetchLocations, fetchEmployees, fetchClasses, fetchSchedules, fetchStats, fetchActivities, fetchWorkload]);
-
-  const handleClassRefresh = useCallback(() => {
-    fetchClasses();
-    fetchSchedules();
-    fetchActivities();
-    fetchWorkload();
-  }, [fetchActivities, fetchClasses, fetchSchedules, fetchWorkload]);
-
   const handleNewSchedule = () => {
     setEditingSchedule(null);
     setScheduleFormOpen(true);
@@ -141,13 +74,6 @@ export default function DashboardPage() {
   const handleEditSchedule = (schedule) => {
     setEditingSchedule(schedule);
     setScheduleFormOpen(true);
-  };
-
-  const handleScheduleSaved = () => {
-    fetchSchedules();
-    fetchStats();
-    fetchActivities();
-    fetchWorkload();
   };
 
   const navigateDate = (direction) => {
