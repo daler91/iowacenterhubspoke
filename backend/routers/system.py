@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter
 from database import db
-from core.auth import CurrentUser
+from core.auth import CurrentUser, AdminRequired
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["system"])
 
 @router.get("/activity-logs")
-async def get_activity_logs(user: CurrentUser, limit: int = 30):
+async def get_activity_logs(user: AdminRequired, limit: int = 30):
     logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     return logs
 

@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
+import { useAuth } from '../lib/auth';
 import ClassQuickCreateDialog from './ClassQuickCreateDialog';
 import CustomRecurrenceDialog from './CustomRecurrenceDialog';
 
@@ -11,6 +12,10 @@ import { LocationTimeSelectors } from './schedule-form/LocationTimeSelectors';
 import { RecurrenceOptions } from './schedule-form/RecurrenceOptions';
 
 export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
+  const isAdmin = user?.role === 'admin';
+
   const {
     form, setForm,
     loading,
@@ -53,7 +58,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             employees={employees}
             classes={classes}
             selectedClass={selectedClass}
-            onAddClass={() => setQuickClassOpen(true)}
+            onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
           />
 
           <LocationTimeSelectors 
@@ -77,7 +82,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           )}
 
           <DialogFooter className="flex gap-2 pt-4">
-            {editSchedule && (
+            {editSchedule && canEdit && (
               <Button
                 type="button"
                 variant="outline"

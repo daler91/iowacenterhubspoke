@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional, List
 from database import db
 from models.schemas import ScheduleCreate, ScheduleUpdate, StatusUpdate, ScheduleRelocate, ErrorResponse
-from core.auth import CurrentUser
+from core.auth import CurrentUser, SchedulerRequired, AdminRequired
 from services.activity import log_activity
 from routers.classes import get_class_snapshot
 from services.schedule_utils import (
@@ -109,7 +109,7 @@ async def _fetch_schedule_entities(data: ScheduleCreate):
 
 
 @router.post("", responses={404: {"model": ErrorResponse, "description": "Location or Employee not found"}, 409: {"model": ErrorResponse, "description": "Schedule conflict detected"}})
-async def create_schedule(data: ScheduleCreate, user: CurrentUser):
+async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     location, employee, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
@@ -196,7 +196,7 @@ async def create_schedule(data: ScheduleCreate, user: CurrentUser):
         return {"created": created, "conflicts_skipped": conflicts_found, "total_created": len(created), "warning": "Redis unavailable, processed synchronously"}
 
 @router.put("/{schedule_id}", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
-async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentUser):
+async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
     if not update_data:
@@ -238,7 +238,7 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: CurrentU
     return updated
 
 @router.delete("/{schedule_id}", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
-async def delete_schedule(schedule_id: str, user: CurrentUser):
+async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     result = await db.schedules.delete_one({"id": schedule_id})
     if result.deleted_count == 0:
@@ -249,7 +249,7 @@ async def delete_schedule(schedule_id: str, user: CurrentUser):
     return {"message": "Schedule deleted"}
 
 @router.put("/{schedule_id}/status", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
-async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: CurrentUser):
+async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: SchedulerRequired):
     if data.status not in ["upcoming", "in_progress", "completed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_one({"id": schedule_id}, {"$set": {"status": data.status}})
@@ -267,7 +267,7 @@ async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: Cur
     return updated
 
 @router.put("/{schedule_id}/relocate", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
-async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: CurrentUser):
+async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: SchedulerRequired):
     schedule = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
     if not schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)

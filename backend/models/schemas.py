@@ -5,6 +5,7 @@ class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
+    role: Optional[str] = "viewer"
 
 class UserLogin(BaseModel):
     email: str

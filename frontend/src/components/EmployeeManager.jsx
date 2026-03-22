@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
@@ -14,6 +15,8 @@ import { useOutletContext } from 'react-router-dom';
 import EmployeeProfile from './EmployeeProfile';
 
 export default function EmployeeManager() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { employees, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
@@ -92,14 +95,16 @@ export default function EmployeeManager() {
           <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Employees</h2>
           <p className="text-sm text-slate-500 mt-1">Manage team members and their scheduling colors</p>
         </div>
-        <Button
-          data-testid="add-employee-btn"
-          onClick={openNew}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Employee
-        </Button>
+        {isAdmin && (
+          <Button
+            data-testid="add-employee-btn"
+            onClick={openNew}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Employee
+          </Button>
+        )}
       </div>
 
       {/* Employee list */}
@@ -145,24 +150,28 @@ export default function EmployeeManager() {
               >
                 <Eye className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`edit-employee-${emp.id}`}
-                onClick={() => openEdit(emp)}
-                className="text-slate-400 hover:text-indigo-600"
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`delete-employee-${emp.id}`}
-                onClick={() => handleDelete(emp.id)}
-                className="text-slate-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`edit-employee-${emp.id}`}
+                    onClick={() => openEdit(emp)}
+                    className="text-slate-400 hover:text-indigo-600"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`delete-employee-${emp.id}`}
+                    onClick={() => handleDelete(emp.id)}
+                    className="text-slate-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ))}

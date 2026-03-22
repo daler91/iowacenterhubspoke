@@ -7,10 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 import { useOutletContext } from 'react-router-dom';
 
 export default function LocationManager() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { locations, fetchLocations, fetchActivities } = useOutletContext();
   const onRefresh = () => {
     fetchLocations();
@@ -91,14 +94,16 @@ export default function LocationManager() {
           <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Locations</h2>
           <p className="text-sm text-slate-500 mt-1">Manage spoke locations and drive times from Hub</p>
         </div>
-        <Button
-          data-testid="add-location-btn"
-          onClick={openNew}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Location
-        </Button>
+        {isAdmin && (
+          <Button
+            data-testid="add-location-btn"
+            onClick={openNew}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Location
+          </Button>
+        )}
       </div>
 
       {/* Hub Info */}
@@ -140,24 +145,28 @@ export default function LocationManager() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`edit-location-${loc.id}`}
-                onClick={() => openEdit(loc)}
-                className="text-slate-400 hover:text-indigo-600"
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`delete-location-${loc.id}`}
-                onClick={() => handleDelete(loc.id)}
-                className="text-slate-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`edit-location-${loc.id}`}
+                    onClick={() => openEdit(loc)}
+                    className="text-slate-400 hover:text-indigo-600"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`delete-location-${loc.id}`}
+                    onClick={() => handleDelete(loc.id)}
+                    className="text-slate-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ))}

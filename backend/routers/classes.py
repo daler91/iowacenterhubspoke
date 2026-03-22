@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional, List
 from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
-from core.auth import CurrentUser
+from core.auth import CurrentUser, AdminRequired
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -47,7 +47,7 @@ async def get_classes(user: CurrentUser):
     return classes
 
 @router.post("")
-async def create_class(data: ClassCreate, user: CurrentUser):
+async def create_class(data: ClassCreate, user: AdminRequired):
     class_id = str(uuid.uuid4())
     doc = {
         "id": class_id,
@@ -63,7 +63,7 @@ async def create_class(data: ClassCreate, user: CurrentUser):
     return doc
 
 @router.put("/{class_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
-async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
+async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
@@ -79,7 +79,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
     return updated
 
 @router.delete("/{class_id}", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
-async def delete_class(class_id: str, user: CurrentUser):
+async def delete_class(class_id: str, user: AdminRequired):
     class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)

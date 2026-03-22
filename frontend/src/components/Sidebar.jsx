@@ -95,19 +95,21 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
       </div>
 
       {/* New Schedule Button */}
-      <div className="p-3">
-        <Button
-          data-testid="new-schedule-btn"
-          onClick={onNewSchedule}
-          className={cn(
-            "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
-            collapsed ? "w-full px-0 justify-center" : "w-full"
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          {!collapsed && <span className="ml-2">New Schedule</span>}
-        </Button>
-      </div>
+      {user?.role !== 'viewer' && (
+        <div className="p-3">
+          <Button
+            data-testid="new-schedule-btn"
+            onClick={onNewSchedule}
+            className={cn(
+              "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
+              collapsed ? "w-full px-0 justify-center" : "w-full"
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            {!collapsed && <span className="ml-2">New Schedule</span>}
+          </Button>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
@@ -140,7 +142,12 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">{user.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                  {user.role}
+                </span>
+              </div>
             </div>
           </div>
         )}

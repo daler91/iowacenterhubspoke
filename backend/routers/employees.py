@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
-from core.auth import CurrentUser
+from core.auth import CurrentUser, AdminRequired
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -21,7 +21,7 @@ async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
     return {"items": employees, "total": total, "skip": skip, "limit": limit}
 
 @router.post("")
-async def create_employee(data: EmployeeCreate, user: CurrentUser):
+async def create_employee(data: EmployeeCreate, user: AdminRequired):
     emp_id = str(uuid.uuid4())
     doc = {
         "id": emp_id,
@@ -38,7 +38,7 @@ async def create_employee(data: EmployeeCreate, user: CurrentUser):
     return doc
 
 @router.put("/{employee_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
-async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentUser):
+async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
@@ -50,7 +50,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentU
     return updated
 
 @router.delete("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
-async def delete_employee(employee_id: str, user: CurrentUser):
+async def delete_employee(employee_id: str, user: AdminRequired):
     result = await db.employees.delete_one({"id": employee_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)

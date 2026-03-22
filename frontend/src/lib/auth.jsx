@@ -12,7 +12,12 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       try {
         const res = await authAPI.me();
-        const userData = { id: res.data.user_id, name: res.data.name, email: res.data.email };
+        const userData = { 
+          id: res.data.user_id, 
+          name: res.data.name, 
+          email: res.data.email, 
+          role: res.data.role 
+        };
         setUser(userData);
         localStorage.setItem('auth_user', JSON.stringify(userData));
       } catch (error) {
