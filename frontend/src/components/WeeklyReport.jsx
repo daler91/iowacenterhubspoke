@@ -229,6 +229,4 @@ export default function WeeklyReport() {
   );
 }
 
-WeeklyReport.propTypes = {
-  classes: PropTypes.array,
-};
+WeeklyReport.propTypes = {};

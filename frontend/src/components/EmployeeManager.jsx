@@ -262,16 +262,4 @@ export default function EmployeeManager() {
   );
 }
 
-EmployeeManager.propTypes = {
-  employees: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      name: PropTypes.string.isRequired,
-      email: PropTypes.string,
-      phone: PropTypes.string,
-      color: PropTypes.string,
-    })
-  ),
-  onRefresh: PropTypes.func,
-  onViewProfile: PropTypes.func,
-};
+EmployeeManager.propTypes = {};

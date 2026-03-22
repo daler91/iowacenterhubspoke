@@ -97,14 +97,4 @@ export default function ActivityFeed() {
   );
 }
 
-ActivityFeed.propTypes = {
-  activities: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      action: PropTypes.string,
-      description: PropTypes.string,
-      user_name: PropTypes.string,
-      timestamp: PropTypes.string,
-    })
-  ),
-};
+ActivityFeed.propTypes = {};

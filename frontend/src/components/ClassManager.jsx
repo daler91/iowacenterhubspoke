@@ -236,7 +236,4 @@ export default function ClassManager() {
   );
 }
 
-ClassManager.propTypes = {
-  classes: PropTypes.array,
-  onRefresh: PropTypes.func,
-};
+ClassManager.propTypes = {};

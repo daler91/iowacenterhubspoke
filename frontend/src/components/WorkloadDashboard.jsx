@@ -298,7 +298,4 @@ export default function WorkloadDashboard() {
   );
 }
 
-WorkloadDashboard.propTypes = {
-  workloadData: PropTypes.array,
-  classes: PropTypes.array,
-};
+WorkloadDashboard.propTypes = {};

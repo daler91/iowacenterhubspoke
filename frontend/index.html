@@ -53,7 +53,7 @@
                     };
                 }
                 if (!e.__SV) {
-                    window.posthog = e;
+                    globalThis.posthog = e;
                     e._i = [];
                     e.init = function (i, s, a) {
                         p = t.createElement("script");
@@ -64,7 +64,7 @@
                         r = t.getElementsByTagName("script")[0];
                         r.parentNode.insertBefore(p, r);
                         var u = e;
-                        if (void 0 !== a) {
+                        if (a !== undefined) {
                             e[a] = [];
                             u = e[a];
                         } else {
@@ -88,7 +88,7 @@
                     };
                     e.__SV = 1;
                 }
-            })(document, window.posthog || []);
+            })(document, globalThis.posthog || []);
             posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
                 api_host: "https://us.i.posthog.com",
                 person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
