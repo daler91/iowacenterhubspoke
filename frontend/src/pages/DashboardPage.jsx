@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useLocation, format } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import { format } from 'date-fns';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
