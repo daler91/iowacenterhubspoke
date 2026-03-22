@@ -172,20 +172,28 @@ async def _handle_bulk_background(data: ScheduleCreate, dates_to_schedule: List[
     return {"message": "Bulk schedule generation is running in the background.", "total_created": len(dates_to_schedule), "background": True}
 
 
+
+async def _process_single_date(data, sched_date, drive_time, recurrence_rule, location, employee, class_doc):
+    conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
+    if conflicts:
+        return None, {"date": sched_date, "conflicts": conflicts}
+
+    town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, sched_date, data.location_id)
+    doc = _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
+    await db.schedules.insert_one(doc)
+    doc.pop("_id", None)
+    return doc, None
+
+
 async def _handle_bulk_synchronous(data: ScheduleCreate, dates_to_schedule: List[str], drive_time: int, recurrence_rule: Optional[any], location: dict, employee: dict, class_doc: Optional[dict], user: SchedulerRequired):
     created = []
     conflicts_found = []
     for sched_date in dates_to_schedule:
-        conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
-        if conflicts:
-            conflicts_found.append({"date": sched_date, "conflicts": conflicts})
-            continue
-
-        town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, sched_date, data.location_id)
-        doc = _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
-        await db.schedules.insert_one(doc)
-        doc.pop("_id", None)
-        created.append(doc)
+        doc, conflict = await _process_single_date(data, sched_date, drive_time, recurrence_rule, location, employee, class_doc)
+        if conflict:
+            conflicts_found.append(conflict)
+        if doc:
+            created.append(doc)
 
     if created:
         count_label = f"{len(created)} classes" if len(created) > 1 else "class"
@@ -217,16 +225,8 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
 
     return await _handle_bulk_synchronous(data, dates_to_schedule, drive_time, recurrence_rule, location, employee, class_doc, user)
 
-@router.put("/{schedule_id}", responses={
-    400: {"model": ErrorResponse, "description": "No fields to update"},
-    404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
-})
-async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired):
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
-    if not update_data:
-        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
-    
+async def _enrich_update_data_with_entities(update_data: dict):
     if 'location_id' in update_data:
         location = await db.locations.find_one({"id": update_data['location_id']}, {"_id": 0})
         if not location:
@@ -254,6 +254,18 @@ async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: Schedule
 
     if 'travel_override_minutes' in update_data and update_data['travel_override_minutes']:
         update_data['drive_time_minutes'] = update_data['travel_override_minutes']
+
+@router.put("/{schedule_id}", responses={
+    400: {"model": ErrorResponse, "description": "No fields to update"},
+    404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+})
+async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired):
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+
+    await _enrich_update_data_with_entities(update_data)
 
     result = await db.schedules.update_one({"id": schedule_id, "deleted_at": None}, {"$set": update_data})
     if result.matched_count == 0:
