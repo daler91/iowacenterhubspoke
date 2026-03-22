@@ -38,21 +38,50 @@ PublicRoute.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
+import { lazy, Suspense } from "react";
+
+const MapView = lazy(() => import("./components/MapView"));
+const WorkloadDashboard = lazy(() => import("./components/WorkloadDashboard"));
+const KanbanBoard = lazy(() => import("./components/KanbanBoard"));
+const WeeklyReport = lazy(() => import("./components/WeeklyReport"));
+const CalendarView = lazy(() => import("./components/CalendarView"));
+const LocationManager = lazy(() => import("./components/LocationManager"));
+const EmployeeManager = lazy(() => import("./components/EmployeeManager"));
+const ClassManager = lazy(() => import("./components/ClassManager"));
+const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
+
 function AppRoutes() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={
-          <PublicRoute><LoginPage /></PublicRoute>
-        } />
-        <Route path="/*" element={
-          <ProtectedRoute>
-            <ErrorBoundary>
-              <DashboardPage />
-            </ErrorBoundary>
-          </ProtectedRoute>
-        } />
-      </Routes>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
+          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        <Routes>
+          <Route path="/login" element={
+            <PublicRoute><LoginPage /></PublicRoute>
+          } />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <ErrorBoundary>
+                <DashboardPage />
+              </ErrorBoundary>
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/calendar" replace />} />
+            <Route path="calendar" element={<CalendarView />} />
+            <Route path="kanban" element={<KanbanBoard />} />
+            <Route path="workload" element={<WorkloadDashboard />} />
+            <Route path="report" element={<WeeklyReport />} />
+            <Route path="activity" element={<ActivityFeed />} />
+            <Route path="map" element={<MapView />} />
+            <Route path="locations" element={<LocationManager />} />
+            <Route path="classes" element={<ClassManager />} />
+            <Route path="employees" element={<EmployeeManager />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

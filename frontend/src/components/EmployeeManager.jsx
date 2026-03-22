@@ -10,7 +10,24 @@ import { employeesAPI } from '../lib/api';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
-export default function EmployeeManager({ employees, onRefresh, onViewProfile }) {
+import { useOutletContext } from 'react-router-dom';
+import EmployeeProfile from './EmployeeProfile';
+
+export default function EmployeeManager() {
+  const { employees, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+
+  const onRefresh = () => {
+    fetchEmployees();
+    fetchActivities();
+    fetchWorkload();
+  };
+
+  const onViewProfile = (id) => setSelectedEmployeeId(id);
+
+  if (selectedEmployeeId) {
+    return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
+  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });

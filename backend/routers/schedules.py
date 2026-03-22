@@ -28,6 +28,8 @@ async def get_schedules(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 1000
 ):
     query = {}
     if date_from and date_to:
@@ -38,8 +40,10 @@ async def get_schedules(
         query["date"] = {"$lte": date_to}
     if employee_id:
         query["employee_id"] = employee_id
-    schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).to_list(1000)
-    return schedules
+    
+    total = await db.schedules.count_documents(query)
+    schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).skip(skip).limit(limit).to_list(limit)
+    return {"items": schedules, "total": total, "skip": skip, "limit": limit}
 
 async def _check_town_to_town(employee_id, sched_date, location_id):
     same_day_schedules = await db.schedules.find({

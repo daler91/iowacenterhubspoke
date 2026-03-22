@@ -8,15 +8,16 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 const STATUS_CLASSES = {
   completed: 'bg-green-50 text-green-700',
   in_progress: 'bg-amber-50 text-amber-700',
 };
 
-export default function WeeklyReport({ classes }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function WeeklyReport() {
+  const { classes } = useOutletContext();
   const [weekDate, setWeekDate] = useState(new Date());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,11 @@ export default function WeeklyReport({ classes }) {
     if (!reportRef.current) return;
     toast.info('Generating PDF...');
     try {
+      const [html2canvas, { jsPDF }] = await Promise.all([
+        import('html2canvas').then(m => m.default),
+        import('jspdf')
+      ]);
+
       const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('portrait', 'mm', 'a4');
@@ -52,7 +58,8 @@ export default function WeeklyReport({ classes }) {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, pdf.internal.pageSize.getHeight()));
       pdf.save(`weekly-summary-${format(weekStart, 'yyyy-MM-dd')}.pdf`);
       toast.success('PDF exported');
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('Export failed');
     }
   };

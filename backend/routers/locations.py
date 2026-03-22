@@ -15,9 +15,10 @@ LOCATION_NOT_FOUND = "Location not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 @router.get("")
-async def get_locations(user: CurrentUser):
-    locations = await db.locations.find({}, {"_id": 0}).to_list(100)
-    return locations
+async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
+    total = await db.locations.count_documents({})
+    locations = await db.locations.find({}, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    return {"items": locations, "total": total, "skip": skip, "limit": limit}
 
 @router.post("")
 async def create_location(data: LocationCreate, user: CurrentUser):

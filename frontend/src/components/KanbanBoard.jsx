@@ -121,7 +121,15 @@ KanbanCard.propTypes = {
   onEdit: PropTypes.func,
 };
 
-export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function KanbanBoard() {
+  const { schedules, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload } = useOutletContext();
+  const onRefresh = () => {
+    fetchSchedules();
+    fetchActivities();
+    fetchWorkload();
+  };
   const handleStatusChange = async (scheduleId, newStatus) => {
     // Optimistic UI cache swap for instantaneous feedback
     mutate('schedules', (currentData) => {

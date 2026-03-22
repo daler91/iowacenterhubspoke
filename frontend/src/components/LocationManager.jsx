@@ -8,7 +8,14 @@ import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
 
-export default function LocationManager({ locations, onRefresh }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function LocationManager() {
+  const { locations, fetchLocations, fetchActivities } = useOutletContext();
+  const onRefresh = () => {
+    fetchLocations();
+    fetchActivities();
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });

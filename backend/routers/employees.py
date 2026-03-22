@@ -15,9 +15,10 @@ EMPLOYEE_NOT_FOUND = "Employee not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 @router.get("")
-async def get_employees(user: CurrentUser):
-    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
-    return employees
+async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
+    total = await db.employees.count_documents({})
+    employees = await db.employees.find({}, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    return {"items": employees, "total": total, "skip": skip, "limit": limit}
 
 @router.post("")
 async def create_employee(data: EmployeeCreate, user: CurrentUser):

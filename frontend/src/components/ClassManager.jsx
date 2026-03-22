@@ -11,7 +11,10 @@ import { classesAPI } from '../lib/api';
 
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
-export default function ClassManager({ classes, onRefresh }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function ClassManager() {
+  const { classes, handleClassRefresh: onRefresh } = useOutletContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);

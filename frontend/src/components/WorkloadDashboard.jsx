@@ -8,7 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 const ALL_CLASSES_VALUE = 'all';
 
-export default function WorkloadDashboard({ workloadData, classes }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function WorkloadDashboard() {
+  const { workloadData, classes } = useOutletContext();
   const [selectedClassId, setSelectedClassId] = useState(ALL_CLASSES_VALUE);
 
   const classOptions = useMemo(() => {

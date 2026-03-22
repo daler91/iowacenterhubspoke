@@ -14,5 +14,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'build',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-ui': ['@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-popover'],
+          'vendor-charts': ['recharts'],
+          'vendor-date': ['date-fns'],
+        }
+      }
+    }
   }
 });
