@@ -4,7 +4,7 @@ import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { MapPin, Car, Navigation } from 'lucide-react';
 import { Badge } from './ui/badge';
 
-const MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 const HUB = { lat: 41.5868, lng: -93.654 };
 
 export default function MapView({ locations, schedules }) {
