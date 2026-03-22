@@ -1,4 +1,5 @@
 import * as React from "react"
+import PropTypes from "prop-types"
 import { Slot } from "@radix-ui/react-slot"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
 
@@ -43,7 +44,6 @@ BreadcrumbLink.displayName = "BreadcrumbLink"
 const BreadcrumbPage = React.forwardRef(({ className, ...props }, ref) => (
   <span
     ref={ref}
-    role="link"
     aria-disabled="true"
     aria-current="page"
     className={cn("font-normal text-foreground", className)}
@@ -57,7 +57,6 @@ const BreadcrumbSeparator = ({
   ...props
 }) => (
   <li
-    role="presentation"
     aria-hidden="true"
     className={cn("[&>svg]:w-3.5 [&>svg]:h-3.5", className)}
     {...props}>
@@ -65,13 +64,16 @@ const BreadcrumbSeparator = ({
   </li>
 )
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator"
+BreadcrumbSeparator.propTypes = {
+  children: PropTypes.node,
+  className: PropTypes.string,
+}
 
 const BreadcrumbEllipsis = ({
   className,
   ...props
 }) => (
   <span
-    role="presentation"
     aria-hidden="true"
     className={cn("flex h-9 w-9 items-center justify-center", className)}
     {...props}>
@@ -80,6 +82,9 @@ const BreadcrumbEllipsis = ({
   </span>
 )
 BreadcrumbEllipsis.displayName = "BreadcrumbElipssis"
+BreadcrumbEllipsis.propTypes = {
+  className: PropTypes.string,
+}
 
 export {
   Breadcrumb,
