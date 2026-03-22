@@ -1,5 +1,6 @@
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
+import PropTypes from "prop-types"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -44,6 +45,9 @@ const AlertDialogHeader = ({
     {...props} />
 )
 AlertDialogHeader.displayName = "AlertDialogHeader"
+AlertDialogHeader.propTypes = {
+  className: PropTypes.string,
+}
 
 const AlertDialogFooter = ({
   className,
@@ -54,6 +58,9 @@ const AlertDialogFooter = ({
     {...props} />
 )
 AlertDialogFooter.displayName = "AlertDialogFooter"
+AlertDialogFooter.propTypes = {
+  className: PropTypes.string,
+}
 
 const AlertDialogTitle = React.forwardRef(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title ref={ref} className={cn("text-lg font-semibold", className)} {...props} />

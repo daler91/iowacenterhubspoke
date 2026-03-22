@@ -144,11 +144,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
     }
 
-    const recurrenceOccurrences = isCustom && customRecurrence.end_mode === 'after_occurrences'
-      ? Number.parseInt(customRecurrence.occurrences, 10)
-      : form.recurrence_end_mode === 'after_occurrences'
-        ? Number.parseInt(form.recurrence_occurrences, 10)
-        : null;
+    let recurrenceOccurrences = null;
+    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
+      recurrenceOccurrences = Number.parseInt(customRecurrence.occurrences, 10);
+    } else if (form.recurrence_end_mode === 'after_occurrences') {
+      recurrenceOccurrences = Number.parseInt(form.recurrence_occurrences, 10);
+    }
 
     const customRecurrencePayload = isCustom ? {
       interval: Number.parseInt(customRecurrence.interval, 10),
