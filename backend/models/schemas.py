@@ -97,6 +97,17 @@ class ScheduleRelocate(BaseModel):
     start_time: str
     end_time: str
 
+class BulkDeleteRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+
+class BulkStatusUpdateRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    status: str  # upcoming, in_progress, completed
+
+class BulkReassignRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    employee_id: str
+
 class ErrorResponse(BaseModel):
     detail: str
     code: str

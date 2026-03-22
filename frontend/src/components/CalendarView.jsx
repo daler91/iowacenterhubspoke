@@ -1,9 +1,9 @@
 import { useSearchParams, useOutletContext } from 'react-router-dom';
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
-import { ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import StatsStrip from './StatsStrip';
@@ -12,6 +12,8 @@ import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
+import BulkActionBar from './BulkActionBar';
+import useSelectionMode from '../hooks/useSelectionMode';
 
 export default function CalendarView() {
   const {
@@ -30,12 +32,29 @@ export default function CalendarView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const calendarRef = useRef(null);
 
+  const {
+    selectionMode,
+    selectedIds,
+    selectedCount,
+    toggleSelectionMode,
+    toggleItem,
+    selectAll,
+    deselectAll,
+    isSelected,
+    clearSelection,
+  } = useSelectionMode();
+
   // URL State
   const calendarView = searchParams.get('view') || 'week';
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
   const filterLocation = searchParams.get('location') || 'all';
+
+  // Clear selection when navigating dates or switching views
+  useEffect(() => {
+    clearSelection();
+  }, [calendarView, dateStr, clearSelection]);
 
   const updateParams = useCallback((newParams) => {
     setSearchParams(prev => {
@@ -117,6 +136,12 @@ export default function CalendarView() {
     }
   };
 
+  const handleBulkComplete = () => {
+    clearSelection();
+    fetchSchedules();
+    fetchActivities();
+  };
+
   return (
     <div className="space-y-5 animate-slide-in" data-testid="calendar-view">
       <div className="space-y-2" data-testid="calendar-home-header">
@@ -167,6 +192,18 @@ export default function CalendarView() {
         </div>
 
         <div className="flex items-center gap-3">
+          {calendarView !== 'month' && (
+            <Button
+              variant={selectionMode ? 'default' : 'outline'}
+              size="sm"
+              data-testid="calendar-select-mode"
+              onClick={toggleSelectionMode}
+              className={selectionMode ? '' : 'border-gray-200'}
+            >
+              <ListChecks className="w-4 h-4 mr-1" />
+              Select
+            </Button>
+          )}
           <Tabs value={calendarView} onValueChange={setCalendarView}>
             <TabsList className="bg-gray-100">
               <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
@@ -187,7 +224,7 @@ export default function CalendarView() {
         </div>
       </div>
 
-      <ScheduleFilters 
+      <ScheduleFilters
         filterEmployee={filterEmployee}
         setFilterEmployee={setFilterEmployee}
         filterLocation={filterLocation}
@@ -204,6 +241,9 @@ export default function CalendarView() {
               schedules={filteredSchedules}
               onEditSchedule={onEditSchedule}
               onRelocate={handleRelocate}
+              selectionMode={selectionMode}
+              isSelected={isSelected}
+              toggleItem={toggleItem}
             />
           )}
           {calendarView === 'day' && (
@@ -211,6 +251,9 @@ export default function CalendarView() {
               currentDate={currentDate}
               schedules={filteredSchedules}
               onEditSchedule={onEditSchedule}
+              selectionMode={selectionMode}
+              isSelected={isSelected}
+              toggleItem={toggleItem}
             />
           )}
           {calendarView === 'month' && (
@@ -237,7 +280,16 @@ export default function CalendarView() {
           <span className="text-xs text-slate-500">Town-to-Town Warning</span>
         </div>
       </div>
+
+      {selectedCount > 0 && (
+        <BulkActionBar
+          selectedCount={selectedCount}
+          selectedIds={selectedIds}
+          onComplete={handleBulkComplete}
+          onDeselectAll={deselectAll}
+          employees={employees}
+        />
+      )}
     </div>
   );
 }
-

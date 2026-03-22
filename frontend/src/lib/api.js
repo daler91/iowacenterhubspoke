@@ -68,6 +68,9 @@ export const schedulesAPI = {
   updateStatus: (id, status) => api.put(`/schedules/${id}/status`, { status }),
   relocate: (id, data) => api.put(`/schedules/${id}/relocate`, data),
   checkConflicts: (data) => api.post('/schedules/check-conflicts', data),
+  bulkDelete: (ids) => api.post('/schedules/bulk-delete', { ids }),
+  bulkUpdateStatus: (ids, status) => api.put('/schedules/bulk-status', { ids, status }),
+  bulkReassign: (ids, employee_id) => api.put('/schedules/bulk-reassign', { ids, employee_id }),
 };
 
 // Dashboard
