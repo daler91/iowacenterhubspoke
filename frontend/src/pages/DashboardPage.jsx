@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { format } from 'date-fns';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { useScheduleModal } from '../hooks/useScheduleModal';
+import { useStatModal } from '../hooks/useStatModal';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import ScheduleForm from '../components/ScheduleForm';
@@ -12,13 +13,14 @@ export default function DashboardPage() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState(null);
 
-  const [statModalOpen, setStatModalOpen] = useState(false);
-  const [statModalType, setStatModalType] = useState('today');
-  const [statModalData, setStatModalData] = useState([]);
-  const [statModalTitle, setStatModalTitle] = useState('');
+  const {
+    scheduleFormOpen,
+    setScheduleFormOpen,
+    editingSchedule,
+    handleNewSchedule,
+    handleEditSchedule
+  } = useScheduleModal();
 
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
@@ -26,40 +28,14 @@ export default function DashboardPage() {
     handleClassRefresh, handleScheduleSaved
   } = useDashboardData();
 
-  const handleNewSchedule = () => {
-    setEditingSchedule(null);
-    setScheduleFormOpen(true);
-  };
-
-  const handleEditSchedule = (schedule) => {
-    setEditingSchedule(schedule);
-    setScheduleFormOpen(true);
-  };
-
-  const handleStatClick = (type) => {
-    setStatModalType(type);
-
-    if (type === 'today') {
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
-      const todaySchedules = schedules.filter(s => s.date === todayStr);
-      setStatModalData(todaySchedules);
-      setStatModalTitle('Today\'s Schedule');
-    } else if (type === 'scheduled') {
-      const futureSchedules = schedules.filter(s => new Date(s.date) >= new Date(new Date().setHours(0,0,0,0)));
-      futureSchedules.sort((a, b) => new Date(a.date) - new Date(b.date));
-      setStatModalData(futureSchedules);
-      setStatModalTitle('All Scheduled Classes');
-    } else if (type === 'team') {
-      setStatModalData(employees);
-      setStatModalTitle('Team Members');
-    } else if (type === 'locations') {
-      setStatModalData(locations);
-      setStatModalTitle('All Locations');
-    }
-
-    setStatModalOpen(true);
-  };
+  const {
+    statModalOpen,
+    setStatModalOpen,
+    statModalType,
+    statModalData,
+    statModalTitle,
+    handleStatClick
+  } = useStatModal({ schedules, employees, locations });
 
   // Close mobile sidebar on route change
   useEffect(() => {

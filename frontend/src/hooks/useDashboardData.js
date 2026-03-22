@@ -26,13 +26,13 @@ export function useDashboardData() {
   }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
 
   return {
-    locations,
-    employees,
-    classes,
-    schedules,
-    stats,
-    activities,
-    workloadData,
+    locations: Array.isArray(locations) ? locations : [],
+    employees: Array.isArray(employees) ? employees : [],
+    classes: Array.isArray(classes) ? classes : [],
+    schedules: Array.isArray(schedules) ? schedules : [],
+    stats: stats || {},
+    activities: Array.isArray(activities) ? activities : [],
+    workloadData: Array.isArray(workloadData) ? workloadData : [],
     fetchLocations: mutateLocations,
     fetchEmployees: mutateEmployees,
     fetchClasses: mutateClasses,

@@ -20,8 +20,11 @@ export default function NotificationsPanel() {
     const fetch = async () => {
       try {
         const res = await api.get('/notifications');
-        setNotifications(res.data);
-      } catch {}
+        // Ensure notifications is always an array
+        setNotifications(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setNotifications([]);
+      }
     };
     fetch();
     const interval = setInterval(fetch, 30000);
@@ -36,7 +39,8 @@ export default function NotificationsPanel() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const activeNotifications = notifications.filter(n => !dismissed.has(n.id));
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const activeNotifications = safeNotifications.filter(n => !dismissed.has(n.id));
   const warningCount = activeNotifications.filter(n => n.severity === 'warning').length;
 
   return (
@@ -72,7 +76,7 @@ export default function NotificationsPanel() {
             </div>
             {activeNotifications.length > 0 && (
               <button
-                onClick={() => setDismissed(new Set(notifications.map(n => n.id)))}
+                onClick={() => setDismissed(new Set(safeNotifications.map(n => n.id)))}
                 className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
                 data-testid="dismiss-all-notifications"
               >

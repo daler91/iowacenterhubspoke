@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
-from typing import Optional, List
+from typing import Optional
 from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
