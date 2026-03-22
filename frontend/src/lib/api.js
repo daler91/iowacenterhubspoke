@@ -105,4 +105,13 @@ export const analyticsAPI = {
   driveOptimization: (params) => api.get('/analytics/drive-optimization', { params }),
 };
 
+// Users (admin)
+export const usersAPI = {
+  getAll: () => api.get('/users'),
+  approve: (userId) => api.put(`/users/${userId}/approve`),
+  reject: (userId) => api.put(`/users/${userId}/reject`),
+  updateRole: (userId, role) => api.put(`/users/${userId}/role`, { role }),
+  delete: (userId) => api.delete(`/users/${userId}`),
+};
+
 export default api;

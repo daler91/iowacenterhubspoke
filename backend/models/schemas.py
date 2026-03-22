@@ -1,12 +1,11 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
-from core.constants import ROLE_VIEWER, DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
+from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
 class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
-    role: Optional[str] = ROLE_VIEWER
 
 class UserLogin(BaseModel):
     email: str
@@ -107,6 +106,9 @@ class BulkStatusUpdateRequest(BaseModel):
 class BulkReassignRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     employee_id: str
+
+class UserRoleUpdate(BaseModel):
+    role: str
 
 class ErrorResponse(BaseModel):
     detail: str

@@ -50,6 +50,7 @@ const EmployeeManager = lazy(() => import("./components/EmployeeManager"));
 const ClassManager = lazy(() => import("./components/ClassManager"));
 const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
 const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
+const UserManager = lazy(() => import("./components/UserManager"));
 
 function AppRoutes() {
   return (
@@ -81,6 +82,7 @@ function AppRoutes() {
             <Route path="locations" element={<LocationManager />} />
             <Route path="classes" element={<ClassManager />} />
             <Route path="employees" element={<EmployeeManager />} />
+            <Route path="users" element={<UserManager />} />
           </Route>
         </Routes>
       </Suspense>
