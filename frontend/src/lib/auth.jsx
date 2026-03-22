@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
         };
         setUser(userData);
         localStorage.setItem('auth_user', JSON.stringify(userData));
-      } catch (error) {
+      } catch {
         localStorage.removeItem('auth_user');
         setUser(null);
       } finally {
@@ -47,8 +47,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       await authAPI.logout();
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // Ignore logout errors
     }
     localStorage.removeItem('auth_user');
     setUser(null);
