@@ -28,13 +28,14 @@ export default function EmployeeManager() {
 
   const onViewProfile = (id) => setSelectedEmployeeId(id);
 
-  if (selectedEmployeeId) {
-    return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
-  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
   const [loading, setLoading] = useState(false);
+
+  if (selectedEmployeeId) {
+    return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
+  }
 
   const openNew = () => {
     setEditing(null);
@@ -63,7 +64,7 @@ export default function EmployeeManager() {
         await employeesAPI.create(form);
         toast.success('Employee added');
       }
-      onRefresh?.();
+      onRefresh();
       setDialogOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to save employee');
