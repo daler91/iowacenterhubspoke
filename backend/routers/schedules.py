@@ -6,7 +6,7 @@ from database import db
 from models.schemas import ScheduleCreate, ScheduleUpdate, StatusUpdate, ScheduleRelocate
 from core.auth import CurrentUser
 from services.activity import log_activity
-from routers.classes import get_class_snapshot, enrich_schedules_with_classes
+from routers.classes import get_class_snapshot
 from services.schedule_utils import (
     build_recurrence_rule, build_recurrence_dates, check_conflicts, time_to_minutes
 )
@@ -36,7 +36,7 @@ async def get_schedules(
     if employee_id:
         query["employee_id"] = employee_id
     schedules = await db.schedules.find(query, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).to_list(1000)
-    return await enrich_schedules_with_classes(schedules)
+    return schedules
 
 async def _check_town_to_town(employee_id, sched_date, location_id):
     same_day_schedules = await db.schedules.find({
