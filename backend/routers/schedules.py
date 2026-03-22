@@ -8,6 +8,9 @@ from models.schemas import (
     ScheduleUpdate,
     StatusUpdate,
     ScheduleRelocate,
+    BulkDeleteRequest,
+    BulkStatusUpdateRequest,
+    BulkReassignRequest,
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired, AdminRequired
@@ -627,3 +630,83 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
     conflicts = await check_conflicts(data.employee_id, data.date, data.start_time, data.end_time, drive_time)
     return {"has_conflicts": len(conflicts) > 0, "conflicts": conflicts}
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_schedules(data: BulkDeleteRequest, user: SchedulerRequired):
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    deleted_count = result.modified_count
+    if deleted_count > 0:
+        logger.info(
+            f"Bulk deleted {deleted_count} schedules",
+            extra={"entity": {"deleted_count": deleted_count}},
+        )
+        await log_activity(
+            action="schedule_bulk_deleted",
+            description=f"Bulk deleted {deleted_count} schedule(s)",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"deleted_count": deleted_count}
+
+
+@router.put("/bulk-status")
+async def bulk_update_status(data: BulkStatusUpdateRequest, user: SchedulerRequired):
+    if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"$set": {"status": data.status}},
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk status update: {updated_count} schedules to {data.status}",
+            extra={"entity": {"updated_count": updated_count, "status": data.status}},
+        )
+        await log_activity(
+            action="schedule_bulk_status",
+            description=f"Bulk updated {updated_count} schedule(s) to {data.status.replace('_', ' ')}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put("/bulk-reassign")
+async def bulk_reassign_schedules(data: BulkReassignRequest, user: SchedulerRequired):
+    employee = await db.employees.find_one(
+        {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not employee:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "employee_id": data.employee_id,
+                "employee_name": employee["name"],
+                "employee_color": employee.get("color", DEFAULT_EMPLOYEE_COLOR),
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk reassigned {updated_count} schedules to {employee['name']}",
+            extra={"entity": {"updated_count": updated_count, "employee_id": data.employee_id}},
+        )
+        await log_activity(
+            action="schedule_bulk_reassigned",
+            description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
