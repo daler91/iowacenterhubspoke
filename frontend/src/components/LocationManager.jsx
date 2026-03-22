@@ -62,7 +62,7 @@ export default function LocationManager() {
         await locationsAPI.create(payload);
         toast.success('Location added');
       }
-      onRefresh?.();
+      onRefresh();
       setDialogOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to save location');
@@ -75,7 +75,7 @@ export default function LocationManager() {
     try {
       await locationsAPI.delete(id);
       toast.success('Location deleted');
-      onRefresh?.();
+      onRefresh();
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete location');
@@ -258,15 +258,4 @@ export default function LocationManager() {
   );
 }
 
-LocationManager.propTypes = {
-  locations: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      city_name: PropTypes.string.isRequired,
-      drive_time_minutes: PropTypes.number,
-      latitude: PropTypes.number,
-      longitude: PropTypes.number,
-    })
-  ),
-  onRefresh: PropTypes.func,
-};
+LocationManager.propTypes = {};

@@ -141,7 +141,7 @@ export default function KanbanBoard() {
     try {
       await schedulesAPI.updateStatus(scheduleId, newStatus);
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
-      onRefresh?.();
+      onRefresh();
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
@@ -218,15 +218,4 @@ export default function KanbanBoard() {
   );
 }
 
-KanbanBoard.propTypes = {
-  schedules: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      status: PropTypes.string,
-      date: PropTypes.string,
-      start_time: PropTypes.string,
-    })
-  ),
-  onEditSchedule: PropTypes.func,
-  onRefresh: PropTypes.func,
-};
+KanbanBoard.propTypes = {};
