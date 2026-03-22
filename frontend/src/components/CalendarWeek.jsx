@@ -215,9 +215,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             const dateStr = format(day, 'yyyy-MM-dd');
             const daySchedules = schedulesByDay[dateStr] || [];
             return (
-              <div
+              <section
                 key={dateStr}
-                role="region"
                 aria-label={`Schedule drop zone for ${dateStr}`}
                 className="border-r border-gray-100 last:border-r-0 relative"
                 onDragOver={(e) => {
@@ -253,7 +252,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 ))}
                 {/* Schedule blocks */}
                 {daySchedules.map(schedule => renderBlock(schedule, dateStr))}
-              </div>
+              </section>
             );
           })}
         </div>

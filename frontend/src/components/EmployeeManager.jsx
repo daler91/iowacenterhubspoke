@@ -58,11 +58,14 @@ export default function EmployeeManager({ employees, onRefresh, onViewProfile })
       toast.success('Employee deleted');
       onRefresh?.();
     } catch (err) {
+      console.error(err);
       toast.error('Failed to delete employee');
     }
   };
 
-  const saveLabel = loading ? 'Saving...' : (editing ? 'Update Employee' : 'Add Employee');
+  let saveLabel = 'Add Employee';
+  if (loading) saveLabel = 'Saving...';
+  else if (editing) saveLabel = 'Update Employee';
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="employee-manager">

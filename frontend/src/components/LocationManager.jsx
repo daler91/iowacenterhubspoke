@@ -67,11 +67,14 @@ export default function LocationManager({ locations, onRefresh }) {
       toast.success('Location deleted');
       onRefresh?.();
     } catch (err) {
+      console.error(err);
       toast.error('Failed to delete location');
     }
   };
 
-  const saveLabel = loading ? 'Saving...' : (editing ? 'Update Location' : 'Add Location');
+  let saveLabel = 'Add Location';
+  if (loading) saveLabel = 'Saving...';
+  else if (editing) saveLabel = 'Update Location';
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="location-manager">
