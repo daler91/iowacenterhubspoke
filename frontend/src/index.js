@@ -8,20 +8,20 @@ const resizeObserverMessages = new Set([
   "ResizeObserver loop limit exceeded",
 ]);
 
-if (typeof window !== "undefined") {
-  const NativeResizeObserver = window.ResizeObserver;
+if (typeof globalThis.window !== "undefined") {
+  const NativeResizeObserver = globalThis.ResizeObserver;
 
   if (NativeResizeObserver) {
-    window.ResizeObserver = class extends NativeResizeObserver {
+    globalThis.ResizeObserver = class extends NativeResizeObserver {
       constructor(callback) {
         super((entries, observer) => {
-          window.requestAnimationFrame(() => callback(entries, observer));
+          globalThis.requestAnimationFrame(() => callback(entries, observer));
         });
       }
     };
   }
 
-  window.addEventListener(
+  globalThis.addEventListener(
     "error",
     (event) => {
       if (resizeObserverMessages.has(event.message)) {
