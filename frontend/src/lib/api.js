@@ -98,4 +98,11 @@ export const reportsAPI = {
   weeklySummary: (params) => api.get('/reports/weekly-summary', { params }),
 };
 
+// Analytics
+export const analyticsAPI = {
+  trends: (params) => api.get('/analytics/trends', { params }),
+  forecast: (params) => api.get('/analytics/forecast', { params }),
+  driveOptimization: (params) => api.get('/analytics/drive-optimization', { params }),
+};
+
 export default api;

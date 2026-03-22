@@ -49,6 +49,7 @@ const LocationManager = lazy(() => import("./components/LocationManager"));
 const EmployeeManager = lazy(() => import("./components/EmployeeManager"));
 const ClassManager = lazy(() => import("./components/ClassManager"));
 const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
+const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
 
 function AppRoutes() {
   return (
@@ -74,6 +75,7 @@ function AppRoutes() {
             <Route path="kanban" element={<KanbanBoard />} />
             <Route path="workload" element={<WorkloadDashboard />} />
             <Route path="report" element={<WeeklyReport />} />
+            <Route path="analytics" element={<AdvancedAnalytics />} />
             <Route path="activity" element={<ActivityFeed />} />
             <Route path="map" element={<MapView />} />
             <Route path="locations" element={<LocationManager />} />
