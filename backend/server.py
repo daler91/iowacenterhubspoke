@@ -50,17 +50,6 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal Server Error", "code": "500", "errors": None}
     )
 
-cors_origins_str = os.getenv("CORS_ORIGINS", "")
-origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)
 
@@ -84,6 +73,17 @@ async def request_id_middleware(request: Request, call_next):
         return response
     finally:
         request_id_var.reset(token)
+
+cors_origins_str = os.getenv("CORS_ORIGINS", "")
+origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)
