@@ -21,8 +21,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
   const className = schedule.class_name || 'Unassigned Class';
 
   return (
-    <button
-      type="button"
+    <div
       data-testid={`kanban-card-${schedule.id}`}
       draggable
       onDragStart={(e) => {
@@ -32,8 +31,11 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
       }}
       onDragEnd={() => setDragging(false)}
       onClick={() => onEdit?.(schedule)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit?.(schedule); } }}
       className={cn(
-        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group appearance-none text-left w-full",
+        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group text-left w-full",
         dragging && "opacity-50 scale-95"
       )}
       style={{ borderLeftColor: classColor }}
@@ -78,7 +80,8 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
 
       <div className="flex items-center justify-between mt-3 pl-[26px]">
         <button
-          onClick={() => onEdit?.(schedule)}
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit?.(schedule); }}
           className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
           data-testid={`kanban-edit-${schedule.id}`}
         >
@@ -89,7 +92,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => onStatusChange(schedule.id, (schedule.status || SCHEDULE_STATUS.UPCOMING) === SCHEDULE_STATUS.UPCOMING ? SCHEDULE_STATUS.IN_PROGRESS : SCHEDULE_STATUS.COMPLETED)}
+              onClick={(e) => { e.stopPropagation(); onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed'); }}
               className="h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700"
               data-testid={`kanban-advance-${schedule.id}`}
             >
@@ -99,7 +102,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit }) {
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
