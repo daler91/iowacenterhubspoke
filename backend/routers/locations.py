@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from database import db
-from models.schemas import LocationCreate, LocationUpdate
+from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
 
@@ -32,7 +32,7 @@ async def create_location(data: LocationCreate, user: CurrentUser):
     await log_activity("location_created", f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)", "location", loc_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{location_id}", responses={400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": LOCATION_NOT_FOUND}})
+@router.put("/{location_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def update_location(location_id: str, data: LocationUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -43,7 +43,7 @@ async def update_location(location_id: str, data: LocationUpdate, user: CurrentU
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
     return updated
 
-@router.delete("/{location_id}", responses={404: {"description": LOCATION_NOT_FOUND}})
+@router.delete("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def delete_location(location_id: str, user: CurrentUser):
     result = await db.locations.delete_one({"id": location_id})
     if result.deleted_count == 0:

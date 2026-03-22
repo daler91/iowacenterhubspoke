@@ -2,14 +2,14 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Response
 from database import db
-from models.schemas import UserRegister, UserLogin
+from models.schemas import UserRegister, UserLogin, ErrorResponse
 from core.auth import hash_password, verify_password, create_token, CurrentUser
 from fastapi import Request
 from core.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/register", responses={400: {"description": "Email already registered"}})
+@router.post("/register", responses={400: {"model": ErrorResponse, "description": "Email already registered"}})
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserRegister, response: Response):
     existing = await db.users.find_one({"email": data.email}, {"_id": 0})
@@ -28,7 +28,7 @@ async def register(request: Request, data: UserRegister, response: Response):
     response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
     return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email}}
 
-@router.post("/login", responses={401: {"description": "Invalid credentials"}})
+@router.post("/login", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}})
 @limiter.limit("5/minute")
 async def login(request: Request, data: UserLogin, response: Response):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})

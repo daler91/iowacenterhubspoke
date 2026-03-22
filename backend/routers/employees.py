@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from database import db
-from models.schemas import EmployeeCreate, EmployeeUpdate
+from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
 
@@ -32,7 +32,7 @@ async def create_employee(data: EmployeeCreate, user: CurrentUser):
     await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{employee_id}", responses={400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": EMPLOYEE_NOT_FOUND}})
+@router.put("/{employee_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -43,14 +43,14 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentU
     updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     return updated
 
-@router.delete("/{employee_id}", responses={404: {"description": EMPLOYEE_NOT_FOUND}})
+@router.delete("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def delete_employee(employee_id: str, user: CurrentUser):
     result = await db.employees.delete_one({"id": employee_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return {"message": "Employee deleted"}
 
-@router.get("/{employee_id}/stats", responses={404: {"description": EMPLOYEE_NOT_FOUND}})
+@router.get("/{employee_id}/stats", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def get_employee_stats(employee_id: str, user: CurrentUser):
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee:

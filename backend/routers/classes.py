@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from typing import Optional, List
 from database import db
-from models.schemas import ClassCreate, ClassUpdate
+from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser
 from services.activity import log_activity
 
@@ -58,7 +58,7 @@ async def create_class(data: ClassCreate, user: CurrentUser):
     await log_activity("class_created", f"Class type '{data.name}' added", "class", class_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{class_id}", responses={400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": CLASS_NOT_FOUND}})
+@router.put("/{class_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -73,7 +73,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: CurrentUser):
     await log_activity("class_updated", f"Class type '{updated['name']}' updated", "class", class_id, user.get('name', 'System'))
     return updated
 
-@router.delete("/{class_id}", responses={404: {"description": CLASS_NOT_FOUND}})
+@router.delete("/{class_id}", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def delete_class(class_id: str, user: CurrentUser):
     class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not class_doc:

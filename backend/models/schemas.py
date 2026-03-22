@@ -90,3 +90,8 @@ class ScheduleRelocate(BaseModel):
     date: str
     start_time: str
     end_time: str
+
+class ErrorResponse(BaseModel):
+    detail: str
+    code: str
+    errors: Optional[list] = None
