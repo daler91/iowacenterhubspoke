@@ -18,7 +18,9 @@ async def get_dashboard_stats(user: CurrentUser):
     total_locations = await db.locations.count_documents({"deleted_at": None})
     total_schedules = await db.schedules.count_documents({"deleted_at": None})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_schedules = await db.schedules.count_documents({"date": today, "deleted_at": None})
+    today_schedules = await db.schedules.count_documents(
+        {"date": today, "deleted_at": None}
+    )
     return {
         "total_employees": total_employees,
         "total_locations": total_locations,
@@ -30,7 +32,9 @@ async def get_dashboard_stats(user: CurrentUser):
 @router.get("/workload")
 async def get_workload_stats(user: CurrentUser):
     employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(1000)
+    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(
+        1000
+    )
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:
@@ -42,7 +46,14 @@ async def get_workload_stats(user: CurrentUser):
         total_class_mins = 0
         total_drive_mins = 0
         class_breakdown = {}
+        completed = 0
+        upcoming = 0
         for s in emp_schedules:
+            status = s.get("status", "upcoming")
+            if status == "completed":
+                completed += 1
+            elif status == "upcoming":
+                upcoming += 1
             try:
                 sh, sm = s["start_time"].split(":")
                 eh, em = s["end_time"].split(":")
@@ -78,14 +89,8 @@ async def get_workload_stats(user: CurrentUser):
                 "total_classes": len(emp_schedules),
                 "total_class_hours": round(total_class_mins / 60, 1),
                 "total_drive_hours": round(total_drive_mins / 60, 1),
-                "completed": sum(
-                    1 for s in emp_schedules if s.get("status") == "completed"
-                ),
-                "upcoming": sum(
-                    1
-                    for s in emp_schedules
-                    if s.get("status", "upcoming") == "upcoming"
-                ),
+                "completed": completed,
+                "upcoming": upcoming,
                 "class_breakdown": sorted(
                     [
                         {
