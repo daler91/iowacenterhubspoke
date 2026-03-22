@@ -127,6 +127,7 @@ export default function KanbanBoard({ schedules, onEditSchedule, onRefresh }) {
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
       onRefresh?.();
     } catch (err) {
+      console.error(err);
       toast.error('Failed to update status');
     }
   };
