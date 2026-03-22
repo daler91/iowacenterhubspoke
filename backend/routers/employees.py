@@ -58,9 +58,16 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
 
     all_schedules = await db.schedules.find({"employee_id": employee_id}, {"_id": 0}).to_list(1000)
     total_classes = len(all_schedules)
-    total_drive_minutes = sum(s.get('drive_time_minutes', 0) * 2 for s in all_schedules)
+    total_drive_minutes = 0
     total_class_minutes = 0
+    completed = 0
+    upcoming = 0
+    in_progress = 0
+    loc_counts = {}
+    weekly = {}
+
     for s in all_schedules:
+        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
         try:
             sh, sm = s['start_time'].split(':')
             eh, em = s['end_time'].split(':')
@@ -68,17 +75,17 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
         except (ValueError, KeyError):
             pass
 
-    completed = sum(1 for s in all_schedules if s.get('status') == 'completed')
-    upcoming = sum(1 for s in all_schedules if s.get('status', 'upcoming') == 'upcoming')
-    in_progress = sum(1 for s in all_schedules if s.get('status') == 'in_progress')
+        status = s.get('status', 'upcoming')
+        if status == 'completed':
+            completed += 1
+        elif status == 'upcoming':
+            upcoming += 1
+        elif status == 'in_progress':
+            in_progress += 1
 
-    loc_counts = {}
-    for s in all_schedules:
         name = s.get('location_name', 'Unknown')
         loc_counts[name] = loc_counts.get(name, 0) + 1
 
-    weekly = {}
-    for s in all_schedules:
         week_key = s['date'][:7]
         weekly[week_key] = weekly.get(week_key, 0) + 1
 
