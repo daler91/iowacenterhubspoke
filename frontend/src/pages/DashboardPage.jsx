@@ -29,6 +29,7 @@ import ClassManager from '../components/ClassManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import StatModal from '../components/StatModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 
 export default function DashboardPage() {
@@ -381,28 +382,28 @@ export default function DashboardPage() {
   const renderContent = () => {
     switch (activeView) {
       case 'calendar':
-        return renderCalendar();
+        return <ErrorBoundary key="calendar">{renderCalendar()}</ErrorBoundary>;
       case 'kanban':
-        return <KanbanBoard schedules={schedules} onEditSchedule={handleEditSchedule} onRefresh={() => { fetchSchedules(); fetchActivities(); fetchWorkload(); }} />;
+        return <ErrorBoundary key="kanban"><KanbanBoard schedules={schedules} onEditSchedule={handleEditSchedule} onRefresh={() => { fetchSchedules(); fetchActivities(); fetchWorkload(); }} /></ErrorBoundary>;
       case 'workload':
-        return <WorkloadDashboard workloadData={workloadData} classes={classes} />;
+        return <ErrorBoundary key="workload"><WorkloadDashboard workloadData={workloadData} classes={classes} /></ErrorBoundary>;
       case 'report':
-        return <WeeklyReport classes={classes} />;
+        return <ErrorBoundary key="report"><WeeklyReport classes={classes} /></ErrorBoundary>;
       case 'activity':
-        return <ActivityFeed activities={activities} />;
+        return <ErrorBoundary key="activity"><ActivityFeed activities={activities} /></ErrorBoundary>;
       case 'map':
-        return <MapView locations={locations} schedules={schedules} />;
+        return <ErrorBoundary key="map"><MapView locations={locations} schedules={schedules} /></ErrorBoundary>;
       case 'locations':
-        return <LocationManager locations={locations} onRefresh={() => { fetchLocations(); fetchActivities(); }} />;
+        return <ErrorBoundary key="locations"><LocationManager locations={locations} onRefresh={() => { fetchLocations(); fetchActivities(); }} /></ErrorBoundary>;
       case 'classes':
-        return <ClassManager classes={classes} onRefresh={handleClassRefresh} />;
+        return <ErrorBoundary key="classes"><ClassManager classes={classes} onRefresh={handleClassRefresh} /></ErrorBoundary>;
       case 'employees':
         if (selectedEmployeeId) {
-          return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
+          return <ErrorBoundary key="employee-profile"><EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} /></ErrorBoundary>;
         }
-        return <EmployeeManager employees={employees} onRefresh={() => { fetchEmployees(); fetchActivities(); fetchWorkload(); }} onViewProfile={(id) => setSelectedEmployeeId(id)} />;
+        return <ErrorBoundary key="employees"><EmployeeManager employees={employees} onRefresh={() => { fetchEmployees(); fetchActivities(); fetchWorkload(); }} onViewProfile={(id) => setSelectedEmployeeId(id)} /></ErrorBoundary>;
       default:
-        return renderCalendar();
+        return <ErrorBoundary key="default">{renderCalendar()}</ErrorBoundary>;
     }
   };
 

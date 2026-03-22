@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 /** @param {{ children: React.ReactNode }} props */
 function ProtectedRoute({ children }) {
@@ -45,7 +46,11 @@ function AppRoutes() {
           <PublicRoute><LoginPage /></PublicRoute>
         } />
         <Route path="/*" element={
-          <ProtectedRoute><DashboardPage /></ProtectedRoute>
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <DashboardPage />
+            </ErrorBoundary>
+          </ProtectedRoute>
         } />
       </Routes>
     </BrowserRouter>
