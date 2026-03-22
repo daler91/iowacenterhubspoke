@@ -8,7 +8,7 @@ const resizeObserverMessages = new Set([
   "ResizeObserver loop limit exceeded",
 ]);
 
-if (typeof globalThis.window !== "undefined") {
+if (globalThis.window !== undefined) {
   const NativeResizeObserver = globalThis.ResizeObserver;
 
   if (NativeResizeObserver) {

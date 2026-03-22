@@ -11,6 +11,11 @@ import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
+const STATUS_CLASSES = {
+  completed: 'bg-green-50 text-green-700',
+  in_progress: 'bg-amber-50 text-amber-700',
+};
+
 export default function WeeklyReport({ classes }) {
   const [weekDate, setWeekDate] = useState(new Date());
   const [report, setReport] = useState(null);
@@ -140,8 +145,8 @@ export default function WeeklyReport({ classes }) {
             ))}
           </div>
 
-          {(report.employees || []).map((emp, index) => (
-            <div key={index} className="border border-gray-100 rounded-xl p-4" data-testid={`report-employee-${index}`}>
+          {(report.employees || []).map((emp) => (
+            <div key={emp.employee_name} className="border border-gray-100 rounded-xl p-4" data-testid={`report-employee-${emp.employee_name}`}>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: emp.employee_color }}>
@@ -149,7 +154,7 @@ export default function WeeklyReport({ classes }) {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-800">{emp.employee_name}</p>
-                    <p className="text-xs text-slate-400">{emp.days_worked} day{emp.days_worked !== 1 ? 's' : ''} worked</p>
+                    <p className="text-xs text-slate-400">{emp.days_worked} day{emp.days_worked === 1 ? '' : 's'} worked</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
@@ -160,7 +165,7 @@ export default function WeeklyReport({ classes }) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-3" data-testid={`report-employee-class-breakdown-${index}`}>
+              <div className="flex flex-wrap gap-2 mb-3" data-testid={`report-employee-class-breakdown-${emp.employee_name}`}>
                 {(emp.class_breakdown || []).map((classItem) => (
                   <Badge
                     key={classItem.class_id || classItem.class_name}
@@ -181,8 +186,8 @@ export default function WeeklyReport({ classes }) {
                   <div className="bg-gray-50 px-3 py-2">Drive</div>
                   <div className="bg-gray-50 px-3 py-2">Status</div>
                 </div>
-                {(emp.schedule_details || []).map((scheduleDetail, detailIndex) => (
-                  <div key={detailIndex} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
+                {(emp.schedule_details || []).map((scheduleDetail) => (
+                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
                     <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
                     <div className="bg-white px-3 py-2">
                       <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>
@@ -193,11 +198,7 @@ export default function WeeklyReport({ classes }) {
                     <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
                     <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
                     <div className="bg-white px-3 py-2">
-                      <Badge className={`border-0 text-[10px] ${
-                        scheduleDetail.status === 'completed' ? 'bg-green-50 text-green-700' :
-                        scheduleDetail.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
-                        'bg-indigo-50 text-indigo-700'
-                      }`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
+                      <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-indigo-50 text-indigo-700'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
                     </div>
                   </div>
                 ))}
