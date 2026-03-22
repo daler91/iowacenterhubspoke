@@ -118,6 +118,88 @@ async def _fetch_schedule_entities(data: ScheduleCreate):
     return location, employee, class_doc
 
 
+async def _handle_single_schedule(data: ScheduleCreate, date_to_schedule: str, drive_time: int, recurrence_rule: Optional[any], location: dict, employee: dict, class_doc: Optional[dict], user: SchedulerRequired):
+    conflicts = await check_conflicts(data.employee_id, date_to_schedule, data.start_time, data.end_time, drive_time)
+    if conflicts:
+        raise HTTPException(status_code=409, detail={"message": "Schedule conflict detected", "conflicts": conflicts})
+        
+    town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, date_to_schedule, data.location_id)
+    doc = _build_schedule_doc(data, date_to_schedule, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
+    await db.schedules.insert_one(doc)
+    doc.pop("_id", None)
+    logger.info(f"Schedule created: {doc['id']}", extra={"entity": {"schedule_id": doc['id'], "employee_id": data.employee_id, "location_id": data.location_id}})
+    
+    class_label = f" for {class_doc['name']}" if class_doc else ""
+    await log_activity(
+        action="schedule_created",
+        description=f"{employee['name']} assigned to {location['city_name']}{class_label} — 1 class starting {data.date}",
+        entity_type="schedule",
+        entity_id=doc['id'],
+        user_name=user.get('name', 'System')
+    )
+    return doc
+
+
+async def _handle_bulk_background(data: ScheduleCreate, dates_to_schedule: List[str], drive_time: int, recurrence_rule: Optional[any], location: dict, employee: dict, class_doc: Optional[dict], user: SchedulerRequired):
+    from core.queue import get_redis_pool
+    pool = await get_redis_pool()
+    if not pool:
+        return None
+
+    recurrence_dict = recurrence_rule.model_dump() if recurrence_rule else None
+    
+    await pool.enqueue_job(
+        "generate_bulk_schedules",
+        data_dict=data.model_dump(),
+        dates_to_schedule=dates_to_schedule,
+        drive_time=drive_time,
+        recurrence_rule_dict=recurrence_dict,
+        location=location,
+        employee=employee,
+        class_doc=class_doc,
+        user_name=user.get('name', 'System')
+    )
+    logger.info(f"Bulk schedules enqueued for {employee['name']}", extra={"entity": {"employee_id": data.employee_id, "location_id": data.location_id, "dates_count": len(dates_to_schedule)}})
+    
+    class_label = f" for {class_doc['name']}" if class_doc else ""
+    await log_activity(
+        action="schedule_created_bulk_enqueued",
+        description=f"Bulk schedule pipeline queued for {employee['name']} at {location['city_name']}{class_label} ({len(dates_to_schedule)} dates)",
+        entity_type="schedule_batch",
+        entity_id=str(uuid.uuid4()),
+        user_name=user.get('name', 'System')
+    )
+    return {"message": "Bulk schedule generation is running in the background.", "total_created": len(dates_to_schedule), "background": True}
+
+
+async def _handle_bulk_synchronous(data: ScheduleCreate, dates_to_schedule: List[str], drive_time: int, recurrence_rule: Optional[any], location: dict, employee: dict, class_doc: Optional[dict], user: SchedulerRequired):
+    created = []
+    conflicts_found = []
+    for sched_date in dates_to_schedule:
+        conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
+        if conflicts:
+            conflicts_found.append({"date": sched_date, "conflicts": conflicts})
+            continue
+
+        town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, sched_date, data.location_id)
+        doc = _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
+        await db.schedules.insert_one(doc)
+        doc.pop("_id", None)
+        created.append(doc)
+
+    if created:
+        count_label = f"{len(created)} classes" if len(created) > 1 else "class"
+        class_label = f" for {class_doc['name']}" if class_doc else ""
+        await log_activity(
+            action="schedule_created",
+            description=f"{employee['name']} assigned to {location['city_name']}{class_label} — {count_label} starting {data.date}",
+            entity_type="schedule",
+            entity_id=created[0]['id'],
+            user_name=user.get('name', 'System')
+        )
+    return {"created": created, "conflicts_skipped": conflicts_found, "total_created": len(created), "warning": "Redis unavailable, processed synchronously"}
+
+
 @router.post("", responses={404: {"model": ErrorResponse, "description": "Location or Employee not found"}, 409: {"model": ErrorResponse, "description": "Schedule conflict detected"}})
 async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     location, employee, class_doc = await _fetch_schedule_entities(data)
@@ -127,85 +209,18 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
 
     if len(dates_to_schedule) == 1:
-        # Process single schedule synchronously
-        conflicts = await check_conflicts(data.employee_id, dates_to_schedule[0], data.start_time, data.end_time, drive_time)
-        if conflicts:
-            raise HTTPException(status_code=409, detail={"message": "Schedule conflict detected", "conflicts": conflicts})
-            
-        town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, dates_to_schedule[0], data.location_id)
-        doc = _build_schedule_doc(data, dates_to_schedule[0], drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
-        await db.schedules.insert_one(doc)
-        doc.pop("_id", None)
-        logger.info(f"Schedule created: {doc['id']}", extra={"entity": {"schedule_id": doc['id'], "employee_id": data.employee_id, "location_id": data.location_id}})
-        
-        class_label = f" for {class_doc['name']}" if class_doc else ""
-        await log_activity(
-            action="schedule_created",
-            description=f"{employee['name']} assigned to {location['city_name']}{class_label} — 1 class starting {data.date}",
-            entity_type="schedule",
-            entity_id=doc['id'],
-            user_name=user.get('name', 'System')
-        )
-        return doc
+        return await _handle_single_schedule(data, dates_to_schedule[0], drive_time, recurrence_rule, location, employee, class_doc, user)
     
-    # Process multiple asynchronously via ARQ
-    from core.queue import get_redis_pool
-    pool = await get_redis_pool()
-    if pool:
-        recurrence_dict = recurrence_rule.model_dump() if recurrence_rule else None
-        
-        await pool.enqueue_job(
-            "generate_bulk_schedules",
-            data_dict=data.model_dump(),
-            dates_to_schedule=dates_to_schedule,
-            drive_time=drive_time,
-            recurrence_rule_dict=recurrence_dict,
-            location=location,
-            employee=employee,
-            class_doc=class_doc,
-            user_name=user.get('name', 'System')
-        )
-        logger.info(f"Bulk schedules enqueued for {employee['name']}", extra={"entity": {"employee_id": data.employee_id, "location_id": data.location_id, "dates_count": len(dates_to_schedule)}})
-        
-        class_label = f" for {class_doc['name']}" if class_doc else ""
-        await log_activity(
-            action="schedule_created_bulk_enqueued",
-            description=f"Bulk schedule pipeline queued for {employee['name']} at {location['city_name']}{class_label} ({len(dates_to_schedule)} dates)",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get('name', 'System')
-        )
-        # Give a special property in return to indicate it's running in background
-        return {"message": "Bulk schedule generation is running in the background.", "total_created": len(dates_to_schedule), "background": True}
-    else:
-        # Fallback to synchronous if Redis is unavailable
-        created = []
-        conflicts_found = []
-        for sched_date in dates_to_schedule:
-            conflicts = await check_conflicts(data.employee_id, sched_date, data.start_time, data.end_time, drive_time)
-            if conflicts:
-                conflicts_found.append({"date": sched_date, "conflicts": conflicts})
-                continue
+    result = await _handle_bulk_background(data, dates_to_schedule, drive_time, recurrence_rule, location, employee, class_doc, user)
+    if result:
+        return result
 
-            town_to_town, town_to_town_warning = await _check_town_to_town(data.employee_id, sched_date, data.location_id)
-            doc = _build_schedule_doc(data, sched_date, drive_time, town_to_town, town_to_town_warning, recurrence_rule, location, employee, class_doc)
-            await db.schedules.insert_one(doc)
-            doc.pop("_id", None)
-            created.append(doc)
+    return await _handle_bulk_synchronous(data, dates_to_schedule, drive_time, recurrence_rule, location, employee, class_doc, user)
 
-        if created:
-            count_label = f"{len(created)} classes" if len(created) > 1 else "class"
-            class_label = f" for {class_doc['name']}" if class_doc else ""
-            await log_activity(
-                action="schedule_created",
-                description=f"{employee['name']} assigned to {location['city_name']}{class_label} — {count_label} starting {data.date}",
-                entity_type="schedule",
-                entity_id=created[0]['id'],
-                user_name=user.get('name', 'System')
-            )
-        return {"created": created, "conflicts_skipped": conflicts_found, "total_created": len(created), "warning": "Redis unavailable, processed synchronously"}
-
-@router.put("/{schedule_id}", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
+@router.put("/{schedule_id}", responses={
+    400: {"model": ErrorResponse, "description": "No fields to update"},
+    404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+})
 async def update_schedule(schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
@@ -276,7 +291,10 @@ async def restore_schedule(schedule_id: str, user: SchedulerRequired):
     await log_activity("schedule_restored", f"Schedule with ID '{schedule_id}' restored", "schedule", schedule_id, user.get('name', 'System'))
     return {"message": "Schedule restored"}
 
-@router.put("/{schedule_id}/status", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
+@router.put("/{schedule_id}/status", responses={
+    400: {"model": ErrorResponse, "description": "Invalid status"},
+    404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+})
 async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: SchedulerRequired):
     if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -294,7 +312,10 @@ async def update_schedule_status(schedule_id: str, data: StatusUpdate, user: Sch
     )
     return updated
 
-@router.put("/{schedule_id}/relocate", responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}})
+@router.put("/{schedule_id}/relocate", responses={
+    404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
+    409: {"model": ErrorResponse, "description": "Conflict at new time"}
+})
 async def relocate_schedule(schedule_id: str, data: ScheduleRelocate, user: SchedulerRequired):
     schedule = await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
     if not schedule:
