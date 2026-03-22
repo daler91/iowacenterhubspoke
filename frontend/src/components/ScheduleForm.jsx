@@ -136,47 +136,48 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const buildPayload = () => {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
-    const payload = { ...form, class_id: form.class_id || null, travel_override_minutes: form.travel_override_minutes ? parseInt(form.travel_override_minutes) : null };
+    const travelMinutes = form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null;
+    const classId = form.class_id || null;
+    const payload = { ...form, class_id: classId, travel_override_minutes: travelMinutes };
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
     }
 
-    let recurrenceOccurrences = null;
-    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
-      recurrenceOccurrences = Number.parseInt(customRecurrence.occurrences, 10);
-    } else if (!isNone && form.recurrence_end_mode === 'after_occurrences') {
-      recurrenceOccurrences = Number.parseInt(form.recurrence_occurrences, 10);
-    }
+    const recurrenceOccurrences = isCustom && customRecurrence.end_mode === 'after_occurrences'
+      ? Number.parseInt(customRecurrence.occurrences, 10)
+      : form.recurrence_end_mode === 'after_occurrences'
+        ? Number.parseInt(form.recurrence_occurrences, 10)
+        : null;
+
+    const customRecurrencePayload = isCustom ? {
+      interval: Number.parseInt(customRecurrence.interval, 10),
+      frequency: customRecurrence.frequency,
+      weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
+      end_mode: customRecurrence.end_mode,
+      end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
+      occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
+    } : null;
 
     return {
-      ...form,
-      class_id: form.class_id || null,
-      travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
-      recurrence: isNone ? null : form.recurrence,
-      recurrence_end_mode: isNone ? null : endMode,
+      ...payload,
+      recurrence: form.recurrence,
+      recurrence_end_mode: endMode,
       recurrence_end_date: recurrenceEndDate,
       recurrence_occurrences: recurrenceOccurrences,
-      custom_recurrence: isCustom ? {
-        interval: Number.parseInt(customRecurrence.interval, 10),
-        frequency: customRecurrence.frequency,
-        weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
-        end_mode: customRecurrence.end_mode,
-        end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
-        occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
-      } : null,
+      custom_recurrence: customRecurrencePayload,
     };
   };
 
   const handleCreateResponse = (res) => {
     if (res.data.town_to_town_warning) {
       toast.warning(res.data.town_to_town_warning, { duration: 6000 });
-    } else if (res.data.total_created !== undefined) {
+    } else if (res.data.total_created === undefined) {
+      toast.success('Class scheduled successfully');
+    } else {
       const skipped = res.data.conflicts_skipped?.length || 0;
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
       toast.success(`${res.data.total_created} classes created${skippedMsg}`);
-    } else {
-      toast.success('Class scheduled successfully');
     }
   };
 
@@ -228,13 +229,15 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       onSaved?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error('Failed to delete schedule');
+      toast.error(err.response?.data?.detail || 'Failed to delete schedule');
     } finally {
       setLoading(false);
     }
   };
 
-  const submitLabel = loading ? 'Saving...' : (editSchedule ? 'Update Schedule' : 'Schedule Class');
+  let submitLabel = 'Schedule Class';
+  if (loading) submitLabel = 'Saving...';
+  else if (editSchedule) submitLabel = 'Update Schedule';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
