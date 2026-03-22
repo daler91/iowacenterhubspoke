@@ -4,6 +4,11 @@ ROLE_EDITOR = "editor"
 ROLE_SCHEDULER = "scheduler"
 ROLE_VIEWER = "viewer"
 
+# User status
+USER_STATUS_PENDING = "pending"
+USER_STATUS_APPROVED = "approved"
+USER_STATUS_REJECTED = "rejected"
+
 # Schedule status strings
 STATUS_UPCOMING = "upcoming"
 STATUS_IN_PROGRESS = "in_progress"

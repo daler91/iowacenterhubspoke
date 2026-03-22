@@ -21,7 +21,8 @@ from slowapi.errors import RateLimitExceeded
 from core.rate_limit import limiter
 
 from database import client, db, mongo_url, ROOT_DIR
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics
+from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users
+from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED
 
 app = FastAPI()
 
@@ -96,6 +97,7 @@ api_router.include_router(schedules.router)
 api_router.include_router(reports.router)
 api_router.include_router(system.router)
 api_router.include_router(analytics.router)
+api_router.include_router(users.router)
 
 # ========== SEED DATA ==========
 
@@ -108,6 +110,30 @@ async def seed_data():
         logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
         raise
     
+    # Migrate existing users: set status to approved if missing
+    try:
+        result = await db.users.update_many(
+            {"status": {"$exists": False}},
+            {"$set": {"status": USER_STATUS_APPROVED}}
+        )
+        if result.modified_count > 0:
+            logger.info(f"Migrated {result.modified_count} existing users to approved status")
+    except Exception as e:
+        logger.warning(f"Failed to migrate user statuses: {e}")
+
+    # Auto-promote admin email
+    admin_email = "russell.dale1@gmail.com"
+    try:
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
+            await db.users.update_one(
+                {"email": admin_email},
+                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
+            )
+            logger.info(f"Promoted {admin_email} to admin role")
+    except Exception as e:
+        logger.warning(f"Failed to check/promote admin user: {e}")
+
     # Create required indexes
     try:
         await db.schedules.create_index([("employee_id", 1), ("date", 1)])

@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 import {
-  CalendarDays, MapPin, Users,
+  CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
   Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp
 } from 'lucide-react';
@@ -36,6 +36,7 @@ const NAV_SECTIONS = [
       { id: 'classes', path: '/classes', label: 'Classes', icon: BookOpen },
       { id: 'employees', path: '/employees', label: 'Employees', icon: Users },
       { id: 'locations', path: '/locations', label: 'Locations', icon: MapPin },
+      { id: 'users', path: '/users', label: 'Users', icon: Shield, adminOnly: true },
     ],
   },
 ];
@@ -44,7 +45,8 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const flatNavItems = NAV_SECTIONS.flatMap((section) => section.items);
+  const filterItems = (items) => items.filter(item => !item.adminOnly || user?.role === 'admin');
+  const flatNavItems = NAV_SECTIONS.flatMap((section) => filterItems(section.items));
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
@@ -126,7 +128,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
                   {section.label}
                 </p>
                 <div className="space-y-1">
-                  {section.items.map(renderNavItem)}
+                  {filterItems(section.items).map(renderNavItem)}
                 </div>
               </div>
             ))}
