@@ -1,22 +1,27 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter
 from database import db
-from core.auth import CurrentUser
+from core.auth import CurrentUser, AdminRequired
+from core.logger import get_logger
+from core.queue import get_redis_pool
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["system"])
 
 @router.get("/activity-logs")
-async def get_activity_logs(user: CurrentUser, limit: int = 30):
+async def get_activity_logs(user: AdminRequired, limit: int = 30):
     logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     return logs
 
 @router.get("/notifications")
 async def get_notifications(user: CurrentUser):
+    logger.info("Fetching system notifications")
     notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Today's upcoming classes
-    today_schedules = await db.schedules.find({"date": today}, {"_id": 0}).to_list(100)
+    today_schedules = await db.schedules.find({"date": today, "deleted_at": None}, {"_id": 0}).to_list(100)
     for s in today_schedules:
         if s.get('status', 'upcoming') == 'upcoming':
             class_title = s.get('class_name') or s.get('location_name', '?')
@@ -31,7 +36,7 @@ async def get_notifications(user: CurrentUser):
             })
 
     # Town-to-town warnings
-    t2t_schedules = await db.schedules.find({"town_to_town": True}, {"_id": 0}).to_list(100)
+    t2t_schedules = await db.schedules.find({"town_to_town": True, "deleted_at": None}, {"_id": 0}).to_list(100)
     for s in t2t_schedules:
         notifications.append({
             "id": f"t2t-{s['id']}",
@@ -44,7 +49,7 @@ async def get_notifications(user: CurrentUser):
         })
 
     # Unassigned check - employees with no schedules this week
-    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
+    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
     scheduled_emp_ids = {s['employee_id'] for s in today_schedules}
     for emp in employees:
         if emp['id'] not in scheduled_emp_ids:
@@ -59,3 +64,24 @@ async def get_notifications(user: CurrentUser):
             })
 
     return sorted(notifications, key=lambda x: x.get('severity') == 'warning', reverse=True)
+
+@router.post("/system/sync-denormalized")
+async def manual_sync_denormalized(user: AdminRequired):
+    pool = await get_redis_pool()
+    if not pool:
+        return {"message": "Redis unavailable"}
+        
+    # Enqueue sync tasks for all primary entities
+    employees = await db.employees.find({"deleted_at": None}, {"id": 1}).to_list(1000)
+    for emp in employees:
+        await pool.enqueue_job("sync_schedules_denormalized", entity_type="employee", entity_id=emp["id"])
+        
+    locations = await db.locations.find({"deleted_at": None}, {"id": 1}).to_list(1000)
+    for loc in locations:
+        await pool.enqueue_job("sync_schedules_denormalized", entity_type="location", entity_id=loc["id"])
+        
+    classes = await db.classes.find({"deleted_at": None}, {"id": 1}).to_list(1000)
+    for cls in classes:
+        await pool.enqueue_job("sync_schedules_denormalized", entity_type="class", entity_id=cls["id"])
+        
+    return {"message": f"Sync tasks enqueued for {len(employees)} employees, {len(locations)} locations, and {len(classes)} classes"}

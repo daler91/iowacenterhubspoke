@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
@@ -124,3 +125,26 @@ export function LocationTimeSelectors({
     </>
   );
 }
+
+LocationTimeSelectors.propTypes = {
+  form: PropTypes.shape({
+    location_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    date: PropTypes.string,
+    start_time: PropTypes.string,
+    end_time: PropTypes.string,
+    travel_override_minutes: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    notes: PropTypes.string,
+  }).isRequired,
+  setForm: PropTypes.func.isRequired,
+  locations: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    city_name: PropTypes.string.isRequired,
+    drive_time_minutes: PropTypes.number,
+  })),
+  selectedLocation: PropTypes.shape({
+    drive_time_minutes: PropTypes.number,
+  }),
+  showOverride: PropTypes.bool.isRequired,
+  setShowOverride: PropTypes.func.isRequired,
+  onDateChange: PropTypes.func.isRequired,
+};

@@ -8,10 +8,16 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { classesAPI } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
-export default function ClassManager({ classes, onRefresh }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function ClassManager() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const { classes, handleClassRefresh: onRefresh } = useOutletContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -88,14 +94,16 @@ export default function ClassManager({ classes, onRefresh }) {
             Track class series, colors, and on-the-fly scheduling options.
           </p>
         </div>
-        <Button
-          data-testid="add-class-button"
-          onClick={openNew}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Class
-        </Button>
+        {isAdmin && (
+          <Button
+            data-testid="add-class-button"
+            onClick={openNew}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Class
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-3">
@@ -122,24 +130,28 @@ export default function ClassManager({ classes, onRefresh }) {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`edit-class-${classItem.id}`}
-                onClick={() => openEdit(classItem)}
-                className="text-slate-400 hover:text-indigo-600"
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`delete-class-${classItem.id}`}
-                onClick={() => handleDelete(classItem.id)}
-                className="text-slate-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`edit-class-${classItem.id}`}
+                    onClick={() => openEdit(classItem)}
+                    className="text-slate-400 hover:text-indigo-600"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`delete-class-${classItem.id}`}
+                    onClick={() => handleDelete(classItem.id)}
+                    className="text-slate-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ))}
@@ -224,7 +236,4 @@ export default function ClassManager({ classes, onRefresh }) {
   );
 }
 
-ClassManager.propTypes = {
-  classes: PropTypes.array,
-  onRefresh: PropTypes.func,
-};
+ClassManager.propTypes = {};

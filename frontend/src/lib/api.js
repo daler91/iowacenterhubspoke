@@ -6,13 +6,10 @@ const API_BASE = `${BACKEND_URL}/api`;
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   return config;
 });
 
@@ -34,12 +31,13 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
 };
 
 // Locations
 export const locationsAPI = {
-  getAll: () => api.get('/locations'),
+  getAll: (params) => api.get('/locations', { params }),
   create: (data) => api.post('/locations', data),
   update: (id, data) => api.put(`/locations/${id}`, data),
   delete: (id) => api.delete(`/locations/${id}`),
@@ -47,7 +45,7 @@ export const locationsAPI = {
 
 // Employees
 export const employeesAPI = {
-  getAll: () => api.get('/employees'),
+  getAll: (params) => api.get('/employees', { params }),
   create: (data) => api.post('/employees', data),
   update: (id, data) => api.put(`/employees/${id}`, data),
   delete: (id) => api.delete(`/employees/${id}`),
@@ -55,7 +53,7 @@ export const employeesAPI = {
 
 // Classes
 export const classesAPI = {
-  getAll: () => api.get('/classes'),
+  getAll: (params) => api.get('/classes', { params }),
   create: (data) => api.post('/classes', data),
   update: (id, data) => api.put(`/classes/${id}`, data),
   delete: (id) => api.delete(`/classes/${id}`),

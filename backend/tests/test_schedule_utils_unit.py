@@ -62,9 +62,6 @@ def test_add_months():
     assert add_months(date(2024, 1, 1), 24) == date(2026, 1, 1)
 
 def test_get_start_weekday_value():
-    # Sunday = 0
     assert get_start_weekday_value(date(2025, 2, 23)) == 0
-    # Monday = 1
     assert get_start_weekday_value(date(2025, 2, 24)) == 1
-    # Saturday = 6
     assert get_start_weekday_value(date(2025, 3, 1)) == 6

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -7,8 +6,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
-export default function LocationManager({ locations, onRefresh }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function LocationManager() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const { locations, fetchLocations, fetchActivities } = useOutletContext();
+  const onRefresh = () => {
+    fetchLocations();
+    fetchActivities();
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
@@ -52,7 +61,7 @@ export default function LocationManager({ locations, onRefresh }) {
         await locationsAPI.create(payload);
         toast.success('Location added');
       }
-      onRefresh?.();
+      onRefresh();
       setDialogOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to save location');
@@ -65,7 +74,7 @@ export default function LocationManager({ locations, onRefresh }) {
     try {
       await locationsAPI.delete(id);
       toast.success('Location deleted');
-      onRefresh?.();
+      onRefresh();
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete location');
@@ -84,14 +93,16 @@ export default function LocationManager({ locations, onRefresh }) {
           <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Locations</h2>
           <p className="text-sm text-slate-500 mt-1">Manage spoke locations and drive times from Hub</p>
         </div>
-        <Button
-          data-testid="add-location-btn"
-          onClick={openNew}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Location
-        </Button>
+        {isAdmin && (
+          <Button
+            data-testid="add-location-btn"
+            onClick={openNew}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Location
+          </Button>
+        )}
       </div>
 
       {/* Hub Info */}
@@ -133,24 +144,28 @@ export default function LocationManager({ locations, onRefresh }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`edit-location-${loc.id}`}
-                onClick={() => openEdit(loc)}
-                className="text-slate-400 hover:text-indigo-600"
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`delete-location-${loc.id}`}
-                onClick={() => handleDelete(loc.id)}
-                className="text-slate-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`edit-location-${loc.id}`}
+                    onClick={() => openEdit(loc)}
+                    className="text-slate-400 hover:text-indigo-600"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`delete-location-${loc.id}`}
+                    onClick={() => handleDelete(loc.id)}
+                    className="text-slate-400 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ))}
@@ -242,15 +257,3 @@ export default function LocationManager({ locations, onRefresh }) {
   );
 }
 
-LocationManager.propTypes = {
-  locations: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      city_name: PropTypes.string.isRequired,
-      drive_time_minutes: PropTypes.number,
-      latitude: PropTypes.number,
-      longitude: PropTypes.number,
-    })
-  ),
-  onRefresh: PropTypes.func,
-};

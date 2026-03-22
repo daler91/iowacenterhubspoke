@@ -17,8 +17,11 @@ const ACTION_CONFIG = {
   status_upcoming: { icon: Clock, color: 'text-indigo-500', bg: 'bg-indigo-50', label: 'Reset' },
 };
 
+import { useOutletContext } from 'react-router-dom';
+
 /** @param {{ activities: Array<Object> }} props */
-export default function ActivityFeed({ activities }) {
+export default function ActivityFeed() {
+  const { activities } = useOutletContext();
   if (!activities || activities.length === 0) {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
@@ -94,14 +97,4 @@ export default function ActivityFeed({ activities }) {
   );
 }
 
-ActivityFeed.propTypes = {
-  activities: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      action: PropTypes.string,
-      description: PropTypes.string,
-      user_name: PropTypes.string,
-      timestamp: PropTypes.string,
-    })
-  ),
-};
+ActivityFeed.propTypes = {};

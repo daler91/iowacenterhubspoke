@@ -2,9 +2,13 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from database import db
-from models.schemas import EmployeeCreate, EmployeeUpdate
-from core.auth import CurrentUser
+from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
+from core.auth import CurrentUser, AdminRequired
 from services.activity import log_activity
+from core.logger import get_logger
+from core.queue import get_redis_pool
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -12,12 +16,21 @@ EMPLOYEE_NOT_FOUND = "Employee not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 @router.get("")
-async def get_employees(user: CurrentUser):
-    employees = await db.employees.find({}, {"_id": 0}).to_list(100)
-    return employees
+async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
+    query = {"deleted_at": None}
+    total = await db.employees.count_documents(query)
+    employees = await db.employees.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    return {"items": employees, "total": total, "skip": skip, "limit": limit}
+
+@router.get("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+async def get_employee(employee_id: str, user: CurrentUser):
+    employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    return employee
 
 @router.post("")
-async def create_employee(data: EmployeeCreate, user: CurrentUser):
+async def create_employee(data: EmployeeCreate, user: AdminRequired):
     emp_id = str(uuid.uuid4())
     doc = {
         "id": emp_id,
@@ -25,38 +38,64 @@ async def create_employee(data: EmployeeCreate, user: CurrentUser):
         "email": data.email,
         "phone": data.phone,
         "color": data.color,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "deleted_at": None
     }
     await db.employees.insert_one(doc)
     doc.pop("_id", None)
+    logger.info(f"Employee created: {data.name}", extra={"entity": {"employee_id": emp_id}})
     await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{employee_id}", responses={400: {"description": NO_FIELDS_TO_UPDATE}, 404: {"description": EMPLOYEE_NOT_FOUND}})
-async def update_employee(employee_id: str, data: EmployeeUpdate, user: CurrentUser):
+@router.put("/{employee_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     result = await db.employees.update_one({"id": employee_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    logger.info(f"Employee updated: {employee_id}", extra={"entity": {"employee_id": employee_id}})
     updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    
+    # Trigger background sync for denormalized fields
+    pool = await get_redis_pool()
+    if pool:
+        await pool.enqueue_job("sync_schedules_denormalized", entity_type="employee", entity_id=employee_id)
+        
     return updated
 
-@router.delete("/{employee_id}", responses={404: {"description": EMPLOYEE_NOT_FOUND}})
-async def delete_employee(employee_id: str, user: CurrentUser):
-    result = await db.employees.delete_one({"id": employee_id})
-    if result.deleted_count == 0:
+@router.delete("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+async def delete_employee(employee_id: str, user: AdminRequired):
+    result = await db.employees.update_one(
+        {"id": employee_id, "deleted_at": None}, 
+        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    logger.info(f"Employee soft-deleted: {employee_id}", extra={"entity": {"employee_id": employee_id}})
+    await log_activity("employee_deleted", f"Employee with ID '{employee_id}' marked as deleted", "employee", employee_id, user.get('name', 'System'))
     return {"message": "Employee deleted"}
 
-@router.get("/{employee_id}/stats", responses={404: {"description": EMPLOYEE_NOT_FOUND}})
+@router.post("/{employee_id}/restore", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+async def restore_employee(employee_id: str, user: AdminRequired):
+    result = await db.employees.update_one(
+        {"id": employee_id}, 
+        {"$set": {"deleted_at": None}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    logger.info(f"Employee restored: {employee_id}", extra={"entity": {"employee_id": employee_id}})
+    await log_activity("employee_restored", f"Employee with ID '{employee_id}' restored", "employee", employee_id, user.get('name', 'System'))
+    return {"message": "Employee restored"}
+
+@router.get("/{employee_id}/stats", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def get_employee_stats(employee_id: str, user: CurrentUser):
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"employee_id": employee_id}, {"_id": 0}).to_list(1000)
+    all_schedules = await db.schedules.find({"employee_id": employee_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
     total_classes = len(all_schedules)
     total_drive_minutes = 0
     total_class_minutes = 0

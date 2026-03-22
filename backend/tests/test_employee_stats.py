@@ -12,7 +12,8 @@ os.environ['MONGO_URL'] = 'mongodb://localhost:27017'
 os.environ['DB_NAME'] = 'test_db'
 os.environ['JWT_SECRET'] = 'test_secret'
 
-from server import get_employee_stats, db
+from routers.employees import get_employee_stats
+from database import db
 
 @pytest.fixture
 def mock_db_fixture():

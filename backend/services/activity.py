@@ -1,6 +1,9 @@
 import uuid
 from datetime import datetime, timezone
 from database import db
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 async def log_activity(action: str, description: str, entity_type: str, entity_id: str, user_name: str = "System"):
     doc = {
@@ -13,3 +16,4 @@ async def log_activity(action: str, description: str, entity_type: str, entity_i
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     await db.activity_logs.insert_one(doc)
+    logger.info(f"Activity logged: {action}", extra={"entity": {"type": entity_type, "id": entity_id}, "user": user_name})

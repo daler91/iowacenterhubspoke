@@ -7,7 +7,10 @@ import { Badge } from './ui/badge';
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 const HUB = { lat: 41.5868, lng: -93.654 };
 
-export default function MapView({ locations, schedules }) {
+import { useOutletContext } from 'react-router-dom';
+
+export default function MapView() {
+  const { locations, schedules } = useOutletContext();
   const validLocations = useMemo(() =>
     (locations || []).filter(l => l.latitude && l.longitude),
     [locations]
@@ -146,15 +149,4 @@ export default function MapView({ locations, schedules }) {
   );
 }
 
-MapView.propTypes = {
-  locations: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      city_name: PropTypes.string,
-      latitude: PropTypes.number,
-      longitude: PropTypes.number,
-      drive_time_minutes: PropTypes.number,
-    })
-  ),
-  schedules: PropTypes.array,
-};
+MapView.propTypes = {};

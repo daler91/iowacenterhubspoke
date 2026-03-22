@@ -4,6 +4,8 @@ import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { Car, AlertTriangle, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useAuth } from '../lib/auth';
+import { COLORS } from '../lib/constants';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 7 PM
 
@@ -25,6 +27,9 @@ function minutesToTop(minutes) {
 }
 
 export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule, onRelocate }) {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
+
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -49,7 +54,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     const driveAfterTop = minutesToTop(endMin);
     const driveAfterHeight = (driveMin / 60) * 60;
 
-    const classColor = schedule.class_color || schedule.employee_color || '#0F766E';
+    const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
     const className = schedule.class_name || 'Unassigned Class';
 
     return (
@@ -84,7 +89,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               <button
                 type="button"
                 data-testid={`class-block-${schedule.id}`}
-                draggable
+                draggable={canEdit}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('scheduleId', schedule.id);
                   e.dataTransfer.setData('originalDate', dateStr);
@@ -94,14 +99,17 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   e.currentTarget.style.opacity = '0.4';
                 }}
                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
-                className="schedule-block class-block cursor-grab active:cursor-grabbing group appearance-none border-0 p-0 text-left"
+                className={cn(
+                  "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
+                  canEdit ? "cursor-grab" : "cursor-default"
+                )}
                 style={{
                   top: `${classTop}px`,
                   height: `${Math.max(classHeight, 30)}px`,
                   backgroundColor: classColor,
                   borderLeft: `4px solid ${classColor}`,
                 }}
-                onClick={() => onEditSchedule?.(schedule)}
+                onClick={() => canEdit && onEditSchedule?.(schedule)}
               >
                 <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
                 <div className="flex flex-col h-full justify-between">
@@ -228,7 +236,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   const scheduleId = e.dataTransfer.getData('scheduleId');
                   const startTime = e.dataTransfer.getData('startTime');
                   const endTime = e.dataTransfer.getData('endTime');
-                  if (scheduleId && onRelocate) {
+                  if (scheduleId && onRelocate && canEdit) {
                     // Calculate drop hour from mouse position
                     const rect = e.currentTarget.getBoundingClientRect();
                     const y = e.clientY - rect.top;

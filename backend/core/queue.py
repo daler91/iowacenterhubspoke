@@ -7,7 +7,7 @@ async def get_redis_pool():
     try:
         pool = await create_pool(RedisSettings.from_dsn(redis_url))
         return pool
-    except Exception as e:
+    except Exception:
         import logging
         logging.getLogger(__name__).warning("Failed to connect to Redis. Queue operations will fall back.")
         return None

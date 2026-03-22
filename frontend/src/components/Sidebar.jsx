@@ -1,3 +1,4 @@
+import { useNavigate, useLocation } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
@@ -13,44 +14,52 @@ const NAV_SECTIONS = [
     id: 'planning',
     label: 'Planning',
     items: [
-      { id: 'calendar', label: 'Calendar', icon: CalendarDays },
-      { id: 'map', label: 'Map View', icon: Map },
-      { id: 'kanban', label: 'Status Board', icon: Kanban },
+      { id: 'calendar', path: '/calendar', label: 'Calendar', icon: CalendarDays },
+      { id: 'map', path: '/map', label: 'Map View', icon: Map },
+      { id: 'kanban', path: '/kanban', label: 'Status Board', icon: Kanban },
     ],
   },
   {
     id: 'insights',
     label: 'Insights',
     items: [
-      { id: 'workload', label: 'Workload', icon: BarChart3 },
-      { id: 'report', label: 'Weekly Report', icon: FileText },
-      { id: 'activity', label: 'Activity', icon: Activity },
+      { id: 'workload', path: '/workload', label: 'Workload', icon: BarChart3 },
+      { id: 'report', path: '/report', label: 'Weekly Report', icon: FileText },
+      { id: 'activity', path: '/activity', label: 'Activity', icon: Activity },
     ],
   },
   {
     id: 'manage',
     label: 'Manage',
     items: [
-      { id: 'classes', label: 'Classes', icon: BookOpen },
-      { id: 'employees', label: 'Employees', icon: Users },
-      { id: 'locations', label: 'Locations', icon: MapPin },
+      { id: 'classes', path: '/classes', label: 'Classes', icon: BookOpen },
+      { id: 'employees', path: '/employees', label: 'Employees', icon: Users },
+      { id: 'locations', path: '/locations', label: 'Locations', icon: MapPin },
     ],
   },
 ];
 
-export default function Sidebar({ activeView, onViewChange, collapsed, onToggle, onNewSchedule }) {
+export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const flatNavItems = NAV_SECTIONS.flatMap((section) => section.items);
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
-    const isActive = activeView === item.id;
+    const isActive = location.pathname === item.path;
 
     return (
       <button
         key={item.id}
         data-testid={`nav-${item.id}`}
-        onClick={() => onViewChange(item.id)}
+        onClick={() => {
+          navigate(item.path);
+          if (window.innerWidth < 768) {
+             // Close mobile sidebar if needed, but Sidebar is usually managed by parent
+             // This component currently doesn't have a closeSidebar prop, but onViewChange used to handle it in DashboardPage
+          }
+        }}
         className={cn(
           'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
           isActive
@@ -86,19 +95,21 @@ export default function Sidebar({ activeView, onViewChange, collapsed, onToggle,
       </div>
 
       {/* New Schedule Button */}
-      <div className="p-3">
-        <Button
-          data-testid="new-schedule-btn"
-          onClick={onNewSchedule}
-          className={cn(
-            "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
-            collapsed ? "w-full px-0 justify-center" : "w-full"
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          {!collapsed && <span className="ml-2">New Schedule</span>}
-        </Button>
-      </div>
+      {user?.role !== 'viewer' && (
+        <div className="p-3">
+          <Button
+            data-testid="new-schedule-btn"
+            onClick={onNewSchedule}
+            className={cn(
+              "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
+              collapsed ? "w-full px-0 justify-center" : "w-full"
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            {!collapsed && <span className="ml-2">New Schedule</span>}
+          </Button>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
@@ -131,7 +142,12 @@ export default function Sidebar({ activeView, onViewChange, collapsed, onToggle,
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">{user.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                  {user.role}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -161,8 +177,6 @@ export default function Sidebar({ activeView, onViewChange, collapsed, onToggle,
 }
 
 Sidebar.propTypes = {
-  activeView: PropTypes.string,
-  onViewChange: PropTypes.func,
   collapsed: PropTypes.bool,
   onToggle: PropTypes.func,
   onNewSchedule: PropTypes.func,
