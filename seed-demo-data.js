@@ -3,9 +3,8 @@
  * seed-demo-data.js
  *
  * Populates the Iowa Center Hub Spoke scheduling database with realistic
- * demo data: 5 Iowa locations, 5 employees, and 57 schedules spread across
- * 22 days (2–3 per day) with varied employees, locations, time slots,
- * notes, and statuses.
+ * demo data: 5 Iowa locations, 5 employees, and 65 schedules spread across
+ * approximately 65 days (past, present, and future).
  *
  * Usage:
  *   MONGO_URL=mongodb://... node seed-demo-data.js
@@ -251,38 +250,42 @@ const DAY_PLANS = [
   },
 ];
 
+// Rotating notes to add variety (applied every ~5 schedules)
+const NOTES_POOL = [
+  'Follow-up visit',
+  'Initial assessment',
+  'Progress check',
+  'Quarterly review',
+  'New client orientation',
+  '',
+  '',
+  '',
+];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Returns a YYYY-MM-DD string for today + offsetDays.
- * Negative values produce past dates.
+ * Negative values produce past dates; 0 is today.
  */
-function offsetDate(offsetDays) {
+function dateOffset(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
   return d.toISOString().slice(0, 10);
 }
 
 /**
- * Determine schedule status based on the schedule date relative to today.
- *   past (> 3 days ago)   → completed
- *   recent (0–3 days ago) → in_progress
- *   future                → upcoming
+ * Derives a schedule status from its day offset relative to today.
+ *   past (< 0)          → 'completed'
+ *   today or tomorrow   → 'in_progress'
+ *   future (> 1)        → 'upcoming'
  */
-function statusForDate(dateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const d = new Date(dateStr + 'T00:00:00');
-  const diffDays = Math.round((d - today) / 86400000);
-  if (diffDays < -3) return 'completed';
-  if (diffDays <= 0) return 'in_progress';
+function statusForOffset(offsetDays) {
+  if (offsetDays < 0) return 'completed';
+  if (offsetDays <= 1) return 'in_progress';
   return 'upcoming';
-}
-
-function pickNote(index) {
-  return NOTES_POOL[index % NOTES_POOL.length];
 }
 
 /**
@@ -416,9 +419,17 @@ async function seed() {
     );
 
     // -----------------------------------------------------------------------
-    // Insert 57 schedules across 22 days (2–3 per day)
+    // Insert 65 schedules spread across ~65 days
+    // (roughly 15 past days, today/tomorrow, and ~48 future days)
     // -----------------------------------------------------------------------
     console.log('\nCreating schedules…');
+
+    // Day offsets: start 15 days in the past, run through day +49.
+    // That gives 65 entries: offsets -15 … -1, 0, 1, … 49.
+    // Cycles deterministically through employees, locations, time slots,
+    // and notes to produce a varied but reproducible dataset.
+    const START_OFFSET = -15;
+    const TOTAL_SCHEDULES = 65;
 
     const scheduleDocs = [];
     let noteOffset = 0;
@@ -429,14 +440,63 @@ async function seed() {
       scheduleDocs.push(...dayDocs);
       noteOffset += plan.slots.length;
 
-      for (const doc of dayDocs) {
-        console.log(
-          `  ✓ ${doc.date} [${doc.status.padEnd(11)}] ` +
-          `${doc.employee_name.padEnd(18)} → ${doc.location_name.padEnd(12)} ` +
-          `${doc.start_time}–${doc.end_time}` +
-          (doc.notes ? `  (${doc.notes})` : '')
-        );
-      }
+    for (let i = 0; i < TOTAL_SCHEDULES; i++) {
+      const dayOffset = START_OFFSET + i;
+
+      const empIdx  = i % employeeDocs.length;
+      const locIdx  = i % locationDocs.length;
+      const slotIdx = i % TIME_SLOTS.length;
+      const noteIdx = i % NOTES_POOL.length;
+
+      const employee = employeeDocs[empIdx];
+      const location = locationDocs[locIdx];
+      const slot     = TIME_SLOTS[slotIdx];
+      const date     = dateOffset(dayOffset);
+      const status   = statusForOffset(dayOffset);
+      const notes    = NOTES_POOL[noteIdx];
+
+      // Mark town_to_town for every 7th schedule to simulate consecutive
+      // same-day multi-location trips.
+      const town_to_town = i % 7 === 6;
+
+      const doc = {
+        id: randomUUID(),
+        employee_id: employee.id,
+        location_id: location.id,
+        date,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        drive_time_minutes: location.drive_time_minutes,
+        town_to_town,
+        town_to_town_warning: null,
+        travel_override_minutes: null,
+        notes,
+        status,
+        recurrence: null,
+        recurrence_end_mode: null,
+        recurrence_end_date: null,
+        recurrence_occurrences: null,
+        recurrence_rule: null,
+        location_name: location.city_name,
+        employee_name: employee.name,
+        employee_color: employee.color,
+        class_id: null,
+        class_name: null,
+        class_color: null,
+        created_at: now(),
+        deleted_at: null,
+      };
+
+      scheduleDocs.push(doc);
+
+      const offsetLabel = dayOffset >= 0
+        ? `+${String(dayOffset).padStart(2, '0')}`
+        : `-${String(Math.abs(dayOffset)).padStart(2, '0')}`;
+      console.log(
+        `  ✓ Schedule day ${offsetLabel} (${date}): ` +
+        `${employee.name} → ${location.city_name} ${slot.start_time}–${slot.end_time}` +
+        ` [${status}]${town_to_town ? ' [town-to-town]' : ''}${notes ? ` "${notes}"` : ''}`
+      );
     }
 
     await db.collection('schedules').insertMany(scheduleDocs);
