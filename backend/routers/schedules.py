@@ -915,7 +915,13 @@ async def import_schedules_commit(
             inserted_count += 1
 
         except Exception as e:
-            errors.append({"row": item.row_idx, "error": str(e)})
+            logger.exception("Error importing schedule row %s", getattr(item, "row_idx", None))
+            errors.append(
+                {
+                    "row": item.row_idx,
+                    "error": "An internal error occurred while importing this row."
+                }
+            )
 
     # Log activity
     if inserted_count > 0:
