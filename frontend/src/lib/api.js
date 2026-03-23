@@ -70,6 +70,11 @@ export const schedulesAPI = {
   checkConflicts: (data) => api.post('/schedules/check-conflicts', data),
 };
 
+// System Config
+export const systemAPI = {
+  getConfig: () => api.get('/system/config'),
+};
+
 // Dashboard
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),

@@ -3,13 +3,23 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { MapPin, Car, Clock, AlertTriangle } from 'lucide-react';
+import { MapPin, Car, Clock, AlertTriangle, Calendar } from 'lucide-react';
+
+const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
+const OUTLOOK_STATUS_COLORS = { busy: 'bg-red-100 text-red-700', tentative: 'bg-amber-100 text-amber-700', oof: 'bg-purple-100 text-purple-700' };
+
+function formatOutlookTime(dateTime) {
+  if (!dateTime) return '';
+  const t = dateTime.includes('T') ? dateTime.split('T')[1] : dateTime;
+  return t.substring(0, 5);
+}
 
 export function LocationTimeSelectors({
   form, setForm,
   locations, selectedLocation,
   showOverride, setShowOverride,
-  onDateChange
+  onDateChange,
+  previewConflicts,
 }) {
   return (
     <>
@@ -78,6 +88,51 @@ export function LocationTimeSelectors({
           />
         </div>
       </div>
+
+      {/* Outlook calendar conflict preview */}
+      {previewConflicts?.outlook_conflicts?.length > 0 && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2" data-testid="outlook-conflict-banner">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-semibold text-blue-700">
+              Outlook Calendar Conflicts
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {previewConflicts.outlook_conflicts.map((c, i) => (
+              <Badge
+                key={i}
+                variant="secondary"
+                className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
+              >
+                {OUTLOOK_STATUS_LABELS[c.status] || c.status} {formatOutlookTime(c.start)}–{formatOutlookTime(c.end)}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-[11px] text-blue-600">
+            This employee has Outlook calendar conflicts during this time.
+          </p>
+        </div>
+      )}
+
+      {/* Internal schedule conflict preview */}
+      {previewConflicts?.conflicts?.length > 0 && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2" data-testid="internal-conflict-banner">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <span className="text-xs font-semibold text-amber-700">
+              Schedule Conflicts
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {previewConflicts.conflicts.map((c, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
+                {c.location} ({c.time})
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <button

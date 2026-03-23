@@ -155,3 +155,16 @@ async def check_conflicts(employee_id: str, date: str, start_time: str, end_time
                 "overlap": f"Blocks overlap (including {s_drive}m drive)"
             })
     return conflicts
+
+
+async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+    from core.outlook_config import OUTLOOK_ENABLED
+    if not OUTLOOK_ENABLED:
+        return []
+
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee or not employee.get("email"):
+        return []
+
+    from services.outlook import check_outlook_availability
+    return await check_outlook_availability(employee["email"], date, start_time, end_time)

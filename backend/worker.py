@@ -73,6 +73,28 @@ async def generate_bulk_schedules(
             user_name=user_name,
         )
 
+    # Enqueue Outlook events for created schedules
+    from core.outlook_config import OUTLOOK_ENABLED
+    if OUTLOOK_ENABLED and employee.get('email'):
+        for doc in created:
+            try:
+                pool = ctx.get('redis')
+                if pool:
+                    subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+                    await pool.enqueue_job(
+                        "create_outlook_event",
+                        schedule_id=doc['id'],
+                        email=employee['email'],
+                        subject=subject,
+                        location_name=location['city_name'],
+                        date=doc['date'],
+                        start_time=doc['start_time'],
+                        end_time=doc['end_time'],
+                        notes=doc.get('notes', ''),
+                    )
+            except Exception:
+                logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
+
     logger.info(
         f"Bulk schedule generation completed. Created: {len(created)}, Skipped due to conflicts: {len(conflicts_found)}",
         extra={
@@ -136,9 +158,31 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     logger.info(f"Sync completed for {entity_type}: {entity_id}")
 
 
+async def create_outlook_event(ctx, schedule_id: str, email: str, subject: str, location_name: str, date: str, start_time: str, end_time: str, notes: str = ""):
+    from services.outlook import create_outlook_event as _create
+    from database import db
+
+    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None)
+    if event_id:
+        await db.schedules.update_one({"id": schedule_id}, {"$set": {"outlook_event_id": event_id}})
+        logger.info("Outlook event created for schedule %s: %s", schedule_id, event_id)
+    else:
+        logger.warning("Outlook event creation returned no ID for schedule %s", schedule_id)
+
+
+async def delete_outlook_event(ctx, email: str, event_id: str):
+    from services.outlook import delete_outlook_event as _delete
+
+    success = await _delete(email, event_id)
+    if success:
+        logger.info("Outlook event %s deleted", event_id)
+    else:
+        logger.warning("Failed to delete Outlook event %s", event_id)
+
+
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
 
 class WorkerSettings:
-    functions = [generate_bulk_schedules, sync_schedules_denormalized]
+    functions = [generate_bulk_schedules, sync_schedules_denormalized, create_outlook_event, delete_outlook_event]
     redis_settings = RedisSettings.from_dsn(redis_url)

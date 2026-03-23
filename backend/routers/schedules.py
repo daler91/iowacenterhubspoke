@@ -17,6 +17,7 @@ from services.schedule_utils import (
     build_recurrence_rule,
     build_recurrence_dates,
     check_conflicts,
+    check_outlook_conflicts,
     time_to_minutes,
 )
 from core.logger import get_logger
@@ -29,13 +30,68 @@ from core.constants import (
 
 logger = get_logger(__name__)
 
+import logging
+
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+_outlook_logger = logging.getLogger("outlook.enqueue")
 
 SCHEDULE_NOT_FOUND = "Schedule not found"
 LOCATION_NOT_FOUND = "Location not found"
 EMPLOYEE_NOT_FOUND = "Employee not found"
 CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+
+
+def _enqueue_outlook_event(employee: dict, location: dict, class_doc: dict | None, doc: dict):
+    """Fire-and-forget: enqueue Outlook event creation if configured."""
+    from core.outlook_config import OUTLOOK_ENABLED
+    if not OUTLOOK_ENABLED or not employee.get("email"):
+        return
+    import asyncio
+    asyncio.ensure_future(_enqueue_outlook_event_async(employee, location, class_doc, doc))
+
+
+async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool:
+            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+            await pool.enqueue_job(
+                "create_outlook_event",
+                schedule_id=doc["id"],
+                email=employee["email"],
+                subject=subject,
+                location_name=location["city_name"],
+                date=doc["date"],
+                start_time=doc["start_time"],
+                end_time=doc["end_time"],
+                notes=doc.get("notes", ""),
+            )
+    except Exception:
+        _outlook_logger.exception("Failed to enqueue Outlook event creation")
+
+
+async def _enqueue_outlook_delete(schedule: dict):
+    """Fire-and-forget: enqueue Outlook event deletion if applicable."""
+    from core.outlook_config import OUTLOOK_ENABLED
+    outlook_event_id = schedule.get("outlook_event_id")
+    if not OUTLOOK_ENABLED or not outlook_event_id:
+        return
+    employee = await db.employees.find_one({"id": schedule["employee_id"]}, {"_id": 0})
+    if not employee or not employee.get("email"):
+        return
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool:
+            await pool.enqueue_job(
+                "delete_outlook_event",
+                email=employee["email"],
+                event_id=outlook_event_id,
+            )
+    except Exception:
+        _outlook_logger.exception("Failed to enqueue Outlook event deletion")
 
 
 @router.get("")
@@ -190,6 +246,21 @@ async def _handle_single_schedule(
             detail={"message": "Schedule conflict detected", "conflicts": conflicts},
         )
 
+    # Check Outlook calendar conflicts (blocking with override)
+    if not data.force_outlook:
+        outlook_conflicts = await check_outlook_conflicts(
+            data.employee_id, date_to_schedule, data.start_time, data.end_time
+        )
+        if outlook_conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Outlook calendar conflict detected",
+                    "conflicts": [],
+                    "outlook_conflicts": outlook_conflicts,
+                },
+            )
+
     town_to_town, town_to_town_warning = await _check_town_to_town(
         data.employee_id, date_to_schedule, data.location_id
     )
@@ -206,6 +277,7 @@ async def _handle_single_schedule(
     )
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
+    _enqueue_outlook_event(employee, location, class_doc, doc)
     logger.info(
         f"Schedule created: {doc['id']}",
         extra={
@@ -471,7 +543,6 @@ async def update_schedule(
     )
     return updated
 
-
 @router.delete(
     "/{schedule_id}",
     responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}},
@@ -494,6 +565,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
         extra={"entity": {"schedule_id": schedule_id}},
     )
     if schedule:
+        await _enqueue_outlook_delete(schedule)
         await log_activity(
             "schedule_deleted",
             f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed",
@@ -626,4 +698,9 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
     conflicts = await check_conflicts(data.employee_id, data.date, data.start_time, data.end_time, drive_time)
-    return {"has_conflicts": len(conflicts) > 0, "conflicts": conflicts}
+    outlook_conflicts = await check_outlook_conflicts(data.employee_id, data.date, data.start_time, data.end_time)
+    return {
+        "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0,
+        "conflicts": conflicts,
+        "outlook_conflicts": outlook_conflicts,
+    }

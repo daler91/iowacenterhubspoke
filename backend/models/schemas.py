@@ -71,6 +71,7 @@ class ScheduleCreate(BaseModel):
     recurrence_end_mode: Optional[str] = None
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
+    force_outlook: Optional[bool] = False
 
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
