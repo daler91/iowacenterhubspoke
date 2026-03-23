@@ -114,3 +114,13 @@ class ErrorResponse(BaseModel):
     detail: str
     code: str
     errors: Optional[list] = None
+
+class ScheduleImportItem(BaseModel):
+    employee_id: str
+    location_id: str
+    class_id: Optional[str] = None
+    date: str
+    start_time: str
+    end_time: str
+    notes: Optional[str] = None
+    row_idx: int
