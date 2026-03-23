@@ -16,12 +16,15 @@ import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
+import MobileCalendar from './MobileCalendar';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
 import BulkActionBar from './BulkActionBar';
 import useSelectionMode from '../hooks/useSelectionMode';
 
 export default function CalendarView() {
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const {
     locations,
     employees,
@@ -163,42 +166,44 @@ export default function CalendarView() {
       <StatsStrip stats={stats} onStatClick={onStatClick} />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-prev"
-            onClick={() => navigateDate('prev')}
-            className="border-gray-200"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            {(() => {
-              if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
-              if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
-              return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
-            })()}
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-next"
-            onClick={() => navigateDate('next')}
-            className="border-gray-200"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-today"
-            onClick={() => setCurrentDate(new Date())}
-            className="border-gray-200 text-sm"
-          >
-            Today
-          </Button>
-        </div>
+        {!isMobile && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-prev"
+              onClick={() => navigateDate('prev')}
+              className="border-gray-200"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              {(() => {
+                if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
+                if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
+                return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
+              })()}
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-next"
+              onClick={() => navigateDate('next')}
+              className="border-gray-200"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-today"
+              onClick={() => setCurrentDate(new Date())}
+              className="border-gray-200 text-sm"
+            >
+              Today
+            </Button>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           {calendarView !== 'month' && (
@@ -213,13 +218,15 @@ export default function CalendarView() {
               Select
             </Button>
           )}
-          <Tabs value={calendarView} onValueChange={setCalendarView}>
-            <TabsList className="bg-gray-100">
-              <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
-              <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
-              <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {!isMobile && (
+            <Tabs value={calendarView} onValueChange={setCalendarView}>
+              <TabsList className="bg-gray-100">
+                <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
+                <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
+                <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
           {isAdmin && (
             <>
               <Button
@@ -268,33 +275,47 @@ export default function CalendarView() {
 
       <div ref={calendarRef}>
         <ErrorBoundary key={calendarView}>
-          {calendarView === 'week' && (
-            <CalendarWeek
+          {isMobile ? (
+            <MobileCalendar
               currentDate={currentDate}
-              schedules={filteredSchedules}
-              onEditSchedule={onEditSchedule}
-              onRelocate={handleRelocate}
-              selectionMode={selectionMode}
-              isSelected={isSelected}
-              toggleItem={toggleItem}
-            />
-          )}
-          {calendarView === 'day' && (
-            <CalendarDay
-              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
               schedules={filteredSchedules}
               onEditSchedule={onEditSchedule}
               selectionMode={selectionMode}
               isSelected={isSelected}
               toggleItem={toggleItem}
             />
-          )}
-          {calendarView === 'month' && (
-            <CalendarMonth
-              currentDate={currentDate}
-              schedules={filteredSchedules}
-              onDateClick={handleMonthDateClick}
-            />
+          ) : (
+            <>
+              {calendarView === 'week' && (
+                <CalendarWeek
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onEditSchedule={onEditSchedule}
+                  onRelocate={handleRelocate}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  toggleItem={toggleItem}
+                />
+              )}
+              {calendarView === 'day' && (
+                <CalendarDay
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onEditSchedule={onEditSchedule}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  toggleItem={toggleItem}
+                />
+              )}
+              {calendarView === 'month' && (
+                <CalendarMonth
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onDateClick={handleMonthDateClick}
+                />
+              )}
+            </>
           )}
         </ErrorBoundary>
       </div>
