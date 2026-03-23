@@ -10,6 +10,11 @@ setup_logging()
 logger = get_logger("Worker")
 
 
+def time_to_minutes(time_str: str) -> int:
+    h, m = time_str.split(":")
+    return int(h) * 60 + int(m)
+
+
 async def generate_bulk_schedules(
     ctx,
     data_dict: dict,
@@ -23,29 +28,102 @@ async def generate_bulk_schedules(
 ):
     from models.schemas import ScheduleCreate, RecurrenceRule
     from database import db
-    from services.schedule_utils import check_conflicts
-    from routers.schedules import _check_town_to_town, _build_schedule_doc
+    from routers.schedules import _build_schedule_doc
     from services.activity import log_activity
 
     data = ScheduleCreate(**data_dict)
     recurrence_rule = (
-        RecurrenceRule(**recurrence_rule_dict) if recurrence_rule_dict else None
+        RecurrenceRule(**recurrence_rule_dict)
+        if recurrence_rule_dict
+        else None
     )
 
     created = []
     conflicts_found = []
 
+    # Pre-fetch existing schedules for the employee in the required date range
+    if not dates_to_schedule:
+        return {"created": 0, "conflicts": 0}
+
+    min_date = min(dates_to_schedule)
+    max_date = max(dates_to_schedule)
+
+    existing_schedules = await db.schedules.find(
+        {
+            "employee_id": data.employee_id,
+            "date": {"$gte": min_date, "$lte": max_date},
+            "deleted_at": None,
+        },
+        {"_id": 0},
+    ).to_list(None)
+
+    # Group schedules by date for fast lookup
+    schedules_by_date = {}
+    for s in existing_schedules:
+        schedules_by_date.setdefault(s["date"], []).append(s)
+
+    # Pre-fetch locations for town-to-town checks
+    location_ids = set()
+    for s in existing_schedules:
+        if s["location_id"] != data.location_id:
+            location_ids.add(s["location_id"])
+
+    other_locations = []
+    if location_ids:
+        other_locations = await db.locations.find(
+            {"id": {"$in": list(location_ids)}}, {"_id": 0}
+        ).to_list(None)
+    loc_map = {loc["id"]: loc for loc in other_locations}
+
+    docs_to_insert = []
+
+    new_start = time_to_minutes(data.start_time) - drive_time
+    new_end = time_to_minutes(data.end_time) + drive_time
+
     for sched_date in dates_to_schedule:
-        conflicts = await check_conflicts(
-            data.employee_id, sched_date, data.start_time, data.end_time, drive_time
-        )
+        day_schedules = schedules_by_date.get(sched_date, [])
+
+        # Check conflicts in memory
+        conflicts = []
+        for s in day_schedules:
+            s_drive = s.get("drive_time_minutes", 0)
+            s_start = time_to_minutes(s["start_time"]) - s_drive
+            s_end = time_to_minutes(s["end_time"]) + s_drive
+            if new_start < s_end and new_end > s_start:
+                conflicts.append(
+                    {
+                        "schedule_id": s["id"],
+                        "location": s.get("location_name", "?"),
+                        "time": f"{s['start_time']}-{s['end_time']}",
+                        "overlap": f"Blocks overlap (inc {s_drive}m drive)",
+                    }
+                )
+
         if conflicts:
-            conflicts_found.append({"date": sched_date, "conflicts": conflicts})
+            conflicts_found.append(
+                {"date": sched_date, "conflicts": conflicts}
+            )
             continue
 
-        town_to_town, town_to_town_warning = await _check_town_to_town(
-            data.employee_id, sched_date, data.location_id
-        )
+        # Check town-to-town in memory
+        town_to_town = False
+        town_to_town_warning = None
+
+        other_day_locations = [
+            s for s in day_schedules if s["location_id"] != data.location_id
+        ]
+        if other_day_locations:
+            town_to_town = True
+            other_cities = [
+                loc_map[s["location_id"]]["city_name"]
+                for s in other_day_locations
+                if s["location_id"] in loc_map
+            ]
+            town_to_town_warning = (
+                "Town-to-Town Travel Detected: Verify drive time "
+                "manually. Other locations: " + ", ".join(other_cities)
+            )
+
         doc = _build_schedule_doc(
             data,
             sched_date,
@@ -58,16 +136,26 @@ async def generate_bulk_schedules(
             class_doc,
         )
 
-        await db.schedules.insert_one(doc)
-        doc.pop("_id", None)
-        created.append(doc)
+        docs_to_insert.append(doc)
+
+    if docs_to_insert:
+        await db.schedules.insert_many(docs_to_insert)
+        for doc in docs_to_insert:
+            doc.pop("_id", None)
+            created.append(doc)
 
     if created:
-        count_label = f"{len(created)} classes" if len(created) > 1 else "class"
+        count_label = (
+            f"{len(created)} classes" if len(created) > 1 else "class"
+        )
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
             action="schedule_created_bulk",
-            description=f"{employee['name']} assigned to {location['city_name']}{class_label}\n - {count_label} starting {dates_to_schedule[0]} (Background Task)",
+            description=(
+                f"{employee['name']} assigned to {location['city_name']}"
+                f"{class_label}\n - {count_label} starting "
+                f"{dates_to_schedule[0]} (Background Task)"
+            ),
             entity_type="schedule",
             entity_id=created[0]["id"],
             user_name=user_name,
@@ -96,7 +184,8 @@ async def generate_bulk_schedules(
                 logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
 
     logger.info(
-        f"Bulk schedule generation completed. Created: {len(created)}, Skipped due to conflicts: {len(conflicts_found)}",
+        f"Bulk sched generation completed. Created: {len(created)}, "
+        f"Skipped due to conflicts: {len(conflicts_found)}",
         extra={
             "entity": {
                 "employee_id": data.employee_id,
@@ -134,9 +223,7 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
                 {
                     "$set": {
                         "location_name": location["city_name"],
-                        "drive_time_minutes": location[
-                            "drive_time_minutes"
-                        ],  # Note: travel_override_minutes in schedule takes precedence in router logic, but this syncs the base drive time
+                        "drive_time_minutes": location["drive_time_minutes"],
                     }
                 },
             )
