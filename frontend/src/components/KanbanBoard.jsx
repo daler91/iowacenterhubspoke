@@ -253,7 +253,7 @@ export default function KanbanBoard() {
           className={selectionMode ? '' : 'border-gray-200'}
         >
           <ListChecks className="w-4 h-4 mr-1" />
-          Select
+          Bulk Select
         </Button>
       </div>
 
