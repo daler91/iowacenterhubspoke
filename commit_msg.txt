@@ -1,0 +1,5 @@
+⚡ optimize workload stats by pre-grouping schedules
+
+💡 **What:** Use defaultdict to group schedules by employee_id before looping over employees.
+🎯 **Why:** Replaces an O(N*M) list traversal with an O(1) map lookup inside the employee loop, fixing CPU/memory inefficiency on large datasets.
+📊 **Measured Improvement:** Reduces algorithmic complexity from quadratic-like behavior on list traversals to linear O(N + M) grouping.
