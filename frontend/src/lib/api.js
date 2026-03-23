@@ -83,6 +83,11 @@ export const schedulesAPI = {
   bulkReassign: (ids, employee_id) => api.put('/schedules/bulk-reassign', { ids, employee_id }),
 };
 
+// System Config
+export const systemAPI = {
+  getConfig: () => api.get('/system/config'),
+};
+
 // Dashboard
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),

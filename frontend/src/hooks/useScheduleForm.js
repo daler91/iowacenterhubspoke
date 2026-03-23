@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
@@ -22,6 +22,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
   });
   const [loading, setLoading] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
+  const [previewConflicts, setPreviewConflicts] = useState({ conflicts: [], outlook_conflicts: [] });
+  const [outlookOverride, setOutlookOverride] = useState(false);
+  const conflictTimerRef = useRef(null);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
   const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
   const [customRecurrence, setCustomRecurrence] = useState(createDefaultCustomRecurrence(new Date().toISOString().split('T')[0]));
@@ -63,6 +66,35 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       setShowOverride(false);
     }
   }, [editSchedule, open]);
+
+  // Debounced conflict preview (fires when key fields change)
+  const fetchConflictPreview = useCallback(() => {
+    if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
+      setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+      return;
+    }
+    const payload = {
+      employee_id: form.employee_id,
+      location_id: form.location_id,
+      date: form.date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
+    };
+    schedulesAPI.checkConflicts(payload)
+      .then(res => setPreviewConflicts({
+        conflicts: res.data.conflicts || [],
+        outlook_conflicts: res.data.outlook_conflicts || [],
+      }))
+      .catch(() => setPreviewConflicts({ conflicts: [], outlook_conflicts: [] }));
+  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes]);
+
+  useEffect(() => {
+    setOutlookOverride(false);
+    if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current);
+    conflictTimerRef.current = setTimeout(fetchConflictPreview, 500);
+    return () => { if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current); };
+  }, [fetchConflictPreview]);
 
   const validateRecurrence = () => {
     if (form.recurrence === 'none' || editSchedule) return true;
@@ -156,6 +188,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     setLoading(true);
     try {
       const payload = buildPayload();
+      if (outlookOverride) payload.force_outlook = true;
       if (editSchedule) {
         await schedulesAPI.update(editSchedule.id, payload);
         toast.success('Schedule updated');
@@ -167,10 +200,17 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     } catch (err) {
       if (err.response?.status === 409) {
         const detail = err.response.data?.detail || {};
-        const msg = detail?.message || 'Schedule conflict detected';
-        const conflicts = detail?.conflicts || [];
-        const conflictList = conflicts.map(c => `${c.location} (${c.time})`).join(', ');
-        toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
+        const outlookConflicts = detail?.outlook_conflicts || [];
+        const internalConflicts = detail?.conflicts || [];
+        if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
+          // Outlook-only conflict — enable override
+          setOutlookOverride(true);
+          toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
+        } else {
+          const msg = detail?.message || 'Schedule conflict detected';
+          const conflictList = internalConflicts.map(c => `${c.location} (${c.time})`).join(', ');
+          toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
+        }
       } else {
         toast.error(err.response?.data?.detail || 'Failed to save schedule');
       }
@@ -221,6 +261,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
+    previewConflicts, outlookOverride, setOutlookOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange
   };
