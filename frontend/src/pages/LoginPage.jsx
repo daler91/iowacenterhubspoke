@@ -21,11 +21,22 @@ export default function LoginPage() {
         await login(form.email, form.password);
         toast.success('Welcome back!');
       } else {
-        await register(form.name, form.email, form.password);
-        toast.success('Account created successfully!');
+        const result = await register(form.name, form.email, form.password);
+        if (result.pending) {
+          toast.info('Registration submitted! An admin will review your account.');
+          setIsLogin(true);
+          setForm({ name: '', email: '', password: '' });
+        } else {
+          toast.success('Account created successfully!');
+        }
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Something went wrong');
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 403) {
+        toast.warning(detail || 'Access denied');
+      } else {
+        toast.error(detail || 'Something went wrong');
+      }
     } finally {
       setLoading(false);
     }

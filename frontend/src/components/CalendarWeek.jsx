@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { Car, AlertTriangle, GripVertical } from 'lucide-react';
+import { Car, AlertTriangle, GripVertical, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAuth } from '../lib/auth';
@@ -26,7 +26,7 @@ function minutesToTop(minutes) {
   return ((minutes - startMinutes) / 60) * 60; // 60px per hour
 }
 
-export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule, onRelocate }) {
+export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule, onRelocate, selectionMode, isSelected, toggleItem }) {
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
 
@@ -56,6 +56,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
     const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
     const className = schedule.class_name || 'Unassigned Class';
+    const selected = selectionMode && isSelected?.(schedule.id);
 
     return (
       <div key={schedule.id}>
@@ -89,8 +90,9 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               <button
                 type="button"
                 data-testid={`class-block-${schedule.id}`}
-                draggable={canEdit}
+                draggable={canEdit && !selectionMode}
                 onDragStart={(e) => {
+                  if (selectionMode) { e.preventDefault(); return; }
                   e.dataTransfer.setData('scheduleId', schedule.id);
                   e.dataTransfer.setData('originalDate', dateStr);
                   e.dataTransfer.setData('startTime', schedule.start_time);
@@ -101,7 +103,12 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
                 className={cn(
                   "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
-                  canEdit ? "cursor-grab" : "cursor-default"
+                  (() => {
+                    if (selectionMode) return "cursor-pointer";
+                    if (canEdit) return "cursor-grab";
+                    return "cursor-default";
+                  })(),
+                  selected && "ring-2 ring-indigo-500 ring-offset-1"
                 )}
                 style={{
                   top: `${classTop}px`,
@@ -109,10 +116,27 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                   backgroundColor: classColor,
                   borderLeft: `4px solid ${classColor}`,
                 }}
-                onClick={() => canEdit && onEditSchedule?.(schedule)}
+                onClick={() => {
+                  if (selectionMode) {
+                    toggleItem?.(schedule.id);
+                  } else if (canEdit) {
+                    onEditSchedule?.(schedule);
+                  }
+                }}
               >
-                <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
-                <div className="flex flex-col h-full justify-between">
+                {/* Selection checkbox overlay */}
+                {selectionMode && (
+                  <div className={cn(
+                    "absolute top-1 left-1 w-4 h-4 rounded border-2 flex items-center justify-center z-10",
+                    selected ? "bg-white border-white" : "border-white/70 bg-transparent"
+                  )}>
+                    {selected && <Check className="w-3 h-3 text-indigo-600" />}
+                  </div>
+                )}
+                {!selectionMode && (
+                  <GripVertical className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 text-white" />
+                )}
+                <div className={cn("flex flex-col h-full justify-between", selectionMode && "pl-5")}>
                   <div>
                     <p className="font-semibold text-[10px] uppercase tracking-wide truncate" data-testid={`calendar-class-name-${schedule.id}`}>{className}</p>
                     <p className="text-[10px] opacity-90 truncate">{schedule.location_name}</p>
@@ -122,7 +146,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                     {schedule.start_time} - {schedule.end_time}
                   </p>
                 </div>
-                {schedule.town_to_town && (
+                {schedule.town_to_town && !selectionMode && (
                   <div className="absolute top-1 right-1">
                     <AlertTriangle className="w-3 h-3 text-amber-300" />
                   </div>
@@ -228,10 +252,12 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 aria-label={`Schedule drop zone for ${dateStr}`}
                 className="border-r border-gray-100 last:border-r-0 relative"
                 onDragOver={(e) => {
+                  if (selectionMode) return;
                   e.preventDefault();
                   e.dataTransfer.dropEffect = 'move';
                 }}
                 onDrop={(e) => {
+                  if (selectionMode) return;
                   e.preventDefault();
                   const scheduleId = e.dataTransfer.getData('scheduleId');
                   const startTime = e.dataTransfer.getData('startTime');
@@ -275,4 +301,7 @@ CalendarWeek.propTypes = {
   onDeleteSchedule: PropTypes.func,
   onEditSchedule: PropTypes.func,
   onRelocate: PropTypes.func,
+  selectionMode: PropTypes.bool,
+  isSelected: PropTypes.func,
+  toggleItem: PropTypes.func,
 };

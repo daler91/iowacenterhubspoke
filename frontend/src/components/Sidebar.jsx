@@ -3,9 +3,9 @@ import PropTypes from 'prop-types';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 import {
-  CalendarDays, MapPin, Users,
+  CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, Activity, FileText, BookOpen
+  Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -25,6 +25,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'workload', path: '/workload', label: 'Workload', icon: BarChart3 },
       { id: 'report', path: '/report', label: 'Weekly Report', icon: FileText },
+      { id: 'analytics', path: '/analytics', label: 'Analytics', icon: TrendingUp },
       { id: 'activity', path: '/activity', label: 'Activity', icon: Activity },
     ],
   },
@@ -35,6 +36,7 @@ const NAV_SECTIONS = [
       { id: 'classes', path: '/classes', label: 'Classes', icon: BookOpen },
       { id: 'employees', path: '/employees', label: 'Employees', icon: Users },
       { id: 'locations', path: '/locations', label: 'Locations', icon: MapPin },
+      { id: 'users', path: '/users', label: 'Users', icon: Shield, adminOnly: true },
     ],
   },
 ];
@@ -43,7 +45,8 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const flatNavItems = NAV_SECTIONS.flatMap((section) => section.items);
+  const filterItems = (items) => items.filter(item => !item.adminOnly || user?.role === 'admin');
+  const flatNavItems = NAV_SECTIONS.flatMap((section) => filterItems(section.items));
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
@@ -55,7 +58,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
         data-testid={`nav-${item.id}`}
         onClick={() => {
           navigate(item.path);
-          if (window.innerWidth < 768) {
+          if (globalThis.innerWidth < 768) {
              // Close mobile sidebar if needed, but Sidebar is usually managed by parent
              // This component currently doesn't have a closeSidebar prop, but onViewChange used to handle it in DashboardPage
           }
@@ -125,7 +128,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
                   {section.label}
                 </p>
                 <div className="space-y-1">
-                  {section.items.map(renderNavItem)}
+                  {filterItems(section.items).map(renderNavItem)}
                 </div>
               </div>
             ))}

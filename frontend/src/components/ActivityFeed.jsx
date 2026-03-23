@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   CalendarPlus, UserPlus, MapPinPlus, Trash2, CheckCircle2,
@@ -97,4 +96,3 @@ export default function ActivityFeed() {
   );
 }
 
-ActivityFeed.propTypes = {};

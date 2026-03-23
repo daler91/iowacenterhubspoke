@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Car, AlertTriangle } from 'lucide-react';
+import { Car, AlertTriangle, Check } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 
 
@@ -22,7 +23,7 @@ function minutesToTop(minutes) {
   return ((minutes - 6 * 60) / 60) * 80; // 80px per hour for day view
 }
 
-export default function CalendarDay({ currentDate, schedules, onEditSchedule }) {
+export default function CalendarDay({ currentDate, schedules, onEditSchedule, selectionMode, isSelected, toggleItem }) {
   const dateStr = format(currentDate, 'yyyy-MM-dd');
   const daySchedules = (schedules || []).filter(s => s.date === dateStr);
 
@@ -65,6 +66,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
               const driveMin = schedule.drive_time_minutes || 0;
               const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
               const className = schedule.class_name || 'Unassigned Class';
+              const selected = selectionMode && isSelected?.(schedule.id);
 
               const classTop = minutesToTop(startMin);
               const classHeight = ((endMin - startMin) / 60) * 80;
@@ -91,17 +93,36 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                   {/* Class */}
                   <button
                     type="button"
-                    className="schedule-block class-block cursor-pointer appearance-none border-0 p-0 text-left"
+                    className={cn(
+                      "schedule-block class-block appearance-none border-0 p-0 text-left",
+                      selectionMode ? "cursor-pointer" : "cursor-default",
+                      selected && "ring-2 ring-indigo-500 ring-offset-1"
+                    )}
                     style={{
                       top: `${classTop}px`,
                       height: `${Math.max(classHeight, 40)}px`,
                       right: '16px',
                       backgroundColor: classColor,
                     }}
-                    onClick={() => onEditSchedule?.(schedule)}
+                    onClick={() => {
+                      if (selectionMode) {
+                        toggleItem?.(schedule.id);
+                      } else {
+                        onEditSchedule?.(schedule);
+                      }
+                    }}
                     data-testid={`day-class-block-${schedule.id}`}
                   >
-                    <div className="flex flex-col h-full justify-between">
+                    {/* Selection checkbox overlay */}
+                    {selectionMode && (
+                      <div className={cn(
+                        "absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center z-10",
+                        selected ? "bg-white border-white" : "border-white/70 bg-transparent"
+                      )}>
+                        {selected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                      </div>
+                    )}
+                    <div className={cn("flex flex-col h-full justify-between", selectionMode && "pl-7")}>
                       <div>
                         <p className="font-semibold text-xs uppercase tracking-wide">{className}</p>
                         <p className="text-sm">{schedule.location_name}</p>
@@ -109,7 +130,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule }) 
                       </div>
                       <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
                     </div>
-                    {schedule.town_to_town && (
+                    {schedule.town_to_town && !selectionMode && (
                       <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
                         <AlertTriangle className="w-3 h-3 text-white" />
                       </div>
@@ -155,4 +176,7 @@ CalendarDay.propTypes = {
   currentDate: PropTypes.instanceOf(Date).isRequired,
   schedules: PropTypes.array,
   onEditSchedule: PropTypes.func,
+  selectionMode: PropTypes.bool,
+  isSelected: PropTypes.func,
+  toggleItem: PropTypes.func,
 };

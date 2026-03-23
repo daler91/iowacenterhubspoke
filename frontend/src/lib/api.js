@@ -61,6 +61,16 @@ export const classesAPI = {
 
 // Schedules
 export const schedulesAPI = {
+  exportCsv: (params) => api.get('/schedules/export', { params, responseType: 'blob' }),
+  importPreview: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/schedules/import/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  importCommit: (data) => api.post('/schedules/import', data),
+
   getAll: (params) => api.get('/schedules', { params }),
   create: (data) => api.post('/schedules', data),
   update: (id, data) => api.put(`/schedules/${id}`, data),
@@ -68,6 +78,9 @@ export const schedulesAPI = {
   updateStatus: (id, status) => api.put(`/schedules/${id}/status`, { status }),
   relocate: (id, data) => api.put(`/schedules/${id}/relocate`, data),
   checkConflicts: (data) => api.post('/schedules/check-conflicts', data),
+  bulkDelete: (ids) => api.post('/schedules/bulk-delete', { ids }),
+  bulkUpdateStatus: (ids, status) => api.put('/schedules/bulk-status', { ids, status }),
+  bulkReassign: (ids, employee_id) => api.put('/schedules/bulk-reassign', { ids, employee_id }),
 };
 
 // System Config
@@ -98,6 +111,22 @@ export const workloadAPI = {
 // Reports
 export const reportsAPI = {
   weeklySummary: (params) => api.get('/reports/weekly-summary', { params }),
+};
+
+// Analytics
+export const analyticsAPI = {
+  trends: (params) => api.get('/analytics/trends', { params }),
+  forecast: (params) => api.get('/analytics/forecast', { params }),
+  driveOptimization: (params) => api.get('/analytics/drive-optimization', { params }),
+};
+
+// Users (admin)
+export const usersAPI = {
+  getAll: () => api.get('/users'),
+  approve: (userId) => api.put(`/users/${userId}/approve`),
+  reject: (userId) => api.put(`/users/${userId}/reject`),
+  updateRole: (userId, role) => api.put(`/users/${userId}/role`, { role }),
+  delete: (userId) => api.delete(`/users/${userId}`),
 };
 
 export default api;

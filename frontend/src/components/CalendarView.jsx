@@ -1,23 +1,33 @@
+import { useState } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
-import { ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+
+import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload } from 'lucide-react';
+import ExportCsvDialog from './ExportCsvDialog';
+import ImportCsvDialog from './ImportCsvDialog';
+import { useAuth } from '../lib/auth';
+
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
+import MobileCalendar from './MobileCalendar';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
+import BulkActionBar from './BulkActionBar';
+import useSelectionMode from '../hooks/useSelectionMode';
 
 export default function CalendarView() {
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const {
     locations,
     employees,
-    classes,
     schedules,
     stats: rawStats,
     fetchSchedules,
@@ -30,12 +40,33 @@ export default function CalendarView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const calendarRef = useRef(null);
 
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
+  const {
+    selectionMode,
+    selectedIds,
+    selectedCount,
+    toggleSelectionMode,
+    toggleItem,
+    deselectAll,
+    isSelected,
+    clearSelection,
+  } = useSelectionMode();
+
   // URL State
   const calendarView = searchParams.get('view') || 'week';
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
   const filterLocation = searchParams.get('location') || 'all';
+
+  // Clear selection when navigating dates or switching views
+  useEffect(() => {
+    clearSelection();
+  }, [calendarView, dateStr, clearSelection]);
 
   const updateParams = useCallback((newParams) => {
     setSearchParams(prev => {
@@ -117,6 +148,12 @@ export default function CalendarView() {
     }
   };
 
+  const handleBulkComplete = () => {
+    clearSelection();
+    fetchSchedules();
+    fetchActivities();
+  };
+
   return (
     <div className="space-y-5 animate-slide-in" data-testid="calendar-view">
       <div className="space-y-2" data-testid="calendar-home-header">
@@ -129,51 +166,91 @@ export default function CalendarView() {
       <StatsStrip stats={stats} onStatClick={onStatClick} />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-prev"
-            onClick={() => navigateDate('prev')}
-            className="border-gray-200"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            {(() => {
-              if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
-              if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
-              return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
-            })()}
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-next"
-            onClick={() => navigateDate('next')}
-            className="border-gray-200"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="calendar-today"
-            onClick={() => setCurrentDate(new Date())}
-            className="border-gray-200 text-sm"
-          >
-            Today
-          </Button>
-        </div>
+        {!isMobile && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-prev"
+              onClick={() => navigateDate('prev')}
+              className="border-gray-200"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              {(() => {
+                if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
+                if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
+                return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
+              })()}
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-next"
+              onClick={() => navigateDate('next')}
+              className="border-gray-200"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="calendar-today"
+              onClick={() => setCurrentDate(new Date())}
+              className="border-gray-200 text-sm"
+            >
+              Today
+            </Button>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
-          <Tabs value={calendarView} onValueChange={setCalendarView}>
-            <TabsList className="bg-gray-100">
-              <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
-              <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
-              <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {calendarView !== 'month' && (
+            <Button
+              variant={selectionMode ? 'default' : 'outline'}
+              size="sm"
+              data-testid="calendar-select-mode"
+              onClick={toggleSelectionMode}
+              className={selectionMode ? '' : 'border-gray-200'}
+            >
+              <ListChecks className="w-4 h-4 mr-1" />
+              Select
+            </Button>
+          )}
+          {!isMobile && (
+            <Tabs value={calendarView} onValueChange={setCalendarView}>
+              <TabsList className="bg-gray-100">
+                <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
+                <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
+                <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          {isAdmin && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOpen(true)}
+                className="border-gray-200"
+                disabled={selectionMode}
+              >
+                <Download className="w-4 h-4 mr-1" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="border-gray-200"
+                disabled={selectionMode}
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Import CSV
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -187,7 +264,7 @@ export default function CalendarView() {
         </div>
       </div>
 
-      <ScheduleFilters 
+      <ScheduleFilters
         filterEmployee={filterEmployee}
         setFilterEmployee={setFilterEmployee}
         filterLocation={filterLocation}
@@ -198,27 +275,47 @@ export default function CalendarView() {
 
       <div ref={calendarRef}>
         <ErrorBoundary key={calendarView}>
-          {calendarView === 'week' && (
-            <CalendarWeek
+          {isMobile ? (
+            <MobileCalendar
               currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
               schedules={filteredSchedules}
               onEditSchedule={onEditSchedule}
-              onRelocate={handleRelocate}
+              selectionMode={selectionMode}
+              isSelected={isSelected}
+              toggleItem={toggleItem}
             />
-          )}
-          {calendarView === 'day' && (
-            <CalendarDay
-              currentDate={currentDate}
-              schedules={filteredSchedules}
-              onEditSchedule={onEditSchedule}
-            />
-          )}
-          {calendarView === 'month' && (
-            <CalendarMonth
-              currentDate={currentDate}
-              schedules={filteredSchedules}
-              onDateClick={handleMonthDateClick}
-            />
+          ) : (
+            <>
+              {calendarView === 'week' && (
+                <CalendarWeek
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onEditSchedule={onEditSchedule}
+                  onRelocate={handleRelocate}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  toggleItem={toggleItem}
+                />
+              )}
+              {calendarView === 'day' && (
+                <CalendarDay
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onEditSchedule={onEditSchedule}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  toggleItem={toggleItem}
+                />
+              )}
+              {calendarView === 'month' && (
+                <CalendarMonth
+                  currentDate={currentDate}
+                  schedules={filteredSchedules}
+                  onDateClick={handleMonthDateClick}
+                />
+              )}
+            </>
           )}
         </ErrorBoundary>
       </div>
@@ -237,7 +334,40 @@ export default function CalendarView() {
           <span className="text-xs text-slate-500">Town-to-Town Warning</span>
         </div>
       </div>
+
+      {selectedCount > 0 && (
+        <BulkActionBar
+          selectedCount={selectedCount}
+          selectedIds={selectedIds}
+          onComplete={handleBulkComplete}
+          onDeselectAll={deselectAll}
+          employees={employees}
+        />
+      )}
+
+                  {exportOpen && (
+        <ExportCsvDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          currentFilters={{
+            start_date: format(currentDate, 'yyyy-MM-dd'),
+            end_date: format(addDays(currentDate, calendarView === 'month' ? 30 : (calendarView === 'week' ? 7 : 1)), 'yyyy-MM-dd'),
+            location_id: searchParams.get('location') || undefined,
+            employee_id: searchParams.get('employee') || undefined,
+          }}
+        />
+      )}
+
+      {importOpen && (
+        <ImportCsvDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImportSuccess={() => {
+            fetchSchedules();
+            fetchActivities?.();
+          }}
+        />
+      )}
     </div>
   );
 }
-

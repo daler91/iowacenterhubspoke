@@ -1,12 +1,11 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
-from core.constants import ROLE_VIEWER, DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
+from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
 class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
-    role: Optional[str] = ROLE_VIEWER
 
 class UserLogin(BaseModel):
     email: str
@@ -98,7 +97,31 @@ class ScheduleRelocate(BaseModel):
     start_time: str
     end_time: str
 
+class BulkDeleteRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+
+class BulkStatusUpdateRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    status: str  # upcoming, in_progress, completed
+
+class BulkReassignRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    employee_id: str
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
 class ErrorResponse(BaseModel):
     detail: str
     code: str
     errors: Optional[list] = None
+
+class ScheduleImportItem(BaseModel):
+    employee_id: str
+    location_id: str
+    class_id: Optional[str] = None
+    date: str
+    start_time: str
+    end_time: str
+    notes: Optional[str] = None
+    row_idx: int

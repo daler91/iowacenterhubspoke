@@ -10,13 +10,13 @@ def test_user_register_password_min_length():
         "password": "password123"
     }
     user = UserRegister(**valid_data)
-    assert user.password == "password123"
+    assert user.password == "dummy_password_123"
 
     # Invalid password (too short)
     invalid_data = {
         "name": "John Doe",
         "email": "john@example.com",
-        "password": "short"
+        "password": "shrt"
     }
     with pytest.raises(ValidationError) as exc_info:
         UserRegister(**invalid_data)
@@ -28,7 +28,7 @@ def test_user_register_invalid_email():
     invalid_data = {
         "name": "John Doe",
         "email": "not-an-email",
-        "password": "password123"
+        "password": "dummy_password_123"
     }
     with pytest.raises(ValidationError) as exc_info:
         UserRegister(**invalid_data)

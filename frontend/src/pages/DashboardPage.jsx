@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar';
 import ScheduleForm from '../components/ScheduleForm';
 import StatModal from '../components/StatModal';
 import NotificationsPanel from '../components/NotificationsPanel';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function DashboardPage() {
   const location = useLocation();
@@ -83,10 +84,20 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <NotificationsPanel />
+          <div className="ml-auto">
+            <NotificationsPanel />
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <Outlet context={contextValue} />
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            }>
+              <Outlet context={contextValue} />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 

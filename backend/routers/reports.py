@@ -29,12 +29,44 @@ async def get_dashboard_stats(user: CurrentUser):
     }
 
 
+def _process_schedule_for_workload(s, workload_data, class_breakdown):
+    status = s.get("status", "upcoming")
+    if status == "completed":
+        workload_data["completed"] += 1
+    elif status == "upcoming":
+        workload_data["upcoming"] += 1
+    
+    try:
+        sh, sm = s["start_time"].split(":")
+        eh, em = s["end_time"].split(":")
+        class_minutes = (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+    except (ValueError, KeyError):
+        class_minutes = 0
+    
+    workload_data["total_class_mins"] += class_minutes
+    drive_minutes = s.get("drive_time_minutes", 0) * 2
+    workload_data["total_drive_mins"] += drive_minutes
+
+    class_key = s.get("class_id") or f"archived::{s.get('class_name') or 'Unassigned'}"
+    if class_key not in class_breakdown:
+        class_breakdown[class_key] = {
+            "class_id": s.get("class_id"),
+            "class_name": s.get("class_name") or "Unassigned",
+            "class_color": s.get("class_color") or "#94A3B8",
+            "classes": 0,
+            "class_minutes": 0,
+            "drive_minutes": 0,
+        }
+
+    class_breakdown[class_key]["classes"] += 1
+    class_breakdown[class_key]["class_minutes"] += class_minutes
+    class_breakdown[class_key]["drive_minutes"] += drive_minutes
+
+
 @router.get("/workload")
 async def get_workload_stats(user: CurrentUser):
     employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(
-        1000
-    )
+    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(1000)
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:
@@ -43,70 +75,39 @@ async def get_workload_stats(user: CurrentUser):
     workload = []
     for emp in employees:
         emp_schedules = schedules_by_employee.get(emp["id"], [])
-        total_class_mins = 0
-        total_drive_mins = 0
+        
+        data = {
+            "total_class_mins": 0,
+            "total_drive_mins": 0,
+            "completed": 0,
+            "upcoming": 0
+        }
         class_breakdown = {}
-        completed = 0
-        upcoming = 0
+        
         for s in emp_schedules:
-            status = s.get("status", "upcoming")
-            if status == "completed":
-                completed += 1
-            elif status == "upcoming":
-                upcoming += 1
-            try:
-                sh, sm = s["start_time"].split(":")
-                eh, em = s["end_time"].split(":")
-                class_minutes = (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-                total_class_mins += class_minutes
-            except (ValueError, KeyError):
-                class_minutes = 0
-            drive_minutes = s.get("drive_time_minutes", 0) * 2
-            total_drive_mins += drive_minutes
+            _process_schedule_for_workload(s, data, class_breakdown)
 
-            class_key = (
-                s.get("class_id") or f"archived::{s.get('class_name') or 'Unassigned'}"
-            )
-            if class_key not in class_breakdown:
-                class_breakdown[class_key] = {
-                    "class_id": s.get("class_id"),
-                    "class_name": s.get("class_name") or "Unassigned",
-                    "class_color": s.get("class_color") or "#94A3B8",
-                    "classes": 0,
-                    "class_minutes": 0,
-                    "drive_minutes": 0,
-                }
-
-            class_breakdown[class_key]["classes"] += 1
-            class_breakdown[class_key]["class_minutes"] += class_minutes
-            class_breakdown[class_key]["drive_minutes"] += drive_minutes
-
-        workload.append(
-            {
-                "employee_id": emp["id"],
-                "employee_name": emp["name"],
-                "employee_color": emp.get("color", "#4F46E5"),
-                "total_classes": len(emp_schedules),
-                "total_class_hours": round(total_class_mins / 60, 1),
-                "total_drive_hours": round(total_drive_mins / 60, 1),
-                "completed": completed,
-                "upcoming": upcoming,
-                "class_breakdown": sorted(
-                    [
-                        {
-                            **class_data,
-                            "class_hours": round(class_data["class_minutes"] / 60, 1),
-                            "drive_hours": round(class_data["drive_minutes"] / 60, 1),
-                        }
-                        for class_data in class_breakdown.values()
-                    ],
-                    key=lambda class_data: (
-                        -class_data["classes"],
-                        class_data["class_name"],
-                    ),
-                ),
-            }
-        )
+        workload.append({
+            "employee_id": emp["id"],
+            "employee_name": emp["name"],
+            "employee_color": emp.get("color", "#4F46E5"),
+            "total_classes": len(emp_schedules),
+            "total_class_hours": round(data["total_class_mins"] / 60, 1),
+            "total_drive_hours": round(data["total_drive_mins"] / 60, 1),
+            "completed": data["completed"],
+            "upcoming": data["upcoming"],
+            "class_breakdown": sorted(
+                [
+                    {
+                        **class_data,
+                        "class_hours": round(class_data["class_minutes"] / 60, 1),
+                        "drive_hours": round(class_data["drive_minutes"] / 60, 1),
+                    }
+                    for class_data in class_breakdown.values()
+                ],
+                key=lambda cd: (-cd["classes"], cd["class_name"]),
+            ),
+        })
 
     return workload
 

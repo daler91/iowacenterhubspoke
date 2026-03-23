@@ -49,6 +49,8 @@ const LocationManager = lazy(() => import("./components/LocationManager"));
 const EmployeeManager = lazy(() => import("./components/EmployeeManager"));
 const ClassManager = lazy(() => import("./components/ClassManager"));
 const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
+const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
+const UserManager = lazy(() => import("./components/UserManager"));
 
 function AppRoutes() {
   return (
@@ -74,11 +76,13 @@ function AppRoutes() {
             <Route path="kanban" element={<KanbanBoard />} />
             <Route path="workload" element={<WorkloadDashboard />} />
             <Route path="report" element={<WeeklyReport />} />
+            <Route path="analytics" element={<AdvancedAnalytics />} />
             <Route path="activity" element={<ActivityFeed />} />
             <Route path="map" element={<MapView />} />
             <Route path="locations" element={<LocationManager />} />
             <Route path="classes" element={<ClassManager />} />
             <Route path="employees" element={<EmployeeManager />} />
+            <Route path="users" element={<UserManager />} />
           </Route>
         </Routes>
       </Suspense>

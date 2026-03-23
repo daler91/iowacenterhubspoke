@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Car, BookOpen, TrendingUp } from 'lucide-react';
@@ -298,4 +297,3 @@ export default function WorkloadDashboard() {
   );
 }
 
-WorkloadDashboard.propTypes = {};

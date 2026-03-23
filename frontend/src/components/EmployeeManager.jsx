@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -77,7 +76,7 @@ export default function EmployeeManager() {
     try {
       await employeesAPI.delete(id);
       toast.success('Employee deleted');
-      onRefresh?.();
+      onRefresh();
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete employee');
@@ -146,7 +145,7 @@ export default function EmployeeManager() {
                 variant="ghost"
                 size="sm"
                 data-testid={`view-employee-${emp.id}`}
-                onClick={() => onViewProfile?.(emp.id)}
+                onClick={() => { onViewProfile?.(emp.id); }}
                 className="text-slate-400 hover:text-teal-600"
               >
                 <Eye className="w-4 h-4" />
@@ -262,4 +261,3 @@ export default function EmployeeManager() {
   );
 }
 
-EmployeeManager.propTypes = {};
