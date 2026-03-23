@@ -1,0 +1,15 @@
+{
+  "name": "iowa-center-hub-spoke",
+  "version": "1.0.0",
+  "description": "Iowa Center Hub Spoke scheduling app — root-level tooling scripts",
+  "private": true,
+  "scripts": {
+    "seed": "node seed-demo-data.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
