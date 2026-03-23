@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Trash2, UserCog, ChevronDown, X } from 'lucide-react';
+import { Trash2, UserCog, ChevronDown, X, MapPin, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { SCHEDULE_STATUS } from '../lib/constants';
 
-export default function BulkActionBar({ selectedCount, selectedIds, onComplete, onDeselectAll, employees }) {
+export default function BulkActionBar({ selectedCount, selectedIds, onComplete, onDeselectAll, employees, locations, classes }) {
   const [loading, setLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -66,6 +66,34 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       onComplete();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to reassign schedules');
+    } finally {
+      setLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
+  const handleBulkLocation = async (locationId, locationName) => {
+    setLoading(true);
+    try {
+      const res = await schedulesAPI.bulkUpdateLocation(ids, locationId);
+      toast.success(`Updated ${res.data.updated_count} schedule(s) to ${locationName}`);
+      onComplete();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update location');
+    } finally {
+      setLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
+  const handleBulkClass = async (classId, className) => {
+    setLoading(true);
+    try {
+      const res = await schedulesAPI.bulkUpdateClass(ids, classId);
+      toast.success(`Updated ${res.data.updated_count} schedule(s) to ${className}`);
+      onComplete();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update class');
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -150,6 +178,72 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Location dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={loading}>
+                  <MapPin className="w-4 h-4 mr-1" />
+                  Location
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
+                <DropdownMenuLabel>Change location to</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {(locations || []).map(loc => (
+                  <DropdownMenuItem
+                    key={loc.id}
+                    onClick={() => setConfirmAction({
+                      type: 'location',
+                      label: `Change location for ${selectedCount} schedule(s) to ${loc.city_name}?`,
+                      description: `All selected schedules will be moved to ${loc.city_name}.`,
+                      onConfirm: () => handleBulkLocation(loc.id, loc.city_name),
+                    })}
+                  >
+                    {loc.city_name}
+                  </DropdownMenuItem>
+                ))}
+                {(!locations || locations.length === 0) && (
+                  <DropdownMenuItem disabled>No locations available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Class dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={loading}>
+                  <BookOpen className="w-4 h-4 mr-1" />
+                  Class
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-60 overflow-y-auto">
+                <DropdownMenuLabel>Change class to</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {(classes || []).map(cls => (
+                  <DropdownMenuItem
+                    key={cls.id}
+                    onClick={() => setConfirmAction({
+                      type: 'class',
+                      label: `Change class for ${selectedCount} schedule(s) to ${cls.name}?`,
+                      description: `All selected schedules will be updated to class ${cls.name}.`,
+                      onConfirm: () => handleBulkClass(cls.id, cls.name),
+                    })}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mr-2 shrink-0"
+                      style={{ backgroundColor: cls.color || '#0F766E' }}
+                    />
+                    {cls.name}
+                  </DropdownMenuItem>
+                ))}
+                {(!classes || classes.length === 0) && (
+                  <DropdownMenuItem disabled>No classes available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Delete button */}
             <Button
               variant="destructive"
@@ -186,6 +280,8 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               {(() => {
                 if (loading) return 'Processing...';
                 if (confirmAction?.type === 'delete') return 'Delete';
+                if (confirmAction?.type === 'location') return 'Update Location';
+                if (confirmAction?.type === 'class') return 'Update Class';
                 return 'Reassign';
               })()}
             </AlertDialogAction>
@@ -202,4 +298,6 @@ BulkActionBar.propTypes = {
   onComplete: PropTypes.func.isRequired,
   onDeselectAll: PropTypes.func.isRequired,
   employees: PropTypes.array,
+  locations: PropTypes.array,
+  classes: PropTypes.array,
 };

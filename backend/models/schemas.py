@@ -108,6 +108,15 @@ class BulkReassignRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     employee_id: str
 
+
+class BulkLocationUpdateRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    location_id: str
+
+class BulkClassUpdateRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    class_id: str
+
 class UserRoleUpdate(BaseModel):
     role: str
 
