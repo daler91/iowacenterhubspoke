@@ -168,3 +168,39 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
 
     from services.outlook import check_outlook_availability
     return await check_outlook_availability(employee["email"], date, start_time, end_time)
+
+async def check_conflicts_bulk(employee_id: str, dates: list[str], start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
+    new_start = time_to_minutes(start_time) - drive_minutes
+    new_end = time_to_minutes(end_time) + drive_minutes
+
+    query = {
+        "employee_id": employee_id,
+        "date": {"$in": dates},
+        "deleted_at": None
+    }
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+
+    logger.debug(f"Checking conflicts for employee {employee_id} on {len(dates)} dates", extra={"context": {"start_time": start_time, "end_time": end_time}})
+
+    # We might have many schedules, let's use a larger limit
+    existing = await db.schedules.find(query, {"_id": 0}).to_list(10000)
+
+    # Group by date for quick lookup
+    from collections import defaultdict
+    conflicts_by_date = defaultdict(list)
+
+    for s in existing:
+        s_date = s['date']
+        s_drive = s.get('drive_time_minutes', 0)
+        s_start = time_to_minutes(s['start_time']) - s_drive
+        s_end = time_to_minutes(s['end_time']) + s_drive
+        if new_start < s_end and new_end > s_start:
+            conflicts_by_date[s_date].append({
+                "schedule_id": s['id'],
+                "location": s.get('location_name', '?'),
+                "time": f"{s['start_time']}-{s['end_time']}",
+                "overlap": f"Blocks overlap (including {s_drive}m drive)"
+            })
+
+    return conflicts_by_date
