@@ -78,7 +78,7 @@ async def check_outlook_availability(
             resp.raise_for_status()
             data = resp.json()
     except Exception:
-        logger.exception("Outlook getSchedule failed for %s", email)
+        logger.exception("Outlook getSchedule failed for user")
         return []
 
     conflicts = []
@@ -135,7 +135,7 @@ async def create_outlook_event(
             resp.raise_for_status()
             return resp.json().get("id")
     except Exception:
-        logger.exception("Failed to create Outlook event for %s", email)
+        logger.exception("Failed to create Outlook event for user")
         return None
 
 
@@ -153,5 +153,5 @@ async def delete_outlook_event(email: str, event_id: str) -> bool:
             resp.raise_for_status()
             return True
     except Exception:
-        logger.exception("Failed to delete Outlook event %s for %s", event_id, email)
+        logger.exception("Failed to delete Outlook event %s for user", event_id)
         return False
