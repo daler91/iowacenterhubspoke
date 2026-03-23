@@ -35,14 +35,14 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
         workload_data["completed"] += 1
     elif status == "upcoming":
         workload_data["upcoming"] += 1
-    
+
     try:
         sh, sm = s["start_time"].split(":")
         eh, em = s["end_time"].split(":")
         class_minutes = (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
     except (ValueError, KeyError):
         class_minutes = 0
-    
+
     workload_data["total_class_mins"] += class_minutes
     drive_minutes = s.get("drive_time_minutes", 0) * 2
     workload_data["total_drive_mins"] += drive_minutes
@@ -65,8 +65,24 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
 
 @router.get("/workload")
 async def get_workload_stats(user: CurrentUser):
+    """
+    Retrieves workload statistics for all employees.
+
+    Performance Note:
+    Optimized to O(N + M) time complexity where N is employees and M is schedules
+    by pre-grouping schedules in a defaultdict instead of nesting iterations.
+    """
+    """
+    Retrieves workload statistics for all employees.
+
+    Performance Note:
+    Optimized to O(N + M) time complexity where N is employees and M is schedules
+    by pre-grouping schedules in a defaultdict instead of nesting iterations.
+    """
     employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(1000)
+    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(
+        1000
+    )
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:
@@ -75,39 +91,41 @@ async def get_workload_stats(user: CurrentUser):
     workload = []
     for emp in employees:
         emp_schedules = schedules_by_employee.get(emp["id"], [])
-        
+
         data = {
             "total_class_mins": 0,
             "total_drive_mins": 0,
             "completed": 0,
-            "upcoming": 0
+            "upcoming": 0,
         }
         class_breakdown = {}
-        
+
         for s in emp_schedules:
             _process_schedule_for_workload(s, data, class_breakdown)
 
-        workload.append({
-            "employee_id": emp["id"],
-            "employee_name": emp["name"],
-            "employee_color": emp.get("color", "#4F46E5"),
-            "total_classes": len(emp_schedules),
-            "total_class_hours": round(data["total_class_mins"] / 60, 1),
-            "total_drive_hours": round(data["total_drive_mins"] / 60, 1),
-            "completed": data["completed"],
-            "upcoming": data["upcoming"],
-            "class_breakdown": sorted(
-                [
-                    {
-                        **class_data,
-                        "class_hours": round(class_data["class_minutes"] / 60, 1),
-                        "drive_hours": round(class_data["drive_minutes"] / 60, 1),
-                    }
-                    for class_data in class_breakdown.values()
-                ],
-                key=lambda cd: (-cd["classes"], cd["class_name"]),
-            ),
-        })
+        workload.append(
+            {
+                "employee_id": emp["id"],
+                "employee_name": emp["name"],
+                "employee_color": emp.get("color", "#4F46E5"),
+                "total_classes": len(emp_schedules),
+                "total_class_hours": round(data["total_class_mins"] / 60, 1),
+                "total_drive_hours": round(data["total_drive_mins"] / 60, 1),
+                "completed": data["completed"],
+                "upcoming": data["upcoming"],
+                "class_breakdown": sorted(
+                    [
+                        {
+                            **class_data,
+                            "class_hours": round(class_data["class_minutes"] / 60, 1),
+                            "drive_hours": round(class_data["drive_minutes"] / 60, 1),
+                        }
+                        for class_data in class_breakdown.values()
+                    ],
+                    key=lambda cd: (-cd["classes"], cd["class_name"]),
+                ),
+            }
+        )
 
     return workload
 
