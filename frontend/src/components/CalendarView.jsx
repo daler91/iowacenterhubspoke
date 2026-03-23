@@ -1,9 +1,15 @@
+import { useState } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { useRef, useCallback, useEffect } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
-import { ChevronLeft, ChevronRight, FileDown, ListChecks } from 'lucide-react';
+
+import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload } from 'lucide-react';
+import ExportCsvDialog from './ExportCsvDialog';
+import ImportCsvDialog from './ImportCsvDialog';
+import { useAuth } from '../lib/auth';
+
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import StatsStrip from './StatsStrip';
@@ -30,6 +36,11 @@ export default function CalendarView() {
   const stats = rawStats ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
   const calendarRef = useRef(null);
+
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const {
     selectionMode,
@@ -209,6 +220,30 @@ export default function CalendarView() {
               <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
             </TabsList>
           </Tabs>
+          {isAdmin && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOpen(true)}
+                className="border-gray-200"
+                disabled={selectionMode}
+              >
+                <Download className="w-4 h-4 mr-1" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="border-gray-200"
+                disabled={selectionMode}
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Import CSV
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -286,6 +321,30 @@ export default function CalendarView() {
           onComplete={handleBulkComplete}
           onDeselectAll={deselectAll}
           employees={employees}
+        />
+      )}
+
+                  {exportOpen && (
+        <ExportCsvDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          currentFilters={{
+            start_date: format(currentDate, 'yyyy-MM-dd'),
+            end_date: format(addDays(currentDate, calendarView === 'month' ? 30 : (calendarView === 'week' ? 7 : 1)), 'yyyy-MM-dd'),
+            location_id: searchParams.get('location') || undefined,
+            employee_id: searchParams.get('employee') || undefined,
+          }}
+        />
+      )}
+
+      {importOpen && (
+        <ImportCsvDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImportSuccess={() => {
+            fetchSchedules();
+            fetchActivities?.();
+          }}
         />
       )}
     </div>

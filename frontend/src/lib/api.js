@@ -61,6 +61,16 @@ export const classesAPI = {
 
 // Schedules
 export const schedulesAPI = {
+  exportCsv: (params) => api.get('/schedules/export', { params, responseType: 'blob' }),
+  importPreview: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/schedules/import/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  importCommit: (data) => api.post('/schedules/import', data),
+
   getAll: (params) => api.get('/schedules', { params }),
   create: (data) => api.post('/schedules', data),
   update: (id, data) => api.put(`/schedules/${id}`, data),
