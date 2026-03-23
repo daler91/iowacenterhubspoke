@@ -229,6 +229,46 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     return True, warning
 
 
+async def _check_town_to_town_bulk(employee_id: str, dates: list[str], location_id: str):
+    same_day_schedules = await db.schedules.find(
+        {
+            "employee_id": employee_id,
+            "date": {"$in": dates},
+            "location_id": {"$ne": location_id},
+            "deleted_at": None,
+        },
+        {"_id": 0},
+    ).to_list(10000)
+
+    from collections import defaultdict
+    schedules_by_date = defaultdict(list)
+    for s in same_day_schedules:
+        schedules_by_date[s["date"]].append(s)
+
+    location_ids = list({s["location_id"] for s in same_day_schedules})
+    if not location_ids:
+        return {}
+
+    other_locations = await db.locations.find(
+        {"id": {"$in": location_ids}}, {"_id": 0}
+    ).to_list(1000)
+    loc_map = {loc["id"]: loc for loc in other_locations}
+
+    results = {}
+    for date, scheds in schedules_by_date.items():
+        other_cities = list(set([
+            loc_map[s["location_id"]]["city_name"]
+            for s in scheds
+            if s["location_id"] in loc_map
+        ]))
+        if other_cities:
+            warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+            results[date] = (True, warning)
+
+    return results
+
+
+
 def _build_schedule_doc(
     data,
     sched_date,
@@ -429,19 +469,31 @@ async def _handle_bulk_synchronous(
     class_doc: Optional[dict],
     user: SchedulerRequired,
 ):
+    from services.schedule_utils import check_conflicts_bulk
+
     created = []
     conflicts_found = []
+
+    # Bulk check conflicts for all dates
+    all_conflicts = await check_conflicts_bulk(
+        data.employee_id, dates_to_schedule, data.start_time, data.end_time, drive_time
+    )
+
+    # Bulk check town-to-town travel warnings for all dates
+    all_town_warnings = await _check_town_to_town_bulk(
+        data.employee_id, dates_to_schedule, data.location_id
+    )
+
+    docs_to_insert = []
+
     for sched_date in dates_to_schedule:
-        conflicts = await check_conflicts(
-            data.employee_id, sched_date, data.start_time, data.end_time, drive_time
-        )
+        conflicts = all_conflicts.get(sched_date, [])
         if conflicts:
             conflicts_found.append({"date": sched_date, "conflicts": conflicts})
             continue
 
-        town_to_town, town_to_town_warning = await _check_town_to_town(
-            data.employee_id, sched_date, data.location_id
-        )
+        town_to_town, town_to_town_warning = all_town_warnings.get(sched_date, (False, None))
+
         doc = _build_schedule_doc(
             data,
             sched_date,
@@ -453,9 +505,13 @@ async def _handle_bulk_synchronous(
             employee,
             class_doc,
         )
-        await db.schedules.insert_one(doc)
-        doc.pop("_id", None)
-        created.append(doc)
+        docs_to_insert.append(doc)
+
+    if docs_to_insert:
+        await db.schedules.insert_many(docs_to_insert)
+        for doc in docs_to_insert:
+            doc.pop("_id", None)
+            created.append(doc)
 
     if created:
         count_label = f"{len(created)} classes" if len(created) > 1 else "class"
