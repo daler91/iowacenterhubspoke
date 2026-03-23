@@ -22,7 +22,7 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_token(user_id: str, email: str, name: str, role: str) -> str:
+def create_token(user_id: str, email: str, name: str, role: str = '') -> str:
     payload = {
         'user_id': user_id,
         'email': email,

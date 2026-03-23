@@ -104,9 +104,15 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                 className={cn(
                   "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
                   (() => {
-                    if (selectionMode) return "cursor-pointer";
-                    if (canEdit) return "cursor-grab";
-                    return "cursor-default";
+                    let cursorClass;
+                    if (selectionMode) {
+                      cursorClass = "cursor-pointer";
+                    } else if (canEdit) {
+                      cursorClass = "cursor-grab";
+                    } else {
+                      cursorClass = "cursor-default";
+                    }
+                    return cursorClass;
                   })(),
                   selected && "ring-2 ring-indigo-500 ring-offset-1"
                 )}
