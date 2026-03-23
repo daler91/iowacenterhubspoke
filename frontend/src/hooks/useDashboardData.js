@@ -1,5 +1,7 @@
 import useSWR from 'swr';
 import { useCallback } from 'react';
+import { useWebSocket } from './useWebSocket';
+
 import { locationsAPI, employeesAPI, classesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
 
 export function useDashboardData() {
@@ -10,6 +12,21 @@ export function useDashboardData() {
   const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR('stats', () => dashboardAPI.getStats().then(res => res.data));
   const { data: activities = [], mutate: mutateActivities } = useSWR('activities', () => activityAPI.getAll(50).then(res => res.data.items || res.data));
   const { data: workloadData = [], mutate: mutateWorkload } = useSWR('workload', () => workloadAPI.getAll().then(res => res.data.items || res.data));
+
+
+  const handleWebSocketMessage = useCallback((data) => {
+    if (data && data.event) {
+        if (data.event.startsWith("SCHEDULE")) {
+             console.log("WebSocket event triggering refresh:", data.event);
+             mutateSchedules();
+             mutateStats();
+             mutateActivities();
+             mutateWorkload();
+        }
+    }
+  }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
+
+  useWebSocket(handleWebSocketMessage);
 
   const handleClassRefresh = useCallback(() => {
     mutateClasses();

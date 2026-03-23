@@ -1,9 +1,10 @@
 import os
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, Request, WebSocket, WebSocketDisconnect, Query  # noqa: E501
+from core.websocket import manager
+from core.auth import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -21,7 +22,17 @@ from slowapi.errors import RateLimitExceeded
 from core.rate_limit import limiter
 
 from database import client, db, mongo_url, ROOT_DIR
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users
+from routers import (
+    auth,
+    locations,
+    employees,
+    classes,
+    schedules,
+    reports,
+    system,
+    analytics,
+    users,
+)
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED
 
 app = FastAPI()
@@ -29,42 +40,53 @@ app = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):  # noqa: E501
     detail = getattr(exc, "detail", str(exc))
     status_code = getattr(exc, "status_code", 500)
     return JSONResponse(
         status_code=status_code,
-        content={"detail": detail, "code": str(status_code), "errors": None}
+        content={"detail": detail, "code": str(status_code), "errors": None},
     )
 
+
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):  # noqa: E501
     return JSONResponse(
         status_code=422,
-        content={"detail": "Validation Error", "code": "422", "errors": exc.errors()}
+        content={"detail": "Validation Error", "code": "422", "errors": exc.errors()},  # noqa: E501
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=exc)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error", "code": "500", "errors": None}
+        content={"detail": "Internal Server Error", "code": "500", "errors": None},  # noqa: E501
     )
 
+
 from slowapi.middleware import SlowAPIMiddleware
+
 app.add_middleware(SlowAPIMiddleware)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:;"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:;"
+    )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
@@ -77,8 +99,11 @@ async def request_id_middleware(request: Request, call_next):
     finally:
         request_id_var.reset(token)
 
+
 cors_origins_str = os.getenv("CORS_ORIGINS", "")
-origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
+origins = [
+    origin.strip() for origin in cors_origins_str.split(",") if origin.strip()
+] or ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,23 +126,25 @@ api_router.include_router(users.router)
 
 # ========== SEED DATA ==========
 
+
 @app.on_event("startup")
 async def seed_data():
     try:
-        await client.admin.command('ping')
+        await client.admin.command("ping")
         logger.info(f"Connected to MongoDB at {mongo_url}")
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
         raise
-    
+
     # Migrate existing users: set status to approved if missing
     try:
         result = await db.users.update_many(
-            {"status": {"$exists": False}},
-            {"$set": {"status": USER_STATUS_APPROVED}}
+            {"status": {"$exists": False}}, {"$set": {"status": USER_STATUS_APPROVED}}  # noqa: E501
         )
         if result.modified_count > 0:
-            logger.info(f"Migrated {result.modified_count} existing users to approved status")
+            logger.info(
+                f"Migrated {result.modified_count} existing users to approved status"  # noqa: E501
+            )
     except Exception as e:
         logger.warning(f"Failed to migrate user statuses: {e}")
 
@@ -128,7 +155,7 @@ async def seed_data():
         if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
             await db.users.update_one(
                 {"email": admin_email},
-                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
+                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}},
             )
             logger.info(f"Promoted {admin_email} to admin role")
     except Exception as e:
@@ -137,7 +164,7 @@ async def seed_data():
     # Create required indexes
     try:
         await db.schedules.create_index([("employee_id", 1), ("date", 1)])
-        logger.info("Ensured index on schedules collection for employee_id and date")
+        logger.info("Ensured index on schedules collection for employee_id and date")  # noqa: E501
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
 
@@ -145,18 +172,83 @@ async def seed_data():
         count = await db.locations.count_documents({})
         if count == 0:
             default_locations = [
-                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
+                {
+                    "id": str(uuid.uuid4()),
+                    "city_name": "Oskaloosa",
+                    "drive_time_minutes": 75,
+                    "latitude": 41.2964,
+                    "longitude": -92.6443,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "city_name": "Grinnell",
+                    "drive_time_minutes": 60,
+                    "latitude": 41.7431,
+                    "longitude": -92.7224,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "city_name": "Fort Dodge",
+                    "drive_time_minutes": 105,
+                    "latitude": 42.4975,
+                    "longitude": -94.1680,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "city_name": "Carroll",
+                    "drive_time_minutes": 105,
+                    "latitude": 42.0664,
+                    "longitude": -94.8669,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "city_name": "Marshalltown",
+                    "drive_time_minutes": 60,
+                    "latitude": 42.0492,
+                    "longitude": -92.9080,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
             ]
             await db.locations.insert_many(default_locations)
             logger.info("Seeded default locations")
     except Exception as e:
         logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
+
 # ========== APP SETUP ==========
+
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+    if not token:
+        await websocket.close(code=1008, reason="Missing token")
+        return
+
+    try:
+        user = await get_current_user(token)
+        if not user:
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+    except Exception as e:
+        logger.error(f"WebSocket auth failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+
+    await manager.connect(websocket)
+    try:
+        while True:
+            # We don't currently expect clients to send messages,
+            # but we need to keep the connection open and receive ping/pongs
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 
 app.include_router(api_router)
 
@@ -164,9 +256,17 @@ app.include_router(api_router)
 _static_dir = ROOT_DIR / "static"
 # Serving built frontend assets
 if (_static_dir / "static").exists():
-    app.mount("/static", StaticFiles(directory=str(_static_dir / "static")), name="frontend-static")
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(_static_dir / "static")),
+        name="frontend-static",
+    )
 elif (_static_dir / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=str(_static_dir / "assets")), name="frontend-assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(_static_dir / "assets")),
+        name="frontend-assets",
+    )
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
@@ -174,6 +274,7 @@ elif (_static_dir / "assets").exists():
         if file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))
         return FileResponse(str(_static_dir / "index.html"))
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

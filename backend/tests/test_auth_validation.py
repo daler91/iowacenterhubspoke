@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from models.schemas import UserRegister
+from pydantic import ValidationError
 
 def test_user_register_password_min_length():
     # Valid registration data
