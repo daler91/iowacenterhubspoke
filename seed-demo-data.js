@@ -35,51 +35,219 @@ if (!MONGO_URL) {
 // ---------------------------------------------------------------------------
 
 const LOCATIONS = [
-  {
-    city_name: 'Ames',
-    drive_time_minutes: 35,
-    latitude: 42.0308,
-    longitude: -93.6319,
-  },
-  {
-    city_name: 'Boone',
-    drive_time_minutes: 45,
-    latitude: 42.0597,
-    longitude: -93.8802,
-  },
-  {
-    city_name: 'Waterloo',
-    drive_time_minutes: 90,
-    latitude: 42.4928,
-    longitude: -92.3426,
-  },
-  {
-    city_name: 'Cedar Rapids',
-    drive_time_minutes: 120,
-    latitude: 41.9779,
-    longitude: -91.6656,
-  },
-  {
-    city_name: 'Des Moines',
-    drive_time_minutes: 60,
-    latitude: 41.5868,
-    longitude: -93.625,
-  },
+  { city_name: 'Ames',         drive_time_minutes: 35,  latitude: 42.0308, longitude: -93.6319 },
+  { city_name: 'Boone',        drive_time_minutes: 45,  latitude: 42.0597, longitude: -93.8802 },
+  { city_name: 'Waterloo',     drive_time_minutes: 90,  latitude: 42.4928, longitude: -92.3426 },
+  { city_name: 'Cedar Rapids', drive_time_minutes: 120, latitude: 41.9779, longitude: -91.6656 },
+  { city_name: 'Des Moines',   drive_time_minutes: 60,  latitude: 41.5868, longitude: -93.6250 },
 ];
 
 const EMPLOYEES = [
-  { name: 'Sarah Johnson',    email: 'sarah.johnson@example.com',    phone: '515-555-0101', color: '#4F46E5' },
-  { name: 'Michael Chen',     email: 'michael.chen@example.com',     phone: '515-555-0102', color: '#0D9488' },
-  { name: 'Emily Rodriguez',  email: 'emily.rodriguez@example.com',  phone: '515-555-0103', color: '#DC2626' },
-  { name: 'James Wilson',     email: 'james.wilson@example.com',     phone: '515-555-0104', color: '#D97706' },
-  { name: 'Lisa Anderson',    email: 'lisa.anderson@example.com',    phone: '515-555-0105', color: '#7C3AED' },
+  { name: 'Sarah Johnson',   email: 'sarah.johnson@example.com',   phone: '515-555-0101', color: '#4F46E5' },
+  { name: 'Michael Chen',    email: 'michael.chen@example.com',    phone: '515-555-0102', color: '#0D9488' },
+  { name: 'Emily Rodriguez', email: 'emily.rodriguez@example.com', phone: '515-555-0103', color: '#DC2626' },
+  { name: 'James Wilson',    email: 'james.wilson@example.com',    phone: '515-555-0104', color: '#D97706' },
+  { name: 'Lisa Anderson',   email: 'lisa.anderson@example.com',   phone: '515-555-0105', color: '#7C3AED' },
 ];
 
-// Three realistic class-time windows (start_time, end_time)
-const TIME_SLOTS = [
-  { start_time: '09:00', end_time: '12:00' },
-  { start_time: '10:00', end_time: '13:00' },
-  { start_time: '11:00', end_time: '14:00' },
+// Variety of notes to cycle through
+const NOTES_POOL = [
+  'Initial assessment',
+  'Follow-up visit',
+  'Progress check',
+  'Final review',
+  'Quarterly evaluation',
+  'Skills workshop',
+  'Orientation session',
+  'Case review',
+  '',
+  '',
+  '',
+];
+
+// ---------------------------------------------------------------------------
+// Day plan: 22 days × 2–3 schedules = 57 schedules total
+//
+// Each entry: { dayOffset, slots: [{ empIdx, locIdx, startTime, endTime }] }
+//   empIdx  → index into EMPLOYEES array (0–4)
+//   locIdx  → index into LOCATIONS array (0–4)
+//             0=Ames, 1=Boone, 2=Waterloo, 3=Cedar Rapids, 4=Des Moines
+//
+// dayOffset < 0  → past  (status: completed or in_progress)
+// dayOffset > 0  → future (status: upcoming)
+// ---------------------------------------------------------------------------
+const DAY_PLANS = [
+  // --- Past days (completed) ---
+  {
+    dayOffset: -21,
+    slots: [
+      { empIdx: 0, locIdx: 0, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 1, locIdx: 1, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 2, locIdx: 4, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
+  {
+    dayOffset: -19,
+    slots: [
+      { empIdx: 3, locIdx: 2, startTime: '08:00', endTime: '10:30' },
+      { empIdx: 4, locIdx: 3, startTime: '09:00', endTime: '11:00' },
+    ],
+  },
+  {
+    dayOffset: -17,
+    slots: [
+      { empIdx: 0, locIdx: 1, startTime: '09:00', endTime: '12:00' },
+      { empIdx: 1, locIdx: 4, startTime: '10:00', endTime: '13:00' },
+      { empIdx: 2, locIdx: 0, startTime: '14:00', endTime: '16:00' },
+    ],
+  },
+  {
+    dayOffset: -15,
+    slots: [
+      { empIdx: 3, locIdx: 3, startTime: '08:30', endTime: '10:30' },
+      { empIdx: 4, locIdx: 2, startTime: '11:00', endTime: '13:00' },
+    ],
+  },
+  {
+    dayOffset: -14,
+    slots: [
+      { empIdx: 0, locIdx: 4, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 1, locIdx: 0, startTime: '13:00', endTime: '15:00' },
+      { empIdx: 2, locIdx: 1, startTime: '14:00', endTime: '16:30' },
+    ],
+  },
+  {
+    dayOffset: -12,
+    slots: [
+      { empIdx: 3, locIdx: 1, startTime: '09:00', endTime: '11:30' },
+      { empIdx: 4, locIdx: 4, startTime: '10:00', endTime: '12:00' },
+    ],
+  },
+  {
+    dayOffset: -10,
+    slots: [
+      { empIdx: 0, locIdx: 2, startTime: '08:00', endTime: '10:00' },
+      { empIdx: 1, locIdx: 3, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 2, locIdx: 4, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
+  {
+    dayOffset: -8,
+    slots: [
+      { empIdx: 3, locIdx: 0, startTime: '09:00', endTime: '12:00' },
+      { empIdx: 4, locIdx: 1, startTime: '10:00', endTime: '13:00' },
+    ],
+  },
+  {
+    dayOffset: -7,
+    slots: [
+      { empIdx: 0, locIdx: 3, startTime: '08:30', endTime: '10:30' },
+      { empIdx: 1, locIdx: 2, startTime: '09:00', endTime: '11:30' },
+      { empIdx: 2, locIdx: 0, startTime: '14:00', endTime: '16:00' },
+    ],
+  },
+  {
+    dayOffset: -5,
+    slots: [
+      { empIdx: 3, locIdx: 4, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 4, locIdx: 0, startTime: '13:00', endTime: '15:30' },
+    ],
+  },
+
+  // --- Recent days (in_progress) ---
+  {
+    dayOffset: -3,
+    slots: [
+      { empIdx: 0, locIdx: 1, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 1, locIdx: 4, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 2, locIdx: 3, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
+  {
+    dayOffset: -2,
+    slots: [
+      { empIdx: 3, locIdx: 2, startTime: '08:00', endTime: '10:30' },
+      { empIdx: 4, locIdx: 1, startTime: '11:00', endTime: '13:00' },
+    ],
+  },
+  {
+    dayOffset: -1,
+    slots: [
+      { empIdx: 0, locIdx: 0, startTime: '09:00', endTime: '12:00' },
+      { empIdx: 1, locIdx: 3, startTime: '10:00', endTime: '13:00' },
+      { empIdx: 2, locIdx: 2, startTime: '14:00', endTime: '16:30' },
+    ],
+  },
+
+  // --- Upcoming days ---
+  {
+    dayOffset: 1,
+    slots: [
+      { empIdx: 3, locIdx: 0, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 4, locIdx: 4, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 0, locIdx: 1, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
+  {
+    dayOffset: 2,
+    slots: [
+      { empIdx: 1, locIdx: 2, startTime: '08:30', endTime: '10:30' },
+      { empIdx: 2, locIdx: 3, startTime: '09:00', endTime: '11:30' },
+    ],
+  },
+  {
+    dayOffset: 4,
+    slots: [
+      { empIdx: 3, locIdx: 1, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 4, locIdx: 0, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 0, locIdx: 4, startTime: '14:00', endTime: '16:00' },
+    ],
+  },
+  {
+    dayOffset: 5,
+    slots: [
+      { empIdx: 1, locIdx: 4, startTime: '09:00', endTime: '12:00' },
+      { empIdx: 2, locIdx: 1, startTime: '13:00', endTime: '15:30' },
+    ],
+  },
+  {
+    dayOffset: 7,
+    slots: [
+      { empIdx: 3, locIdx: 3, startTime: '08:00', endTime: '10:00' },
+      { empIdx: 4, locIdx: 2, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 0, locIdx: 0, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
+  {
+    dayOffset: 9,
+    slots: [
+      { empIdx: 1, locIdx: 0, startTime: '09:00', endTime: '11:30' },
+      { empIdx: 2, locIdx: 4, startTime: '10:00', endTime: '13:00' },
+    ],
+  },
+  {
+    dayOffset: 11,
+    slots: [
+      { empIdx: 3, locIdx: 2, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 4, locIdx: 3, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 0, locIdx: 1, startTime: '14:00', endTime: '16:30' },
+    ],
+  },
+  {
+    dayOffset: 13,
+    slots: [
+      { empIdx: 1, locIdx: 3, startTime: '08:30', endTime: '10:30' },
+      { empIdx: 2, locIdx: 0, startTime: '11:00', endTime: '13:00' },
+    ],
+  },
+  {
+    dayOffset: 14,
+    slots: [
+      { empIdx: 3, locIdx: 4, startTime: '09:00', endTime: '11:00' },
+      { empIdx: 4, locIdx: 1, startTime: '10:00', endTime: '12:00' },
+      { empIdx: 0, locIdx: 2, startTime: '13:00', endTime: '15:00' },
+    ],
+  },
 ];
 
 // Rotating notes to add variety (applied every ~5 schedules)
@@ -125,6 +293,65 @@ function statusForOffset(offsetDays) {
  */
 function now() {
   return new Date().toISOString();
+}
+
+/**
+ * Build schedule documents for a single day.
+ * Detects town-to-town travel when an employee visits multiple locations.
+ */
+function buildDaySchedules(dateStr, slots, employeeDocs, locationDocs, noteOffset) {
+  const docs = [];
+
+  // Map each employee to all cities they visit today (for town-to-town detection)
+  const empLocMap = {};
+  for (const slot of slots) {
+    const empId = employeeDocs[slot.empIdx].id;
+    if (!empLocMap[empId]) empLocMap[empId] = [];
+    empLocMap[empId].push(locationDocs[slot.locIdx].city_name);
+  }
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const emp  = employeeDocs[slot.empIdx];
+    const loc  = locationDocs[slot.locIdx];
+
+    const empCities  = empLocMap[emp.id] || [];
+    const otherCities = empCities.filter((c) => c !== loc.city_name);
+    const townToTown = otherCities.length > 0;
+    const townToTownWarning = townToTown
+      ? `Town-to-Town Travel Detected: Verify drive time manually. Other locations: ${[...new Set(otherCities)].join(', ')}`
+      : null;
+
+    docs.push({
+      id: randomUUID(),
+      employee_id: emp.id,
+      location_id: loc.id,
+      date: dateStr,
+      start_time: slot.startTime,
+      end_time: slot.endTime,
+      drive_time_minutes: loc.drive_time_minutes,
+      town_to_town: townToTown,
+      town_to_town_warning: townToTownWarning,
+      travel_override_minutes: null,
+      notes: pickNote(noteOffset + i),
+      status: statusForDate(dateStr),
+      recurrence: null,
+      recurrence_end_mode: null,
+      recurrence_end_date: null,
+      recurrence_occurrences: null,
+      recurrence_rule: null,
+      location_name: loc.city_name,
+      employee_name: emp.name,
+      employee_color: emp.color,
+      class_id: null,
+      class_name: null,
+      class_color: null,
+      created_at: now(),
+      deleted_at: null,
+    });
+  }
+
+  return docs;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,6 +432,13 @@ async function seed() {
     const TOTAL_SCHEDULES = 65;
 
     const scheduleDocs = [];
+    let noteOffset = 0;
+
+    for (const plan of DAY_PLANS) {
+      const dateStr = offsetDate(plan.dayOffset);
+      const dayDocs = buildDaySchedules(dateStr, plan.slots, employeeDocs, locationDocs, noteOffset);
+      scheduleDocs.push(...dayDocs);
+      noteOffset += plan.slots.length;
 
     for (let i = 0; i < TOTAL_SCHEDULES; i++) {
       const dayOffset = START_OFFSET + i;
@@ -270,10 +504,22 @@ async function seed() {
     // -----------------------------------------------------------------------
     // Summary
     // -----------------------------------------------------------------------
+    const statusCounts = scheduleDocs.reduce((acc, s) => {
+      acc[s.status] = (acc[s.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const empCounts = scheduleDocs.reduce((acc, s) => {
+      acc[s.employee_name] = (acc[s.employee_name] || 0) + 1;
+      return acc;
+    }, {});
+
     console.log('\n✅ Seed complete!');
     console.log(`   ${locationDocs.length} locations`);
     console.log(`   ${employeeDocs.length} employees`);
-    console.log(`   ${scheduleDocs.length} schedules`);
+    console.log(`   ${scheduleDocs.length} schedules across ${DAY_PLANS.length} days`);
+    console.log('   Status breakdown:', statusCounts);
+    console.log('   Schedules per employee:', empCounts);
   } catch (err) {
     console.error('\n❌ Seed failed:', err.message || err);
     process.exitCode = 1;
