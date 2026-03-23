@@ -163,7 +163,7 @@ KanbanCard.propTypes = {
 import { useOutletContext } from 'react-router-dom';
 
 export default function KanbanBoard() {
-  const { schedules, employees, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload } = useOutletContext();
+  const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload } = useOutletContext();
 
   const {
     selectionMode,
@@ -319,6 +319,8 @@ export default function KanbanBoard() {
           onComplete={handleBulkComplete}
           onDeselectAll={deselectAll}
           employees={employees}
+          locations={locations}
+          classes={classes}
         />
       )}
     </div>

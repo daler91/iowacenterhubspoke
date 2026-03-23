@@ -72,6 +72,8 @@ from models.schemas import (
     BulkDeleteRequest,
     BulkStatusUpdateRequest,
     BulkReassignRequest,
+    BulkLocationUpdateRequest,
+    BulkClassUpdateRequest,
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired, AdminRequired
@@ -227,6 +229,46 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     ]
     warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
     return True, warning
+
+
+async def _check_town_to_town_bulk(employee_id: str, dates: list[str], location_id: str):
+    same_day_schedules = await db.schedules.find(
+        {
+            "employee_id": employee_id,
+            "date": {"$in": dates},
+            "location_id": {"$ne": location_id},
+            "deleted_at": None,
+        },
+        {"_id": 0},
+    ).to_list(10000)
+
+    from collections import defaultdict
+    schedules_by_date = defaultdict(list)
+    for s in same_day_schedules:
+        schedules_by_date[s["date"]].append(s)
+
+    location_ids = list({s["location_id"] for s in same_day_schedules})
+    if not location_ids:
+        return {}
+
+    other_locations = await db.locations.find(
+        {"id": {"$in": location_ids}}, {"_id": 0}
+    ).to_list(1000)
+    loc_map = {loc["id"]: loc for loc in other_locations}
+
+    results = {}
+    for date, scheds in schedules_by_date.items():
+        other_cities = list(set([
+            loc_map[s["location_id"]]["city_name"]
+            for s in scheds
+            if s["location_id"] in loc_map
+        ]))
+        if other_cities:
+            warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+            results[date] = (True, warning)
+
+    return results
+
 
 
 def _build_schedule_doc(
@@ -429,19 +471,31 @@ async def _handle_bulk_synchronous(
     class_doc: Optional[dict],
     user: SchedulerRequired,
 ):
+    from services.schedule_utils import check_conflicts_bulk
+
     created = []
     conflicts_found = []
+
+    # Bulk check conflicts for all dates
+    all_conflicts = await check_conflicts_bulk(
+        data.employee_id, dates_to_schedule, data.start_time, data.end_time, drive_time
+    )
+
+    # Bulk check town-to-town travel warnings for all dates
+    all_town_warnings = await _check_town_to_town_bulk(
+        data.employee_id, dates_to_schedule, data.location_id
+    )
+
+    docs_to_insert = []
+
     for sched_date in dates_to_schedule:
-        conflicts = await check_conflicts(
-            data.employee_id, sched_date, data.start_time, data.end_time, drive_time
-        )
+        conflicts = all_conflicts.get(sched_date, [])
         if conflicts:
             conflicts_found.append({"date": sched_date, "conflicts": conflicts})
             continue
 
-        town_to_town, town_to_town_warning = await _check_town_to_town(
-            data.employee_id, sched_date, data.location_id
-        )
+        town_to_town, town_to_town_warning = all_town_warnings.get(sched_date, (False, None))
+
         doc = _build_schedule_doc(
             data,
             sched_date,
@@ -453,9 +507,13 @@ async def _handle_bulk_synchronous(
             employee,
             class_doc,
         )
-        await db.schedules.insert_one(doc)
-        doc.pop("_id", None)
-        created.append(doc)
+        docs_to_insert.append(doc)
+
+    if docs_to_insert:
+        await db.schedules.insert_many(docs_to_insert)
+        for doc in docs_to_insert:
+            doc.pop("_id", None)
+            created.append(doc)
 
     if created:
         count_label = f"{len(created)} classes" if len(created) > 1 else "class"
@@ -1091,6 +1149,81 @@ async def bulk_reassign_schedules(data: BulkReassignRequest, user: SchedulerRequ
         await log_activity(
             action="schedule_bulk_reassigned",
             description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+@router.put(
+    "/bulk-location",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
+async def bulk_update_location(data: BulkLocationUpdateRequest, user: SchedulerRequired):
+    location = await db.locations.find_one(
+        {"id": data.location_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "location_id": data.location_id,
+                "location_name": location["city_name"],
+                "drive_time_minutes": location["drive_time_minutes"],
+                "travel_override_minutes": None,
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to location {location['city_name']}",
+            extra={"entity": {"updated_count": updated_count, "location_id": data.location_id}},
+        )
+        await log_activity(
+            action="schedule_bulk_location",
+            description=f"Bulk updated {updated_count} schedule(s) to {location['city_name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put(
+    "/bulk-class",
+    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
+)
+async def bulk_update_class(data: BulkClassUpdateRequest, user: SchedulerRequired):
+    class_doc = await db.classes.find_one(
+        {"id": data.class_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "class_id": data.class_id,
+                "class_name": class_doc["name"],
+                "class_color": class_doc.get("color", "#0F766E"),
+                "class_description": class_doc.get("description"),
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to class {class_doc['name']}",
+            extra={"entity": {"updated_count": updated_count, "class_id": data.class_id}},
+        )
+        await log_activity(
+            action="schedule_bulk_class",
+            description=f"Bulk updated {updated_count} schedule(s) to {class_doc['name']}",
             entity_type="schedule_batch",
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),

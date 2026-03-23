@@ -27,6 +27,7 @@ export default function CalendarView() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const {
     locations,
+    classes,
     employees,
     schedules,
     stats: rawStats,
@@ -342,6 +343,8 @@ export default function CalendarView() {
           onComplete={handleBulkComplete}
           onDeselectAll={deselectAll}
           employees={employees}
+          locations={locations}
+          classes={classes}
         />
       )}
 

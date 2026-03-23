@@ -81,6 +81,8 @@ export const schedulesAPI = {
   bulkDelete: (ids) => api.post('/schedules/bulk-delete', { ids }),
   bulkUpdateStatus: (ids, status) => api.put('/schedules/bulk-status', { ids, status }),
   bulkReassign: (ids, employee_id) => api.put('/schedules/bulk-reassign', { ids, employee_id }),
+  bulkUpdateLocation: (ids, location_id) => api.put('/schedules/bulk-location', { ids, location_id }),
+  bulkUpdateClass: (ids, class_id) => api.put('/schedules/bulk-class', { ids, class_id }),
 };
 
 // System Config
