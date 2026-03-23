@@ -25,7 +25,8 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   const selected = selectionMode && isSelected?.(schedule.id);
 
   return (
-    <div
+    <button
+      type="button"
       data-testid={`kanban-card-${schedule.id}`}
       draggable={!selectionMode}
       onDragStart={(e) => {
@@ -42,8 +43,6 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           onEdit?.(schedule);
         }
       }}
-      role="button"
-      tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -135,7 +134,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           </div>
         </div>
       )}
-    </div>
+    </button>
   );
 }
 

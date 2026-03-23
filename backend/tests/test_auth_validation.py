@@ -2,15 +2,17 @@ import pytest
 from pydantic import ValidationError
 from models.schemas import UserRegister
 
+_VALID_PASSWORD = "dummy_password_123"  # noqa: S105 – test-only placeholder
+
 def test_user_register_password_min_length():
     # Valid registration data
     valid_data = {
         "name": "John Doe",
         "email": "john@example.com",
-        "password": "password123"
+        "password": _VALID_PASSWORD
     }
     user = UserRegister(**valid_data)
-    assert user.password == "dummy_password_123"
+    assert user.password == _VALID_PASSWORD
 
     # Invalid password (too short)
     invalid_data = {

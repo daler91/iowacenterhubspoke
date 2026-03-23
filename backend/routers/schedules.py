@@ -913,7 +913,10 @@ async def export_schedules(
     )
 
 
-@router.post("/import/preview")
+@router.post(
+    "/import/preview",
+    responses={400: {"model": ErrorResponse, "description": "Invalid CSV file or missing required columns"}},
+)
 async def import_schedules_preview(
     current_user: AdminRequired,
     file: UploadFile = File(...)

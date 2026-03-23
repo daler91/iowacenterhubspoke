@@ -278,11 +278,15 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               className={confirmAction?.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : ''}
             >
               {(() => {
-                if (loading) return 'Processing...';
-                if (confirmAction?.type === 'delete') return 'Delete';
-                if (confirmAction?.type === 'location') return 'Update Location';
-                if (confirmAction?.type === 'class') return 'Update Class';
-                return 'Reassign';
+                let buttonLabel;
+                if (loading) {
+                  buttonLabel = 'Processing...';
+                } else if (confirmAction?.type === 'delete') {
+                  buttonLabel = 'Delete';
+                } else {
+                  buttonLabel = 'Reassign';
+                }
+                return buttonLabel;
               })()}
             </AlertDialogAction>
           </AlertDialogFooter>
