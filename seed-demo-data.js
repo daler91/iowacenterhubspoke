@@ -3,8 +3,8 @@
  * seed-demo-data.js
  *
  * Populates the Iowa Center Hub Spoke scheduling database with realistic
- * demo data: 5 Iowa locations, 5 employees, and 15 schedules spread across
- * the next 15 days.
+ * demo data: 5 Iowa locations, 5 employees, and 65 schedules spread across
+ * approximately 65 days (past, present, and future).
  *
  * Usage:
  *   MONGO_URL=mongodb://... node seed-demo-data.js
@@ -82,17 +82,42 @@ const TIME_SLOTS = [
   { start_time: '11:00', end_time: '14:00' },
 ];
 
+// Rotating notes to add variety (applied every ~5 schedules)
+const NOTES_POOL = [
+  'Follow-up visit',
+  'Initial assessment',
+  'Progress check',
+  'Quarterly review',
+  'New client orientation',
+  '',
+  '',
+  '',
+];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Returns a YYYY-MM-DD string for today + offsetDays.
+ * Negative values produce past dates; 0 is today.
  */
-function futureDate(offsetDays) {
+function dateOffset(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Derives a schedule status from its day offset relative to today.
+ *   past (< 0)          → 'completed'
+ *   today or tomorrow   → 'in_progress'
+ *   future (> 1)        → 'upcoming'
+ */
+function statusForOffset(offsetDays) {
+  if (offsetDays < 0) return 'completed';
+  if (offsetDays <= 1) return 'in_progress';
+  return 'upcoming';
 }
 
 /**
@@ -167,25 +192,38 @@ async function seed() {
     );
 
     // -----------------------------------------------------------------------
-    // Insert 15 schedules spread across the next 15 days
+    // Insert 65 schedules spread across ~65 days
+    // (roughly 15 past days, today/tomorrow, and ~48 future days)
     // -----------------------------------------------------------------------
     console.log('\nCreating schedules…');
 
-    // Build a deterministic but varied assignment pattern:
-    //   day 1  → employee 0, location 0, slot 0
-    //   day 2  → employee 1, location 1, slot 1
-    //   …cycling through employees, locations, and time slots
+    // Day offsets: start 15 days in the past, run through day +49.
+    // That gives 65 entries: offsets -15 … -1, 0, 1, … 49.
+    // Cycles deterministically through employees, locations, time slots,
+    // and notes to produce a varied but reproducible dataset.
+    const START_OFFSET = -15;
+    const TOTAL_SCHEDULES = 65;
+
     const scheduleDocs = [];
 
-    for (let dayOffset = 1; dayOffset <= 15; dayOffset++) {
-      const empIdx  = (dayOffset - 1) % employeeDocs.length;
-      const locIdx  = (dayOffset - 1) % locationDocs.length;
-      const slotIdx = (dayOffset - 1) % TIME_SLOTS.length;
+    for (let i = 0; i < TOTAL_SCHEDULES; i++) {
+      const dayOffset = START_OFFSET + i;
+
+      const empIdx  = i % employeeDocs.length;
+      const locIdx  = i % locationDocs.length;
+      const slotIdx = i % TIME_SLOTS.length;
+      const noteIdx = i % NOTES_POOL.length;
 
       const employee = employeeDocs[empIdx];
       const location = locationDocs[locIdx];
       const slot     = TIME_SLOTS[slotIdx];
-      const date     = futureDate(dayOffset);
+      const date     = dateOffset(dayOffset);
+      const status   = statusForOffset(dayOffset);
+      const notes    = NOTES_POOL[noteIdx];
+
+      // Mark town_to_town for every 7th schedule to simulate consecutive
+      // same-day multi-location trips.
+      const town_to_town = i % 7 === 6;
 
       const doc = {
         id: randomUUID(),
@@ -195,11 +233,11 @@ async function seed() {
         start_time: slot.start_time,
         end_time: slot.end_time,
         drive_time_minutes: location.drive_time_minutes,
-        town_to_town: false,
+        town_to_town,
         town_to_town_warning: null,
         travel_override_minutes: null,
-        notes: '',
-        status: 'upcoming',
+        notes,
+        status,
         recurrence: null,
         recurrence_end_mode: null,
         recurrence_end_date: null,
@@ -216,9 +254,14 @@ async function seed() {
       };
 
       scheduleDocs.push(doc);
+
+      const offsetLabel = dayOffset >= 0
+        ? `+${String(dayOffset).padStart(2, '0')}`
+        : `-${String(Math.abs(dayOffset)).padStart(2, '0')}`;
       console.log(
-        `  ✓ Schedule day +${String(dayOffset).padStart(2, '0')} (${date}): ` +
-        `${employee.name} → ${location.city_name} ${slot.start_time}–${slot.end_time}`
+        `  ✓ Schedule day ${offsetLabel} (${date}): ` +
+        `${employee.name} → ${location.city_name} ${slot.start_time}–${slot.end_time}` +
+        ` [${status}]${town_to_town ? ' [town-to-town]' : ''}${notes ? ` "${notes}"` : ''}`
       );
     }
 
