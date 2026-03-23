@@ -72,6 +72,8 @@ from models.schemas import (
     BulkDeleteRequest,
     BulkStatusUpdateRequest,
     BulkReassignRequest,
+    BulkLocationUpdateRequest,
+    BulkClassUpdateRequest,
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired, AdminRequired
@@ -1088,6 +1090,81 @@ async def bulk_reassign_schedules(data: BulkReassignRequest, user: SchedulerRequ
         await log_activity(
             action="schedule_bulk_reassigned",
             description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+@router.put(
+    "/bulk-location",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
+async def bulk_update_location(data: BulkLocationUpdateRequest, user: SchedulerRequired):
+    location = await db.locations.find_one(
+        {"id": data.location_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "location_id": data.location_id,
+                "location_name": location["city_name"],
+                "drive_time_minutes": location["drive_time_minutes"],
+                "travel_override_minutes": None,
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to location {location['city_name']}",
+            extra={"entity": {"updated_count": updated_count, "location_id": data.location_id}},
+        )
+        await log_activity(
+            action="schedule_bulk_location",
+            description=f"Bulk updated {updated_count} schedule(s) to {location['city_name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put(
+    "/bulk-class",
+    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
+)
+async def bulk_update_class(data: BulkClassUpdateRequest, user: SchedulerRequired):
+    class_doc = await db.classes.find_one(
+        {"id": data.class_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "class_id": data.class_id,
+                "class_name": class_doc["name"],
+                "class_color": class_doc.get("color", "#0F766E"),
+                "class_description": class_doc.get("description"),
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to class {class_doc['name']}",
+            extra={"entity": {"updated_count": updated_count, "class_id": data.class_id}},
+        )
+        await log_activity(
+            action="schedule_bulk_class",
+            description=f"Bulk updated {updated_count} schedule(s) to {class_doc['name']}",
             entity_type="schedule_batch",
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
