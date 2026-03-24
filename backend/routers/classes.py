@@ -106,12 +106,16 @@ async def delete_class(class_id: str, user: AdminRequired):
     return {"message": "Class deleted"}
 
 @router.get("/{class_id}/stats", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
-async def get_class_stats(class_id: str, user: CurrentUser):
+async def get_class_stats(class_id: str, user: CurrentUser, start_date: Optional[str] = None, end_date: Optional[str] = None):
     class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
     all_schedules = await db.schedules.find({"class_id": class_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    if start_date:
+        all_schedules = [s for s in all_schedules if s.get('date', '') >= start_date]
+    if end_date:
+        all_schedules = [s for s in all_schedules if s.get('date', '') <= end_date]
     total_schedules = len(all_schedules)
     total_drive_minutes = 0
     total_class_minutes = 0
