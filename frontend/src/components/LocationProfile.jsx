@@ -4,13 +4,15 @@ import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
   CheckCircle2, CalendarDays, Users, Filter
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
+
+const PIE_COLORS = ['#4F46E5', '#0D9488', '#F97316', '#DC2626', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
 export default function LocationProfile({ locationId, onBack }) {
   const [data, setData] = useState(null);
@@ -203,13 +205,15 @@ export default function LocationProfile({ locationId, onBack }) {
           </h3>
           {class_breakdown?.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={class_breakdown} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#64748b' }} width={90} />
+              <PieChart>
+                <Pie data={class_breakdown} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  {class_breakdown.map((entry, index) => (
+                    <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
                 <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                <Bar dataKey="count" fill="#4F46E5" radius={[0, 4, 4, 0]} />
-              </BarChart>
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+              </PieChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">
