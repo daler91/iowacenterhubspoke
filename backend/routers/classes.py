@@ -105,6 +105,58 @@ async def delete_class(class_id: str, user: AdminRequired):
     await log_activity("class_deleted", f"Class type '{class_doc['name']}' marked as deleted", "class", class_id, user.get('name', 'System'))
     return {"message": "Class deleted"}
 
+@router.get("/{class_id}/stats", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+async def get_class_stats(class_id: str, user: CurrentUser):
+    class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    all_schedules = await db.schedules.find({"class_id": class_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    total_schedules = len(all_schedules)
+    total_drive_minutes = 0
+    total_class_minutes = 0
+    completed = 0
+    upcoming = 0
+    in_progress = 0
+    emp_counts = {}
+    loc_counts = {}
+
+    for s in all_schedules:
+        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
+        try:
+            sh, sm = s['start_time'].split(':')
+            eh, em = s['end_time'].split(':')
+            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+        except (ValueError, KeyError):
+            pass
+
+        status = s.get('status', 'upcoming')
+        if status == 'completed':
+            completed += 1
+        elif status == 'upcoming':
+            upcoming += 1
+        elif status == 'in_progress':
+            in_progress += 1
+
+        emp_name = s.get('employee_name', 'Unknown')
+        emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
+
+        loc_name = s.get('location_name', 'Unknown')
+        loc_counts[loc_name] = loc_counts.get(loc_name, 0) + 1
+
+    return {
+        "class_info": class_doc,
+        "total_schedules": total_schedules,
+        "total_drive_minutes": total_drive_minutes,
+        "total_class_minutes": total_class_minutes,
+        "completed": completed,
+        "upcoming": upcoming,
+        "in_progress": in_progress,
+        "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
+        "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
+        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+    }
+
 @router.post("/{class_id}/restore", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def restore_class(class_id: str, user: AdminRequired):
     result = await db.classes.update_one(

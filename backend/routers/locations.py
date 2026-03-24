@@ -77,6 +77,58 @@ async def delete_location(location_id: str, user: AdminRequired):
     await log_activity("location_deleted", f"Location '{location_id}' marked as deleted", "location", location_id, user.get('name', 'System'))
     return {"message": "Location deleted"}
 
+@router.get("/{location_id}/stats", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+async def get_location_stats(location_id: str, user: CurrentUser):
+    location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+
+    all_schedules = await db.schedules.find({"location_id": location_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    total_schedules = len(all_schedules)
+    total_drive_minutes = 0
+    total_class_minutes = 0
+    completed = 0
+    upcoming = 0
+    in_progress = 0
+    emp_counts = {}
+    class_counts = {}
+
+    for s in all_schedules:
+        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
+        try:
+            sh, sm = s['start_time'].split(':')
+            eh, em = s['end_time'].split(':')
+            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
+        except (ValueError, KeyError):
+            pass
+
+        status = s.get('status', 'upcoming')
+        if status == 'completed':
+            completed += 1
+        elif status == 'upcoming':
+            upcoming += 1
+        elif status == 'in_progress':
+            in_progress += 1
+
+        emp_name = s.get('employee_name', 'Unknown')
+        emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
+
+        class_name = s.get('class_name', 'Unknown')
+        class_counts[class_name] = class_counts.get(class_name, 0) + 1
+
+    return {
+        "location": location,
+        "total_schedules": total_schedules,
+        "total_drive_minutes": total_drive_minutes,
+        "total_class_minutes": total_class_minutes,
+        "completed": completed,
+        "upcoming": upcoming,
+        "in_progress": in_progress,
+        "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
+        "class_breakdown": [{"name": k, "count": v} for k, v in class_counts.items()],
+        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+    }
+
 @router.post("/{location_id}/restore", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def restore_location(location_id: str, user: AdminRequired):
     result = await db.locations.update_one(

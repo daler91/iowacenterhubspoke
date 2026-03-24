@@ -3,12 +3,13 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Car, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 import { useOutletContext } from 'react-router-dom';
+import LocationProfile from './LocationProfile';
 
 export default function LocationManager() {
   const { user } = useAuth();
@@ -18,6 +19,8 @@ export default function LocationManager() {
     fetchLocations();
     fetchActivities();
   };
+  const [selectedLocationId, setSelectedLocationId] = useState(null);
+  const onViewProfile = (id) => setSelectedLocationId(id);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
@@ -85,6 +88,10 @@ export default function LocationManager() {
   if (loading) saveLabel = 'Saving...';
   else if (editing) saveLabel = 'Update Location';
 
+  if (selectedLocationId) {
+    return <LocationProfile locationId={selectedLocationId} onBack={() => setSelectedLocationId(null)} />;
+  }
+
   return (
     <div className="space-y-6 animate-slide-in" data-testid="location-manager">
       {/* Header */}
@@ -144,6 +151,15 @@ export default function LocationManager() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`view-location-${loc.id}`}
+                onClick={() => onViewProfile(loc.id)}
+                className="text-slate-400 hover:text-teal-600"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
               {isAdmin && (
                 <>
                   <Button
