@@ -50,6 +50,25 @@ def test_calculate_class_minutes():
     assert calculate_class_minutes("11:00", "10:00") == -60
 
 def test_add_months():
+    # Negative months (subtraction)
+    assert add_months(date(2024, 2, 1), -1) == date(2024, 1, 1)
+
+    # Negative months crossing year boundary
+    assert add_months(date(2024, 1, 1), -1) == date(2023, 12, 1)
+
+    # Negative multiple years
+    assert add_months(date(2024, 1, 1), -24) == date(2022, 1, 1)
+
+    # Negative months from long month to short month
+    assert add_months(date(2024, 3, 31), -1) == date(2024, 2, 29)
+    assert add_months(date(2023, 3, 31), -1) == date(2023, 2, 28)
+
+    # Negative months from long month to short month crossing year boundary
+    assert add_months(date(2024, 3, 31), -13) == date(2023, 2, 28)
+
+    # Zero months
+    assert add_months(date(2024, 2, 15), 0) == date(2024, 2, 15)
+
     # Regular case
     assert add_months(date(2024, 1, 1), 1) == date(2024, 2, 1)
     # Month end adjustment (2023 is not a leap year)
