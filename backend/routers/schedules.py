@@ -7,7 +7,10 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 
 import re as python_re
 
-def _validate_import_row(row_clean, date_regex, time_regex, emp_by_email, loc_by_name, class_by_name):
+
+def _validate_import_row(
+    row_clean, date_regex, time_regex, emp_by_email, loc_by_name, class_by_name
+):
     row_errors = []
 
     date = row_clean.get("date", "")
@@ -56,7 +59,7 @@ def _validate_import_row(row_clean, date_regex, time_regex, emp_by_email, loc_by
             "date": date,
             "start_time": start_time,
             "end_time": end_time,
-            "notes": notes
+            "notes": notes,
         }
     }
 
@@ -108,18 +111,25 @@ CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 
-def _enqueue_outlook_event(employee: dict, location: dict, class_doc: dict | None, doc: dict):
+def _enqueue_outlook_event(
+    employee: dict, location: dict, class_doc: dict | None, doc: dict
+):
     """Fire-and-forget: enqueue Outlook event creation if configured."""
     from core.outlook_config import OUTLOOK_ENABLED
+
     if not OUTLOOK_ENABLED or not employee.get("email"):
         return
     import asyncio
-    asyncio.ensure_future(_enqueue_outlook_event_async(employee, location, class_doc, doc))
+
+    asyncio.ensure_future(
+        _enqueue_outlook_event_async(employee, location, class_doc, doc)
+    )
 
 
 async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
     try:
         from core.queue import get_redis_pool
+
         pool = await get_redis_pool()
         if pool:
             subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
@@ -141,14 +151,18 @@ async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
 async def _enqueue_outlook_delete(schedule: dict):
     """Fire-and-forget: enqueue Outlook event deletion if applicable."""
     from core.outlook_config import OUTLOOK_ENABLED
+
     outlook_event_id = schedule.get("outlook_event_id")
     if not OUTLOOK_ENABLED or not outlook_event_id:
         return
-    employee = await db.employees.find_one({"id": schedule["employee_id"]}, {"_id": 0})
+    employee = await db.employees.find_one(
+        {"id": schedule["employee_id"]}, {"_id": 0}
+    )
     if not employee or not employee.get("email"):
         return
     try:
         from core.queue import get_redis_pool
+
         pool = await get_redis_pool()
         if pool:
             await pool.enqueue_job(
@@ -190,9 +204,213 @@ async def get_schedules(
     return {"items": schedules, "total": total, "skip": skip, "limit": limit}
 
 
+@router.post("/bulk-delete")
+async def bulk_delete_schedules(
+    data: BulkDeleteRequest, user: SchedulerRequired
+):
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    deleted_count = result.modified_count
+    if deleted_count > 0:
+        logger.info(
+            f"Bulk deleted {deleted_count} schedules",
+            extra={"entity": {"deleted_count": deleted_count}},
+        )
+        await log_activity(
+            action="schedule_bulk_deleted",
+            description=f"Bulk deleted {deleted_count} schedule(s)",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"deleted_count": deleted_count}
+
+
+@router.put(
+    "/bulk-status",
+    responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
+)
+async def bulk_update_status(
+    data: BulkStatusUpdateRequest, user: SchedulerRequired
+):
+    if data.status not in [
+        STATUS_UPCOMING,
+        STATUS_IN_PROGRESS,
+        STATUS_COMPLETED,
+    ]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"$set": {"status": data.status}},
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk status update: {updated_count} schedules to {data.status}",
+            extra={
+                "entity": {
+                    "updated_count": updated_count,
+                    "status": data.status,
+                }
+            },
+        )
+        await log_activity(
+            action="schedule_bulk_status",
+            description=f"Bulk updated {updated_count} schedule(s) to {data.status.replace('_', ' ')}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put(
+    "/bulk-reassign",
+    responses={
+        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}
+    },
+)
+async def bulk_reassign_schedules(
+    data: BulkReassignRequest, user: SchedulerRequired
+):
+    employee = await db.employees.find_one(
+        {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not employee:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "employee_id": data.employee_id,
+                "employee_name": employee["name"],
+                "employee_color": employee.get(
+                    "color", DEFAULT_EMPLOYEE_COLOR
+                ),
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk reassigned {updated_count} schedules to {employee['name']}",
+            extra={
+                "entity": {
+                    "updated_count": updated_count,
+                    "employee_id": data.employee_id,
+                }
+            },
+        )
+        await log_activity(
+            action="schedule_bulk_reassigned",
+            description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put(
+    "/bulk-location",
+    responses={
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
+    },
+)
+async def bulk_update_location(
+    data: BulkLocationUpdateRequest, user: SchedulerRequired
+):
+    location = await db.locations.find_one(
+        {"id": data.location_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "location_id": data.location_id,
+                "location_name": location["city_name"],
+                "drive_time_minutes": location["drive_time_minutes"],
+                "travel_override_minutes": None,
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to location {location['city_name']}",
+            extra={
+                "entity": {
+                    "updated_count": updated_count,
+                    "location_id": data.location_id,
+                }
+            },
+        )
+        await log_activity(
+            action="schedule_bulk_location",
+            description=f"Bulk updated {updated_count} schedule(s) to {location['city_name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
+@router.put(
+    "/bulk-class",
+    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
+)
+async def bulk_update_class(
+    data: BulkClassUpdateRequest, user: SchedulerRequired
+):
+    class_doc = await db.classes.find_one(
+        {"id": data.class_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+
+    result = await db.schedules.update_many(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {
+            "$set": {
+                "class_id": data.class_id,
+                "class_name": class_doc["name"],
+                "class_color": class_doc.get("color", "#0F766E"),
+                "class_description": class_doc.get("description"),
+            }
+        },
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(
+            f"Bulk updated {updated_count} schedules to class {class_doc['name']}",
+            extra={
+                "entity": {
+                    "updated_count": updated_count,
+                    "class_id": data.class_id,
+                }
+            },
+        )
+        await log_activity(
+            action="schedule_bulk_class",
+            description=f"Bulk updated {updated_count} schedule(s) to {class_doc['name']}",
+            entity_type="schedule_batch",
+            entity_id=str(uuid.uuid4()),
+            user_name=user.get("name", "System"),
+        )
+    return {"updated_count": updated_count}
+
+
 @router.get(
     "/{schedule_id}",
-    responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+    },
 )
 async def get_schedule(schedule_id: str, user: CurrentUser):
     schedule = await db.schedules.find_one(
@@ -231,7 +449,9 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     return True, warning
 
 
-async def _check_town_to_town_bulk(employee_id: str, dates: list[str], location_id: str):
+async def _check_town_to_town_bulk(
+    employee_id: str, dates: list[str], location_id: str
+):
     same_day_schedules = await db.schedules.find(
         {
             "employee_id": employee_id,
@@ -243,6 +463,7 @@ async def _check_town_to_town_bulk(employee_id: str, dates: list[str], location_
     ).to_list(10000)
 
     from collections import defaultdict
+
     schedules_by_date = defaultdict(list)
     for s in same_day_schedules:
         schedules_by_date[s["date"]].append(s)
@@ -258,17 +479,20 @@ async def _check_town_to_town_bulk(employee_id: str, dates: list[str], location_
 
     results = {}
     for date, scheds in schedules_by_date.items():
-        other_cities = list(set([
-            loc_map[s["location_id"]]["city_name"]
-            for s in scheds
-            if s["location_id"] in loc_map
-        ]))
+        other_cities = list(
+            set(
+                [
+                    loc_map[s["location_id"]]["city_name"]
+                    for s in scheds
+                    if s["location_id"] in loc_map
+                ]
+            )
+        )
         if other_cities:
             warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
             results[date] = (True, warning)
 
     return results
-
 
 
 def _build_schedule_doc(
@@ -299,7 +523,9 @@ def _build_schedule_doc(
         "recurrence_end_mode": data.recurrence_end_mode,
         "recurrence_end_date": data.recurrence_end_date,
         "recurrence_occurrences": data.recurrence_occurrences,
-        "recurrence_rule": recurrence_rule.model_dump() if recurrence_rule else None,
+        "recurrence_rule": (
+            recurrence_rule.model_dump() if recurrence_rule else None
+        ),
         "location_name": location["city_name"],
         "employee_name": employee["name"],
         "employee_color": employee.get("color", "#4F46E5"),
@@ -344,12 +570,19 @@ async def _handle_single_schedule(
     user: SchedulerRequired,
 ):
     conflicts = await check_conflicts(
-        data.employee_id, date_to_schedule, data.start_time, data.end_time, drive_time
+        data.employee_id,
+        date_to_schedule,
+        data.start_time,
+        data.end_time,
+        drive_time,
     )
     if conflicts:
         raise HTTPException(
             status_code=409,
-            detail={"message": "Schedule conflict detected", "conflicts": conflicts},
+            detail={
+                "message": "Schedule conflict detected",
+                "conflicts": conflicts,
+            },
         )
 
     # Check Outlook calendar conflicts (blocking with override)
@@ -478,7 +711,11 @@ async def _handle_bulk_synchronous(
 
     # Bulk check conflicts for all dates
     all_conflicts = await check_conflicts_bulk(
-        data.employee_id, dates_to_schedule, data.start_time, data.end_time, drive_time
+        data.employee_id,
+        dates_to_schedule,
+        data.start_time,
+        data.end_time,
+        drive_time,
     )
 
     # Bulk check town-to-town travel warnings for all dates
@@ -491,10 +728,14 @@ async def _handle_bulk_synchronous(
     for sched_date in dates_to_schedule:
         conflicts = all_conflicts.get(sched_date, [])
         if conflicts:
-            conflicts_found.append({"date": sched_date, "conflicts": conflicts})
+            conflicts_found.append(
+                {"date": sched_date, "conflicts": conflicts}
+            )
             continue
 
-        town_to_town, town_to_town_warning = all_town_warnings.get(sched_date, (False, None))
+        town_to_town, town_to_town_warning = all_town_warnings.get(
+            sched_date, (False, None)
+        )
 
         doc = _build_schedule_doc(
             data,
@@ -516,7 +757,9 @@ async def _handle_bulk_synchronous(
             created.append(doc)
 
     if created:
-        count_label = f"{len(created)} classes" if len(created) > 1 else "class"
+        count_label = (
+            f"{len(created)} classes" if len(created) > 1 else "class"
+        )
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
             action="schedule_created",
@@ -536,8 +779,14 @@ async def _handle_bulk_synchronous(
 @router.post(
     "",
     responses={
-        404: {"model": ErrorResponse, "description": "Location or Employee not found"},
-        409: {"model": ErrorResponse, "description": "Schedule conflict detected"},
+        404: {
+            "model": ErrorResponse,
+            "description": "Location or Employee not found",
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "Schedule conflict detected",
+        },
     },
 )
 async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
@@ -602,7 +851,9 @@ async def _get_employee_update(employee_id: str, update_data: dict):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     update_data["employee_name"] = employee["name"]
-    update_data["employee_color"] = employee.get("color", DEFAULT_EMPLOYEE_COLOR)
+    update_data["employee_color"] = employee.get(
+        "color", DEFAULT_EMPLOYEE_COLOR
+    )
 
 
 async def _get_class_update(class_id: str, update_data: dict):
@@ -620,7 +871,9 @@ async def _get_class_update(class_id: str, update_data: dict):
 
 async def _handle_travel_override(schedule_id: str, update_data: dict):
     if update_data["travel_override_minutes"]:
-        update_data["drive_time_minutes"] = update_data["travel_override_minutes"]
+        update_data["drive_time_minutes"] = update_data[
+            "travel_override_minutes"
+        ]
         return
 
     # Override cleared — recalculate from location
@@ -665,12 +918,20 @@ async def update_schedule(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-    logger.info(f"Schedule updated: {schedule_id}", extra={"entity": {"schedule_id": schedule_id}})
-    return await db.schedules.find_one({"id": schedule_id, "deleted_at": None}, {"_id": 0})
+    logger.info(
+        f"Schedule updated: {schedule_id}",
+        extra={"entity": {"schedule_id": schedule_id}},
+    )
+    return await db.schedules.find_one(
+        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
+    )
+
 
 @router.delete(
     "/{schedule_id}",
-    responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+    },
 )
 async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     schedule = await db.schedules.find_one(
@@ -703,7 +964,9 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
 
 @router.post(
     "/{schedule_id}/restore",
-    responses={404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
+    },
 )
 async def restore_schedule(schedule_id: str, user: SchedulerRequired):
     result = await db.schedules.update_one(
@@ -735,10 +998,15 @@ async def restore_schedule(schedule_id: str, user: SchedulerRequired):
 async def update_schedule_status(
     schedule_id: str, data: StatusUpdate, user: SchedulerRequired
 ):
-    if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
+    if data.status not in [
+        STATUS_UPCOMING,
+        STATUS_IN_PROGRESS,
+        STATUS_COMPLETED,
+    ]:
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None}, {"$set": {"status": data.status}}
+        {"id": schedule_id, "deleted_at": None},
+        {"$set": {"status": data.status}},
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
@@ -818,15 +1086,27 @@ async def relocate_schedule(
 
 @router.post(
     "/check-conflicts",
-    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
+    },
 )
 async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
-    location = await db.locations.find_one({"id": data.location_id}, {"_id": 0})
+    location = await db.locations.find_one(
+        {"id": data.location_id}, {"_id": 0}
+    )
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    drive_time = data.travel_override_minutes if data.travel_override_minutes else location['drive_time_minutes']
-    conflicts = await check_conflicts(data.employee_id, data.date, data.start_time, data.end_time, drive_time)
-    outlook_conflicts = await check_outlook_conflicts(data.employee_id, data.date, data.start_time, data.end_time)
+    drive_time = (
+        data.travel_override_minutes
+        if data.travel_override_minutes
+        else location["drive_time_minutes"]
+    )
+    conflicts = await check_conflicts(
+        data.employee_id, data.date, data.start_time, data.end_time, drive_time
+    )
+    outlook_conflicts = await check_outlook_conflicts(
+        data.employee_id, data.date, data.start_time, data.end_time
+    )
     return {
         "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0,
         "conflicts": conflicts,
@@ -841,7 +1121,9 @@ async def export_schedules(
     end_date: Optional[str] = None,
     employee_id: Optional[str] = None,
     location_id: Optional[str] = None,
-    fields: Optional[str] = "date,start_time,end_time,employee_name,employee_email,location_name,class_name,status,notes",
+    fields: Optional[
+        str
+    ] = "date,start_time,end_time,employee_name,employee_email,location_name,class_name,status,notes",
 ):
     query = {"deleted_at": None}
 
@@ -865,9 +1147,15 @@ async def export_schedules(
     loc_ids = list({s["location_id"] for s in schedules if "location_id" in s})
     class_ids = list({s["class_id"] for s in schedules if s.get("class_id")})
 
-    employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(length=None)
-    locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(length=None)
-    classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(length=None)
+    employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(
+        length=None
+    )
+    locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
+        length=None
+    )
+    classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(
+        length=None
+    )
 
     emp_map = {e["_id"]: e for e in employees}
     loc_map = {l["_id"]: l for l in locations}
@@ -875,7 +1163,13 @@ async def export_schedules(
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
     if not field_list:
-        field_list = ["date", "start_time", "end_time", "employee_name", "location_name"]
+        field_list = [
+            "date",
+            "start_time",
+            "end_time",
+            "employee_name",
+            "location_name",
+        ]
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -895,7 +1189,7 @@ async def export_schedules(
             "location_name": loc.get("city_name", "Unknown"),
             "class_name": cls.get("name", ""),
             "status": s.get("status", ""),
-            "notes": s.get("notes", "")
+            "notes": s.get("notes", ""),
         }
 
         row = [row_data.get(f, "") for f in field_list]
@@ -904,9 +1198,7 @@ async def export_schedules(
     output.seek(0)
 
     filename = f"schedules_export_{datetime.now().strftime('%Y%m%d')}.csv"
-    headers = {
-        "Content-Disposition": f"attachment; filename={filename}"
-    }
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
 
     return StreamingResponse(
         iter([output.getvalue()]), media_type="text/csv", headers=headers
@@ -918,77 +1210,109 @@ async def export_schedules(
     responses={400: {"model": ErrorResponse, "description": "Invalid CSV file or missing required columns"}},
 )
 async def import_schedules_preview(
-    current_user: AdminRequired,
-    file: UploadFile = File(...)
+    current_user: AdminRequired, file: UploadFile = File(...)
 ):
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Only CSV files are supported")
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(
+            status_code=400, detail="Only CSV files are supported"
+        )
 
     content = await file.read()
     try:
-        text = content.decode('utf-8')
+        text = content.decode("utf-8")
     except UnicodeDecodeError:
-        text = content.decode('latin-1')
+        text = content.decode("latin-1")
 
     reader = csv.DictReader(io.StringIO(text))
 
     # Required columns (allow some flexibility)
-    required_cols = {'date', 'start_time', 'end_time', 'employee_email', 'location_name'}
+    required_cols = {
+        "date",
+        "start_time",
+        "end_time",
+        "employee_email",
+        "location_name",
+    }
 
     if not reader.fieldnames:
-        raise HTTPException(status_code=400, detail="Empty CSV file or missing headers")
+        raise HTTPException(
+            status_code=400, detail="Empty CSV file or missing headers"
+        )
 
     actual_cols = set([c.lower().strip() for c in reader.fieldnames if c])
     missing = required_cols - actual_cols
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name"
+            detail=f"Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name",
         )
 
     # Pre-fetch employees, locations, classes to do lookups
-    all_employees = await db.employees.find({"deleted_at": None}).to_list(length=None)
-    all_locations = await db.locations.find({"deleted_at": None}).to_list(length=None)
-    all_classes = await db.classes.find({"deleted_at": None}).to_list(length=None)
+    all_employees = await db.employees.find({"deleted_at": None}).to_list(
+        length=None
+    )
+    all_locations = await db.locations.find({"deleted_at": None}).to_list(
+        length=None
+    )
+    all_classes = await db.classes.find({"deleted_at": None}).to_list(
+        length=None
+    )
 
-    emp_by_email = {e.get("email", "").lower(): e for e in all_employees if e.get("email")}
-    loc_by_name = {loc.get("city_name", "").lower(): loc for loc in all_locations if loc.get("city_name")}
-    class_by_name = {c.get("name", "").lower(): c for c in all_classes if c.get("name")}
+    emp_by_email = {
+        e.get("email", "").lower(): e for e in all_employees if e.get("email")
+    }
+    loc_by_name = {
+        loc.get("city_name", "").lower(): loc
+        for loc in all_locations
+        if loc.get("city_name")
+    }
+    class_by_name = {
+        c.get("name", "").lower(): c for c in all_classes if c.get("name")
+    }
 
     valid_rows = []
     errors = []
 
-    date_regex = python_re.compile(r'^\d{4}-\d{2}-\d{2}$')
-    time_regex = python_re.compile(r'^\d{2}:\d{2}$')
+    date_regex = python_re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    time_regex = python_re.compile(r"^\d{2}:\d{2}$")
 
     for row_idx, row in enumerate(reader, start=2):
-        row_clean = {k.lower().strip(): v.strip() for k, v in row.items() if k and v is not None}
+        row_clean = {
+            k.lower().strip(): v.strip()
+            for k, v in row.items()
+            if k and v is not None
+        }
         if not row_clean:
             continue
 
         result = _validate_import_row(
-            row_clean, date_regex, time_regex,
-            emp_by_email, loc_by_name, class_by_name
+            row_clean,
+            date_regex,
+            time_regex,
+            emp_by_email,
+            loc_by_name,
+            class_by_name,
         )
 
         if "errors" in result:
-            errors.append({
-                "row": row_idx,
-                "errors": result["errors"],
-                "data": row_clean
-            })
+            errors.append(
+                {"row": row_idx, "errors": result["errors"], "data": row_clean}
+            )
         else:
             valid_data = result["valid_data"]
             valid_data["row_idx"] = row_idx
             valid_rows.append(valid_data)
 
-    return {"valid_rows": valid_rows, "errors": errors, "total_rows": len(valid_rows) + len(errors)}
+    return {
+        "valid_rows": valid_rows,
+        "errors": errors,
+        "total_rows": len(valid_rows) + len(errors),
+    }
 
 
 @router.post("/import")
 async def import_schedules_commit(
-    current_user: AdminRequired,
-    items: list[ScheduleImportItem]
+    current_user: AdminRequired, items: list[ScheduleImportItem]
 ):
     if not items:
         return {"inserted_count": 0, "errors": []}
@@ -1004,11 +1328,20 @@ async def import_schedules_commit(
             # but we should check conflicts
 
             # This logic mimics the standard create schedule conflict check
-            employee = await db.employees.find_one({"_id": item.employee_id, "deleted_at": None})
-            location = await db.locations.find_one({"_id": item.location_id, "deleted_at": None})
+            employee = await db.employees.find_one(
+                {"_id": item.employee_id, "deleted_at": None}
+            )
+            location = await db.locations.find_one(
+                {"_id": item.location_id, "deleted_at": None}
+            )
 
             if not employee or not location:
-                errors.append({"row": item.row_idx, "error": "Employee or Location no longer exists"})
+                errors.append(
+                    {
+                        "row": item.row_idx,
+                        "error": "Employee or Location no longer exists",
+                    }
+                )
                 continue
 
             conflict = await check_conflicts(
@@ -1016,14 +1349,16 @@ async def import_schedules_commit(
                 date=item.date,
                 start_time=item.start_time,
                 end_time=item.end_time,
-                exclude_id=None
+                exclude_id=None,
             )
 
             if conflict:
-                errors.append({
-                    "row": item.row_idx,
-                    "error": f"Conflict with existing schedule for {employee.get('name')} on {item.date} at {item.start_time}"
-                })
+                errors.append(
+                    {
+                        "row": item.row_idx,
+                        "error": f"Conflict with existing schedule for {employee.get('name')} on {item.date} at {item.start_time}",
+                    }
+                )
                 continue
 
             new_schedule = {
@@ -1044,18 +1379,21 @@ async def import_schedules_commit(
                 "custom_recurrence": None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-                "deleted_at": None
+                "deleted_at": None,
             }
 
             await db.schedules.insert_one(new_schedule)
             inserted_count += 1
 
         except Exception as e:
-            logger.exception("Error importing schedule row %s", getattr(item, "row_idx", None))
+            logger.exception(
+                "Error importing schedule row %s",
+                getattr(item, "row_idx", None),
+            )
             errors.append(
                 {
                     "row": item.row_idx,
-                    "error": "An internal error occurred while importing this row."
+                    "error": "An internal error occurred while importing this row.",
                 }
             )
 
@@ -1065,167 +1403,7 @@ async def import_schedules_commit(
             action="import_schedules",
             user_id=current_user["user_id"],
             user_name=current_user["name"],
-            details=f"Imported {inserted_count} schedules via CSV"
+            details=f"Imported {inserted_count} schedules via CSV",
         )
 
     return {"inserted_count": inserted_count, "errors": errors}
-
-@router.post("/bulk-delete")
-async def bulk_delete_schedules(data: BulkDeleteRequest, user: SchedulerRequired):
-    now = datetime.now(timezone.utc).isoformat()
-    result = await db.schedules.update_many(
-        {"id": {"$in": data.ids}, "deleted_at": None},
-        {"$set": {"deleted_at": now}},
-    )
-    deleted_count = result.modified_count
-    if deleted_count > 0:
-        logger.info(
-            f"Bulk deleted {deleted_count} schedules",
-            extra={"entity": {"deleted_count": deleted_count}},
-        )
-        await log_activity(
-            action="schedule_bulk_deleted",
-            description=f"Bulk deleted {deleted_count} schedule(s)",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get("name", "System"),
-        )
-    return {"deleted_count": deleted_count}
-
-
-@router.put(
-    "/bulk-status",
-    responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
-)
-async def bulk_update_status(data: BulkStatusUpdateRequest, user: SchedulerRequired):
-    if data.status not in [STATUS_UPCOMING, STATUS_IN_PROGRESS, STATUS_COMPLETED]:
-        raise HTTPException(status_code=400, detail="Invalid status")
-    result = await db.schedules.update_many(
-        {"id": {"$in": data.ids}, "deleted_at": None},
-        {"$set": {"status": data.status}},
-    )
-    updated_count = result.modified_count
-    if updated_count > 0:
-        logger.info(
-            f"Bulk status update: {updated_count} schedules to {data.status}",
-            extra={"entity": {"updated_count": updated_count, "status": data.status}},
-        )
-        await log_activity(
-            action="schedule_bulk_status",
-            description=f"Bulk updated {updated_count} schedule(s) to {data.status.replace('_', ' ')}",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get("name", "System"),
-        )
-    return {"updated_count": updated_count}
-
-
-@router.put(
-    "/bulk-reassign",
-    responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
-)
-async def bulk_reassign_schedules(data: BulkReassignRequest, user: SchedulerRequired):
-    employee = await db.employees.find_one(
-        {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not employee:
-        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
-    result = await db.schedules.update_many(
-        {"id": {"$in": data.ids}, "deleted_at": None},
-        {
-            "$set": {
-                "employee_id": data.employee_id,
-                "employee_name": employee["name"],
-                "employee_color": employee.get("color", DEFAULT_EMPLOYEE_COLOR),
-            }
-        },
-    )
-    updated_count = result.modified_count
-    if updated_count > 0:
-        logger.info(
-            f"Bulk reassigned {updated_count} schedules to {employee['name']}",
-            extra={"entity": {"updated_count": updated_count, "employee_id": data.employee_id}},
-        )
-        await log_activity(
-            action="schedule_bulk_reassigned",
-            description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get("name", "System"),
-        )
-    return {"updated_count": updated_count}
-
-@router.put(
-    "/bulk-location",
-    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
-)
-async def bulk_update_location(data: BulkLocationUpdateRequest, user: SchedulerRequired):
-    location = await db.locations.find_one(
-        {"id": data.location_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not location:
-        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-
-    result = await db.schedules.update_many(
-        {"id": {"$in": data.ids}, "deleted_at": None},
-        {
-            "$set": {
-                "location_id": data.location_id,
-                "location_name": location["city_name"],
-                "drive_time_minutes": location["drive_time_minutes"],
-                "travel_override_minutes": None,
-            }
-        },
-    )
-    updated_count = result.modified_count
-    if updated_count > 0:
-        logger.info(
-            f"Bulk updated {updated_count} schedules to location {location['city_name']}",
-            extra={"entity": {"updated_count": updated_count, "location_id": data.location_id}},
-        )
-        await log_activity(
-            action="schedule_bulk_location",
-            description=f"Bulk updated {updated_count} schedule(s) to {location['city_name']}",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get("name", "System"),
-        )
-    return {"updated_count": updated_count}
-
-
-@router.put(
-    "/bulk-class",
-    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
-)
-async def bulk_update_class(data: BulkClassUpdateRequest, user: SchedulerRequired):
-    class_doc = await db.classes.find_one(
-        {"id": data.class_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not class_doc:
-        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
-
-    result = await db.schedules.update_many(
-        {"id": {"$in": data.ids}, "deleted_at": None},
-        {
-            "$set": {
-                "class_id": data.class_id,
-                "class_name": class_doc["name"],
-                "class_color": class_doc.get("color", "#0F766E"),
-                "class_description": class_doc.get("description"),
-            }
-        },
-    )
-    updated_count = result.modified_count
-    if updated_count > 0:
-        logger.info(
-            f"Bulk updated {updated_count} schedules to class {class_doc['name']}",
-            extra={"entity": {"updated_count": updated_count, "class_id": data.class_id}},
-        )
-        await log_activity(
-            action="schedule_bulk_class",
-            description=f"Bulk updated {updated_count} schedule(s) to {class_doc['name']}",
-            entity_type="schedule_batch",
-            entity_id=str(uuid.uuid4()),
-            user_name=user.get("name", "System"),
-        )
-    return {"updated_count": updated_count}
