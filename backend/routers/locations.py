@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
@@ -78,12 +79,16 @@ async def delete_location(location_id: str, user: AdminRequired):
     return {"message": "Location deleted"}
 
 @router.get("/{location_id}/stats", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
-async def get_location_stats(location_id: str, user: CurrentUser):
+async def get_location_stats(location_id: str, user: CurrentUser, start_date: Optional[str] = None, end_date: Optional[str] = None):
     location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
     all_schedules = await db.schedules.find({"location_id": location_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    if start_date:
+        all_schedules = [s for s in all_schedules if s.get('date', '') >= start_date]
+    if end_date:
+        all_schedules = [s for s in all_schedules if s.get('date', '') <= end_date]
     total_schedules = len(all_schedules)
     total_drive_minutes = 0
     total_class_minutes = 0
