@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Pencil, Plus, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -12,11 +12,14 @@ import { useAuth } from '../lib/auth';
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
 import { useOutletContext } from 'react-router-dom';
+import ClassProfile from './ClassProfile';
 
 export default function ClassManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { classes, handleClassRefresh: onRefresh } = useOutletContext();
+  const [selectedClassId, setSelectedClassId] = useState(null);
+  const onViewProfile = (id) => setSelectedClassId(id);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -84,6 +87,10 @@ export default function ClassManager() {
   if (loading) saveButtonLabel = 'Saving...';
   else if (editing) saveButtonLabel = 'Update Class';
 
+  if (selectedClassId) {
+    return <ClassProfile classId={selectedClassId} onBack={() => setSelectedClassId(null)} />;
+  }
+
   return (
     <div className="space-y-6 animate-slide-in" data-testid="class-manager">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -129,6 +136,15 @@ export default function ClassManager() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`view-class-${classItem.id}`}
+                onClick={() => onViewProfile(classItem.id)}
+                className="text-slate-400 hover:text-teal-600"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
               {isAdmin && (
                 <>
                   <Button
