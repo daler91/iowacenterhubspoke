@@ -8,14 +8,14 @@ jest.mock('embla-carousel-react', () => {
 });
 
 // Mock ResizeObserver for vaul/radix components
-global.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() { /* no-op mock */ }
+  unobserve() { /* no-op mock */ }
+  disconnect() { /* no-op mock */ }
 };
 
 // MatchMedia mock
-window.matchMedia = window.matchMedia || function() {
+globalThis.matchMedia = globalThis.matchMedia || function() {
     return {
         matches: false,
         addListener: function() {},

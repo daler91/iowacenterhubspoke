@@ -7,7 +7,7 @@ import { COLORS } from '../lib/constants';
 
 // Use embla-carousel-react for swipeable day view
 import useEmblaCarousel from 'embla-carousel-react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from './ui/drawer';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from './ui/drawer';
 import { Button } from './ui/button';
 
 function timeToMinutes(timeStr) {
