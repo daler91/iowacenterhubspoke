@@ -64,11 +64,11 @@
                         r = t.getElementsByTagName("script")[0];
                         r.parentNode.insertBefore(p, r);
                         var u = e;
-                        if (a !== undefined) {
+                        if (a === undefined) {
+                            a = "posthog";
+                        } else {
                             e[a] = [];
                             u = e[a];
-                        } else {
-                            a = "posthog";
                         }
                         u.people = u.people || [];
                         u.toString = function (t) {

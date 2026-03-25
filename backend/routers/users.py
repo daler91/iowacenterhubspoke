@@ -5,7 +5,7 @@ from core.constants import (
     ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER,
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
 )
-from models.schemas import UserRoleUpdate
+from models.schemas import UserRoleUpdate, ErrorResponse
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
 VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER}
+USER_NOT_FOUND = "User not found"
 
 
 @router.get("/")
@@ -22,23 +23,32 @@ async def list_users(user: AdminRequired):
     return {"users": users}
 
 
-@router.put("/{user_id}/approve")
+@router.put(
+    "/{user_id}/approve",
+    responses={404: {"model": ErrorResponse, "description": "User not found"}},
+)
 async def approve_user(user_id: str, user: AdminRequired):
     result = await db.users.update_one(
         {"id": user_id},
         {"$set": {"status": USER_STATUS_APPROVED}}
     )
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     logger.info(f"User {user_id} approved by {user['email']}")
     return {"message": "User approved"}
 
 
-@router.put("/{user_id}/reject")
+@router.put(
+    "/{user_id}/reject",
+    responses={
+        400: {"model": ErrorResponse, "description": "Cannot reject an admin user"},
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
+)
 async def reject_user(user_id: str, user: AdminRequired):
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     if target.get("role") == ROLE_ADMIN:
         raise HTTPException(status_code=400, detail="Cannot reject an admin user")
     await db.users.update_one(
@@ -49,13 +59,19 @@ async def reject_user(user_id: str, user: AdminRequired):
     return {"message": "User rejected"}
 
 
-@router.put("/{user_id}/role")
+@router.put(
+    "/{user_id}/role",
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid role or cannot remove last admin"},
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
+)
 async def update_user_role(user_id: str, data: UserRoleUpdate, user: AdminRequired):
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     # Prevent removing the last admin
     if target.get("role") == ROLE_ADMIN and data.role != ROLE_ADMIN:
         admin_count = await db.users.count_documents({"role": ROLE_ADMIN})
@@ -66,13 +82,19 @@ async def update_user_role(user_id: str, data: UserRoleUpdate, user: AdminRequir
     return {"message": f"Role updated to {data.role}"}
 
 
-@router.delete("/{user_id}")
+@router.delete(
+    "/{user_id}",
+    responses={
+        400: {"model": ErrorResponse, "description": "Cannot delete your own account"},
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
+)
 async def delete_user(user_id: str, user: AdminRequired):
     if user_id == user["user_id"]:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     await db.users.delete_one({"id": user_id})
     logger.info(f"User {user_id} deleted by {user['email']}")
     return {"message": "User deleted"}

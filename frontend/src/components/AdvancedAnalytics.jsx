@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { useOutletContext } from 'react-router-dom';
 import useSWR from 'swr';
 import {
@@ -25,7 +26,7 @@ function TrendsTab({ employees, locations, classes }) {
 
   const params = useMemo(() => ({
     period,
-    weeks_back: parseInt(weeksBack),
+    weeks_back: Number.parseInt(weeksBack),
     ...(employeeId !== 'all' && { employee_id: employeeId }),
     ...(locationId !== 'all' && { location_id: locationId }),
     ...(classId !== 'all' && { class_id: classId }),
@@ -49,10 +50,19 @@ function TrendsTab({ employees, locations, classes }) {
     const mid = Math.floor(trends.length / 2);
     const firstHalf = trends.slice(0, mid).reduce((s, t) => s + t.classes, 0) / (mid || 1);
     const secondHalf = trends.slice(mid).reduce((s, t) => s + t.classes, 0) / (trends.length - mid || 1);
-    const trend = secondHalf > firstHalf * 1.05 ? 'up' : secondHalf < firstHalf * 0.95 ? 'down' : 'flat';
+    let trend = 'flat';
+    if (secondHalf > firstHalf * 1.05) trend = 'up';
+    else if (secondHalf < firstHalf * 0.95) trend = 'down';
 
     return { avgClasses, totalHours, trend, busiest: busiest.period };
   }, [trends]);
+
+  const trendConfig = {
+    up: { icon: TrendingUp, bg: 'bg-green-50', color: 'text-green-600', label: 'Growing' },
+    down: { icon: TrendingDown, bg: 'bg-red-50', color: 'text-red-600', label: 'Declining' },
+    flat: { icon: TrendingUp, bg: 'bg-slate-50', color: 'text-slate-600', label: 'Stable' },
+  };
+  const currentTrend = trendConfig[summary.trend] || trendConfig.flat;
 
   return (
     <div className="space-y-6">
@@ -82,10 +92,10 @@ function TrendsTab({ employees, locations, classes }) {
           label="Avg Classes / Period" value={summary.avgClasses} />
         <SummaryCard icon={Clock} iconBg="bg-teal-50" iconColor="text-teal-600"
           label="Total Class Hours" value={`${summary.totalHours}h`} />
-        <SummaryCard icon={summary.trend === 'up' ? TrendingUp : summary.trend === 'down' ? TrendingDown : TrendingUp}
-          iconBg={summary.trend === 'up' ? 'bg-green-50' : summary.trend === 'down' ? 'bg-red-50' : 'bg-slate-50'}
-          iconColor={summary.trend === 'up' ? 'text-green-600' : summary.trend === 'down' ? 'text-red-600' : 'text-slate-600'}
-          label="Trend" value={summary.trend === 'up' ? 'Growing' : summary.trend === 'down' ? 'Declining' : 'Stable'} />
+        <SummaryCard icon={currentTrend.icon}
+          iconBg={currentTrend.bg}
+          iconColor={currentTrend.color}
+          label="Trend" value={currentTrend.label} />
         <SummaryCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600"
           label="Busiest Period" value={summary.busiest} />
       </div>
@@ -94,7 +104,8 @@ function TrendsTab({ employees, locations, classes }) {
         <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Trends Over Time
         </h3>
-        {isLoading ? <LoadingChart /> : trends.length > 0 ? (
+        {isLoading && <LoadingChart />}
+        {!isLoading && trends.length > 0 && (
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={trends}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -107,7 +118,8 @@ function TrendsTab({ employees, locations, classes }) {
               <Line type="monotone" dataKey="drive_hours" stroke="#D97706" strokeWidth={2} dot={{ r: 3 }} name="Drive Hours" />
             </LineChart>
           </ResponsiveContainer>
-        ) : <EmptyState message="No trend data available for the selected filters." />}
+        )}
+        {!isLoading && trends.length === 0 && <EmptyState message="No trend data available for the selected filters." />}
       </div>
     </div>
   );
@@ -121,7 +133,7 @@ function ForecastTab({ employees, classes }) {
   const [classId, setClassId] = useState('all');
 
   const params = useMemo(() => ({
-    weeks_ahead: parseInt(weeksAhead),
+    weeks_ahead: Number.parseInt(weeksAhead),
     ...(employeeId !== 'all' && { employee_id: employeeId }),
     ...(classId !== 'all' && { class_id: classId }),
   }), [weeksAhead, employeeId, classId]);
@@ -199,7 +211,8 @@ function ForecastTab({ employees, classes }) {
             <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px]">Insufficient Data</Badge>
           )}
         </div>
-        {isLoading ? <LoadingChart /> : combined.length > 0 ? (
+        {isLoading && <LoadingChart />}
+        {!isLoading && combined.length > 0 && (
           <ResponsiveContainer width="100%" height={320}>
             <AreaChart data={combined}>
               <defs>
@@ -229,7 +242,8 @@ function ForecastTab({ employees, classes }) {
               <Area type="monotone" dataKey="drive_hours" stroke="#D97706" fill="url(#driveGrad)" strokeWidth={2} name="Drive Hours" />
             </AreaChart>
           </ResponsiveContainer>
-        ) : <EmptyState message="Not enough data to generate forecast. Need at least 2 weeks of history." />}
+        )}
+        {!isLoading && combined.length === 0 && <EmptyState message="Not enough data to generate forecast. Need at least 2 weeks of history." />}
         {forecast.length > 0 && (
           <p className="text-xs text-slate-400 mt-3">
             Forecast based on linear trend from last 12 weeks of historical data. Dashed area indicates projected values.
@@ -290,7 +304,8 @@ function DriveOptimizationTab() {
         <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Drive Hours by Employee
         </h3>
-        {isLoading ? <LoadingChart /> : employeeDrive.length > 0 ? (
+        {isLoading && <LoadingChart />}
+        {!isLoading && employeeDrive.length > 0 && (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={employeeDrive} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -300,7 +315,8 @@ function DriveOptimizationTab() {
               <Bar dataKey="drive_hours" fill="#D97706" radius={[4, 4, 0, 0]} name="Drive Hours" />
             </BarChart>
           </ResponsiveContainer>
-        ) : <EmptyState message="No drive data for the selected period." />}
+        )}
+        {!isLoading && employeeDrive.length === 0 && <EmptyState message="No drive data for the selected period." />}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
@@ -320,8 +336,13 @@ function DriveOptimizationTab() {
                 </tr>
               </thead>
               <tbody>
-                {suggestions.map((s, i) => (
-                  <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                {suggestions.map((s) => {
+                  let savingsBadgeClass = 'bg-slate-50 text-slate-600';
+                  if (s.savings_mins >= 120) savingsBadgeClass = 'bg-green-50 text-green-700';
+                  else if (s.savings_mins >= 60) savingsBadgeClass = 'bg-amber-50 text-amber-700';
+
+                  return (
+                  <tr key={`${s.date}-${s.schedule_a_id}-${s.schedule_b_id}`} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="py-2.5 px-3 text-slate-700">{s.date}</td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1.5 text-slate-700">
@@ -334,16 +355,12 @@ function DriveOptimizationTab() {
                       {s.location_a} / {s.location_b}
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <Badge className={`border-0 text-[10px] ${
-                        s.savings_mins >= 120 ? 'bg-green-50 text-green-700' :
-                        s.savings_mins >= 60 ? 'bg-amber-50 text-amber-700' :
-                        'bg-slate-50 text-slate-600'
-                      }`}>
+                      <Badge className={`border-0 text-[10px] ${savingsBadgeClass}`}>
                         {s.savings_mins}m saved
                       </Badge>
                     </td>
                     <td className="py-2.5 px-3 text-xs text-slate-500">{s.reason}</td>
-                  </tr>
+                  </tr>);
                 ))}
               </tbody>
             </table>
@@ -410,6 +427,41 @@ function EmptyState({ message }) {
     </div>
   );
 }
+
+const entityListShape = PropTypes.arrayOf(PropTypes.object);
+
+TrendsTab.propTypes = {
+  employees: entityListShape,
+  locations: entityListShape,
+  classes: entityListShape,
+};
+
+ForecastTab.propTypes = {
+  employees: entityListShape,
+  classes: entityListShape,
+};
+
+SummaryCard.propTypes = {
+  icon: PropTypes.elementType.isRequired,
+  iconBg: PropTypes.string.isRequired,
+  iconColor: PropTypes.string.isRequired,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+};
+
+FilterSelect.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+  options: PropTypes.arrayOf(PropTypes.shape({
+    value: PropTypes.string.isRequired,
+    label: PropTypes.string.isRequired,
+  })).isRequired,
+};
+
+EmptyState.propTypes = {
+  message: PropTypes.string.isRequired,
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
