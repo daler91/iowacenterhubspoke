@@ -42,7 +42,7 @@ async def register(request: Request, data: UserRegister, response: Response):
     else:
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
-@router.post("/login", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}})
+@router.post("/login", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}, 403: {"model": ErrorResponse, "description": "Account pending approval or denied"}})
 @limiter.limit("5/minute")
 async def login(request: Request, data: UserLogin, response: Response):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
