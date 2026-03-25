@@ -64,7 +64,7 @@ def _validate_import_row(
     }
 
 
-from typing import Optional
+from typing import Annotated, Optional
 from database import db
 from models.schemas import (
     ScheduleCreate,
@@ -111,6 +111,9 @@ CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 
+_background_tasks: set = set()
+
+
 def _enqueue_outlook_event(
     employee: dict, location: dict, class_doc: dict | None, doc: dict
 ):
@@ -121,9 +124,11 @@ def _enqueue_outlook_event(
         return
     import asyncio
 
-    asyncio.ensure_future(
+    task = asyncio.ensure_future(
         _enqueue_outlook_event_async(employee, location, class_doc, doc)
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
@@ -479,15 +484,11 @@ async def _check_town_to_town_bulk(
 
     results = {}
     for date, scheds in schedules_by_date.items():
-        other_cities = list(
-            set(
-                [
-                    loc_map[s["location_id"]]["city_name"]
-                    for s in scheds
-                    if s["location_id"] in loc_map
-                ]
-            )
-        )
+        other_cities = list({
+            loc_map[s["location_id"]]["city_name"]
+            for s in scheds
+            if s["location_id"] in loc_map
+        })
         if other_cities:
             warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
             results[date] = (True, warning)
@@ -1210,7 +1211,7 @@ async def export_schedules(
     responses={400: {"model": ErrorResponse, "description": "Invalid CSV file or missing required columns"}},
 )
 async def import_schedules_preview(
-    current_user: AdminRequired, file: UploadFile = File(...)
+    current_user: AdminRequired, file: Annotated[UploadFile, File()]
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(
@@ -1239,12 +1240,12 @@ async def import_schedules_preview(
             status_code=400, detail="Empty CSV file or missing headers"
         )
 
-    actual_cols = set([c.lower().strip() for c in reader.fieldnames if c])
+    actual_cols = {c.lower().strip() for c in reader.fieldnames if c}
     missing = required_cols - actual_cols
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name",
+            detail="Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name",
         )
 
     # Pre-fetch employees, locations, classes to do lookups
@@ -1344,12 +1345,13 @@ async def import_schedules_commit(
                 )
                 continue
 
+            drive_minutes = location.get("drive_time_minutes", 0)
             conflict = await check_conflicts(
-                employee_id=item.employee_id,
-                date=item.date,
-                start_time=item.start_time,
-                end_time=item.end_time,
-                exclude_id=None,
+                item.employee_id,
+                item.date,
+                item.start_time,
+                item.end_time,
+                drive_minutes,
             )
 
             if conflict:
@@ -1385,7 +1387,7 @@ async def import_schedules_commit(
             await db.schedules.insert_one(new_schedule)
             inserted_count += 1
 
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Error importing schedule row %s",
                 getattr(item, "row_idx", None),
@@ -1401,9 +1403,10 @@ async def import_schedules_commit(
     if inserted_count > 0:
         await log_activity(
             action="import_schedules",
-            user_id=current_user["user_id"],
+            description=f"Imported {inserted_count} schedules via CSV",
+            entity_type="schedule",
+            entity_id="bulk_import",
             user_name=current_user["name"],
-            details=f"Imported {inserted_count} schedules via CSV",
         )
 
     return {"inserted_count": inserted_count, "errors": errors}
