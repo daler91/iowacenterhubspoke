@@ -99,9 +99,9 @@ export function LocationTimeSelectors({
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.outlook_conflicts.map((c, i) => (
+            {previewConflicts.outlook_conflicts.map((c) => (
               <Badge
-                key={i}
+                key={`${c.status}-${c.start}-${c.end}`}
                 variant="secondary"
                 className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
               >
@@ -125,8 +125,8 @@ export function LocationTimeSelectors({
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.conflicts.map((c, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
+            {previewConflicts.conflicts.map((c) => (
+              <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
                 {c.location} ({c.time})
               </Badge>
             ))}
@@ -202,4 +202,15 @@ LocationTimeSelectors.propTypes = {
   showOverride: PropTypes.bool.isRequired,
   setShowOverride: PropTypes.func.isRequired,
   onDateChange: PropTypes.func.isRequired,
+  previewConflicts: PropTypes.shape({
+    outlook_conflicts: PropTypes.arrayOf(PropTypes.shape({
+      status: PropTypes.string,
+      start: PropTypes.string,
+      end: PropTypes.string,
+    })),
+    conflicts: PropTypes.arrayOf(PropTypes.shape({
+      location: PropTypes.string,
+      time: PropTypes.string,
+    })),
+  }),
 };

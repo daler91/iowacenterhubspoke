@@ -173,6 +173,20 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     }
   };
 
+  const handleConflictError = (err) => {
+    const detail = err.response.data?.detail || {};
+    const outlookConflicts = detail?.outlook_conflicts || [];
+    const internalConflicts = detail?.conflicts || [];
+    if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
+      setOutlookOverride(true);
+      toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
+    } else {
+      const msg = detail?.message || 'Schedule conflict detected';
+      const conflictList = internalConflicts.map(c => `${c.location} (${c.time})`).join(', ');
+      toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
@@ -199,18 +213,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       onOpenChange(false);
     } catch (err) {
       if (err.response?.status === 409) {
-        const detail = err.response.data?.detail || {};
-        const outlookConflicts = detail?.outlook_conflicts || [];
-        const internalConflicts = detail?.conflicts || [];
-        if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
-          // Outlook-only conflict — enable override
-          setOutlookOverride(true);
-          toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
-        } else {
-          const msg = detail?.message || 'Schedule conflict detected';
-          const conflictList = internalConflicts.map(c => `${c.location} (${c.time})`).join(', ');
-          toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
-        }
+        handleConflictError(err);
       } else {
         toast.error(err.response?.data?.detail || 'Failed to save schedule');
       }
