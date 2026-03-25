@@ -361,7 +361,7 @@ function DriveOptimizationTab() {
                     </td>
                     <td className="py-2.5 px-3 text-xs text-slate-500">{s.reason}</td>
                   </tr>);
-                ))}
+                })}
               </tbody>
             </table>
           </div>
