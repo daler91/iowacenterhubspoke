@@ -33,6 +33,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
+  validateInvite: (token) => api.get(`/auth/invite/${token}`),
 };
 
 // Locations
@@ -129,6 +130,9 @@ export const usersAPI = {
   reject: (userId) => api.put(`/users/${userId}/reject`),
   updateRole: (userId, role) => api.put(`/users/${userId}/role`, { role }),
   delete: (userId) => api.delete(`/users/${userId}`),
+  invite: (data) => api.post('/users/invite', data),
+  getInvitations: () => api.get('/users/invitations'),
+  revokeInvitation: (id) => api.delete(`/users/invitations/${id}`),
 };
 
 export default api;

@@ -6,6 +6,7 @@ class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
+    invite_token: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str
@@ -118,6 +119,11 @@ class BulkClassUpdateRequest(BaseModel):
     class_id: str
 
 class UserRoleUpdate(BaseModel):
+    role: str
+
+class InviteCreate(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
     role: str
 
 class ErrorResponse(BaseModel):
