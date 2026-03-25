@@ -118,7 +118,7 @@ async def get_location_stats(location_id: str, user: CurrentUser, start_date: Op
         emp_name = s.get('employee_name', 'Unknown')
         emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
 
-        class_name = s.get('class_name', 'Unknown')
+        class_name = s.get('class_name') or 'Unassigned'
         class_counts[class_name] = class_counts.get(class_name, 0) + 1
 
     return {
