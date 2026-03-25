@@ -137,7 +137,9 @@ async def seed_data():
     # Create required indexes
     try:
         await db.schedules.create_index([("employee_id", 1), ("date", 1)])
-        logger.info("Ensured index on schedules collection for employee_id and date")
+        await db.invitations.create_index("token", unique=True)
+        await db.invitations.create_index("email")
+        logger.info("Ensured indexes on schedules and invitations collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
 
