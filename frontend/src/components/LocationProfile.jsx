@@ -4,7 +4,19 @@ import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
   CheckCircle2, CalendarDays, Users, Filter
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+
+const RADIAN = Math.PI / 180;
+const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, name, percent }) => {
+  const radius = outerRadius + 20;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="#475569" fontSize={11} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+      {name} ({(percent * 100).toFixed(0)}%)
+    </text>
+  );
+};
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -204,15 +216,14 @@ export default function LocationProfile({ locationId, onBack }) {
             Classes Taught
           </h3>
           {class_breakdown?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={class_breakdown.filter(c => c.name)} dataKey="count" nameKey="name" cx="50%" cy="45%" outerRadius={80}>
+                <Pie data={class_breakdown.filter(c => c.name)} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={renderOuterLabel} labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}>
                   {class_breakdown.filter(c => c.name).map((entry, index) => (
                     <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
