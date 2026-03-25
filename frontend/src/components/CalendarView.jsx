@@ -58,6 +58,7 @@ export default function CalendarView() {
 
   // URL State
   const calendarView = searchParams.get('view') || 'week';
+  const exportDaysOffset = { month: 30, week: 7 }[calendarView] || 1;
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
@@ -347,20 +348,17 @@ export default function CalendarView() {
         />
       )}
 
-                  {exportOpen && (() => {
-        const viewDays = { month: 30, week: 7 };
-        const daysOffset = viewDays[calendarView] || 1;
-        return (
+      {exportOpen && (
         <ExportCsvDialog
           open={exportOpen}
           onOpenChange={setExportOpen}
           currentFilters={{
             start_date: format(currentDate, 'yyyy-MM-dd'),
-            end_date: format(addDays(currentDate, daysOffset), 'yyyy-MM-dd'),
+            end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
             location_id: searchParams.get('location') || undefined,
             employee_id: searchParams.get('employee') || undefined,
           }}
-        />);})()
+        />
       )}
 
       {importOpen && (
