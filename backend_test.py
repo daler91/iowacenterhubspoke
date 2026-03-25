@@ -726,7 +726,7 @@ def main():
             if not result:
                 print(f"⚠️  {test_name} had issues but continuing...")
         except Exception as e:
-            print(f"❌ {test_name} failed with exception: {str(e)}")
+            print(f"❌ {test_name} failed with an exception.")
     
     # Print results
     print("\n" + "=" * 50)
