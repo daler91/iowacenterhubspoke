@@ -18,6 +18,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !isRedirectingTo401) {
+      // Skip redirect if already on the login page to avoid infinite reload loop
+      if (globalThis.location.pathname === '/login') {
+        return Promise.reject(error);
+      }
       isRedirectingTo401 = true;
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
