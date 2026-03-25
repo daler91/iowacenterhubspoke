@@ -204,15 +204,15 @@ export default function LocationProfile({ locationId, onBack }) {
             Classes Taught
           </h3>
           {class_breakdown?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={class_breakdown} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {class_breakdown.map((entry, index) => (
+                <Pie data={class_breakdown.filter(c => c.name)} dataKey="count" nameKey="name" cx="50%" cy="45%" outerRadius={80}>
+                  {class_breakdown.filter(c => c.name).map((entry, index) => (
                     <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
