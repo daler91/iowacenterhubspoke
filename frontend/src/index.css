@@ -51,8 +51,10 @@
 @layer base {
   [data-debug-wrapper="true"] {
     display: contents !important;
+    pointer-events: none !important;
   }
   [data-debug-wrapper="true"] > * {
+    pointer-events: auto;
     margin-left: inherit;
     margin-right: inherit;
     margin-top: inherit;

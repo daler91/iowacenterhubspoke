@@ -71,7 +71,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex" data-testid="login-page">
+    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] flex" data-testid="login-page">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 relative overflow-hidden flex-col justify-between p-12">
         <div className="relative z-10">
@@ -125,7 +125,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-y-auto relative z-10">
         <Card className="w-full max-w-md border-0 shadow-lg bg-white">
           <CardHeader className="space-y-1 pb-6">
             <div className="lg:hidden flex items-center gap-2 mb-4">
