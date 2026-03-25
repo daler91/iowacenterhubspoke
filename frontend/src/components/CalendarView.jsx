@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
-import { useRef, useCallback, useEffect } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
@@ -348,17 +347,20 @@ export default function CalendarView() {
         />
       )}
 
-                  {exportOpen && (
+                  {exportOpen && (() => {
+        const viewDays = { month: 30, week: 7 };
+        const daysOffset = viewDays[calendarView] || 1;
+        return (
         <ExportCsvDialog
           open={exportOpen}
           onOpenChange={setExportOpen}
           currentFilters={{
             start_date: format(currentDate, 'yyyy-MM-dd'),
-            end_date: format(addDays(currentDate, calendarView === 'month' ? 30 : (calendarView === 'week' ? 7 : 1)), 'yyyy-MM-dd'),
+            end_date: format(addDays(currentDate, daysOffset), 'yyyy-MM-dd'),
             location_id: searchParams.get('location') || undefined,
             employee_id: searchParams.get('employee') || undefined,
           }}
-        />
+        />);})()
       )}
 
       {importOpen && (

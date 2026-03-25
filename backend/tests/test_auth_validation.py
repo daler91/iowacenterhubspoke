@@ -30,7 +30,7 @@ def test_user_register_invalid_email():
     invalid_data = {
         "name": "John Doe",
         "email": "not-an-email",
-        "password": "dummy_password_123"
+        "password": _VALID_PASSWORD
     }
     with pytest.raises(ValidationError) as exc_info:
         UserRegister(**invalid_data)

@@ -725,7 +725,7 @@ def main():
             result = test_func()
             if not result:
                 print(f"⚠️  {test_name} had issues but continuing...")
-        except Exception as e:
+        except Exception:
             print(f"❌ {test_name} failed with an exception.")
     
     # Print results
