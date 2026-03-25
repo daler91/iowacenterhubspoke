@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
-  ArrowLeft, Clock, Car, MapPin, BookOpen,
+  ArrowLeft, Clock, Car, BookOpen,
   CheckCircle2, CalendarDays, Users, Filter
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';

@@ -28,7 +28,7 @@ export default function UserManager() {
     try {
       const res = await usersAPI.getAll();
       setUsers(Array.isArray(res.data.users) ? res.data.users : []);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);

@@ -10,8 +10,95 @@ import {
 } from './ui/dialog';
 import { schedulesAPI } from '../lib/api';
 import { toast } from 'sonner';
-import { Upload, FileText, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import PropTypes from 'prop-types';
+import { Upload, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+function PreviewResults({ file, previewData, onReset }) {
+  const hasErrors = previewData.errors.length > 0;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+        <div className="flex items-center space-x-3">
+          <FileText className="h-6 w-6 text-primary" />
+          <div>
+            <p className="text-sm font-medium">{file.name}</p>
+            <p className="text-xs text-gray-500">
+              {previewData.total_rows} total rows processed
+            </p>
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onReset}>
+          Change File
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 rounded-lg border bg-green-50 border-green-200">
+          <div className="flex items-center text-green-700 mb-2">
+            <CheckCircle2 className="h-5 w-5 mr-2" />
+            <span className="font-semibold">Valid Rows ({previewData.valid_rows.length})</span>
+          </div>
+          <p className="text-sm text-green-600">
+            These schedules are ready to be imported into the system.
+          </p>
+        </div>
+
+        <div className={cn(
+          "p-4 rounded-lg border",
+          hasErrors ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
+        )}>
+          <div className={cn(
+            "flex items-center mb-2",
+            hasErrors ? "text-red-700" : "text-gray-700"
+          )}>
+            {hasErrors ? (
+              <XCircle className="h-5 w-5 mr-2" />
+            ) : (
+              <CheckCircle2 className="h-5 w-5 mr-2" />
+            )}
+            <span className="font-semibold">Errors ({previewData.errors.length})</span>
+          </div>
+          <p className={cn(
+            "text-sm",
+            hasErrors ? "text-red-600" : "text-gray-600"
+          )}>
+            Rows with errors will be skipped during import.
+          </p>
+        </div>
+      </div>
+
+      {hasErrors && (
+        <div className="border rounded-md mt-4 max-h-[300px] overflow-y-auto">
+          <div className="bg-red-50 px-4 py-2 border-b border-red-100 font-medium text-red-800 text-sm sticky top-0">
+            Error Details
+          </div>
+          <ul className="divide-y divide-red-100 text-sm">
+            {previewData.errors.slice(0, 50).map((err) => (
+              <li key={`row-${err.row}`} className="p-3 bg-white">
+                <div className="font-medium text-gray-900 mb-1">Row {err.row}</div>
+                <ul className="list-disc list-inside text-red-600 space-y-1 ml-1">
+                  {err.errors.map((e) => <li key={`${err.row}-${e}`}>{e}</li>)}
+                </ul>
+              </li>
+            ))}
+            {previewData.errors.length > 50 && (
+              <li className="p-3 text-center text-gray-500 italic bg-gray-50">
+                ...and {previewData.errors.length - 50} more errors
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+PreviewResults.propTypes = {
+  file: PropTypes.object.isRequired,
+  previewData: PropTypes.object.isRequired,
+  onReset: PropTypes.func.isRequired,
+};
 
 export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess }) {
   const [file, setFile] = useState(null);
@@ -86,13 +173,19 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
         <DialogHeader>
           <DialogTitle>Import Schedules via CSV</DialogTitle>
           <DialogDescription>
-            Upload a CSV file containing schedules. The file must contain the following column headers:
-            <strong> date, start_time, end_time, employee_email, location_name</strong>.
+            Upload a CSV file containing schedules. The file must contain the following column headers:{' '}
+            <strong>date, start_time, end_time, employee_email, location_name</strong>.
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-6">
-          {!previewData ? (
+          {previewData ? (
+            <PreviewResults
+              file={file}
+              previewData={previewData}
+              onReset={() => setPreviewData(null)}
+            />
+          ) : (
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
               <Upload className="h-10 w-10 text-gray-400 mb-4" />
               <p className="text-sm font-medium text-gray-700 mb-1">
@@ -114,81 +207,6 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
                 Select File
               </Button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-                <div className="flex items-center space-x-3">
-                  <FileText className="h-6 w-6 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {previewData.total_rows} total rows processed
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setPreviewData(null)}>
-                  Change File
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg border bg-green-50 border-green-200">
-                  <div className="flex items-center text-green-700 mb-2">
-                    <CheckCircle2 className="h-5 w-5 mr-2" />
-                    <span className="font-semibold">Valid Rows ({previewData.valid_rows.length})</span>
-                  </div>
-                  <p className="text-sm text-green-600">
-                    These schedules are ready to be imported into the system.
-                  </p>
-                </div>
-
-                <div className={cn(
-                  "p-4 rounded-lg border",
-                  previewData.errors.length > 0 ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
-                )}>
-                  <div className={cn(
-                    "flex items-center mb-2",
-                    previewData.errors.length > 0 ? "text-red-700" : "text-gray-700"
-                  )}>
-                    {previewData.errors.length > 0 ? (
-                      <XCircle className="h-5 w-5 mr-2" />
-                    ) : (
-                      <CheckCircle2 className="h-5 w-5 mr-2" />
-                    )}
-                    <span className="font-semibold">Errors ({previewData.errors.length})</span>
-                  </div>
-                  <p className={cn(
-                    "text-sm",
-                    previewData.errors.length > 0 ? "text-red-600" : "text-gray-600"
-                  )}>
-                    Rows with errors will be skipped during import.
-                  </p>
-                </div>
-              </div>
-
-              {previewData.errors.length > 0 && (
-                <div className="border rounded-md mt-4 max-h-[300px] overflow-y-auto">
-                  <div className="bg-red-50 px-4 py-2 border-b border-red-100 font-medium text-red-800 text-sm sticky top-0">
-                    Error Details
-                  </div>
-                  <ul className="divide-y divide-red-100 text-sm">
-                    {previewData.errors.slice(0, 50).map((err, idx) => (
-                      <li key={idx} className="p-3 bg-white">
-                        <div className="font-medium text-gray-900 mb-1">Row {err.row}</div>
-                        <ul className="list-disc list-inside text-red-600 space-y-1 ml-1">
-                          {err.errors.map((e, i) => <li key={i}>{e}</li>)}
-                        </ul>
-                      </li>
-                    ))}
-                    {previewData.errors.length > 50 && (
-                      <li className="p-3 text-center text-gray-500 italic bg-gray-50">
-                        ...and {previewData.errors.length - 50} more errors
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
           )}
         </div>
 
@@ -196,19 +214,19 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
           <Button variant="outline" onClick={handleClose} disabled={isUploading || isCommitting}>
             Cancel
           </Button>
-          {!previewData ? (
-            <Button
-              onClick={handlePreview}
-              disabled={!file || isUploading}
-            >
-              {isUploading ? 'Processing...' : 'Preview Import'}
-            </Button>
-          ) : (
+          {previewData ? (
             <Button
               onClick={handleCommit}
               disabled={previewData.valid_rows.length === 0 || isCommitting}
             >
               {isCommitting ? 'Importing...' : `Import ${previewData.valid_rows.length} Schedules`}
+            </Button>
+          ) : (
+            <Button
+              onClick={handlePreview}
+              disabled={!file || isUploading}
+            >
+              {isUploading ? 'Processing...' : 'Preview Import'}
             </Button>
           )}
         </DialogFooter>
@@ -216,3 +234,9 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
     </Dialog>
   );
 }
+
+ImportCsvDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onOpenChange: PropTypes.func.isRequired,
+  onImportSuccess: PropTypes.func.isRequired,
+};
