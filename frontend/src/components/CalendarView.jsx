@@ -4,7 +4,8 @@ import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subM
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 
-import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import ExportCsvDialog from './ExportCsvDialog';
 import ImportCsvDialog from './ImportCsvDialog';
 import { useAuth } from '../lib/auth';
@@ -44,6 +45,7 @@ export default function CalendarView() {
   const isAdmin = user?.role === 'admin';
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [relocateConflictData, setRelocateConflictData] = useState(null);
 
   const {
     selectionMode,
@@ -385,6 +387,47 @@ export default function CalendarView() {
           }}
         />
       )}
+
+      {/* Relocate conflict dialog */}
+      <Dialog open={relocateConflictData !== null} onOpenChange={(open) => { if (!open) setRelocateConflictData(null); }}>
+        <DialogContent className="sm:max-w-[480px] bg-white" data-testid="relocate-conflict-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Schedule Conflict Detected
+            </DialogTitle>
+            <DialogDescription>
+              Moving this schedule would create a conflict with existing schedules. You can force the move or cancel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {(relocateConflictData?.conflicts || []).map((conflict, i) => (
+              <div key={conflict.schedule_id || i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm font-medium text-amber-800">{conflict.location}</p>
+                <p className="text-xs text-amber-600">{conflict.time}</p>
+                <p className="text-xs text-amber-500 mt-1">{conflict.overlap}</p>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              data-testid="relocate-conflict-cancel"
+              onClick={() => setRelocateConflictData(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              data-testid="relocate-conflict-force"
+              onClick={handleForceRelocate}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Force Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

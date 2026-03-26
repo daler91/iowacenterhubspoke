@@ -46,6 +46,8 @@ export const locationsAPI = {
   create: (data) => api.post('/locations', data),
   update: (id, data) => api.put(`/locations/${id}`, data),
   delete: (id) => api.delete(`/locations/${id}`),
+  getDriveTime: (fromId, toId) => api.get('/locations/drive-time', { params: { from_id: fromId, to_id: toId } }),
+  getDriveTimeFromHub: (lat, lng) => api.get('/locations/drive-time-from-hub', { params: { lat, lng } }),
 };
 
 // Employees

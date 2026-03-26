@@ -168,6 +168,9 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
               {schedule.town_to_town_warning && (
                 <p className="text-xs text-amber-600 font-medium">{schedule.town_to_town_warning}</p>
               )}
+              {schedule.town_to_town_drive_minutes && (
+                <p className="text-xs text-amber-500">~{schedule.town_to_town_drive_minutes} min drive between towns</p>
+              )}
             </div>
           </TooltipContent>
         </Tooltip>
@@ -205,7 +208,11 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
         >
           <div className="flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            <span className="text-[9px] font-semibold">Town-to-Town</span>
+            <span className="text-[9px] font-semibold">
+              {schedule.town_to_town_drive_minutes
+                ? `Town-to-Town: ${schedule.town_to_town_drive_minutes}m`
+                : 'Town-to-Town'}
+            </span>
           </div>
         </div>
       )}
