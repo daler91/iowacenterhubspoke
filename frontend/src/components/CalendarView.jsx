@@ -304,6 +304,7 @@ export default function CalendarView() {
                   currentDate={currentDate}
                   schedules={filteredSchedules}
                   onEditSchedule={onEditSchedule}
+                  onRelocate={handleRelocate}
                   selectionMode={selectionMode}
                   isSelected={isSelected}
                   toggleItem={toggleItem}

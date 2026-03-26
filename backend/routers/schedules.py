@@ -1063,6 +1063,7 @@ async def relocate_schedule(
         {"id": schedule_id, "deleted_at": None},
         {
             "$set": {
+                "date": data.date,
                 "start_time": data.start_time,
                 "end_time": data.end_time,
             }
