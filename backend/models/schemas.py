@@ -63,7 +63,8 @@ class ScheduleCreate(BaseModel):
     class_id: Optional[str] = None
     date: str  # YYYY-MM-DD
     start_time: str  # HH:MM
-    end_time: str  # HH:MM
+    end_time: str
+    force: Optional[bool] = False  # HH:MM
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None
     recurrence: Optional[str] = None  # none, weekly, biweekly
@@ -97,6 +98,7 @@ class ScheduleRelocate(BaseModel):
     date: str
     start_time: str
     end_time: str
+    force: Optional[bool] = False
 
 class BulkDeleteRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
@@ -138,5 +140,6 @@ class ScheduleImportItem(BaseModel):
     date: str
     start_time: str
     end_time: str
+    force: Optional[bool] = False
     notes: Optional[str] = None
     row_idx: int
