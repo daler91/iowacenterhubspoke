@@ -161,7 +161,11 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-xs font-semibold text-amber-700">Town-to-Town Travel Detected</span>
+            <span className="text-xs font-semibold text-amber-700">
+              {schedule.town_to_town_drive_minutes
+                ? `Town-to-Town: ~${schedule.town_to_town_drive_minutes} min drive`
+                : 'Town-to-Town Travel Detected'}
+            </span>
           </div>
         </div>
       )}

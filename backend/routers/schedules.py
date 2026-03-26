@@ -89,6 +89,7 @@ from services.schedule_utils import (
     check_outlook_conflicts,
     time_to_minutes,
 )
+from services.drive_time import get_drive_time_between_locations
 from core.logger import get_logger
 from core.constants import (
     STATUS_UPCOMING,
@@ -438,20 +439,35 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     ).to_list(100)
 
     if not same_day_schedules:
-        return False, None
+        return False, None, None
 
     location_ids = list({s["location_id"] for s in same_day_schedules})
     other_locations = await db.locations.find(
         {"id": {"$in": location_ids}}, {"_id": 0}
     ).to_list(100)
     loc_map = {loc["id"]: loc for loc in other_locations}
-    other_cities = [
-        loc_map[s["location_id"]]["city_name"]
-        for s in same_day_schedules
-        if s["location_id"] in loc_map
-    ]
-    warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
-    return True, warning
+
+    other_cities = []
+    drive_minutes = None
+    for s in same_day_schedules:
+        if s["location_id"] in loc_map:
+            other_cities.append(loc_map[s["location_id"]]["city_name"])
+
+    # Calculate actual drive time between this location and the closest other location
+    for other_loc_id in location_ids:
+        try:
+            minutes = await get_drive_time_between_locations(location_id, other_loc_id)
+            if minutes is not None:
+                if drive_minutes is None or minutes < drive_minutes:
+                    drive_minutes = minutes
+        except Exception:
+            pass
+
+    if drive_minutes is not None:
+        warning = f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. Other locations: {', '.join(other_cities)}"
+    else:
+        warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+    return True, warning, drive_minutes
 
 
 async def _check_town_to_town_bulk(
@@ -483,6 +499,8 @@ async def _check_town_to_town_bulk(
     loc_map = {loc["id"]: loc for loc in other_locations}
 
     results = {}
+    # Cache drive time lookups to avoid redundant API calls
+    drive_time_cache = {}
     for date, scheds in schedules_by_date.items():
         other_cities = list({
             loc_map[s["location_id"]]["city_name"]
@@ -490,8 +508,24 @@ async def _check_town_to_town_bulk(
             if s["location_id"] in loc_map
         })
         if other_cities:
-            warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
-            results[date] = (True, warning)
+            drive_minutes = None
+            for s in scheds:
+                other_id = s["location_id"]
+                pair_key = tuple(sorted([location_id, other_id]))
+                if pair_key not in drive_time_cache:
+                    try:
+                        drive_time_cache[pair_key] = await get_drive_time_between_locations(location_id, other_id)
+                    except Exception:
+                        drive_time_cache[pair_key] = None
+                m = drive_time_cache[pair_key]
+                if m is not None and (drive_minutes is None or m < drive_minutes):
+                    drive_minutes = m
+
+            if drive_minutes is not None:
+                warning = f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. Other locations: {', '.join(other_cities)}"
+            else:
+                warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+            results[date] = (True, warning, drive_minutes)
 
     return results
 
@@ -506,6 +540,7 @@ def _build_schedule_doc(
     location,
     employee,
     class_doc,
+    town_to_town_drive_minutes=None,
 ):
     return {
         "id": str(uuid.uuid4()),
@@ -517,6 +552,7 @@ def _build_schedule_doc(
         "drive_time_minutes": drive_time,
         "town_to_town": town_to_town,
         "town_to_town_warning": town_to_town_warning,
+        "town_to_town_drive_minutes": town_to_town_drive_minutes,
         "travel_override_minutes": data.travel_override_minutes,
         "notes": data.notes,
         "status": STATUS_UPCOMING,
@@ -601,7 +637,7 @@ async def _handle_single_schedule(
                 },
             )
 
-    town_to_town, town_to_town_warning = await _check_town_to_town(
+    town_to_town, town_to_town_warning, town_to_town_drive_minutes = await _check_town_to_town(
         data.employee_id, date_to_schedule, data.location_id
     )
     doc = _build_schedule_doc(
@@ -614,6 +650,7 @@ async def _handle_single_schedule(
         location,
         employee,
         class_doc,
+        town_to_town_drive_minutes=town_to_town_drive_minutes,
     )
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
@@ -734,8 +771,8 @@ async def _handle_bulk_synchronous(
             )
             continue
 
-        town_to_town, town_to_town_warning = all_town_warnings.get(
-            sched_date, (False, None)
+        town_to_town, town_to_town_warning, tt_drive_minutes = all_town_warnings.get(
+            sched_date, (False, None, None)
         )
 
         doc = _build_schedule_doc(
@@ -748,6 +785,7 @@ async def _handle_bulk_synchronous(
             location,
             employee,
             class_doc,
+            town_to_town_drive_minutes=tt_drive_minutes,
         )
         docs_to_insert.append(doc)
 
@@ -1059,6 +1097,11 @@ async def relocate_schedule(
             detail={"message": "Conflict at new time", "conflicts": conflicts},
         )
 
+    # Recalculate town-to-town after relocating
+    town_to_town, town_to_town_warning, tt_drive_minutes = await _check_town_to_town(
+        schedule["employee_id"], data.date, schedule["location_id"]
+    )
+
     await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
         {
@@ -1066,6 +1109,9 @@ async def relocate_schedule(
                 "date": data.date,
                 "start_time": data.start_time,
                 "end_time": data.end_time,
+                "town_to_town": town_to_town,
+                "town_to_town_warning": town_to_town_warning,
+                "town_to_town_drive_minutes": tt_drive_minutes,
             }
         },
     )

@@ -6,6 +6,7 @@ from database import db
 from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
 from services.activity import log_activity
+from services.drive_time import get_drive_time_between_locations, get_drive_time_from_hub
 from core.logger import get_logger
 from core.queue import get_redis_pool
 
@@ -22,6 +23,22 @@ async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
     total = await db.locations.count_documents(query)
     locations = await db.locations.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return {"items": locations, "total": total, "skip": skip, "limit": limit}
+
+@router.get("/drive-time")
+async def get_drive_time_between_endpoint(from_id: str, to_id: str, user: CurrentUser):
+    """Get drive time between two locations using Google Distance Matrix (with caching)."""
+    minutes = await get_drive_time_between_locations(from_id, to_id)
+    if minutes is None:
+        raise HTTPException(status_code=400, detail="Both locations must have latitude and longitude set")
+    return {"from_id": from_id, "to_id": to_id, "drive_time_minutes": minutes}
+
+
+@router.get("/drive-time-from-hub")
+async def get_drive_time_from_hub_endpoint(lat: float, lng: float, user: CurrentUser):
+    """Get drive time from Hub (Des Moines) to given coordinates."""
+    minutes = await get_drive_time_from_hub(lat, lng)
+    return {"drive_time_minutes": minutes}
+
 
 @router.get("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def get_location(location_id: str, user: CurrentUser):
