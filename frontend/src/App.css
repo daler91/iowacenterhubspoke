@@ -111,3 +111,54 @@
 .drag-over {
   background-color: rgba(79, 70, 229, 0.08) !important;
 }
+
+/* @dnd-kit drag overlay card */
+.dnd-overlay-card {
+  color: white;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0.92;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 140px;
+}
+
+/* Drop position indicator line */
+.dnd-drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #4F46E5;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.dnd-drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  background: #4F46E5;
+  border-radius: 50%;
+}
+
+.dnd-drop-indicator-label {
+  position: absolute;
+  left: 10px;
+  top: -10px;
+  background: #4F46E5;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+

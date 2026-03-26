@@ -1,11 +1,24 @@
+import { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Car, AlertTriangle, Check } from 'lucide-react';
+import { Car, AlertTriangle, GripVertical, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
-
+import { useAuth } from '../lib/auth';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+} from '@dnd-kit/core';
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
+const PX_PER_HOUR = 80;
+const SNAP_MINUTES = 30;
+const START_HOUR = 6;
 
 function formatHourLabel(hour) {
   if (hour === 0) return '12 AM';
@@ -20,155 +33,330 @@ function timeToMinutes(timeStr) {
 }
 
 function minutesToTop(minutes) {
-  return ((minutes - 6 * 60) / 60) * 80; // 80px per hour for day view
+  return ((minutes - START_HOUR * 60) / 60) * PX_PER_HOUR;
 }
 
-export default function CalendarDay({ currentDate, schedules, onEditSchedule, selectionMode, isSelected, toggleItem }) {
+function minutesToTimeStr(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function snapYToMinutes(y) {
+  const rawMinutes = (y / PX_PER_HOUR) * 60;
+  const snappedMinutes = Math.round(rawMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+  return Math.max(0, START_HOUR * 60 + snappedMinutes);
+}
+
+// ─── Draggable schedule block ─────────────────────────────────────────────
+function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: schedule.id,
+    data: { schedule },
+    disabled: !canEdit || selectionMode,
+  });
+
+  const startMin = timeToMinutes(schedule.start_time);
+  const endMin = timeToMinutes(schedule.end_time);
+  const driveMin = schedule.drive_time_minutes || 0;
+  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const className = schedule.class_name || 'Unassigned Class';
+  const selected = selectionMode && isSelected?.(schedule.id);
+
+  const classTop = minutesToTop(startMin);
+  const classHeight = ((endMin - startMin) / 60) * PX_PER_HOUR;
+  const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveMin));
+  const driveBeforeHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveAfterTop = minutesToTop(endMin);
+  const driveAfterHeight = (driveMin / 60) * PX_PER_HOUR;
+
+  return (
+    <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
+      {/* Drive before */}
+      {driveMin > 0 && (
+        <div
+          className="schedule-block drive-block"
+          style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 24)}px`, right: '16px' }}
+        >
+          <div className="flex items-center gap-2">
+            <Car className="w-4 h-4" />
+            <span className="text-xs font-medium">Drive from Hub - {driveMin} min</span>
+          </div>
+        </div>
+      )}
+
+      {/* Class block (draggable) */}
+      <button
+        ref={setNodeRef}
+        {...(selectionMode ? {} : { ...listeners, ...attributes })}
+        type="button"
+        className={cn(
+          "schedule-block class-block appearance-none border-0 p-0 text-left",
+          (() => {
+            if (selectionMode) return "cursor-pointer";
+            if (canEdit) return "cursor-grab";
+            return "cursor-default";
+          })(),
+          selected && "ring-2 ring-indigo-500 ring-offset-1"
+        )}
+        style={{
+          top: `${classTop}px`,
+          height: `${Math.max(classHeight, 40)}px`,
+          right: '16px',
+          backgroundColor: classColor,
+        }}
+        onClick={() => {
+          if (selectionMode) {
+            toggleItem?.(schedule.id);
+          } else {
+            onEditSchedule?.(schedule);
+          }
+        }}
+        data-testid={`day-class-block-${schedule.id}`}
+      >
+        {selectionMode && (
+          <div className={cn(
+            "absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center z-10",
+            selected ? "bg-white border-white" : "border-white/70 bg-transparent"
+          )}>
+            {selected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+          </div>
+        )}
+        {!selectionMode && canEdit && (
+          <GripVertical className="w-4 h-4 absolute top-2 right-2 opacity-0 group-hover:opacity-50 text-white" />
+        )}
+        <div className={cn("flex flex-col h-full justify-between group", selectionMode && "pl-7")}>
+          <div>
+            <p className="font-semibold text-xs uppercase tracking-wide">{className}</p>
+            <p className="text-sm">{schedule.location_name}</p>
+            <p className="text-xs opacity-80">{schedule.employee_name}</p>
+          </div>
+          <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
+        </div>
+        {schedule.town_to_town && !selectionMode && (
+          <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
+            <AlertTriangle className="w-3 h-3 text-white" />
+          </div>
+        )}
+      </button>
+
+      {/* Drive after */}
+      {driveMin > 0 && (
+        <div
+          className="schedule-block drive-block"
+          style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: '16px' }}
+        >
+          <div className="flex items-center gap-2">
+            <Car className="w-4 h-4" />
+            <span className="text-xs font-medium">Return to Hub - {driveMin} min</span>
+          </div>
+        </div>
+      )}
+
+      {/* Town-to-town warning */}
+      {schedule.town_to_town && (
+        <div
+          className="absolute left-2 right-[16px] bg-amber-50 border border-amber-200 rounded-lg p-2 z-30"
+          style={{ top: `${classTop - 28}px` }}
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <span className="text-xs font-semibold text-amber-700">Town-to-Town Travel Detected</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+DraggableDayBlock.propTypes = {
+  schedule: PropTypes.object.isRequired,
+  canEdit: PropTypes.bool,
+  selectionMode: PropTypes.bool,
+  isSelected: PropTypes.func,
+  toggleItem: PropTypes.func,
+  onEditSchedule: PropTypes.func,
+};
+
+// ─── Droppable area ───────────────────────────────────────────────────────
+function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dateStr });
+
+  return (
+    <div ref={setNodeRef} className="relative">
+      {HOURS.map(hour => (
+        <div key={hour} className={cn("h-[80px] border-b border-gray-50 transition-colors", isOver && "bg-indigo-50/20")} />
+      ))}
+
+      {/* Drop indicator */}
+      {isOver && dropIndicatorMinutes != null && (
+        <div
+          className="dnd-drop-indicator"
+          style={{ top: `${minutesToTop(dropIndicatorMinutes)}px` }}
+        >
+          <span className="dnd-drop-indicator-label">
+            {minutesToTimeStr(dropIndicatorMinutes)}
+          </span>
+        </div>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+DroppableDayArea.propTypes = {
+  dateStr: PropTypes.string.isRequired,
+  children: PropTypes.node,
+  dropIndicatorMinutes: PropTypes.number,
+};
+
+// ─── Drag overlay ghost card ──────────────────────────────────────────────
+function DayDragOverlayCard({ schedule }) {
+  if (!schedule) return null;
+  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const className = schedule.class_name || 'Unassigned Class';
+  const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
+
+  return (
+    <div
+      className="dnd-overlay-card"
+      style={{
+        backgroundColor: classColor,
+        borderLeft: `4px solid ${classColor}`,
+        height: `${Math.max((duration / 60) * PX_PER_HOUR, 40)}px`,
+        width: '280px',
+      }}
+    >
+      <p className="font-semibold text-xs uppercase tracking-wide truncate">{className}</p>
+      <p className="text-sm truncate">{schedule.location_name}</p>
+      <p className="text-xs opacity-80 truncate">{schedule.employee_name}</p>
+      <p className="text-xs opacity-70 mt-auto">{schedule.start_time} - {schedule.end_time}</p>
+    </div>
+  );
+}
+
+DayDragOverlayCard.propTypes = {
+  schedule: PropTypes.object,
+};
+
+// ─── Main component ───────────────────────────────────────────────────────
+export default function CalendarDay({ currentDate, schedules, onEditSchedule, onRelocate, selectionMode, isSelected, toggleItem }) {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
   const dateStr = format(currentDate, 'yyyy-MM-dd');
   const daySchedules = (schedules || []).filter(s => s.date === dateStr);
 
+  const [activeSchedule, setActiveSchedule] = useState(null);
+  const [dropIndicatorMinutes, setDropIndicatorMinutes] = useState(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragStart = useCallback((event) => {
+    const schedule = event.active.data.current?.schedule;
+    if (schedule) setActiveSchedule(schedule);
+  }, []);
+
+  const handleDragOver = useCallback((event) => {
+    const { over } = event;
+    if (!over) { setDropIndicatorMinutes(null); return; }
+
+    const overElement = over.rect;
+    const pointerY = event.activatorEvent?.clientY ?? 0;
+    const deltaY = event.delta?.y ?? 0;
+    const relativeY = (pointerY + deltaY) - overElement.top;
+    setDropIndicatorMinutes(snapYToMinutes(relativeY));
+  }, []);
+
+  const handleDragEnd = useCallback((event) => {
+    const { active, over } = event;
+    setActiveSchedule(null);
+    setDropIndicatorMinutes(null);
+
+    if (!over || !active || !onRelocate || !canEdit) return;
+
+    const schedule = active.data.current?.schedule;
+    if (!schedule) return;
+
+    const overElement = over.rect;
+    const pointerY = event.activatorEvent?.clientY ?? 0;
+    const deltaY = event.delta?.y ?? 0;
+    const relativeY = (pointerY + deltaY) - overElement.top;
+    const newStartMinutes = snapYToMinutes(relativeY);
+    const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
+    const newEndMinutes = newStartMinutes + duration;
+
+    const newStart = minutesToTimeStr(newStartMinutes);
+    const newEnd = minutesToTimeStr(newEndMinutes);
+
+    if (newStart === schedule.start_time) return;
+
+    onRelocate(schedule.id, dateStr, newStart, newEnd);
+  }, [onRelocate, canEdit, dateStr]);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveSchedule(null);
+    setDropIndicatorMinutes(null);
+  }, []);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-gray-50/50">
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
-        <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          {format(currentDate, 'MMMM d, yyyy')}
-        </p>
-        {daySchedules.length > 0 && (
-          <p className="text-sm text-slate-500 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
-        )}
-      </div>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 bg-gray-50/50">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
+          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            {format(currentDate, 'MMMM d, yyyy')}
+          </p>
+          {daySchedules.length > 0 && (
+            <p className="text-sm text-slate-500 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
+          )}
+        </div>
 
-      {/* Time grid */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-        <div className="grid grid-cols-[80px_1fr] relative">
-          {/* Time labels */}
-          <div className="border-r border-gray-100">
-            {HOURS.map(hour => (
-              <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
-                <span className="text-xs text-slate-400 font-medium">
-                  {formatHourLabel(hour)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Schedule area */}
-          <div className="relative">
-            {HOURS.map(hour => (
-              <div key={hour} className="h-[80px] border-b border-gray-50 hover:bg-indigo-50/20 transition-colors" />
-            ))}
-
-            {daySchedules.map(schedule => {
-              const startMin = timeToMinutes(schedule.start_time);
-              const endMin = timeToMinutes(schedule.end_time);
-              const driveMin = schedule.drive_time_minutes || 0;
-              const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
-              const className = schedule.class_name || 'Unassigned Class';
-              const selected = selectionMode && isSelected?.(schedule.id);
-
-              const classTop = minutesToTop(startMin);
-              const classHeight = ((endMin - startMin) / 60) * 80;
-              const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveMin));
-              const driveBeforeHeight = (driveMin / 60) * 80;
-              const driveAfterTop = minutesToTop(endMin);
-              const driveAfterHeight = (driveMin / 60) * 80;
-
-              return (
-                <div key={schedule.id}>
-                  {/* Drive before */}
-                  {driveMin > 0 && (
-                    <div
-                      className="schedule-block drive-block"
-                      style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 24)}px`, right: '16px' }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Car className="w-4 h-4" />
-                        <span className="text-xs font-medium">Drive from Hub - {driveMin} min</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Class */}
-                  <button
-                    type="button"
-                    className={cn(
-                      "schedule-block class-block appearance-none border-0 p-0 text-left",
-                      selectionMode ? "cursor-pointer" : "cursor-default",
-                      selected && "ring-2 ring-indigo-500 ring-offset-1"
-                    )}
-                    style={{
-                      top: `${classTop}px`,
-                      height: `${Math.max(classHeight, 40)}px`,
-                      right: '16px',
-                      backgroundColor: classColor,
-                    }}
-                    onClick={() => {
-                      if (selectionMode) {
-                        toggleItem?.(schedule.id);
-                      } else {
-                        onEditSchedule?.(schedule);
-                      }
-                    }}
-                    data-testid={`day-class-block-${schedule.id}`}
-                  >
-                    {/* Selection checkbox overlay */}
-                    {selectionMode && (
-                      <div className={cn(
-                        "absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center z-10",
-                        selected ? "bg-white border-white" : "border-white/70 bg-transparent"
-                      )}>
-                        {selected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                      </div>
-                    )}
-                    <div className={cn("flex flex-col h-full justify-between", selectionMode && "pl-7")}>
-                      <div>
-                        <p className="font-semibold text-xs uppercase tracking-wide">{className}</p>
-                        <p className="text-sm">{schedule.location_name}</p>
-                        <p className="text-xs opacity-80">{schedule.employee_name}</p>
-                      </div>
-                      <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
-                    </div>
-                    {schedule.town_to_town && !selectionMode && (
-                      <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
-                        <AlertTriangle className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                  </button>
-
-                  {/* Drive after */}
-                  {driveMin > 0 && (
-                    <div
-                      className="schedule-block drive-block"
-                      style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: '16px' }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Car className="w-4 h-4" />
-                        <span className="text-xs font-medium">Return to Hub - {driveMin} min</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Warning */}
-                  {schedule.town_to_town && (
-                    <div
-                      className="absolute left-2 right-[16px] bg-amber-50 border border-amber-200 rounded-lg p-2 z-30"
-                      style={{ top: `${classTop - 28}px` }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-600" />
-                        <span className="text-xs font-semibold text-amber-700">Town-to-Town Travel Detected</span>
-                      </div>
-                    </div>
-                  )}
+        {/* Time grid */}
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+          <div className="grid grid-cols-[80px_1fr] relative">
+            {/* Time labels */}
+            <div className="border-r border-gray-100">
+              {HOURS.map(hour => (
+                <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
+                  <span className="text-xs text-slate-400 font-medium">
+                    {formatHourLabel(hour)}
+                  </span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+
+            {/* Schedule area (droppable) */}
+            <DroppableDayArea dateStr={dateStr} dropIndicatorMinutes={dropIndicatorMinutes}>
+              {daySchedules.map(schedule => (
+                <DraggableDayBlock
+                  key={schedule.id}
+                  schedule={schedule}
+                  canEdit={canEdit}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  toggleItem={toggleItem}
+                  onEditSchedule={onEditSchedule}
+                />
+              ))}
+            </DroppableDayArea>
           </div>
         </div>
       </div>
-    </div>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
+        {activeSchedule && <DayDragOverlayCard schedule={activeSchedule} />}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -176,6 +364,7 @@ CalendarDay.propTypes = {
   currentDate: PropTypes.instanceOf(Date).isRequired,
   schedules: PropTypes.array,
   onEditSchedule: PropTypes.func,
+  onRelocate: PropTypes.func,
   selectionMode: PropTypes.bool,
   isSelected: PropTypes.func,
   toggleItem: PropTypes.func,
