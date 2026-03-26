@@ -134,19 +134,32 @@ export default function CalendarView() {
     updateParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
-  const handleRelocate = async (scheduleId, newDate, newStart, newEnd) => {
+  const handleRelocate = async (scheduleId, newDate, newStart, newEnd, force = false) => {
     try {
-      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd });
+      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
       toast.success('Schedule moved');
       fetchSchedules();
       fetchActivities();
+      setRelocateConflictData(null);
     } catch (err) {
       if (err.response?.status === 409) {
-        toast.error('Conflict at the new time slot');
+        setRelocateConflictData({
+          scheduleId,
+          newDate,
+          newStart,
+          newEnd,
+          conflicts: err.response.data.detail?.conflicts || []
+        });
       } else {
         toast.error('Failed to move schedule');
       }
     }
+  };
+
+  const handleForceRelocate = () => {
+    if (!relocateConflictData) return;
+    const { scheduleId, newDate, newStart, newEnd } = relocateConflictData;
+    handleRelocate(scheduleId, newDate, newStart, newEnd, true);
   };
 
   const handleBulkComplete = () => {

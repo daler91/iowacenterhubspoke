@@ -1053,7 +1053,7 @@ async def relocate_schedule(
         drive_time,
         exclude_id=schedule_id,
     )
-    if conflicts:
+    if conflicts and not data.force:
         raise HTTPException(
             status_code=409,
             detail={"message": "Conflict at new time", "conflicts": conflicts},
