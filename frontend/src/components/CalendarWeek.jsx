@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
+import { cn, computeDriveChain } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAuth } from '../lib/auth';
 import { COLORS } from '../lib/constants';
@@ -51,7 +51,7 @@ function snapYToMinutes(y) {
 }
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
-const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule, dateStr },
@@ -60,39 +60,43 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
 
   const startMin = timeToMinutes(schedule.start_time);
   const endMin = timeToMinutes(schedule.end_time);
-  const driveMin = schedule.drive_time_minutes || 0;
+
+  // Use chain info for drive blocks instead of per-schedule drive_time_minutes
+  const ci = chainInfo || {};
+  const driveBeforeMin = ci.driveBeforeMin ?? (schedule.drive_time_minutes || 0);
+  const driveAfterMin = ci.driveAfterMin ?? (schedule.drive_time_minutes || 0);
+  const isTTAfter = ci.driveAfterStyle === 'town-to-town';
 
   const classTop = minutesToTop(startMin);
   const classHeight = ((endMin - startMin) / 60) * PX_PER_HOUR;
-  const driveBeforeTop = minutesToTop(startMin - driveMin);
-  const driveBeforeHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveBeforeTop = minutesToTop(startMin - driveBeforeMin);
+  const driveBeforeHeight = (driveBeforeMin / 60) * PX_PER_HOUR;
   const driveAfterTop = minutesToTop(endMin);
-  const driveAfterHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveAfterHeight = (driveAfterMin / 60) * PX_PER_HOUR;
 
   const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
-  const isTownToTown = schedule.town_to_town && schedule.travel_override_minutes;
 
   return (
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
-      {/* Drive time BEFORE */}
-      {driveMin > 0 && (
+      {/* Drive time BEFORE (hub drive for first class, nothing for others in chain) */}
+      {driveBeforeMin > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div
               data-testid={`drive-before-${schedule.id}`}
-              className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+              className="schedule-block drive-block"
               style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px` }}
             >
               <div className="flex items-center gap-1">
-                {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
-                <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'drive'}</span>
+                <Car className="w-3 h-3" />
+                <span className="text-[10px] font-medium">{driveBeforeMin}m drive</span>
               </div>
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Drive from Hub to ${schedule.location_name}: ${driveMin} min`}</p>
+            <p>{ci.driveBeforeLabel || `Drive from Hub to ${schedule.location_name}: ${driveBeforeMin} min`}</p>
           </TooltipContent>
         </Tooltip>
       )}
@@ -151,10 +155,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               </div>
               {schedule.town_to_town && !selectionMode && (
                 <div className="absolute top-1 right-1">
-                  {isTownToTown
-                    ? <ArrowRightLeft className="w-3 h-3 text-teal-300" />
-                    : <AlertTriangle className="w-3 h-3 text-amber-300" />
-                  }
+                  <ArrowRightLeft className="w-3 h-3 text-teal-300" />
                 </div>
               )}
             </button>
@@ -166,63 +167,34 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               <p className="text-xs">Employee: {schedule.employee_name}</p>
               <p className="text-xs">Time: {schedule.start_time} - {schedule.end_time}</p>
               <p className="text-xs">
-                Drive: {schedule.drive_time_minutes}m {isTownToTown ? '(town-to-town)' : 'each way'}
+                Hub drive: {schedule.drive_time_minutes}m each way
               </p>
-              {schedule.town_to_town && !isTownToTown && schedule.town_to_town_warning && (
-                <p className="text-xs text-amber-600 font-medium">{schedule.town_to_town_warning}</p>
-              )}
-              {schedule.town_to_town && !isTownToTown && schedule.town_to_town_drive_minutes && (
-                <p className="text-xs text-amber-500">~{schedule.town_to_town_drive_minutes} min drive between towns</p>
+              {schedule.town_to_town && schedule.town_to_town_drive_minutes && (
+                <p className="text-xs text-teal-600">Town-to-town: ~{schedule.town_to_town_drive_minutes} min between locations</p>
               )}
             </div>
           </TooltipContent>
         </Tooltip>
 
-      {/* Drive time AFTER */}
-      {driveMin > 0 && (
+      {/* Drive time AFTER (hub return for last, city-to-city for others in chain) */}
+      {driveAfterMin > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div
               data-testid={`drive-after-${schedule.id}`}
-              className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+              className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
               style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px` }}
             >
               <div className="flex items-center gap-1">
-                {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
-                <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'return'}</span>
+                {isTTAfter ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
+                <span className="text-[10px] font-medium">{driveAfterMin}m {isTTAfter ? 'town' : 'return'}</span>
               </div>
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Return drive from ${schedule.location_name} to Hub: ${driveMin} min`}</p>
+            <p>{ci.driveAfterLabel || `Return to Hub: ${driveAfterMin} min`}</p>
           </TooltipContent>
         </Tooltip>
-      )}
-
-      {/* Town-to-town indicator */}
-      {schedule.town_to_town && (
-        <div
-          data-testid={`warning-${schedule.id}`}
-          className={cn(
-            "schedule-block",
-            isTownToTown ? "!bg-teal-100 !text-teal-700 !border-teal-200" : "warning-block"
-          )}
-          style={{ top: `${classTop - 16}px`, height: '14px', zIndex: 25 }}
-        >
-          <div className="flex items-center gap-1">
-            {isTownToTown
-              ? <ArrowRightLeft className="w-3 h-3" />
-              : <AlertTriangle className="w-3 h-3" />
-            }
-            <span className="text-[9px] font-semibold">
-              {isTownToTown
-                ? `Town-to-Town: ${driveMin}m`
-                : schedule.town_to_town_drive_minutes
-                  ? `Town-to-Town: ${schedule.town_to_town_drive_minutes}m`
-                  : 'Town-to-Town'}
-            </span>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -236,6 +208,7 @@ DraggableBlock.propTypes = {
   isSelected: PropTypes.func,
   toggleItem: PropTypes.func,
   onEditSchedule: PropTypes.func,
+  chainInfo: PropTypes.object,
 };
 
 // ─── Droppable day column ─────────────────────────────────────────────────
@@ -451,6 +424,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               const dateStr = format(day, 'yyyy-MM-dd');
               const daySchedules = schedulesByDay[dateStr] || [];
               const indicatorMinutes = dropIndicator.dateStr === dateStr ? dropIndicator.minutes : null;
+              const driveChain = computeDriveChain(daySchedules);
               return (
                 <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes}>
                   <TooltipProvider delayDuration={200}>
@@ -464,6 +438,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                         isSelected={isSelected}
                         toggleItem={toggleItem}
                         onEditSchedule={onEditSchedule}
+                        chainInfo={driveChain[schedule.id]}
                       />
                     ))}
                   </TooltipProvider>

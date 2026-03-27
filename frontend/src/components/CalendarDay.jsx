@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
+import { cn, computeDriveChain } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 import { useAuth } from '../lib/auth';
 import {
@@ -49,7 +49,7 @@ function snapYToMinutes(y) {
 }
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
-const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule },
@@ -58,31 +58,35 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
 
   const startMin = timeToMinutes(schedule.start_time);
   const endMin = timeToMinutes(schedule.end_time);
-  const driveMin = schedule.drive_time_minutes || 0;
   const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
-  const isTownToTown = schedule.town_to_town && schedule.travel_override_minutes;
+
+  // Use chain info for contextual drive blocks
+  const ci = chainInfo || {};
+  const driveBeforeMin = ci.driveBeforeMin ?? (schedule.drive_time_minutes || 0);
+  const driveAfterMin = ci.driveAfterMin ?? (schedule.drive_time_minutes || 0);
+  const isTTAfter = ci.driveAfterStyle === 'town-to-town';
 
   const classTop = minutesToTop(startMin);
   const classHeight = ((endMin - startMin) / 60) * PX_PER_HOUR;
-  const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveMin));
-  const driveBeforeHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveBeforeMin));
+  const driveBeforeHeight = (driveBeforeMin / 60) * PX_PER_HOUR;
   const driveAfterTop = minutesToTop(endMin);
-  const driveAfterHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveAfterHeight = (driveAfterMin / 60) * PX_PER_HOUR;
 
   return (
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
-      {/* Drive before */}
-      {driveMin > 0 && (
+      {/* Drive before (hub drive for first class, nothing for others in chain) */}
+      {driveBeforeMin > 0 && (
         <div
-          className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+          className="schedule-block drive-block"
           style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
-            {isTownToTown ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+            <Car className="w-4 h-4" />
             <span className="text-xs font-medium">
-              {isTownToTown ? `Drive between towns - ${driveMin} min` : `Drive from Hub - ${driveMin} min`}
+              {ci.driveBeforeLabel || `Drive from Hub - ${driveBeforeMin} min`}
             </span>
           </div>
         </div>
@@ -137,49 +141,22 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
           <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
         </div>
         {schedule.town_to_town && !selectionMode && (
-          <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
-            <AlertTriangle className="w-3 h-3 text-white" />
+          <div className="absolute top-2 right-2 bg-teal-500 rounded-full p-1">
+            <ArrowRightLeft className="w-3 h-3 text-white" />
           </div>
         )}
       </button>
 
-      {/* Drive after */}
-      {driveMin > 0 && (
+      {/* Drive after (hub return for last, city-to-city for others in chain) */}
+      {driveAfterMin > 0 && (
         <div
-          className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+          className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
           style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
-            {isTownToTown ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+            {isTTAfter ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
             <span className="text-xs font-medium">
-              {isTownToTown ? `Drive between towns - ${driveMin} min` : `Return to Hub - ${driveMin} min`}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Town-to-town indicator */}
-      {schedule.town_to_town && (
-        <div
-          className={cn(
-            "absolute left-2 right-[16px] rounded-lg p-2 z-30",
-            isTownToTown
-              ? "bg-teal-50 border border-teal-200"
-              : "bg-amber-50 border border-amber-200"
-          )}
-          style={{ top: `${classTop - 28}px` }}
-        >
-          <div className="flex items-center gap-2">
-            {isTownToTown
-              ? <ArrowRightLeft className="w-4 h-4 text-teal-600" />
-              : <AlertTriangle className="w-4 h-4 text-amber-600" />
-            }
-            <span className={cn("text-xs font-semibold", isTownToTown ? "text-teal-700" : "text-amber-700")}>
-              {isTownToTown
-                ? `Town-to-Town: ${driveMin} min between locations`
-                : schedule.town_to_town_drive_minutes
-                  ? `Town-to-Town: ~${schedule.town_to_town_drive_minutes} min drive`
-                  : 'Town-to-Town Travel Detected'}
+              {ci.driveAfterLabel || `Return to Hub - ${driveAfterMin} min`}
             </span>
           </div>
         </div>
@@ -195,6 +172,7 @@ DraggableDayBlock.propTypes = {
   isSelected: PropTypes.func,
   toggleItem: PropTypes.func,
   onEditSchedule: PropTypes.func,
+  chainInfo: PropTypes.object,
 };
 
 // ─── Droppable area ───────────────────────────────────────────────────────
@@ -268,6 +246,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
     () => (schedules || []).filter(s => s.date === dateStr),
     [schedules, dateStr]
   );
+  const driveChain = useMemo(() => computeDriveChain(daySchedules), [daySchedules]);
 
   const [activeSchedule, setActiveSchedule] = useState(null);
   const [dropIndicatorMinutes, setDropIndicatorMinutes] = useState(null);
@@ -368,6 +347,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
                   isSelected={isSelected}
                   toggleItem={toggleItem}
                   onEditSchedule={onEditSchedule}
+                  chainInfo={driveChain[schedule.id]}
                 />
               ))}
             </DroppableDayArea>
