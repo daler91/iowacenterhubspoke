@@ -3,7 +3,9 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { MapPin, Car, Clock, AlertTriangle, Calendar } from 'lucide-react';
+import { MapPin, Car, Clock, AlertTriangle, Calendar, ArrowRightLeft } from 'lucide-react';
+import { Button } from '../ui/button';
+import { toast } from 'sonner';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
 const OUTLOOK_STATUS_COLORS = { busy: 'bg-red-100 text-red-700', tentative: 'bg-amber-100 text-amber-700', oof: 'bg-purple-100 text-purple-700' };
@@ -20,7 +22,14 @@ export function LocationTimeSelectors({
   showOverride, setShowOverride,
   onDateChange,
   previewConflicts,
+  townToTown,
 }) {
+  const handleApplyTownToTown = () => {
+    if (!townToTown?.drive_minutes) return;
+    setForm(prev => ({ ...prev, travel_override_minutes: String(townToTown.drive_minutes) }));
+    setShowOverride(true);
+    toast.success(`Drive time updated to ${townToTown.drive_minutes} min (town-to-town)`);
+  };
   return (
     <>
       <div className="space-y-2">
@@ -134,6 +143,31 @@ export function LocationTimeSelectors({
         </div>
       )}
 
+      {/* Town-to-town drive time suggestion */}
+      {townToTown?.detected && townToTown.drive_minutes && (
+        <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2" data-testid="town-to-town-banner">
+          <div className="flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4 text-teal-600" />
+            <span className="text-xs font-semibold text-teal-700">
+              Town-to-Town: ~{townToTown.drive_minutes} min drive to {townToTown.other_locations?.join(', ')}
+            </span>
+          </div>
+          <p className="text-[11px] text-teal-600">
+            Employee has another class at {townToTown.other_locations?.join(' and ')} on this date. Use the location-to-location drive time instead of the hub round trip?
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            data-testid="apply-town-to-town-btn"
+            onClick={handleApplyTownToTown}
+            className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-7 px-3"
+          >
+            <Car className="w-3 h-3 mr-1" />
+            Apply Drive Time ({townToTown.drive_minutes} min)
+          </Button>
+        </div>
+      )}
+
       <div>
         <button
           type="button"
@@ -212,5 +246,11 @@ LocationTimeSelectors.propTypes = {
       location: PropTypes.string,
       time: PropTypes.string,
     })),
+  }),
+  townToTown: PropTypes.shape({
+    detected: PropTypes.bool,
+    drive_minutes: PropTypes.number,
+    other_locations: PropTypes.arrayOf(PropTypes.string),
+    warning: PropTypes.string,
   }),
 };

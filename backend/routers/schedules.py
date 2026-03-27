@@ -1155,10 +1155,36 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     outlook_conflicts = await check_outlook_conflicts(
         data.employee_id, data.date, data.start_time, data.end_time
     )
+
+    # Detect town-to-town travel for the schedule form prompt
+    town_to_town_info = None
+    if data.employee_id and data.date and data.location_id:
+        tt, tt_warning, tt_drive_min = await _check_town_to_town(
+            data.employee_id, data.date, data.location_id
+        )
+        if tt:
+            same_day = await db.schedules.find(
+                {
+                    "employee_id": data.employee_id,
+                    "date": data.date,
+                    "location_id": {"$ne": data.location_id},
+                    "deleted_at": None,
+                },
+                {"_id": 0, "location_name": 1},
+            ).to_list(100)
+            other_locations = list({s["location_name"] for s in same_day})
+            town_to_town_info = {
+                "detected": True,
+                "drive_minutes": tt_drive_min,
+                "other_locations": other_locations,
+                "warning": tt_warning,
+            }
+
     return {
         "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0,
         "conflicts": conflicts,
         "outlook_conflicts": outlook_conflicts,
+        "town_to_town": town_to_town_info,
     }
 
 
