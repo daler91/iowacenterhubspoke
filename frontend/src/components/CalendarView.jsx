@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
@@ -90,11 +90,14 @@ export default function CalendarView() {
   const setFilterEmployee = (id) => updateParams({ employee: id });
   const setFilterLocation = (id) => updateParams({ location: id });
 
-  const filteredSchedules = (schedules || []).filter(s => {
-    if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
-    if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
-    return true;
-  });
+  const filteredSchedules = useMemo(() =>
+    (schedules || []).filter(s => {
+      if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
+      if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
+      return true;
+    }),
+    [schedules, filterEmployee, filterLocation]
+  );
 
   const navigateDate = (direction) => {
     let nextDate;
@@ -137,13 +140,24 @@ export default function CalendarView() {
   };
 
   const handleRelocate = async (scheduleId, newDate, newStart, newEnd, force = false) => {
+    // Optimistic update: move the schedule immediately in local state
+    fetchSchedules(
+      (current) => (current || []).map(s =>
+        s.id === scheduleId
+          ? { ...s, date: newDate, start_time: newStart, end_time: newEnd }
+          : s
+      ),
+      { revalidate: false }
+    );
+
     try {
       await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
       toast.success('Schedule moved');
-      fetchSchedules();
+      fetchSchedules(); // Revalidate with server truth (includes updated drive times)
       fetchActivities();
       setRelocateConflictData(null);
     } catch (err) {
+      fetchSchedules(); // Rollback optimistic update
       if (err.response?.status === 409) {
         setRelocateConflictData({
           scheduleId,

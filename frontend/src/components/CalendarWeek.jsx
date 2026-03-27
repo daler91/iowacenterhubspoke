@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
@@ -51,7 +51,7 @@ function snapYToMinutes(y) {
 }
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
-function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule, dateStr },
@@ -78,30 +78,27 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
       {/* Drive time BEFORE */}
       {driveMin > 0 && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                data-testid={`drive-before-${schedule.id}`}
-                className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
-                style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px` }}
-              >
-                <div className="flex items-center gap-1">
-                  {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
-                  <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'drive'}</span>
-                </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              data-testid={`drive-before-${schedule.id}`}
+              className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+              style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px` }}
+            >
+              <div className="flex items-center gap-1">
+                {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
+                <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'drive'}</span>
               </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Drive from Hub to ${schedule.location_name}: ${driveMin} min`}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Drive from Hub to ${schedule.location_name}: ${driveMin} min`}</p>
+          </TooltipContent>
+        </Tooltip>
       )}
 
       {/* Class block (draggable) */}
-      <TooltipProvider>
-        <Tooltip>
+      <Tooltip>
           <TooltipTrigger asChild>
             <button
               ref={setNodeRef}
@@ -180,29 +177,26 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
             </div>
           </TooltipContent>
         </Tooltip>
-      </TooltipProvider>
 
       {/* Drive time AFTER */}
       {driveMin > 0 && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                data-testid={`drive-after-${schedule.id}`}
-                className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
-                style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px` }}
-              >
-                <div className="flex items-center gap-1">
-                  {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
-                  <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'return'}</span>
-                </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              data-testid={`drive-after-${schedule.id}`}
+              className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+              style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px` }}
+            >
+              <div className="flex items-center gap-1">
+                {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
+                <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'return'}</span>
               </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Return drive from ${schedule.location_name} to Hub: ${driveMin} min`}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Return drive from ${schedule.location_name} to Hub: ${driveMin} min`}</p>
+          </TooltipContent>
+        </Tooltip>
       )}
 
       {/* Town-to-town indicator */}
@@ -232,7 +226,7 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
       )}
     </div>
   );
-}
+});
 
 DraggableBlock.propTypes = {
   schedule: PropTypes.object.isRequired,
@@ -459,18 +453,20 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               const indicatorMinutes = dropIndicator.dateStr === dateStr ? dropIndicator.minutes : null;
               return (
                 <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes}>
-                  {daySchedules.map(schedule => (
-                    <DraggableBlock
-                      key={schedule.id}
-                      schedule={schedule}
-                      dateStr={dateStr}
-                      canEdit={canEdit}
-                      selectionMode={selectionMode}
-                      isSelected={isSelected}
-                      toggleItem={toggleItem}
-                      onEditSchedule={onEditSchedule}
-                    />
-                  ))}
+                  <TooltipProvider delayDuration={200}>
+                    {daySchedules.map(schedule => (
+                      <DraggableBlock
+                        key={schedule.id}
+                        schedule={schedule}
+                        dateStr={dateStr}
+                        canEdit={canEdit}
+                        selectionMode={selectionMode}
+                        isSelected={isSelected}
+                        toggleItem={toggleItem}
+                        onEditSchedule={onEditSchedule}
+                      />
+                    ))}
+                  </TooltipProvider>
                 </DroppableDay>
               );
             })}

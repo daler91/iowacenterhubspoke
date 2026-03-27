@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
@@ -49,7 +49,7 @@ function snapYToMinutes(y) {
 }
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
-function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule },
@@ -186,7 +186,7 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
       )}
     </div>
   );
-}
+});
 
 DraggableDayBlock.propTypes = {
   schedule: PropTypes.object.isRequired,
@@ -264,7 +264,10 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
   const dateStr = format(currentDate, 'yyyy-MM-dd');
-  const daySchedules = (schedules || []).filter(s => s.date === dateStr);
+  const daySchedules = useMemo(
+    () => (schedules || []).filter(s => s.date === dateStr),
+    [schedules, dateStr]
+  );
 
   const [activeSchedule, setActiveSchedule] = useState(null);
   const [dropIndicatorMinutes, setDropIndicatorMinutes] = useState(null);
