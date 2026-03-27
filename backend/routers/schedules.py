@@ -700,7 +700,7 @@ async def _handle_single_schedule(
 
     # Sync town-to-town for sibling schedules on the same day
     await _sync_same_day_town_to_town(
-        data.employee_id, date_to_schedule, exclude_id=doc["id"]
+        data.employee_id, date_to_schedule
     )
 
     class_label = f" for {class_doc['name']}" if class_doc else ""
@@ -994,31 +994,16 @@ async def update_schedule(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-    # Recalculate town-to-town if location, date, or employee changed
+    # Recalculate town-to-town for all schedules on this employee+date
     recalc_fields = {"location_id", "date", "employee_id"}
     if recalc_fields & update_data.keys():
         updated_sched = await db.schedules.find_one(
             {"id": schedule_id, "deleted_at": None}, {"_id": 0}
         )
         if updated_sched:
-            tt, tt_warning, tt_drive = await _check_town_to_town(
-                updated_sched["employee_id"],
-                updated_sched["date"],
-                updated_sched["location_id"],
-            )
-            tt_update = {
-                "town_to_town": tt,
-                "town_to_town_warning": tt_warning,
-                "town_to_town_drive_minutes": tt_drive,
-            }
-            await db.schedules.update_one(
-                {"id": schedule_id}, {"$set": tt_update}
-            )
-            # Sync siblings on the current date
             await _sync_same_day_town_to_town(
                 updated_sched["employee_id"],
                 updated_sched["date"],
-                exclude_id=schedule_id,
             )
 
     logger.info(
@@ -1059,7 +1044,6 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
         await _sync_same_day_town_to_town(
             schedule["employee_id"],
             schedule["date"],
-            exclude_id=schedule_id,
         )
         await log_activity(
             "schedule_deleted",
@@ -1168,20 +1152,11 @@ async def relocate_schedule(
         )
 
     # Recalculate town-to-town after relocating
-    town_to_town, town_to_town_warning, tt_drive_minutes = await _check_town_to_town(
-        schedule["employee_id"], data.date, schedule["location_id"]
-    )
-
     update_fields = {
         "date": data.date,
         "start_time": data.start_time,
         "end_time": data.end_time,
-        "town_to_town": town_to_town,
-        "town_to_town_warning": town_to_town_warning,
-        "town_to_town_drive_minutes": tt_drive_minutes,
     }
-    # drive_time_minutes always stays as hub-to-location time
-    # town_to_town_drive_minutes is used by frontend for chain rendering
 
     await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
@@ -1191,19 +1166,21 @@ async def relocate_schedule(
         f"Schedule relocated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}},
     )
+
+    # Sync town-to-town + restore drive_time_minutes for all schedules on new date
+    old_date = schedule.get("date")
+    await _sync_same_day_town_to_town(
+        schedule["employee_id"], data.date
+    )
+    # Also sync old date if it changed (remaining schedules may no longer be town-to-town)
+    if old_date and old_date != data.date:
+        await _sync_same_day_town_to_town(
+            schedule["employee_id"], old_date
+        )
+
     updated = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
-
-    # Sync town-to-town for sibling schedules on both old and new dates
-    old_date = schedule.get("date")
-    await _sync_same_day_town_to_town(
-        schedule["employee_id"], data.date, exclude_id=schedule_id
-    )
-    if old_date and old_date != data.date:
-        await _sync_same_day_town_to_town(
-            schedule["employee_id"], old_date, exclude_id=schedule_id
-        )
 
     await log_activity(
         "schedule_relocated",
