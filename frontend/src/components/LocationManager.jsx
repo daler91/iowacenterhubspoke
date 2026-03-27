@@ -225,9 +225,23 @@ export default function LocationManager() {
         <DialogContent
           className="sm:max-w-[440px] bg-white"
           data-testid="location-form-dialog"
+          onPointerDownOutside={(e) => {
+            // Radix uses custom events - the real DOM target is in detail.originalEvent
+            const target = e.detail?.originalEvent?.target || e.target;
+            if (target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
           onInteractOutside={(e) => {
-            // Prevent dialog from closing when clicking Google Places dropdown
-            if (e.target?.closest?.('.pac-container')) {
+            const target = e.detail?.originalEvent?.target || e.target;
+            if (target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
+          onFocusOutside={(e) => {
+            // Prevent focus trap from fighting with Places dropdown
+            const target = e.detail?.originalEvent?.relatedTarget || e.target;
+            if (target?.closest?.('.pac-container')) {
               e.preventDefault();
             }
           }}
