@@ -548,15 +548,7 @@ async def _sync_same_day_town_to_town(
             "town_to_town_warning": tt_warning,
             "town_to_town_drive_minutes": tt_drive,
         }
-        if tt and tt_drive:
-            update["drive_time_minutes"] = tt_drive
-            update["travel_override_minutes"] = tt_drive
-        elif not sib.get("travel_override_minutes"):
-            loc = await db.locations.find_one(
-                {"id": sib["location_id"]}, {"_id": 0}
-            )
-            if loc:
-                update["drive_time_minutes"] = loc["drive_time_minutes"]
+        if not tt:
             update["town_to_town"] = False
             update["town_to_town_warning"] = None
             update["town_to_town_drive_minutes"] = None
@@ -1012,15 +1004,6 @@ async def update_schedule(
                 "town_to_town_warning": tt_warning,
                 "town_to_town_drive_minutes": tt_drive,
             }
-            if tt and tt_drive:
-                tt_update["drive_time_minutes"] = tt_drive
-                tt_update["travel_override_minutes"] = tt_drive
-            elif not updated_sched.get("travel_override_minutes"):
-                loc = await db.locations.find_one(
-                    {"id": updated_sched["location_id"]}, {"_id": 0}
-                )
-                if loc:
-                    tt_update["drive_time_minutes"] = loc["drive_time_minutes"]
             await db.schedules.update_one(
                 {"id": schedule_id}, {"$set": tt_update}
             )
@@ -1190,18 +1173,8 @@ async def relocate_schedule(
         "town_to_town_warning": town_to_town_warning,
         "town_to_town_drive_minutes": tt_drive_minutes,
     }
-    # Auto-apply town-to-town drive time
-    if town_to_town and tt_drive_minutes:
-        update_fields["drive_time_minutes"] = tt_drive_minutes
-        update_fields["travel_override_minutes"] = tt_drive_minutes
-    elif not schedule.get("travel_override_minutes"):
-        # Reset to hub drive time when no longer town-to-town
-        loc = await db.locations.find_one(
-            {"id": schedule["location_id"]}, {"_id": 0}
-        )
-        if loc:
-            update_fields["drive_time_minutes"] = loc["drive_time_minutes"]
-        update_fields["travel_override_minutes"] = None
+    # drive_time_minutes always stays as hub-to-location time
+    # town_to_town_drive_minutes is used by frontend for chain rendering
 
     await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
