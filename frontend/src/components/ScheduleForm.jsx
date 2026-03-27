@@ -23,7 +23,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, outlookOverride,
+    previewConflicts, townToTown, outlookOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange });
@@ -72,6 +72,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             setShowOverride={setShowOverride}
             onDateChange={handleDateChange}
             previewConflicts={previewConflicts}
+            townToTown={townToTown}
           />
 
           {!editSchedule && (

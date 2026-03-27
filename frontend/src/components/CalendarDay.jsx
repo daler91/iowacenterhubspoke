@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Car, AlertTriangle, GripVertical, Check } from 'lucide-react';
+import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 import { useAuth } from '../lib/auth';
@@ -62,6 +62,7 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
   const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
+  const isTownToTown = schedule.town_to_town && schedule.travel_override_minutes;
 
   const classTop = minutesToTop(startMin);
   const classHeight = ((endMin - startMin) / 60) * PX_PER_HOUR;
@@ -75,12 +76,14 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
       {/* Drive before */}
       {driveMin > 0 && (
         <div
-          className="schedule-block drive-block"
+          className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
           style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
-            <Car className="w-4 h-4" />
-            <span className="text-xs font-medium">Drive from Hub - {driveMin} min</span>
+            {isTownToTown ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+            <span className="text-xs font-medium">
+              {isTownToTown ? `Drive between towns - ${driveMin} min` : `Drive from Hub - ${driveMin} min`}
+            </span>
           </div>
         </div>
       )}
@@ -143,28 +146,40 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
       {/* Drive after */}
       {driveMin > 0 && (
         <div
-          className="schedule-block drive-block"
+          className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
           style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
-            <Car className="w-4 h-4" />
-            <span className="text-xs font-medium">Return to Hub - {driveMin} min</span>
+            {isTownToTown ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+            <span className="text-xs font-medium">
+              {isTownToTown ? `Drive between towns - ${driveMin} min` : `Return to Hub - ${driveMin} min`}
+            </span>
           </div>
         </div>
       )}
 
-      {/* Town-to-town warning */}
+      {/* Town-to-town indicator */}
       {schedule.town_to_town && (
         <div
-          className="absolute left-2 right-[16px] bg-amber-50 border border-amber-200 rounded-lg p-2 z-30"
+          className={cn(
+            "absolute left-2 right-[16px] rounded-lg p-2 z-30",
+            isTownToTown
+              ? "bg-teal-50 border border-teal-200"
+              : "bg-amber-50 border border-amber-200"
+          )}
           style={{ top: `${classTop - 28}px` }}
         >
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-xs font-semibold text-amber-700">
-              {schedule.town_to_town_drive_minutes
-                ? `Town-to-Town: ~${schedule.town_to_town_drive_minutes} min drive`
-                : 'Town-to-Town Travel Detected'}
+            {isTownToTown
+              ? <ArrowRightLeft className="w-4 h-4 text-teal-600" />
+              : <AlertTriangle className="w-4 h-4 text-amber-600" />
+            }
+            <span className={cn("text-xs font-semibold", isTownToTown ? "text-teal-700" : "text-amber-700")}>
+              {isTownToTown
+                ? `Town-to-Town: ${driveMin} min between locations`
+                : schedule.town_to_town_drive_minutes
+                  ? `Town-to-Town: ~${schedule.town_to_town_drive_minutes} min drive`
+                  : 'Town-to-Town Travel Detected'}
             </span>
           </div>
         </div>

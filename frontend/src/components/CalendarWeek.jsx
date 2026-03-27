@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { Car, AlertTriangle, GripVertical, Check } from 'lucide-react';
+import { Car, AlertTriangle, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAuth } from '../lib/auth';
@@ -72,6 +72,7 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
   const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
+  const isTownToTown = schedule.town_to_town && schedule.travel_override_minutes;
 
   return (
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
@@ -82,17 +83,17 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
             <TooltipTrigger asChild>
               <div
                 data-testid={`drive-before-${schedule.id}`}
-                className="schedule-block drive-block"
+                className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
                 style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px` }}
               >
                 <div className="flex items-center gap-1">
-                  <Car className="w-3 h-3" />
-                  <span className="text-[10px] font-medium">{driveMin}m drive</span>
+                  {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
+                  <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'drive'}</span>
                 </div>
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Drive from Hub to {schedule.location_name}: {driveMin} min</p>
+              <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Drive from Hub to ${schedule.location_name}: ${driveMin} min`}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -153,7 +154,10 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
               </div>
               {schedule.town_to_town && !selectionMode && (
                 <div className="absolute top-1 right-1">
-                  <AlertTriangle className="w-3 h-3 text-amber-300" />
+                  {isTownToTown
+                    ? <ArrowRightLeft className="w-3 h-3 text-teal-300" />
+                    : <AlertTriangle className="w-3 h-3 text-amber-300" />
+                  }
                 </div>
               )}
             </button>
@@ -164,11 +168,13 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
               <p className="text-xs">Location: {schedule.location_name}</p>
               <p className="text-xs">Employee: {schedule.employee_name}</p>
               <p className="text-xs">Time: {schedule.start_time} - {schedule.end_time}</p>
-              <p className="text-xs">Drive: {schedule.drive_time_minutes}m each way</p>
-              {schedule.town_to_town_warning && (
+              <p className="text-xs">
+                Drive: {schedule.drive_time_minutes}m {isTownToTown ? '(town-to-town)' : 'each way'}
+              </p>
+              {schedule.town_to_town && !isTownToTown && schedule.town_to_town_warning && (
                 <p className="text-xs text-amber-600 font-medium">{schedule.town_to_town_warning}</p>
               )}
-              {schedule.town_to_town_drive_minutes && (
+              {schedule.town_to_town && !isTownToTown && schedule.town_to_town_drive_minutes && (
                 <p className="text-xs text-amber-500">~{schedule.town_to_town_drive_minutes} min drive between towns</p>
               )}
             </div>
@@ -183,35 +189,43 @@ function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected,
             <TooltipTrigger asChild>
               <div
                 data-testid={`drive-after-${schedule.id}`}
-                className="schedule-block drive-block"
+                className={cn("schedule-block drive-block", isTownToTown && "!bg-teal-100 !text-teal-700 !border-teal-200")}
                 style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px` }}
               >
                 <div className="flex items-center gap-1">
-                  <Car className="w-3 h-3" />
-                  <span className="text-[10px] font-medium">{driveMin}m return</span>
+                  {isTownToTown ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
+                  <span className="text-[10px] font-medium">{driveMin}m {isTownToTown ? 'town' : 'return'}</span>
                 </div>
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Return drive from {schedule.location_name} to Hub: {driveMin} min</p>
+              <p>{isTownToTown ? `Drive between towns: ${driveMin} min` : `Return drive from ${schedule.location_name} to Hub: ${driveMin} min`}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
 
-      {/* Town-to-town warning */}
+      {/* Town-to-town indicator */}
       {schedule.town_to_town && (
         <div
           data-testid={`warning-${schedule.id}`}
-          className="schedule-block warning-block"
+          className={cn(
+            "schedule-block",
+            isTownToTown ? "!bg-teal-100 !text-teal-700 !border-teal-200" : "warning-block"
+          )}
           style={{ top: `${classTop - 16}px`, height: '14px', zIndex: 25 }}
         >
           <div className="flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
+            {isTownToTown
+              ? <ArrowRightLeft className="w-3 h-3" />
+              : <AlertTriangle className="w-3 h-3" />
+            }
             <span className="text-[9px] font-semibold">
-              {schedule.town_to_town_drive_minutes
-                ? `Town-to-Town: ${schedule.town_to_town_drive_minutes}m`
-                : 'Town-to-Town'}
+              {isTownToTown
+                ? `Town-to-Town: ${driveMin}m`
+                : schedule.town_to_town_drive_minutes
+                  ? `Town-to-Town: ${schedule.town_to_town_drive_minutes}m`
+                  : 'Town-to-Town'}
             </span>
           </div>
         </div>

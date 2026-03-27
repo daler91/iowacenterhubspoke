@@ -23,6 +23,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
   const [loading, setLoading] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState({ conflicts: [], outlook_conflicts: [] });
+  const [townToTown, setTownToTown] = useState(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
   const conflictTimerRef = useRef(null);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
@@ -71,6 +72,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
   const fetchConflictPreview = useCallback(() => {
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+      setTownToTown(null);
       return;
     }
     const payload = {
@@ -82,11 +84,17 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
     };
     schedulesAPI.checkConflicts(payload)
-      .then(res => setPreviewConflicts({
-        conflicts: res.data.conflicts || [],
-        outlook_conflicts: res.data.outlook_conflicts || [],
-      }))
-      .catch(() => setPreviewConflicts({ conflicts: [], outlook_conflicts: [] }));
+      .then(res => {
+        setPreviewConflicts({
+          conflicts: res.data.conflicts || [],
+          outlook_conflicts: res.data.outlook_conflicts || [],
+        });
+        setTownToTown(res.data.town_to_town || null);
+      })
+      .catch(() => {
+        setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+        setTownToTown(null);
+      });
   }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes]);
 
   useEffect(() => {
@@ -264,7 +272,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, outlookOverride, setOutlookOverride,
+    previewConflicts, townToTown, outlookOverride, setOutlookOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange
   };
