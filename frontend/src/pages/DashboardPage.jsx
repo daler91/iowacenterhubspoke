@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
@@ -43,13 +43,17 @@ export default function DashboardPage() {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved,
     onEditSchedule: handleEditSchedule,
     onStatClick: handleStatClick
-  };
+  }), [
+    locations, employees, classes, schedules, stats, activities, workloadData,
+    fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
+    handleClassRefresh, handleScheduleSaved, handleEditSchedule, handleStatClick
+  ]);
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden" data-testid="dashboard-page">

@@ -530,6 +530,39 @@ async def _check_town_to_town_bulk(
     return results
 
 
+async def _sync_same_day_town_to_town(
+    employee_id: str, date: str, exclude_id: str = None
+):
+    """Recalculate town-to-town for all sibling schedules on employee+date."""
+    query = {"employee_id": employee_id, "date": date, "deleted_at": None}
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    siblings = await db.schedules.find(query, {"_id": 0}).to_list(100)
+
+    for sib in siblings:
+        tt, tt_warning, tt_drive = await _check_town_to_town(
+            employee_id, date, sib["location_id"]
+        )
+        update = {
+            "town_to_town": tt,
+            "town_to_town_warning": tt_warning,
+            "town_to_town_drive_minutes": tt_drive,
+        }
+        if tt and tt_drive:
+            update["drive_time_minutes"] = tt_drive
+            update["travel_override_minutes"] = tt_drive
+        elif not sib.get("travel_override_minutes"):
+            loc = await db.locations.find_one(
+                {"id": sib["location_id"]}, {"_id": 0}
+            )
+            if loc:
+                update["drive_time_minutes"] = loc["drive_time_minutes"]
+            update["town_to_town"] = False
+            update["town_to_town_warning"] = None
+            update["town_to_town_drive_minutes"] = None
+        await db.schedules.update_one({"id": sib["id"]}, {"$set": update})
+
+
 def _build_schedule_doc(
     data,
     sched_date,
@@ -664,6 +697,11 @@ async def _handle_single_schedule(
                 "location_id": data.location_id,
             }
         },
+    )
+
+    # Sync town-to-town for sibling schedules on the same day
+    await _sync_same_day_town_to_town(
+        data.employee_id, date_to_schedule, exclude_id=doc["id"]
     )
 
     class_label = f" for {class_doc['name']}" if class_doc else ""
@@ -957,6 +995,42 @@ async def update_schedule(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
+    # Recalculate town-to-town if location, date, or employee changed
+    recalc_fields = {"location_id", "date", "employee_id"}
+    if recalc_fields & update_data.keys():
+        updated_sched = await db.schedules.find_one(
+            {"id": schedule_id, "deleted_at": None}, {"_id": 0}
+        )
+        if updated_sched:
+            tt, tt_warning, tt_drive = await _check_town_to_town(
+                updated_sched["employee_id"],
+                updated_sched["date"],
+                updated_sched["location_id"],
+            )
+            tt_update = {
+                "town_to_town": tt,
+                "town_to_town_warning": tt_warning,
+                "town_to_town_drive_minutes": tt_drive,
+            }
+            if tt and tt_drive:
+                tt_update["drive_time_minutes"] = tt_drive
+                tt_update["travel_override_minutes"] = tt_drive
+            elif not updated_sched.get("travel_override_minutes"):
+                loc = await db.locations.find_one(
+                    {"id": updated_sched["location_id"]}, {"_id": 0}
+                )
+                if loc:
+                    tt_update["drive_time_minutes"] = loc["drive_time_minutes"]
+            await db.schedules.update_one(
+                {"id": schedule_id}, {"$set": tt_update}
+            )
+            # Sync siblings on the current date
+            await _sync_same_day_town_to_town(
+                updated_sched["employee_id"],
+                updated_sched["date"],
+                exclude_id=schedule_id,
+            )
+
     logger.info(
         f"Schedule updated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id}},
@@ -991,6 +1065,12 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     )
     if schedule:
         await _enqueue_outlook_delete(schedule)
+        # Sync siblings — one fewer schedule means town-to-town may no longer apply
+        await _sync_same_day_town_to_town(
+            schedule["employee_id"],
+            schedule["date"],
+            exclude_id=schedule_id,
+        )
         await log_activity(
             "schedule_deleted",
             f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed",
@@ -1102,18 +1182,30 @@ async def relocate_schedule(
         schedule["employee_id"], data.date, schedule["location_id"]
     )
 
+    update_fields = {
+        "date": data.date,
+        "start_time": data.start_time,
+        "end_time": data.end_time,
+        "town_to_town": town_to_town,
+        "town_to_town_warning": town_to_town_warning,
+        "town_to_town_drive_minutes": tt_drive_minutes,
+    }
+    # Auto-apply town-to-town drive time
+    if town_to_town and tt_drive_minutes:
+        update_fields["drive_time_minutes"] = tt_drive_minutes
+        update_fields["travel_override_minutes"] = tt_drive_minutes
+    elif not schedule.get("travel_override_minutes"):
+        # Reset to hub drive time when no longer town-to-town
+        loc = await db.locations.find_one(
+            {"id": schedule["location_id"]}, {"_id": 0}
+        )
+        if loc:
+            update_fields["drive_time_minutes"] = loc["drive_time_minutes"]
+        update_fields["travel_override_minutes"] = None
+
     await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
-        {
-            "$set": {
-                "date": data.date,
-                "start_time": data.start_time,
-                "end_time": data.end_time,
-                "town_to_town": town_to_town,
-                "town_to_town_warning": town_to_town_warning,
-                "town_to_town_drive_minutes": tt_drive_minutes,
-            }
-        },
+        {"$set": update_fields},
     )
     logger.info(
         f"Schedule relocated: {schedule_id}",
@@ -1122,6 +1214,17 @@ async def relocate_schedule(
     updated = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
+
+    # Sync town-to-town for sibling schedules on both old and new dates
+    old_date = schedule.get("date")
+    await _sync_same_day_town_to_town(
+        schedule["employee_id"], data.date, exclude_id=schedule_id
+    )
+    if old_date and old_date != data.date:
+        await _sync_same_day_town_to_town(
+            schedule["employee_id"], old_date, exclude_id=schedule_id
+        )
+
     await log_activity(
         "schedule_relocated",
         f"Class at {updated.get('location_name', '?')} moved to {data.date} {data.start_time}-{data.end_time}",
