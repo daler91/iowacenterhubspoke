@@ -149,6 +149,11 @@
   border-radius: 50%;
 }
 
+/* Google Places Autocomplete dropdown - must render above Radix Dialog (z-50) */
+.pac-container {
+  z-index: 10000 !important;
+}
+
 .dnd-drop-indicator-label {
   position: absolute;
   left: 10px;
