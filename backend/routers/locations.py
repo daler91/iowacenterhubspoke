@@ -80,7 +80,17 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
     pool = await get_redis_pool()
     if pool:
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="location", entity_id=location_id)
-        
+    else:
+        # Fallback: sync inline when Redis/worker isn't available
+        await db.schedules.update_many(
+            {"location_id": location_id},
+            {"$set": {
+                "location_name": updated["city_name"],
+                "drive_time_minutes": updated["drive_time_minutes"],
+            }},
+        )
+        logger.info(f"Inline sync completed for location {location_id}")
+
     return updated
 
 @router.delete("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
