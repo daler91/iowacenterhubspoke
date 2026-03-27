@@ -222,7 +222,16 @@ export default function LocationManager() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] bg-white" data-testid="location-form-dialog">
+        <DialogContent
+          className="sm:max-w-[440px] bg-white"
+          data-testid="location-form-dialog"
+          onInteractOutside={(e) => {
+            // Prevent dialog from closing when clicking Google Places dropdown
+            if (e.target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
               {editing ? 'Edit Location' : 'Add Location'}
