@@ -552,6 +552,13 @@ async def _sync_same_day_town_to_town(
             update["town_to_town"] = False
             update["town_to_town_warning"] = None
             update["town_to_town_drive_minutes"] = None
+        # Always restore drive_time_minutes from location (fix any corrupted data)
+        if not sib.get("travel_override_minutes"):
+            loc = await db.locations.find_one(
+                {"id": sib["location_id"]}, {"_id": 0}
+            )
+            if loc:
+                update["drive_time_minutes"] = loc["drive_time_minutes"]
         await db.schedules.update_one({"id": sib["id"]}, {"$set": update})
 
 
