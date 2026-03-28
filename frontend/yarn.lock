@@ -952,11 +952,6 @@
   dependencies:
     tslib "^2.0.0"
 
-"@emergentbase/visual-edits@https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.8.tgz":
-  version "1.0.8"
-  resolved "https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.8.tgz"
-  integrity sha512-n6vWWr/H8mUvuQqjtZzzGXUS6RDhcIIzT8VjX8EOFOk8sgoMjVoA9pFl6XG+wJuIOS7QAKK+QjiKipLHoVvbWA==
-
 "@esbuild/win32-x64@0.21.5":
   version "0.21.5"
   resolved "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz"
@@ -1868,6 +1863,61 @@
   version "1.1.0"
   resolved "https://registry.npmjs.org/@rtsao/scc/-/scc-1.1.0.tgz"
   integrity sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==
+
+"@sentry-internal/browser-utils@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry-internal/browser-utils/-/browser-utils-8.55.1.tgz"
+  integrity sha512-SipXiwVhJrxzy3/4kf+YIFmpYlLKtGSRD+er7SBCcuSBtv31Fee8IXMDvk+bq24gRXxyjOLUmT//GGXjy2LL6w==
+  dependencies:
+    "@sentry/core" "8.55.1"
+
+"@sentry-internal/feedback@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry-internal/feedback/-/feedback-8.55.1.tgz"
+  integrity sha512-9iFHaT/ijtzB0ffZhXMnt2rPNIXO/dDiCL1G1Bc55rQMPXgawR9AIaAWciyqQjYcbL1DDOhWbzdVqB+kVs5gXw==
+  dependencies:
+    "@sentry/core" "8.55.1"
+
+"@sentry-internal/replay-canvas@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry-internal/replay-canvas/-/replay-canvas-8.55.1.tgz"
+  integrity sha512-2sKRu96Qe70y6TiYdYbwkhg4um2prgzH/ZJRItuoSEAjPjoFYYlP+1qjE2CcBw4RPS8/PimV7SFheSaeZs2GCw==
+  dependencies:
+    "@sentry-internal/replay" "8.55.1"
+    "@sentry/core" "8.55.1"
+
+"@sentry-internal/replay@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry-internal/replay/-/replay-8.55.1.tgz"
+  integrity sha512-XaX6r8pXeX47rfiQrSQUwkgxHsDkOKzIT++zfTwrmveVlYSqAhp3x+AKhxAXGmKG62wlmAKQz54GJKcG4cgyKQ==
+  dependencies:
+    "@sentry-internal/browser-utils" "8.55.1"
+    "@sentry/core" "8.55.1"
+
+"@sentry/browser@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry/browser/-/browser-8.55.1.tgz"
+  integrity sha512-OEn2eg8h3Mr7BmBGQ28BqbWehYA/NklZ0pAZB1FypPPl+kMd85AbaRdGTnaSjgmpc8bKbBO64edq4Y14sbCs5w==
+  dependencies:
+    "@sentry-internal/browser-utils" "8.55.1"
+    "@sentry-internal/feedback" "8.55.1"
+    "@sentry-internal/replay" "8.55.1"
+    "@sentry-internal/replay-canvas" "8.55.1"
+    "@sentry/core" "8.55.1"
+
+"@sentry/core@8.55.1":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry/core/-/core-8.55.1.tgz"
+  integrity sha512-0ea+yDOgaijR3ba2al1QZxY0bZ9MBZq2a0G+2A0uCBpBkiXnpLFGVAo9UAlEikN1C4M8ROZYiuFU7yZCqacgLQ==
+
+"@sentry/react@^8.0.0":
+  version "8.55.1"
+  resolved "https://registry.npmjs.org/@sentry/react/-/react-8.55.1.tgz"
+  integrity sha512-vrqEI1EVRMaeUluHSt84//WFuMecqAfwS+t2SojhvXtsSP6BbaCHd0jt7til5MBzI9kWAQjIxsUUr3pbFAviVg==
+  dependencies:
+    "@sentry/browser" "8.55.1"
+    "@sentry/core" "8.55.1"
+    hoist-non-react-statics "^3.3.2"
 
 "@sinclair/typebox@^0.34.0":
   version "0.34.49"
@@ -3528,6 +3578,13 @@ hasown@^2.0.2:
   dependencies:
     function-bind "^1.1.2"
 
+hoist-non-react-statics@^3.3.2:
+  version "3.3.2"
+  resolved "https://registry.npmjs.org/hoist-non-react-statics/-/hoist-non-react-statics-3.3.2.tgz"
+  integrity sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==
+  dependencies:
+    react-is "^16.7.0"
+
 html-encoding-sniffer@^4.0.0:
   version "4.0.0"
   resolved "https://registry.npmjs.org/html-encoding-sniffer/-/html-encoding-sniffer-4.0.0.tgz"
@@ -4471,7 +4528,7 @@ react-hook-form@^7.56.2:
   resolved "https://registry.npmjs.org/react-hook-form/-/react-hook-form-7.71.2.tgz"
   integrity sha512-1CHvcDYzuRUNOflt4MOq3ZM46AronNJtQ1S7tnX6YN4y72qhgiUItpacZUAQ0TyWYci3yz1X+rXaSxiuEm86PA==
 
-react-is@^16.13.1:
+react-is@^16.13.1, react-is@^16.7.0:
   version "16.13.1"
   resolved "https://registry.npmjs.org/react-is/-/react-is-16.13.1.tgz"
   integrity sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==
