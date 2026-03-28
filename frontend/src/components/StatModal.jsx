@@ -9,6 +9,7 @@ import {
 } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Users, MapPin, Clock } from 'lucide-react';
+import { EntityLink } from './ui/entity-link';
 
 export default function StatModal({ isOpen, onClose, title, type, data, classes, employees, locations }) {
   if (!isOpen) return null;
@@ -59,11 +60,11 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                       </div>
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-slate-400" />
-                        <span>{employee.name}</span>
+                        <EntityLink type="employee" id={schedule.employee_id} className="text-slate-600">{employee.name}</EntityLink>
                       </div>
                       <div className="flex items-center gap-2 sm:col-span-2">
                         <MapPin className="w-4 h-4 text-slate-400" />
-                        <span>{location.city_name}</span>
+                        <EntityLink type="location" id={schedule.location_id} className="text-slate-600">{location.city_name}</EntityLink>
                       </div>
                     </div>
                   </div>
@@ -78,12 +79,12 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.map((emp) => (
-                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-xl">
+                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium" style={{ backgroundColor: emp.color }}>
                       {(emp.name || '?').charAt(0)}
                     </div>
                     <div>
-                      <div className="font-medium text-slate-800">{emp.name || 'Unknown'}</div>
+                      <EntityLink type="employee" id={emp.id} className="font-medium text-slate-800">{emp.name || 'Unknown'}</EntityLink>
                       {emp.email && <div className="text-xs text-slate-500">{emp.email}</div>}
                     </div>
                   </div>
@@ -98,12 +99,12 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 gap-3">
                 {data.map((loc) => (
-                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-xl">
+                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-xl hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
                       <MapPin className="w-5 h-5 text-amber-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-slate-800">{loc.city_name}</div>
+                      <EntityLink type="location" id={loc.id} className="font-medium text-slate-800">{loc.city_name}</EntityLink>
                       <div className="text-sm text-slate-500 mt-1 line-clamp-2">{loc.address}</div>
                     </div>
                   </div>

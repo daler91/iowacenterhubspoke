@@ -12,6 +12,7 @@ import { useAuth } from '../lib/auth';
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
 import { useOutletContext } from 'react-router-dom';
+import { EntityLink } from './ui/entity-link';
 import ClassProfile from './ClassProfile';
 
 export default function ClassManager() {
@@ -126,9 +127,9 @@ export default function ClassManager() {
                 data-testid={`class-color-swatch-${classItem.id}`}
               />
               <div className="min-w-0">
-                <p className="font-semibold text-slate-800 truncate" data-testid={`class-name-${classItem.id}`}>
+                <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 truncate block" data-testid={`class-name-${classItem.id}`}>
                   {classItem.name}
-                </p>
+                </EntityLink>
                 <p className="text-xs text-slate-500 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
                   {classItem.description || 'No description added yet.'}
                 </p>

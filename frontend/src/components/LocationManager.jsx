@@ -11,6 +11,7 @@ import { APIProvider } from '@vis.gl/react-google-maps';
 import PlacesAutocomplete from './PlacesAutocomplete';
 
 import { useOutletContext } from 'react-router-dom';
+import { EntityLink } from './ui/entity-link';
 import LocationProfile from './LocationProfile';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
@@ -161,7 +162,7 @@ export default function LocationManager() {
                 <MapPin className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <p className="font-semibold text-slate-800">{loc.city_name}</p>
+                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800">{loc.city_name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   <div className="flex items-center gap-1">
                     <Car className="w-3 h-3 text-slate-400" />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
@@ -7,10 +8,15 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { EntityLink } from './ui/entity-link';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 
-export default function EmployeeProfile({ employeeId, onBack }) {
+export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack } = {}) {
+  const params = useParams();
+  const navigate = useNavigate();
+  const employeeId = propId || params.id;
+  const onBack = propOnBack || (() => navigate('/employees'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -160,7 +166,7 @@ export default function EmployeeProfile({ employeeId, onBack }) {
                     <MapPin className="w-4 h-4 text-indigo-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700">{s.location_name}</p>
+                    <EntityLink type="location" id={s.location_id} className="text-sm font-medium text-slate-700">{s.location_name}</EntityLink>
                     <p className="text-xs text-slate-400">{s.date} | {s.start_time}-{s.end_time}</p>
                   </div>
                   <Badge className={`border-0 text-[10px] ${
@@ -182,6 +188,6 @@ export default function EmployeeProfile({ employeeId, onBack }) {
 }
 
 EmployeeProfile.propTypes = {
-  employeeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-  onBack: PropTypes.func.isRequired,
+  employeeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onBack: PropTypes.func,
 };
