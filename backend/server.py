@@ -56,18 +56,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to migrate user statuses: {e}")
 
-    # Auto-promote admin email
-    admin_email = "russell.dale1@gmail.com"
-    try:
-        existing_admin = await db.users.find_one({"email": admin_email})
-        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
-            await db.users.update_one(
-                {"email": admin_email},
-                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
-            )
-            logger.info(f"Promoted {admin_email} to admin role")
-    except Exception as e:
-        logger.warning(f"Failed to check/promote admin user: {e}")
+    # Auto-promote admin email (configurable via env var)
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if admin_email:
+        try:
+            existing_admin = await db.users.find_one({"email": admin_email})
+            if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
+                await db.users.update_one(
+                    {"email": admin_email},
+                    {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
+                )
+                logger.info(f"Promoted {admin_email} to admin role")
+        except Exception as e:
+            logger.warning(f"Failed to check/promote admin user: {e}")
 
     # Create required indexes
     try:
@@ -264,7 +265,16 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob:; worker-src 'self' blob:;"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https:; "
+        "style-src 'self' 'unsafe-inline' https:; "
+        "img-src 'self' data: https: blob:; "
+        "font-src 'self' https: data:; "
+        "connect-src 'self' https:; "
+        "worker-src 'self' blob:; "
+        "frame-ancestors 'none'"
+    )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 

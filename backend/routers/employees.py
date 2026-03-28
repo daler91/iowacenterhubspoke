@@ -64,7 +64,17 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
     pool = await get_redis_pool()
     if pool:
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="employee", entity_id=employee_id)
-        
+    else:
+        # Fallback: sync inline when Redis/worker isn't available
+        await db.schedules.update_many(
+            {"employee_id": employee_id},
+            {"$set": {
+                "employee_name": updated["name"],
+                "employee_color": updated.get("color", "#4F46E5"),
+            }},
+        )
+        logger.info(f"Inline sync completed for employee {employee_id}")
+
     return updated
 
 @router.delete("/{employee_id}", summary="Soft-delete an employee", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})

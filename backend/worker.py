@@ -140,7 +140,7 @@ async def generate_bulk_schedules(
 ):
     from models.schemas import ScheduleCreate, RecurrenceRule
     from database import db
-    from routers.schedules import _build_schedule_doc
+    from routers.schedule_helpers import _build_schedule_doc
     from services.activity import log_activity
 
     data = ScheduleCreate(**data_dict)

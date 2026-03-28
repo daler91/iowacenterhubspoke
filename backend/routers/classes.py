@@ -36,6 +36,20 @@ async def sync_class_snapshot_background(class_id: str):
     pool = await get_redis_pool()
     if pool:
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="class", entity_id=class_id)
+    else:
+        # Fallback: sync inline when Redis/worker isn't available
+        class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
+        if class_doc:
+            snapshot = get_class_snapshot(class_doc)
+            await db.schedules.update_many(
+                {"class_id": class_id},
+                {"$set": {
+                    "class_name": snapshot["class_name"],
+                    "class_color": snapshot["class_color"],
+                    "class_description": snapshot["class_description"],
+                }},
+            )
+            logger.info(f"Inline sync completed for class {class_id}")
 
 @router.get("", summary="List all class types")
 async def get_classes(user: CurrentUser):

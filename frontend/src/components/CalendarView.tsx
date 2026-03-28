@@ -1,19 +1,13 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
-import { Button } from './ui/button';
-
-import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, AlertTriangle, Printer } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import ExportCsvDialog from './ExportCsvDialog';
-import ImportCsvDialog from './ImportCsvDialog';
 import { useAuth } from '../lib/auth';
-
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
+import CalendarToolbar from './CalendarToolbar';
+import RelocateConflictDialog from './RelocateConflictDialog';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import MobileCalendar from './MobileCalendar';
@@ -21,6 +15,8 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
 import BulkActionBar from './BulkActionBar';
+import ExportCsvDialog from './ExportCsvDialog';
+import ImportCsvDialog from './ImportCsvDialog';
 import useSelectionMode from '../hooks/useSelectionMode';
 
 export default function CalendarView() {
@@ -35,17 +31,17 @@ export default function CalendarView() {
     fetchActivities,
     onEditSchedule,
     onStatClick,
-  } = useOutletContext();
+  } = useOutletContext<any>();
 
   const stats = rawStats ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const calendarRef = useRef(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [relocateConflictData, setRelocateConflictData] = useState(null);
+  const [relocateConflictData, setRelocateConflictData] = useState<any>(null);
 
   const {
     selectionMode,
@@ -60,18 +56,17 @@ export default function CalendarView() {
 
   // URL State
   const calendarView = searchParams.get('view') || 'week';
-  const exportDaysOffset = { month: 30, week: 7 }[calendarView] || 1;
+  const exportDaysOffset = { month: 30, week: 7 }[calendarView as string] || 1;
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
   const filterLocation = searchParams.get('location') || 'all';
 
-  // Clear selection when navigating dates or switching views
   useEffect(() => {
     clearSelection();
   }, [calendarView, dateStr, clearSelection]);
 
-  const updateParams = useCallback((newParams) => {
+  const updateParams = useCallback((newParams: Record<string, string | null>) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       Object.entries(newParams).forEach(([key, value]) => {
@@ -85,13 +80,13 @@ export default function CalendarView() {
     });
   }, [setSearchParams]);
 
-  const setCalendarView = (view) => updateParams({ view });
-  const setCurrentDate = (date) => updateParams({ date: format(date, 'yyyy-MM-dd') });
-  const setFilterEmployee = (id) => updateParams({ employee: id });
-  const setFilterLocation = (id) => updateParams({ location: id });
+  const setCalendarView = (view: string) => updateParams({ view });
+  const setCurrentDate = (date: Date) => updateParams({ date: format(date, 'yyyy-MM-dd') });
+  const setFilterEmployee = (id: string) => updateParams({ employee: id });
+  const setFilterLocation = (id: string) => updateParams({ location: id });
 
   const filteredSchedules = useMemo(() =>
-    (schedules || []).filter(s => {
+    (schedules || []).filter((s: any) => {
       if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
       if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
       return true;
@@ -99,7 +94,7 @@ export default function CalendarView() {
     [schedules, filterEmployee, filterLocation]
   );
 
-  const navigateDate = (direction) => {
+  const navigateDate = (direction: 'prev' | 'next') => {
     let nextDate;
     if (calendarView === 'week') {
       nextDate = direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1);
@@ -115,12 +110,10 @@ export default function CalendarView() {
     if (!calendarRef.current) return;
     toast.info('Generating PDF...');
     try {
-      // Dynamic imports for code splitting
       const [html2canvas, { jsPDF }] = await Promise.all([
         import('html2canvas').then(m => m.default),
         import('jspdf')
       ]);
-
       const canvas = await html2canvas(calendarRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('landscape', 'mm', 'a4');
@@ -135,14 +128,13 @@ export default function CalendarView() {
     }
   };
 
-  const handleMonthDateClick = (date) => {
+  const handleMonthDateClick = (date: Date) => {
     updateParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
-  const handleRelocate = async (scheduleId, newDate, newStart, newEnd, force = false) => {
-    // Optimistic update: move the schedule immediately in local state
+  const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false) => {
     fetchSchedules(
-      (current) => (current || []).map(s =>
+      (current: any) => (current || []).map((s: any) =>
         s.id === scheduleId
           ? { ...s, date: newDate, start_time: newStart, end_time: newEnd }
           : s
@@ -153,11 +145,11 @@ export default function CalendarView() {
     try {
       await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
       toast.success('Schedule moved');
-      fetchSchedules(); // Revalidate with server truth (includes updated drive times)
+      fetchSchedules();
       fetchActivities();
       setRelocateConflictData(null);
-    } catch (err) {
-      fetchSchedules(); // Rollback optimistic update
+    } catch (err: any) {
+      fetchSchedules();
       if (err.response?.status === 409) {
         setRelocateConflictData({
           scheduleId,
@@ -195,114 +187,21 @@ export default function CalendarView() {
 
       <StatsStrip stats={stats} onStatClick={onStatClick} />
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        {!isMobile && (
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="calendar-prev"
-              onClick={() => navigateDate('prev')}
-              className="border-gray-200"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              {(() => {
-                if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
-                if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');
-                return `Week of ${format(currentDate, 'MMM d, yyyy')}`;
-              })()}
-            </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="calendar-next"
-              onClick={() => navigateDate('next')}
-              className="border-gray-200"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="calendar-today"
-              onClick={() => setCurrentDate(new Date())}
-              className="border-gray-200 text-sm"
-            >
-              Today
-            </Button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          {calendarView !== 'month' && (
-            <Button
-              variant={selectionMode ? 'default' : 'outline'}
-              size="sm"
-              data-testid="calendar-select-mode"
-              onClick={toggleSelectionMode}
-              className={selectionMode ? '' : 'border-gray-200'}
-            >
-              <ListChecks className="w-4 h-4 mr-1" />
-              Select
-            </Button>
-          )}
-          {!isMobile && (
-            <Tabs value={calendarView} onValueChange={setCalendarView}>
-              <TabsList className="bg-gray-100">
-                <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
-                <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
-                <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-          {isAdmin && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setExportOpen(true)}
-                className="border-gray-200"
-                disabled={selectionMode}
-              >
-                <Download className="w-4 h-4 mr-1" />
-                Export CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setImportOpen(true)}
-                className="border-gray-200"
-                disabled={selectionMode}
-              >
-                <Upload className="w-4 h-4 mr-1" />
-                Import CSV
-              </Button>
-            </>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="export-pdf-btn"
-            onClick={exportPDF}
-            className="border-gray-200"
-          >
-            <FileDown className="w-4 h-4 mr-1" />
-            PDF
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="print-btn"
-            onClick={() => window.print()}
-            className="border-gray-200 no-print"
-          >
-            <Printer className="w-4 h-4 mr-1" />
-            Print
-          </Button>
-        </div>
-      </div>
+      <CalendarToolbar
+        isMobile={isMobile}
+        calendarView={calendarView}
+        currentDate={currentDate}
+        isAdmin={isAdmin}
+        selectionMode={selectionMode}
+        onNavigate={navigateDate}
+        onToday={() => setCurrentDate(new Date())}
+        onViewChange={setCalendarView}
+        onToggleSelection={toggleSelectionMode}
+        onExportCsv={() => setExportOpen(true)}
+        onImportCsv={() => setImportOpen(true)}
+        onExportPdf={exportPDF}
+        onPrint={() => window.print()}
+      />
 
       <ScheduleFilters
         filterEmployee={filterEmployee}
@@ -412,46 +311,11 @@ export default function CalendarView() {
         />
       )}
 
-      {/* Relocate conflict dialog */}
-      <Dialog open={relocateConflictData !== null} onOpenChange={(open) => { if (!open) setRelocateConflictData(null); }}>
-        <DialogContent className="sm:max-w-[480px] bg-white" data-testid="relocate-conflict-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Schedule Conflict Detected
-            </DialogTitle>
-            <DialogDescription>
-              Moving this schedule would create a conflict with existing schedules. You can force the move or cancel.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {(relocateConflictData?.conflicts || []).map((conflict, i) => (
-              <div key={conflict.schedule_id || i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm font-medium text-amber-800">{conflict.location}</p>
-                <p className="text-xs text-amber-600">{conflict.time}</p>
-                <p className="text-xs text-amber-500 mt-1">{conflict.overlap}</p>
-              </div>
-            ))}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              data-testid="relocate-conflict-cancel"
-              onClick={() => setRelocateConflictData(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              data-testid="relocate-conflict-force"
-              onClick={handleForceRelocate}
-              className="bg-amber-600 hover:bg-amber-700"
-            >
-              Force Move
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RelocateConflictDialog
+        data={relocateConflictData}
+        onClose={() => setRelocateConflictData(null)}
+        onForce={handleForceRelocate}
+      />
     </div>
   );
 }
