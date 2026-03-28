@@ -428,13 +428,6 @@ function EmptyState({ message }) {
 }
 
 
-
-
-
-)).isRequired,
-};
-
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdvancedAnalytics() {
