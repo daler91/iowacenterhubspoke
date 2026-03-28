@@ -36,11 +36,13 @@ export function computeDriveChain(daySchedules) {
       // Single class - normal hub round trip
       const s = sorted[0];
       const hubDrive = s.drive_time_minutes || 0;
+      const driveTo = s.drive_to_override_minutes || hubDrive;
+      const driveFrom = s.drive_from_override_minutes || hubDrive;
       chain[s.id] = {
-        driveBeforeMin: hubDrive,
-        driveAfterMin: hubDrive,
-        driveBeforeLabel: `Drive from Hub - ${hubDrive} min`,
-        driveAfterLabel: `Return to Hub - ${hubDrive} min`,
+        driveBeforeMin: driveTo,
+        driveAfterMin: driveFrom,
+        driveBeforeLabel: `Drive from Hub - ${driveTo} min`,
+        driveAfterLabel: `Return to Hub - ${driveFrom} min`,
         driveBeforeStyle: 'hub',
         driveAfterStyle: 'hub',
       };
@@ -54,6 +56,10 @@ export function computeDriveChain(daySchedules) {
       const isLast = i === sorted.length - 1;
       const hubDrive = s.drive_time_minutes || 0;
 
+      // Drive TO this class (hub for first, or from previous class)
+      const driveBefore = isFirst ? (s.drive_to_override_minutes || hubDrive) : 0;
+      const driveBeforeLabel = isFirst ? `Drive from Hub - ${driveBefore} min` : null;
+
       // Determine drive time to next class
       let driveToNext = 0;
       let driveToNextLabel = null;
@@ -64,20 +70,25 @@ export function computeDriveChain(daySchedules) {
           // Same location - no drive between classes
           driveToNext = 0;
         } else {
-          // Different location - use town-to-town drive time
-          driveToNext = s.town_to_town_drive_minutes || next.town_to_town_drive_minutes || 0;
+          // Different location - check overrides first, then fall back to town-to-town
+          const calculated = s.town_to_town_drive_minutes || next.town_to_town_drive_minutes || 0;
+          driveToNext = s.drive_from_override_minutes || next.drive_to_override_minutes || calculated;
           driveToNextLabel = `Drive to ${next.location_name || 'next location'} - ${driveToNext} min`;
           driveToNextStyle = 'town-to-town';
         }
       }
 
+      // Drive FROM this class (hub for last)
+      const driveAfter = isLast ? (s.drive_from_override_minutes || hubDrive) : driveToNext;
+      const driveAfterLabel = isLast
+        ? `Return to Hub - ${driveAfter} min`
+        : driveToNextLabel;
+
       chain[s.id] = {
-        driveBeforeMin: isFirst ? hubDrive : 0,
-        driveAfterMin: isLast ? hubDrive : driveToNext,
-        driveBeforeLabel: isFirst ? `Drive from Hub - ${hubDrive} min` : null,
-        driveAfterLabel: isLast
-          ? `Return to Hub - ${hubDrive} min`
-          : driveToNextLabel,
+        driveBeforeMin: driveBefore,
+        driveAfterMin: driveAfter,
+        driveBeforeLabel,
+        driveAfterLabel,
         driveBeforeStyle: isFirst ? 'hub' : null,
         driveAfterStyle: isLast ? 'hub' : driveToNextStyle,
       };
