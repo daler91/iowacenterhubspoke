@@ -151,12 +151,3 @@ export function LocationTimeSelectors({
     </>
   );
 }
-
-).isRequired,
-  })),
-  }),
-    })),
-    })),
-  }),
-  }),
-};

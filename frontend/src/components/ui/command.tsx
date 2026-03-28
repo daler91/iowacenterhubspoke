@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
 
@@ -33,9 +32,6 @@ const CommandDialog = ({
   );
 }
 
-CommandDialog.propTypes = {
-  children: PropTypes.node,
-}
 
 const CommandInput = React.forwardRef(({ className, ...props }, ref) => (
   <div className="flex items-center border-b px-3" data-cmdk-input-wrapper="">
@@ -107,9 +103,6 @@ const CommandShortcut = ({
   );
 }
 CommandShortcut.displayName = "CommandShortcut"
-CommandShortcut.propTypes = {
-  className: PropTypes.string,
-}
 
 export {
   Command,

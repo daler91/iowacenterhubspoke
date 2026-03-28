@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
 import { Check, ChevronRight, Circle } from "lucide-react"
 
@@ -178,9 +177,6 @@ const MenubarShortcut = ({
   );
 }
 MenubarShortcut.displayname = "MenubarShortcut"
-MenubarShortcut.propTypes = {
-  className: PropTypes.string,
-}
 
 export {
   Menubar,

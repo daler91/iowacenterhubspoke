@@ -1,4 +1,3 @@
-import PropTypes from "prop-types"
 import { cn } from "@/lib/utils"
 
 function Skeleton({
@@ -12,8 +11,5 @@ function Skeleton({
   );
 }
 
-Skeleton.propTypes = {
-  className: PropTypes.string,
-}
 
 export { Skeleton }

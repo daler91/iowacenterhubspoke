@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import { Slot } from "@radix-ui/react-slot"
 import { Controller, FormProvider, useFormContext } from "react-hook-form";
 
@@ -21,9 +20,6 @@ const FormField = (
       <Controller {...props} />
     </FormFieldContext.Provider>
   );
-}
-FormField.propTypes = {
-  name: PropTypes.string.isRequired,
 }
 
 const useFormField = () => {

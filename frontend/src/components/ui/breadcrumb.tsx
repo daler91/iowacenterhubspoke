@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import { Slot } from "@radix-ui/react-slot"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
 
@@ -64,10 +63,6 @@ const BreadcrumbSeparator = ({
   </li>
 )
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator"
-BreadcrumbSeparator.propTypes = {
-  children: PropTypes.node,
-  className: PropTypes.string,
-}
 
 const BreadcrumbEllipsis = ({
   className,
@@ -82,9 +77,6 @@ const BreadcrumbEllipsis = ({
   </span>
 )
 BreadcrumbEllipsis.displayName = "BreadcrumbElipssis"
-BreadcrumbEllipsis.propTypes = {
-  className: PropTypes.string,
-}
 
 export {
   Breadcrumb,
