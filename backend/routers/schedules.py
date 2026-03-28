@@ -430,6 +430,20 @@ async def get_schedule(schedule_id: str, user: CurrentUser):
 HUB_LABEL = "Hub (Des Moines)"
 
 
+def _add_minutes_to_time(time_str: str, minutes: int) -> str:
+    """Add minutes to a HH:MM time string, returning HH:MM."""
+    h, m = map(int, time_str.split(":"))
+    total = h * 60 + m + minutes
+    return f"{(total // 60) % 24:02d}:{total % 60:02d}"
+
+
+def _subtract_minutes_from_time(time_str: str, minutes: int) -> str:
+    """Subtract minutes from a HH:MM time string, returning HH:MM (floors at 00:00)."""
+    h, m = map(int, time_str.split(":"))
+    total = max(0, h * 60 + m - minutes)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 async def _build_travel_chain(
     employee_id: str,
     date: str,
@@ -489,15 +503,19 @@ async def _build_travel_chain(
     legs = []
     total_drive = 0
 
-    # First leg: Hub → first location
+    # First leg: Hub → first location (arrive by first class start)
     first_loc = loc_map.get(entries[0]["location_id"])
     first_hub_drive = first_loc["drive_time_minutes"] if first_loc else 0
+    first_drive_end = entries[0]["start_time"]
+    first_drive_start = _subtract_minutes_from_time(first_drive_end, first_hub_drive)
     legs.append(
         {
             "type": "drive",
             "from_label": HUB_LABEL,
             "to_label": entries[0]["location_name"],
             "minutes": first_hub_drive,
+            "start_time": first_drive_start,
+            "end_time": first_drive_end,
         }
     )
     total_drive += first_hub_drive
@@ -528,12 +546,16 @@ async def _build_travel_chain(
                     ) or 0
                 except Exception:
                     drive_min = 0
+            between_start = entry["end_time"]
+            between_end = _add_minutes_to_time(between_start, drive_min)
             legs.append(
                 {
                     "type": "drive",
                     "from_label": entry["location_name"],
                     "to_label": next_entry["location_name"],
                     "minutes": drive_min,
+                    "start_time": between_start,
+                    "end_time": between_end,
                 }
             )
             total_drive += drive_min
@@ -541,12 +563,16 @@ async def _build_travel_chain(
             # Last leg: last location → Hub
             last_loc = loc_map.get(entry["location_id"])
             last_hub_drive = last_loc["drive_time_minutes"] if last_loc else 0
+            last_drive_start = entry["end_time"]
+            last_drive_end = _add_minutes_to_time(last_drive_start, last_hub_drive)
             legs.append(
                 {
                     "type": "drive",
                     "from_label": entry["location_name"],
                     "to_label": HUB_LABEL,
                     "minutes": last_hub_drive,
+                    "start_time": last_drive_start,
+                    "end_time": last_drive_end,
                 }
             )
             total_drive += last_hub_drive

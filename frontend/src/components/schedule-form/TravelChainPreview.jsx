@@ -59,21 +59,26 @@ export function TravelChainPreview({ travelChain }) {
                   {isHub && (
                     <span className="text-[11px] font-medium text-indigo-600">
                       {isFirst ? leg.from_label : leg.to_label}
+                      {isFirst && leg.start_time && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          depart {leg.start_time} · {leg.minutes} min
+                        </span>
+                      )}
+                      {isLast && leg.end_time && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          arrive {leg.end_time} · {leg.minutes} min
+                        </span>
+                      )}
                     </span>
                   )}
                   {!isHub && !isSameCity && (
                     <span className="text-[10px] text-slate-400 flex items-center gap-1">
                       <ArrowDown className="w-3 h-3" />
-                      {leg.minutes} min drive
+                      {leg.minutes} min{leg.start_time && leg.end_time ? ` · ${leg.start_time}–${leg.end_time}` : ''}
                     </span>
                   )}
                   {isSameCity && (
                     <span className="text-[10px] text-slate-300 italic">Same city</span>
-                  )}
-                  {isHub && leg.minutes > 0 && (
-                    <span className="text-[10px] text-slate-400">
-                      ({leg.minutes} min)
-                    </span>
                   )}
                 </div>
               </div>
@@ -135,9 +140,9 @@ TravelChainPreview.propTypes = {
         from_label: PropTypes.string,
         to_label: PropTypes.string,
         minutes: PropTypes.number,
-        location_name: PropTypes.string,
         start_time: PropTypes.string,
         end_time: PropTypes.string,
+        location_name: PropTypes.string,
         is_current: PropTypes.bool,
       })
     ),
