@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
@@ -19,6 +20,7 @@ const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, name, percent }) => {
 };
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { EntityLink } from './ui/entity-link';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
@@ -26,7 +28,11 @@ import api from '../lib/api';
 
 const PIE_COLORS = ['#4F46E5', '#0D9488', '#F97316', '#DC2626', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
-export default function LocationProfile({ locationId, onBack }) {
+export default function LocationProfile({ locationId: propId, onBack: propOnBack } = {}) {
+  const params = useParams();
+  const navigate = useNavigate();
+  const locationId = propId || params.id;
+  const onBack = propOnBack || (() => navigate('/locations'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState('');
@@ -247,7 +253,7 @@ export default function LocationProfile({ locationId, onBack }) {
                   <Users className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{s.employee_name}</p>
+                  <EntityLink type="employee" id={s.employee_id} className="text-sm font-medium text-slate-700">{s.employee_name}</EntityLink>
                   <p className="text-xs text-slate-400">{s.class_name} | {s.date} | {s.start_time}-{s.end_time}</p>
                 </div>
                 <Badge className={`border-0 text-[10px] ${getStatusStyle(s.status)}`}>
@@ -266,6 +272,6 @@ export default function LocationProfile({ locationId, onBack }) {
 }
 
 LocationProfile.propTypes = {
-  locationId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-  onBack: PropTypes.func.isRequired,
+  locationId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onBack: PropTypes.func,
 };

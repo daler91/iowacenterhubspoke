@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, BookOpen,
@@ -7,12 +8,17 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { EntityLink } from './ui/entity-link';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 
-export default function ClassProfile({ classId, onBack }) {
+export default function ClassProfile({ classId: propId, onBack: propOnBack } = {}) {
+  const params = useParams();
+  const navigate = useNavigate();
+  const classId = propId || params.id;
+  const onBack = propOnBack || (() => navigate('/classes'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState('');
@@ -232,8 +238,8 @@ export default function ClassProfile({ classId, onBack }) {
                   <Users className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{s.employee_name}</p>
-                  <p className="text-xs text-slate-400">{s.location_name} | {s.date} | {s.start_time}-{s.end_time}</p>
+                  <EntityLink type="employee" id={s.employee_id} className="text-sm font-medium text-slate-700">{s.employee_name}</EntityLink>
+                  <p className="text-xs text-slate-400"><EntityLink type="location" id={s.location_id} className="text-slate-400">{s.location_name}</EntityLink> | {s.date} | {s.start_time}-{s.end_time}</p>
                 </div>
                 <Badge className={`border-0 text-[10px] ${getStatusStyle(s.status)}`}>
                   {(s.status || 'upcoming').replace('_', ' ')}
@@ -251,6 +257,6 @@ export default function ClassProfile({ classId, onBack }) {
 }
 
 ClassProfile.propTypes = {
-  classId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-  onBack: PropTypes.func.isRequired,
+  classId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onBack: PropTypes.func,
 };

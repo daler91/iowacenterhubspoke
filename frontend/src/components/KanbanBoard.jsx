@@ -7,6 +7,7 @@ import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
+import { EntityLink } from './ui/entity-link';
 import { mutate } from 'swr';
 import { SCHEDULE_STATUS, COLORS } from '../lib/constants';
 import BulkActionBar from './BulkActionBar';
@@ -89,11 +90,11 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
       <div className="pl-[26px] space-y-2">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <MapPin className="w-3 h-3" />
-          <span>{schedule.location_name}</span>
+          <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <User className="w-3 h-3" />
-          <span>{schedule.employee_name}</span>
+          <EntityLink type="employee" id={schedule.employee_id}>{schedule.employee_name}</EntityLink>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Clock className="w-3 h-3" />

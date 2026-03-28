@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Car, BookOpen, TrendingUp } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { EntityLink } from './ui/entity-link';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
@@ -93,6 +94,7 @@ export default function WorkloadDashboard() {
 
   const pieData = scopedWorkload.filter((employeeWorkload) => employeeWorkload.display_classes > 0).map((employeeWorkload) => ({
     name: employeeWorkload.employee_name,
+    employee_id: employeeWorkload.employee_id,
     value: employeeWorkload.display_classes,
     color: employeeWorkload.employee_color || '#4F46E5',
   }));
@@ -130,9 +132,10 @@ export default function WorkloadDashboard() {
         {classOptions.slice(0, 6).map((classItem) => (
           <Badge
             key={classItem.class_id || classItem.class_name}
-            className="border-0 text-xs"
+            className="border-0 text-xs cursor-pointer hover:opacity-80 transition-opacity"
             style={{ backgroundColor: `${classItem.class_color}20`, color: classItem.class_color }}
             data-testid={`workload-class-chip-${classItem.class_id || classItem.class_name}`}
+            onClick={() => classItem.class_id && setSelectedClassId(classItem.class_id)}
           >
             {classItem.class_name}: {classItem.classes}
           </Badge>
@@ -234,11 +237,11 @@ export default function WorkloadDashboard() {
             </div>
           )}
           <div className="space-y-2 mt-2">
-            {pieData.map((pieItem, index) => (
+            {pieData.map((pieItem) => (
               <div key={pieItem.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieItem.color }} />
-                  <span className="text-slate-600 truncate max-w-[120px]">{pieItem.name}</span>
+                  <EntityLink type="employee" id={pieItem.employee_id} className="text-slate-600 truncate max-w-[120px]">{pieItem.name}</EntityLink>
                 </div>
                 <span className="font-semibold text-slate-800">{pieItem.value}</span>
               </div>
@@ -258,7 +261,7 @@ export default function WorkloadDashboard() {
                 {employeeWorkload.employee_name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <p className="font-semibold text-slate-800 text-sm">{employeeWorkload.employee_name}</p>
+                <EntityLink type="employee" id={employeeWorkload.employee_id} className="font-semibold text-slate-800 text-sm">{employeeWorkload.employee_name}</EntityLink>
                 <p className="text-xs text-slate-400" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
                   {employeeWorkload.display_classes} class{employeeWorkload.display_classes === 1 ? '' : 'es'} in scope
                 </p>

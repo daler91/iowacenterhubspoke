@@ -51,6 +51,9 @@ const ClassManager = lazy(() => import("./components/ClassManager"));
 const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
 const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
 const UserManager = lazy(() => import("./components/UserManager"));
+const EmployeeProfile = lazy(() => import("./components/EmployeeProfile"));
+const LocationProfile = lazy(() => import("./components/LocationProfile"));
+const ClassProfile = lazy(() => import("./components/ClassProfile"));
 
 function AppRoutes() {
   return (
@@ -82,6 +85,9 @@ function AppRoutes() {
             <Route path="locations" element={<LocationManager />} />
             <Route path="classes" element={<ClassManager />} />
             <Route path="employees" element={<EmployeeManager />} />
+            <Route path="employees/:id" element={<EmployeeProfile />} />
+            <Route path="locations/:id" element={<LocationProfile />} />
+            <Route path="classes/:id" element={<ClassProfile />} />
             <Route path="users" element={<UserManager />} />
           </Route>
         </Routes>

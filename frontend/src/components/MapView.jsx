@@ -6,10 +6,11 @@ import { Badge } from './ui/badge';
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 const HUB = { lat: 41.5868, lng: -93.654 };
 
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 
 export default function MapView() {
   const { locations, schedules } = useOutletContext();
+  const navigate = useNavigate();
   const validLocations = useMemo(() =>
     (locations || []).filter(l => l.latitude && l.longitude),
     [locations]
@@ -83,7 +84,7 @@ export default function MapView() {
             {validLocations.map(loc => {
               const locSchedules = todayByLoc[loc.id] || [];
               return (
-                <AdvancedMarker key={loc.id} position={{ lat: loc.latitude, lng: loc.longitude }}>
+                <AdvancedMarker key={loc.id} position={{ lat: loc.latitude, lng: loc.longitude }} onClick={() => navigate(`/locations/${loc.id}`)}>
                   <div className="relative group cursor-pointer" data-testid={`spoke-marker-${loc.id}`}>
                     <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                       <Navigation className="w-5 h-5 text-white" />
@@ -133,12 +134,16 @@ export default function MapView() {
           </div>
         </div>
         {validLocations.map(loc => (
-          <div key={loc.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+          <div
+            key={loc.id}
+            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate(`/locations/${loc.id}`)}
+          >
             <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
               <Navigation className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800">{loc.city_name}</p>
+              <p className="text-sm font-semibold text-slate-800 hover:text-indigo-600 transition-colors">{loc.city_name}</p>
               <p className="text-xs text-slate-500">{loc.drive_time_minutes}m drive</p>
             </div>
           </div>
