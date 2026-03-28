@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { mutate } from 'swr';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
@@ -290,8 +291,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     // Cross-schedule override: update the other schedule directly via API
     try {
       await schedulesAPI.update(scheduleId, { [fieldKey]: minutes });
-      // Re-fetch the travel chain to reflect the change
       fetchConflictPreview();
+      mutate('schedules'); // Invalidate calendar data so drive blocks update
     } catch {
       // silently fail — chain will show stale data until next refresh
     }
