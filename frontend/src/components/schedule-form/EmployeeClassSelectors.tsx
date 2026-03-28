@@ -91,9 +91,3 @@ export function EmployeeClassSelectors({
     </>
   );
 }
-
-).isRequired,
-  })),
-  })),
-  }),
-};

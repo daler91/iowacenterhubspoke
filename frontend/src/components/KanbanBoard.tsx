@@ -138,9 +138,6 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   );
 }
 
-).isRequired,
-};
-
 import { useOutletContext } from 'react-router-dom';
 
 export default function KanbanBoard() {
