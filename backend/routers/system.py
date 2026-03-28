@@ -10,18 +10,21 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["system"])
 
 
-@router.get("/system/config")
+@router.get("/system/config", summary="Get system configuration")
 async def get_system_config(user: CurrentUser):
+    """Return current system feature flags (e.g. Outlook integration status)."""
     from core.outlook_config import OUTLOOK_ENABLED
     return {"outlook_enabled": OUTLOOK_ENABLED}
 
-@router.get("/activity-logs")
+@router.get("/activity-logs", summary="Get activity logs")
 async def get_activity_logs(user: AdminRequired, limit: int = 30):
+    """Return recent activity log entries, newest first. Admin only."""
     logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     return logs
 
-@router.get("/notifications")
+@router.get("/notifications", summary="Get system notifications")
 async def get_notifications(user: CurrentUser):
+    """Return upcoming classes, town-to-town warnings, and idle employee alerts."""
     logger.info("Fetching system notifications")
     notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -71,8 +74,9 @@ async def get_notifications(user: CurrentUser):
 
     return sorted(notifications, key=lambda x: x.get('severity') == 'warning', reverse=True)
 
-@router.post("/system/sync-denormalized")
+@router.post("/system/sync-denormalized", summary="Trigger denormalization sync")
 async def manual_sync_denormalized(user: AdminRequired):
+    """Enqueue background jobs to sync denormalized fields on all schedules. Admin only."""
     pool = await get_redis_pool()
     if not pool:
         return {"message": "Redis unavailable"}

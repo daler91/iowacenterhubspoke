@@ -34,7 +34,28 @@ from database import client, db, mongo_url, ROOT_DIR
 from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED
 
-app = FastAPI()
+app = FastAPI(
+    title="Iowa Center Hub & Spoke API",
+    description=(
+        "Scheduling platform for the Iowa Center's hub-and-spoke model. "
+        "Manages employee class assignments across satellite locations with "
+        "drive time calculations, conflict detection, and analytics."
+    ),
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "auth", "description": "Authentication, registration, and invitation management"},
+        {"name": "schedules", "description": "Schedule CRUD, bulk operations, import/export, and conflict checking"},
+        {"name": "locations", "description": "Location management and drive time calculations"},
+        {"name": "employees", "description": "Employee management and statistics"},
+        {"name": "classes", "description": "Class type management and statistics"},
+        {"name": "users", "description": "User administration — approval, roles, invitations (admin only)"},
+        {"name": "reports", "description": "Dashboard statistics, workload analysis, and weekly summaries"},
+        {"name": "analytics", "description": "Trend analysis, forecasting, and drive optimization"},
+        {"name": "system", "description": "System configuration, activity logs, and notifications"},
+    ],
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -111,6 +132,51 @@ async def csrf_middleware(request: Request, call_next):
         )
 
     return response
+
+import hashlib as _hashlib
+
+# Cache-Control + ETag for GET API responses
+# Short-lived cache for dynamic data; browsers revalidate via If-None-Match
+_CACHE_MAX_AGE = {
+    "/api/v1/locations": 300,          # 5 min — locations rarely change
+    "/api/v1/employees": 300,          # 5 min
+    "/api/v1/classes": 300,            # 5 min
+    "/api/v1/dashboard/stats": 60,     # 1 min
+    "/api/v1/health": 30,             # 30 sec
+}
+_DEFAULT_API_MAX_AGE = 0  # default: must-revalidate (ETag only)
+
+
+@app.middleware("http")
+async def cache_control_middleware(request: Request, call_next):
+    """Add Cache-Control and ETag headers to GET API responses."""
+    response = await call_next(request)
+
+    if request.method != "GET" or not request.url.path.startswith("/api"):
+        return response
+
+    # Determine max-age for this path
+    max_age = _DEFAULT_API_MAX_AGE
+    for prefix, age in _CACHE_MAX_AGE.items():
+        if request.url.path.startswith(prefix):
+            max_age = age
+            break
+
+    response.headers["Cache-Control"] = f"private, max-age={max_age}, must-revalidate"
+
+    # Generate ETag from response body for small responses
+    if hasattr(response, "body"):
+        etag = '"' + _hashlib.md5(response.body).hexdigest()[:16] + '"'
+        response.headers["ETag"] = etag
+
+        # Check If-None-Match
+        if_none_match = request.headers.get("if-none-match")
+        if if_none_match and if_none_match == etag:
+            from starlette.responses import Response as StarletteResponse
+            return StarletteResponse(status_code=304, headers={"ETag": etag})
+
+    return response
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -226,6 +292,10 @@ async def seed_data():
         await db.activity_logs.create_index([("timestamp", -1)])
         await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
         await db.drive_time_cache.create_index("key", unique=True)
+        # TTL index: auto-delete cache entries after 30 days
+        await db.drive_time_cache.create_index(
+            "expires_at", expireAfterSeconds=0
+        )
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
         logger.info("Ensured indexes on all collections")

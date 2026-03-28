@@ -18,8 +18,9 @@ VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER}
 USER_NOT_FOUND = "User not found"
 
 
-@router.get("/")
+@router.get("/", summary="List all users")
 async def list_users(user: AdminRequired):
+    """Return all users (excluding password hashes). Admin only."""
     cursor = db.users.find({}, {"_id": 0, "password_hash": 0})
     users = await cursor.to_list(length=1000)
     return {"users": users}
@@ -27,6 +28,7 @@ async def list_users(user: AdminRequired):
 
 @router.put(
     "/{user_id}/approve",
+    summary="Approve a pending user",
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def approve_user(user_id: str, user: AdminRequired):
@@ -42,6 +44,7 @@ async def approve_user(user_id: str, user: AdminRequired):
 
 @router.put(
     "/{user_id}/reject",
+    summary="Reject a pending user",
     responses={
         400: {"model": ErrorResponse, "description": "Cannot reject an admin user"},
         404: {"model": ErrorResponse, "description": "User not found"},
@@ -63,12 +66,14 @@ async def reject_user(user_id: str, user: AdminRequired):
 
 @router.put(
     "/{user_id}/role",
+    summary="Change a user's role",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid role or cannot remove last admin"},
         404: {"model": ErrorResponse, "description": "User not found"},
     },
 )
 async def update_user_role(user_id: str, data: UserRoleUpdate, user: AdminRequired):
+    """Update a user's role. Prevents removing the last admin."""
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
@@ -86,12 +91,14 @@ async def update_user_role(user_id: str, data: UserRoleUpdate, user: AdminRequir
 
 @router.delete(
     "/{user_id}",
+    summary="Delete a user account",
     responses={
         400: {"model": ErrorResponse, "description": "Cannot delete your own account"},
         404: {"model": ErrorResponse, "description": "User not found"},
     },
 )
 async def delete_user(user_id: str, user: AdminRequired):
+    """Permanently delete a user. Cannot delete your own account."""
     if user_id == user["user_id"]:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
@@ -102,8 +109,9 @@ async def delete_user(user_id: str, user: AdminRequired):
     return {"message": "User deleted"}
 
 
-@router.post("/invite")
+@router.post("/invite", summary="Create an invitation link")
 async def create_invitation(data: InviteCreate, user: AdminRequired):
+    """Generate a one-time invitation link for a new user with a pre-assigned role."""
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
 
@@ -143,14 +151,14 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
     }
 
 
-@router.get("/invitations")
+@router.get("/invitations", summary="List all invitations")
 async def list_invitations(user: AdminRequired):
     cursor = db.invitations.find({}, {"_id": 0}).sort("created_at", -1)
     invitations = await cursor.to_list(length=500)
     return {"invitations": invitations}
 
 
-@router.delete("/invitations/{invite_id}")
+@router.delete("/invitations/{invite_id}", summary="Revoke an invitation")
 async def revoke_invitation(invite_id: str, user: AdminRequired):
     invite = await db.invitations.find_one({"id": invite_id}, {"_id": 0})
     if not invite:

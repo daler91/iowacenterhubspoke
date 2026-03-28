@@ -15,22 +15,24 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 EMPLOYEE_NOT_FOUND = "Employee not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
-@router.get("")
+@router.get("", summary="List all employees")
 async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
+    """Return paginated list of active employees."""
     query = {"deleted_at": None}
     total = await db.employees.count_documents(query)
     employees = await db.employees.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return {"items": employees, "total": total, "skip": skip, "limit": limit}
 
-@router.get("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+@router.get("/{employee_id}", summary="Get a single employee", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def get_employee(employee_id: str, user: CurrentUser):
     employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return employee
 
-@router.post("")
+@router.post("", summary="Create a new employee")
 async def create_employee(data: EmployeeCreate, user: AdminRequired):
+    """Add a new employee to the team. Requires admin role."""
     emp_id = str(uuid.uuid4())
     doc = {
         "id": emp_id,
@@ -47,7 +49,7 @@ async def create_employee(data: EmployeeCreate, user: AdminRequired):
     await log_activity("employee_created", f"Employee '{data.name}' added to team", "employee", emp_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{employee_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+@router.put("/{employee_id}", summary="Update an employee", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -65,7 +67,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
         
     return updated
 
-@router.delete("/{employee_id}", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+@router.delete("/{employee_id}", summary="Soft-delete an employee", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def delete_employee(employee_id: str, user: AdminRequired):
     result = await db.employees.update_one(
         {"id": employee_id, "deleted_at": None}, 
@@ -77,7 +79,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
     await log_activity("employee_deleted", f"Employee with ID '{employee_id}' marked as deleted", "employee", employee_id, user.get('name', 'System'))
     return {"message": "Employee deleted"}
 
-@router.post("/{employee_id}/restore", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+@router.post("/{employee_id}/restore", summary="Restore a deleted employee", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def restore_employee(employee_id: str, user: AdminRequired):
     result = await db.employees.update_one(
         {"id": employee_id}, 
@@ -89,8 +91,9 @@ async def restore_employee(employee_id: str, user: AdminRequired):
     await log_activity("employee_restored", f"Employee with ID '{employee_id}' restored", "employee", employee_id, user.get('name', 'System'))
     return {"message": "Employee restored"}
 
-@router.get("/{employee_id}/stats", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
+@router.get("/{employee_id}/stats", summary="Get employee statistics", responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}})
 async def get_employee_stats(employee_id: str, user: CurrentUser):
+    """Return schedule counts, drive/class hours, location breakdown, and recent schedules."""
     employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)

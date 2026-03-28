@@ -1,6 +1,9 @@
 import os
 import math
 from datetime import datetime, timezone
+from functools import lru_cache
+from collections import OrderedDict
+import threading
 
 import httpx
 
@@ -13,6 +16,35 @@ GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 HUB_LAT = 41.5868
 HUB_LNG = -93.654
 CACHE_TTL_DAYS = 30
+
+# In-memory LRU cache for drive times (avoids repeated MongoDB lookups)
+_MEM_CACHE_MAX = 500
+_mem_cache: OrderedDict[str, tuple[int, float]] = OrderedDict()  # key -> (minutes, timestamp)
+_mem_lock = threading.Lock()
+
+
+def _mem_get(key: str) -> int | None:
+    """Get drive time from in-memory cache if fresh."""
+    with _mem_lock:
+        entry = _mem_cache.get(key)
+        if entry is None:
+            return None
+        minutes, ts = entry
+        age_days = (datetime.now(timezone.utc).timestamp() - ts) / 86400
+        if age_days >= CACHE_TTL_DAYS:
+            _mem_cache.pop(key, None)
+            return None
+        _mem_cache.move_to_end(key)
+        return minutes
+
+
+def _mem_set(key: str, minutes: int):
+    """Store drive time in in-memory cache, evicting oldest if full."""
+    with _mem_lock:
+        _mem_cache[key] = (minutes, datetime.now(timezone.utc).timestamp())
+        _mem_cache.move_to_end(key)
+        while len(_mem_cache) > _MEM_CACHE_MAX:
+            _mem_cache.popitem(last=False)
 
 
 def _haversine_miles(lat1, lng1, lat2, lng2):
@@ -76,7 +108,14 @@ def _hub_cache_key(lat, lng):
 
 
 async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=None):
-    """Get drive time between two coordinates. Checks cache, then API, then estimates."""
+    """Get drive time between two coordinates. Checks in-memory cache, then MongoDB, then API, then estimates."""
+    # 1. In-memory LRU cache (instant, no I/O)
+    if cache_key:
+        mem_hit = _mem_get(cache_key)
+        if mem_hit is not None:
+            return mem_hit, True
+
+    # 2. MongoDB cache
     if cache_key:
         cached = await db.drive_time_cache.find_one({"key": cache_key}, {"_id": 0})
         if cached:
@@ -85,24 +124,31 @@ async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=N
                 try:
                     age = (datetime.now(timezone.utc) - datetime.fromisoformat(created)).days
                     if age < CACHE_TTL_DAYS:
+                        _mem_set(cache_key, cached["drive_time_minutes"])
                         return cached["drive_time_minutes"], True
                 except (ValueError, TypeError):
                     pass
 
+    # 3. Google Distance Matrix API
     minutes = await _fetch_distance_matrix(from_lat, from_lng, to_lat, to_lng)
     source = "api"
     if minutes is None:
         minutes = _estimate_drive_minutes(from_lat, from_lng, to_lat, to_lng)
         source = "estimate"
 
+    # 4. Store in both caches
     if cache_key:
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        _mem_set(cache_key, minutes)
         await db.drive_time_cache.update_one(
             {"key": cache_key},
             {"$set": {
                 "key": cache_key,
                 "drive_time_minutes": minutes,
                 "source": source,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now.isoformat(),
+                "expires_at": now + timedelta(days=CACHE_TTL_DAYS),
             }},
             upsert=True,
         )

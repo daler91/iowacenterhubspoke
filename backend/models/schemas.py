@@ -133,6 +133,10 @@ class InviteCreate(BaseModel):
     name: Optional[str] = None
     role: str
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
 class ErrorResponse(BaseModel):
     detail: str
     code: str

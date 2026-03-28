@@ -12,8 +12,9 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["reports"])
 
 
-@router.get("/dashboard/stats")
+@router.get("/dashboard/stats", summary="Get dashboard statistics")
 async def get_dashboard_stats(user: CurrentUser):
+    """Return total counts for employees, locations, schedules, and today's schedule count."""
     total_employees = await db.employees.count_documents({"deleted_at": None})
     total_locations = await db.locations.count_documents({"deleted_at": None})
     total_schedules = await db.schedules.count_documents({"deleted_at": None})
@@ -63,22 +64,9 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
     class_breakdown[class_key]["drive_minutes"] += drive_minutes
 
 
-@router.get("/workload")
+@router.get("/workload", summary="Get employee workload statistics")
 async def get_workload_stats(user: CurrentUser):
-    """
-    Retrieves workload statistics for all employees.
-
-    Performance Note:
-    Optimized to O(N + M) time complexity where N is employees and M is schedules
-    by pre-grouping schedules in a defaultdict instead of nesting iterations.
-    """
-    """
-    Retrieves workload statistics for all employees.
-
-    Performance Note:
-    Optimized to O(N + M) time complexity where N is employees and M is schedules
-    by pre-grouping schedules in a defaultdict instead of nesting iterations.
-    """
+    """Return class/drive hours, completion status, and class breakdowns per employee."""
     employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
     all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(
         1000
@@ -238,7 +226,7 @@ def _finalize_summaries(employee_summaries, class_totals):
     )
 
 
-@router.get("/reports/weekly-summary")
+@router.get("/reports/weekly-summary", summary="Get weekly summary report")
 async def get_weekly_summary(
     user: CurrentUser,
     date_from: Optional[str] = None,

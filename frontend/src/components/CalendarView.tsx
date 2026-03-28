@@ -4,7 +4,7 @@ import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subM
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 
-import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, AlertTriangle, Printer } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import ExportCsvDialog from './ExportCsvDialog';
 import ImportCsvDialog from './ImportCsvDialog';
@@ -290,6 +290,16 @@ export default function CalendarView() {
           >
             <FileDown className="w-4 h-4 mr-1" />
             PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="print-btn"
+            onClick={() => window.print()}
+            className="border-gray-200 no-print"
+          >
+            <Printer className="w-4 h-4 mr-1" />
+            Print
           </Button>
         </div>
       </div>
