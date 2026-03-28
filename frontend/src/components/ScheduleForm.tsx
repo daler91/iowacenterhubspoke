@@ -123,6 +123,3 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     </Dialog>
   );
 }
-
-),
-};

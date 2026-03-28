@@ -248,8 +248,3 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
     </div>
   );
 }
-
-)
-    ),
-  }),
-};
