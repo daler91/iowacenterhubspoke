@@ -33,9 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: res.data.role
         };
         setUser(userData);
-        localStorage.setItem('auth_user', JSON.stringify(userData));
       } catch {
-        localStorage.removeItem('auth_user');
         setUser(null);
       } finally {
         setLoading(false);
@@ -46,7 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authAPI.login({ email, password });
-    localStorage.setItem('auth_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data;
   }, []);
@@ -56,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (inviteToken) payload.invite_token = inviteToken;
     const res = await authAPI.register(payload);
     if (res.data.token && res.data.user) {
-      localStorage.setItem('auth_user', JSON.stringify(res.data.user));
       setUser(res.data.user);
     }
     return res.data;
@@ -68,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout errors
     }
-    localStorage.removeItem('auth_user');
     setUser(null);
   }, []);
 

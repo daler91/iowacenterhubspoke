@@ -127,7 +127,7 @@ async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=N
                         _mem_set(cache_key, cached["drive_time_minutes"])
                         return cached["drive_time_minutes"], True
                 except (ValueError, TypeError):
-                    pass
+                    logger.warning("Invalid cached drive time entry for key %s", cache_key)
 
     # 3. Google Distance Matrix API
     minutes = await _fetch_distance_matrix(from_lat, from_lng, to_lat, to_lng)

@@ -22,6 +22,12 @@ DEFAULT_CLASS_COLOR = "#0F766E"
 FREQ_WEEK = "week"
 FREQ_MONTH = "month"
 
+# Infrastructure defaults
+DEFAULT_REDIS_URL = "redis://localhost:6379"
+
+# Query limits
+MAX_QUERY_LIMIT = 10000
+
 # Recurrence end modes
 END_MODE_NEVER = "never"
 END_MODE_ON_DATE = "on_date"

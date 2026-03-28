@@ -115,7 +115,7 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
             eh, em = s['end_time'].split(':')
             total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
         except (ValueError, KeyError):
-            pass
+            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
 
         status = s.get('status', 'upcoming')
         if status == 'completed':

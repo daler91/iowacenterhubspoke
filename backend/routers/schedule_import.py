@@ -15,7 +15,7 @@ from models.schemas import ScheduleImportItem, ErrorResponse
 from core.auth import AdminRequired
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
-from core.constants import STATUS_UPCOMING
+from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT
 from routers.schedule_helpers import logger
 
 
@@ -104,20 +104,20 @@ async def export_schedules(
         query["location_id"] = location_id
 
     cursor = db.schedules.find(query).sort("date", 1)
-    schedules = await cursor.to_list(length=None)
+    schedules = await cursor.to_list(length=MAX_QUERY_LIMIT)
 
     emp_ids = list({s["employee_id"] for s in schedules if "employee_id" in s})
     loc_ids = list({s["location_id"] for s in schedules if "location_id" in s})
     class_ids = list({s["class_id"] for s in schedules if s.get("class_id")})
 
     employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
 
     emp_map = {e["_id"]: e for e in employees}
@@ -211,13 +211,13 @@ async def import_schedules_preview(
         )
 
     all_employees = await db.employees.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     all_locations = await db.locations.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     all_classes = await db.classes.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
 
     emp_by_email = {

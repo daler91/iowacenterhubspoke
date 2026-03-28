@@ -62,7 +62,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
             "deleted_at": None,
         },
         {"_id": 0},
-    ).to_list(None)
+    ).to_list(10000)
 
     schedules_by_date = {}
     for s in existing_schedules:
@@ -78,7 +78,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     if location_ids:
         other_locations = await db.locations.find(
             {"id": {"$in": list(location_ids)}}, {"_id": 0}
-        ).to_list(None)
+        ).to_list(10000)
     loc_map = {loc["id"]: loc for loc in other_locations}
 
     return schedules_by_date, loc_map
@@ -270,7 +270,9 @@ async def delete_outlook_event(ctx, email: str, event_id: str):
         logger.warning("Failed to delete Outlook event %s", event_id)
 
 
-redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+from core.constants import DEFAULT_REDIS_URL
+
+redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 
 class WorkerSettings:

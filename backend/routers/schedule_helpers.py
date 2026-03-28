@@ -160,7 +160,7 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
                 if drive_minutes is None or minutes < drive_minutes:
                     drive_minutes = minutes
         except Exception:
-            pass
+            logger.warning("Failed to get drive time between %s and %s", location_id, other_loc_id, exc_info=True)
 
     if drive_minutes is not None:
         warning = f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. Other locations: {', '.join(other_cities)}"

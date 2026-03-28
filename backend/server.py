@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -32,7 +33,85 @@ from core.rate_limit import limiter
 
 from database import client, db, mongo_url, ROOT_DIR
 from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users
-from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED
+from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ---- Startup ----
+    try:
+        await client.admin.command('ping')
+        logger.info(f"Connected to MongoDB at {mongo_url}")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
+        raise
+
+    # Migrate existing users: set status to approved if missing
+    try:
+        result = await db.users.update_many(
+            {"status": {"$exists": False}},
+            {"$set": {"status": USER_STATUS_APPROVED}}
+        )
+        if result.modified_count > 0:
+            logger.info(f"Migrated {result.modified_count} existing users to approved status")
+    except Exception as e:
+        logger.warning(f"Failed to migrate user statuses: {e}")
+
+    # Auto-promote admin email
+    admin_email = "russell.dale1@gmail.com"
+    try:
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
+            await db.users.update_one(
+                {"email": admin_email},
+                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
+            )
+            logger.info(f"Promoted {admin_email} to admin role")
+    except Exception as e:
+        logger.warning(f"Failed to check/promote admin user: {e}")
+
+    # Create required indexes
+    try:
+        await db.schedules.create_index([("employee_id", 1), ("date", 1)])
+        await db.schedules.create_index([("employee_id", 1), ("date", 1), ("deleted_at", 1)])
+        await db.schedules.create_index([("location_id", 1), ("date", 1)])
+        await db.schedules.create_index([("date", 1), ("status", 1)])
+        await db.schedules.create_index([("deleted_at", 1)])
+        await db.employees.create_index([("deleted_at", 1)])
+        await db.locations.create_index([("deleted_at", 1)])
+        await db.classes.create_index([("deleted_at", 1)])
+        await db.activity_logs.create_index([("timestamp", -1)])
+        await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
+        await db.drive_time_cache.create_index("key", unique=True)
+        # TTL index: auto-delete cache entries after 30 days
+        await db.drive_time_cache.create_index(
+            "expires_at", expireAfterSeconds=0
+        )
+        await db.invitations.create_index("token", unique=True)
+        await db.invitations.create_index("email")
+        logger.info("Ensured indexes on all collections")
+    except Exception as e:
+        logger.warning(f"Failed to create indexes: {e}")
+
+    try:
+        count = await db.locations.count_documents({})
+        if count == 0:
+            default_locations = [
+                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
+            ]
+            await db.locations.insert_many(default_locations)
+            logger.info("Seeded default locations")
+    except Exception as e:
+        logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
+
+    yield
+
+    # ---- Shutdown ----
+    client.close()
+
 
 app = FastAPI(
     title="Iowa Center Hub & Spoke API",
@@ -42,6 +121,7 @@ app = FastAPI(
         "drive time calculations, conflict detection, and analytics."
     ),
     version="1.0.0",
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
@@ -234,7 +314,7 @@ async def health_check():
 
     try:
         import redis as _redis
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
         r = _redis.from_url(redis_url, socket_connect_timeout=2)
         r.ping()
     except Exception:
@@ -243,79 +323,6 @@ async def health_check():
 
     status_code = 200 if checks["status"] == "healthy" else 503
     return JSONResponse(content=checks, status_code=status_code)
-
-# ========== SEED DATA ==========
-
-@app.on_event("startup")
-async def seed_data():
-    try:
-        await client.admin.command('ping')
-        logger.info(f"Connected to MongoDB at {mongo_url}")
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
-        raise
-    
-    # Migrate existing users: set status to approved if missing
-    try:
-        result = await db.users.update_many(
-            {"status": {"$exists": False}},
-            {"$set": {"status": USER_STATUS_APPROVED}}
-        )
-        if result.modified_count > 0:
-            logger.info(f"Migrated {result.modified_count} existing users to approved status")
-    except Exception as e:
-        logger.warning(f"Failed to migrate user statuses: {e}")
-
-    # Auto-promote admin email
-    admin_email = "russell.dale1@gmail.com"
-    try:
-        existing_admin = await db.users.find_one({"email": admin_email})
-        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
-            await db.users.update_one(
-                {"email": admin_email},
-                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
-            )
-            logger.info(f"Promoted {admin_email} to admin role")
-    except Exception as e:
-        logger.warning(f"Failed to check/promote admin user: {e}")
-
-    # Create required indexes
-    try:
-        await db.schedules.create_index([("employee_id", 1), ("date", 1)])
-        await db.schedules.create_index([("employee_id", 1), ("date", 1), ("deleted_at", 1)])
-        await db.schedules.create_index([("location_id", 1), ("date", 1)])
-        await db.schedules.create_index([("date", 1), ("status", 1)])
-        await db.schedules.create_index([("deleted_at", 1)])
-        await db.employees.create_index([("deleted_at", 1)])
-        await db.locations.create_index([("deleted_at", 1)])
-        await db.classes.create_index([("deleted_at", 1)])
-        await db.activity_logs.create_index([("timestamp", -1)])
-        await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
-        await db.drive_time_cache.create_index("key", unique=True)
-        # TTL index: auto-delete cache entries after 30 days
-        await db.drive_time_cache.create_index(
-            "expires_at", expireAfterSeconds=0
-        )
-        await db.invitations.create_index("token", unique=True)
-        await db.invitations.create_index("email")
-        logger.info("Ensured indexes on all collections")
-    except Exception as e:
-        logger.warning(f"Failed to create indexes: {e}")
-
-    try:
-        count = await db.locations.count_documents({})
-        if count == 0:
-            default_locations = [
-                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
-            ]
-            await db.locations.insert_many(default_locations)
-            logger.info("Seeded default locations")
-    except Exception as e:
-        logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
 # ========== APP SETUP ==========
 
@@ -349,6 +356,3 @@ elif (_static_dir / "assets").exists():
             return FileResponse(str(file_path))
         return FileResponse(str(_static_dir / "index.html"))
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()

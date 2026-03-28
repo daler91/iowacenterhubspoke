@@ -38,7 +38,7 @@ def _aggregate_schedules_by_period(schedules, period_fn):
         try:
             b["class_minutes"] += calculate_class_minutes(s["start_time"], s["end_time"])
         except (ValueError, KeyError):
-            pass
+            logger.warning("Skipping schedule in trends: invalid class minutes for date %s", s.get("date", "?"))
         b["drive_minutes"] += s.get("drive_time_minutes", 0) * 2
         b["employees"].add(s.get("employee_id", ""))
         b["locations"].add(s.get("location_id", ""))

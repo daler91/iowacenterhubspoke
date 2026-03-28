@@ -34,8 +34,6 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
       isRedirectingTo401 = true;
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
       globalThis.location.href = '/login';
     }
     return Promise.reject(error);
