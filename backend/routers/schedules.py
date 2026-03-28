@@ -465,6 +465,7 @@ async def _build_travel_chain(
     for s in db_schedules:
         entries.append(
             {
+                "schedule_id": s["id"],
                 "location_id": s["location_id"],
                 "location_name": s.get("location_name", "Unknown"),
                 "start_time": s["start_time"],
@@ -482,6 +483,7 @@ async def _build_travel_chain(
     current_loc_name = current_loc["city_name"] if current_loc else "Unknown"
     entries.append(
         {
+            "schedule_id": schedule_id,
             "location_id": current_location_id,
             "location_name": current_loc_name,
             "start_time": current_start,
@@ -529,6 +531,7 @@ async def _build_travel_chain(
             "is_overridden": is_first_overridden,
             "override_field": "drive_to",
             "owner_is_current": first_entry["is_current"],
+            "owner_schedule_id": first_entry.get("schedule_id"),
         }
     )
     total_drive += first_hub_drive
@@ -585,6 +588,7 @@ async def _build_travel_chain(
                     "is_overridden": is_overridden,
                     "override_field": "drive_from",
                     "owner_is_current": entry["is_current"],
+                    "owner_schedule_id": entry.get("schedule_id"),
                 }
             )
             total_drive += drive_min
@@ -608,6 +612,7 @@ async def _build_travel_chain(
                     "is_overridden": is_last_overridden,
                     "override_field": "drive_from",
                     "owner_is_current": entry["is_current"],
+                    "owner_schedule_id": entry.get("schedule_id"),
                 }
             )
             total_drive += last_hub_drive
