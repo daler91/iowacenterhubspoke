@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import { cn } from '../../lib/utils';
 
 const ROUTE_MAP = {
@@ -28,9 +27,3 @@ export function EntityLink({ type, id, children, className }) {
   );
 }
 
-EntityLink.propTypes = {
-  type: PropTypes.oneOf(['employee', 'location', 'class']).isRequired,
-  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  children: PropTypes.node.isRequired,
-  className: PropTypes.string,
-};

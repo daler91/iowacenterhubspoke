@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
@@ -11,9 +10,6 @@ const Drawer = ({
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
 )
 Drawer.displayName = "Drawer"
-Drawer.propTypes = {
-  shouldScaleBackground: PropTypes.bool,
-}
 
 const DrawerTrigger = DrawerPrimitive.Trigger
 
@@ -55,9 +51,6 @@ const DrawerHeader = ({
     {...props} />
 )
 DrawerHeader.displayName = "DrawerHeader"
-DrawerHeader.propTypes = {
-  className: PropTypes.string,
-}
 
 const DrawerFooter = ({
   className,
@@ -66,9 +59,6 @@ const DrawerFooter = ({
   <div className={cn("mt-auto flex flex-col gap-2 p-4", className)} {...props} />
 )
 DrawerFooter.displayName = "DrawerFooter"
-DrawerFooter.propTypes = {
-  className: PropTypes.string,
-}
 
 const DrawerTitle = React.forwardRef(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title

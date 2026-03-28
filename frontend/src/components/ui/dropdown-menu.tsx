@@ -1,5 +1,4 @@
 import * as React from "react"
-import PropTypes from "prop-types"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
 
@@ -137,9 +136,6 @@ const DropdownMenuShortcut = ({
   );
 }
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut"
-DropdownMenuShortcut.propTypes = {
-  className: PropTypes.string,
-}
 
 export {
   DropdownMenu,
