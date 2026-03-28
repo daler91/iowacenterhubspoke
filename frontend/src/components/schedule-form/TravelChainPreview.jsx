@@ -19,20 +19,20 @@ function DriveTimePill({ leg, onOverrideChange }) {
   const [value, setValue] = useState('');
   const inputRef = useRef(null);
 
-  const canEdit = leg.owner_is_current && onOverrideChange;
+  const canEdit = !!onOverrideChange;
   const field = leg.override_field;
 
   const handleApply = () => {
     const parsed = parseInt(value, 10);
     if (parsed > 0) {
-      onOverrideChange(field, parsed);
+      onOverrideChange(field, parsed, leg.owner_schedule_id);
     }
     setOpen(false);
     setValue('');
   };
 
   const handleReset = () => {
-    onOverrideChange(field, null);
+    onOverrideChange(field, null, leg.owner_schedule_id);
     setOpen(false);
     setValue('');
   };

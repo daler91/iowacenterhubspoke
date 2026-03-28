@@ -277,13 +277,25 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     }
   };
 
-  const handleOverrideChange = useCallback((field, minutes) => {
-    if (field === 'drive_to') {
-      setForm(prev => ({ ...prev, drive_to_override_minutes: minutes }));
-    } else if (field === 'drive_from') {
-      setForm(prev => ({ ...prev, drive_from_override_minutes: minutes }));
+  const handleOverrideChange = useCallback(async (field, minutes, scheduleId) => {
+    const fieldKey = field === 'drive_to' ? 'drive_to_override_minutes' : 'drive_from_override_minutes';
+    const currentId = editSchedule?.id || null;
+
+    // If this leg belongs to the current schedule (or new schedule), update local form state
+    if (!scheduleId || scheduleId === currentId) {
+      setForm(prev => ({ ...prev, [fieldKey]: minutes }));
+      return;
     }
-  }, []);
+
+    // Cross-schedule override: update the other schedule directly via API
+    try {
+      await schedulesAPI.update(scheduleId, { [fieldKey]: minutes });
+      // Re-fetch the travel chain to reflect the change
+      fetchConflictPreview();
+    } catch {
+      // silently fail — chain will show stale data until next refresh
+    }
+  }, [editSchedule, fetchConflictPreview]);
 
   return {
     form, setForm,
