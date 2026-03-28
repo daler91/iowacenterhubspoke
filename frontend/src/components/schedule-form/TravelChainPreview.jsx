@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { Car, ArrowDown, Pencil, X } from 'lucide-react';
+import { Car, ArrowDown, Pencil, RotateCcw } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '../../lib/utils';
 
 function formatDuration(minutes) {
@@ -12,73 +14,119 @@ function formatDuration(minutes) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function InlineOverride({ leg, onOverrideChange }) {
-  const [editing, setEditing] = useState(false);
+function DriveTimePill({ leg, onOverrideChange }) {
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
+  const inputRef = useRef(null);
 
-  if (!leg.owner_is_current || !onOverrideChange) return null;
-  if (leg.minutes === 0 && !leg.is_overridden) return null;
+  const canEdit = leg.owner_is_current && onOverrideChange;
+  const field = leg.override_field;
 
-  const field = leg.override_field; // "drive_to" or "drive_from"
+  const handleApply = () => {
+    const parsed = parseInt(value, 10);
+    if (parsed > 0) {
+      onOverrideChange(field, parsed);
+    }
+    setOpen(false);
+    setValue('');
+  };
 
-  if (leg.is_overridden) {
+  const handleReset = () => {
+    onOverrideChange(field, null);
+    setOpen(false);
+    setValue('');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleApply();
+    }
+    if (e.key === 'Escape') {
+      setOpen(false);
+      setValue('');
+    }
+  };
+
+  // Non-editable: plain text
+  if (!canEdit) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          onOverrideChange(field, null);
-          setEditing(false);
-        }}
-        className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-700"
-        title="Clear override"
-      >
-        <X className="w-2.5 h-2.5" />
-        <span>override</span>
-      </button>
-    );
-  }
-
-  if (editing) {
-    return (
-      <form
-        className="inline-flex items-center gap-1 ml-1"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const parsed = parseInt(value, 10);
-          if (parsed > 0) {
-            onOverrideChange(field, parsed);
-          }
-          setEditing(false);
-          setValue('');
-        }}
-      >
-        <Input
-          type="number"
-          min="1"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="min"
-          className="h-5 w-14 text-[10px] px-1 py-0"
-          autoFocus
-          onBlur={() => { setEditing(false); setValue(''); }}
-        />
-      </form>
+      <span className="text-[10px] text-slate-400 tabular-nums">
+        {leg.minutes} min
+      </span>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className="ml-1 text-slate-300 hover:text-slate-500"
-      title="Override drive time"
-    >
-      <Pencil className="w-2.5 h-2.5" />
-    </button>
+    <Popover open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) setValue(''); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors cursor-pointer",
+            leg.is_overridden
+              ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+              : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+          )}
+        >
+          {leg.minutes} min
+          <Pencil className="w-3 h-3 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-56 p-3 space-y-3"
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }}
+      >
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-slate-700">
+            Override drive time
+          </label>
+          <Input
+            ref={inputRef}
+            type="number"
+            min="1"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`${leg.minutes} min`}
+            className="h-9 w-full"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleApply}
+            disabled={!value || parseInt(value, 10) <= 0}
+            className="flex-1"
+          >
+            Apply
+          </Button>
+          {leg.is_overridden && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              className="text-slate-500"
+            >
+              <RotateCcw className="w-3 h-3 mr-1" />
+              Reset
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-InlineOverride.propTypes = {
+DriveTimePill.propTypes = {
   leg: PropTypes.object.isRequired,
   onOverrideChange: PropTypes.func,
 };
@@ -114,11 +162,9 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
               <div key={`drive-${i}`} className="flex items-stretch">
                 {/* Vertical line + node */}
                 <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
-                  {/* Hub or connector dot */}
                   {isHub && (
                     <div className="w-3 h-3 rounded-full bg-indigo-500 border-2 border-indigo-300 z-10 shrink-0" />
                   )}
-                  {/* Dashed connector line */}
                   {!isLast && (
                     <div className={cn(
                       "w-0 border-l-2 border-dashed flex-1",
@@ -128,35 +174,37 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 </div>
 
                 {/* Label */}
-                <div className={cn("pb-1 flex items-center gap-1.5 flex-wrap", isHub ? "pt-0" : "pt-1")}>
+                <div className={cn("pb-1 flex items-center gap-2 flex-wrap", isHub ? "pt-0" : "pt-1")}>
                   {isHub && (
-                    <span className={cn("text-[11px] font-medium", leg.is_overridden ? "text-blue-600" : "text-indigo-600")}>
-                      {isFirst ? leg.from_label : leg.to_label}
-                      {isFirst && leg.start_time && (
-                        <span className={cn("text-[10px] font-normal ml-1", leg.is_overridden ? "text-blue-400" : "text-slate-400")}>
-                          depart {leg.start_time} · {leg.minutes} min
-                          {leg.is_overridden && ' (override)'}
-                        </span>
-                      )}
-                      {isLast && leg.end_time && (
-                        <span className={cn("text-[10px] font-normal ml-1", leg.is_overridden ? "text-blue-400" : "text-slate-400")}>
-                          arrive {leg.end_time} · {leg.minutes} min
-                          {leg.is_overridden && ' (override)'}
-                        </span>
-                      )}
-                    </span>
+                    <>
+                      <span className="text-[11px] font-medium text-indigo-600">
+                        {isFirst ? leg.from_label : leg.to_label}
+                        {isFirst && leg.start_time && (
+                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                            depart {leg.start_time}
+                          </span>
+                        )}
+                        {isLast && leg.end_time && (
+                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                            arrive {leg.end_time}
+                          </span>
+                        )}
+                      </span>
+                      <DriveTimePill leg={leg} onOverrideChange={onOverrideChange} />
+                    </>
                   )}
                   {!isHub && !isSameCity && (
-                    <span className={cn("text-[10px] flex items-center gap-1", leg.is_overridden ? "text-blue-400" : "text-slate-400")}>
-                      <ArrowDown className="w-3 h-3" />
-                      {leg.minutes} min{leg.start_time && leg.end_time ? ` · ${leg.start_time}–${leg.end_time}` : ''}
-                      {leg.is_overridden && ' (override)'}
-                    </span>
+                    <>
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <ArrowDown className="w-3 h-3" />
+                        {leg.start_time && leg.end_time ? `${leg.start_time}–${leg.end_time}` : ''}
+                      </span>
+                      <DriveTimePill leg={leg} onOverrideChange={onOverrideChange} />
+                    </>
                   )}
                   {isSameCity && (
                     <span className="text-[10px] text-slate-300 italic">Same city</span>
                   )}
-                  <InlineOverride leg={leg} onOverrideChange={onOverrideChange} />
                 </div>
               </div>
             );
@@ -165,7 +213,6 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
           // Class leg
           return (
             <div key={`class-${i}`} className="flex items-stretch">
-              {/* Node + line */}
               <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                 <div className={cn(
                   "w-3 h-3 rounded-full border-2 z-10 shrink-0",
@@ -173,13 +220,11 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                     ? "bg-teal-500 border-teal-300"
                     : "bg-slate-400 border-slate-300"
                 )} />
-                {/* Line continues if not last leg */}
                 {i < legs.length - 1 && (
                   <div className="w-0 border-l-2 border-dashed border-slate-300 flex-1 min-h-[8px]" />
                 )}
               </div>
 
-              {/* Class info */}
               <div className={cn(
                 "pb-2 -mt-0.5 rounded px-2 py-1",
                 leg.is_current && "bg-teal-50 border border-teal-200"
