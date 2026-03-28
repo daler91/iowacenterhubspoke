@@ -427,6 +427,137 @@ async def get_schedule(schedule_id: str, user: CurrentUser):
     return schedule
 
 
+HUB_LABEL = "Hub (Des Moines)"
+
+
+async def _build_travel_chain(
+    employee_id: str,
+    date: str,
+    current_location_id: str,
+    current_start: str,
+    current_end: str,
+    schedule_id: str = None,
+):
+    """Build the full day travel chain for an employee including the current form entry."""
+    query = {"employee_id": employee_id, "date": date, "deleted_at": None}
+    if schedule_id:
+        query["id"] = {"$ne": schedule_id}
+    db_schedules = await db.schedules.find(query, {"_id": 0}).to_list(100)
+
+    # Build entries: DB schedules + virtual current entry
+    entries = []
+    for s in db_schedules:
+        entries.append(
+            {
+                "location_id": s["location_id"],
+                "location_name": s.get("location_name", "Unknown"),
+                "start_time": s["start_time"],
+                "end_time": s["end_time"],
+                "is_current": False,
+            }
+        )
+
+    # Add the current form entry
+    current_loc = await db.locations.find_one(
+        {"id": current_location_id}, {"_id": 0}
+    )
+    current_loc_name = current_loc["city_name"] if current_loc else "Unknown"
+    entries.append(
+        {
+            "location_id": current_location_id,
+            "location_name": current_loc_name,
+            "start_time": current_start,
+            "end_time": current_end,
+            "is_current": True,
+        }
+    )
+
+    # Sort by start time
+    entries.sort(key=lambda e: e["start_time"])
+
+    if not entries:
+        return None
+
+    # Fetch all unique location docs for hub drive times
+    loc_ids = list({e["location_id"] for e in entries})
+    locations = await db.locations.find(
+        {"id": {"$in": loc_ids}}, {"_id": 0}
+    ).to_list(100)
+    loc_map = {loc["id"]: loc for loc in locations}
+
+    # Build legs
+    legs = []
+    total_drive = 0
+
+    # First leg: Hub → first location
+    first_loc = loc_map.get(entries[0]["location_id"])
+    first_hub_drive = first_loc["drive_time_minutes"] if first_loc else 0
+    legs.append(
+        {
+            "type": "drive",
+            "from_label": HUB_LABEL,
+            "to_label": entries[0]["location_name"],
+            "minutes": first_hub_drive,
+        }
+    )
+    total_drive += first_hub_drive
+
+    for i, entry in enumerate(entries):
+        # Class leg
+        legs.append(
+            {
+                "type": "class",
+                "location_name": entry["location_name"],
+                "start_time": entry["start_time"],
+                "end_time": entry["end_time"],
+                "is_current": entry["is_current"],
+            }
+        )
+
+        # Drive to next location (or hub if last)
+        if i < len(entries) - 1:
+            next_entry = entries[i + 1]
+            if entry["location_id"] == next_entry["location_id"]:
+                drive_min = 0
+            else:
+                try:
+                    drive_min = (
+                        await get_drive_time_between_locations(
+                            entry["location_id"], next_entry["location_id"]
+                        )
+                    ) or 0
+                except Exception:
+                    drive_min = 0
+            legs.append(
+                {
+                    "type": "drive",
+                    "from_label": entry["location_name"],
+                    "to_label": next_entry["location_name"],
+                    "minutes": drive_min,
+                }
+            )
+            total_drive += drive_min
+        else:
+            # Last leg: last location → Hub
+            last_loc = loc_map.get(entry["location_id"])
+            last_hub_drive = last_loc["drive_time_minutes"] if last_loc else 0
+            legs.append(
+                {
+                    "type": "drive",
+                    "from_label": entry["location_name"],
+                    "to_label": HUB_LABEL,
+                    "minutes": last_hub_drive,
+                }
+            )
+            total_drive += last_hub_drive
+
+    return {
+        "legs": legs,
+        "total_drive_minutes": total_drive,
+        "class_count": len(entries),
+    }
+
+
 async def _check_town_to_town(employee_id, sched_date, location_id):
     same_day_schedules = await db.schedules.find(
         {
@@ -1216,9 +1347,19 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         data.employee_id, data.date, data.start_time, data.end_time
     )
 
-    # Detect town-to-town travel for the schedule form prompt
+    # Build full day travel chain for the employee
+    travel_chain = None
     town_to_town_info = None
     if data.employee_id and data.date and data.location_id:
+        travel_chain = await _build_travel_chain(
+            data.employee_id,
+            data.date,
+            data.location_id,
+            data.start_time,
+            data.end_time,
+            schedule_id=getattr(data, "schedule_id", None),
+        )
+        # Keep town_to_town for backward compatibility
         tt, tt_warning, tt_drive_min = await _check_town_to_town(
             data.employee_id, data.date, data.location_id
         )
@@ -1245,6 +1386,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         "conflicts": conflicts,
         "outlook_conflicts": outlook_conflicts,
         "town_to_town": town_to_town_info,
+        "travel_chain": travel_chain,
     }
 
 
