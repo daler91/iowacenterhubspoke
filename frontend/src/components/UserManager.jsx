@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Users, CheckCircle, XCircle, Trash2, Shield, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Users, CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -19,25 +22,46 @@ const STATUS_STYLES = {
   rejected: 'bg-red-100 text-red-700',
 };
 
+const INVITE_STATUS_STYLES = {
+  pending: 'bg-blue-100 text-blue-700',
+  accepted: 'bg-green-100 text-green-700',
+  revoked: 'bg-red-100 text-red-700',
+};
+
 export default function UserManager() {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'viewer' });
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState(null);
+  const [invitations, setInvitations] = useState([]);
 
   const fetchUsers = useCallback(async () => {
     try {
       const res = await usersAPI.getAll();
       setUsers(Array.isArray(res.data.users) ? res.data.users : []);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const fetchInvitations = useCallback(async () => {
+    try {
+      const res = await usersAPI.getInvitations();
+      setInvitations(Array.isArray(res.data.invitations) ? res.data.invitations : []);
+    } catch {
+      // silently fail - invitations are supplementary
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchInvitations();
+  }, [fetchUsers, fetchInvitations]);
 
   const handleApprove = async (userId) => {
     try {
@@ -79,6 +103,55 @@ export default function UserManager() {
     }
   };
 
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteForm.email) {
+      toast.error('Email is required');
+      return;
+    }
+    setInviteLoading(true);
+    try {
+      const res = await usersAPI.invite({
+        email: inviteForm.email,
+        name: inviteForm.name || null,
+        role: inviteForm.role,
+      });
+      const link = `${window.location.origin}/login?invite=${res.data.token}`;
+      setGeneratedLink(link);
+      toast.success('Invitation created');
+      fetchInvitations();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to create invitation');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      toast.success('Link copied to clipboard');
+    } catch {
+      toast.error('Failed to copy link');
+    }
+  };
+
+  const handleRevokeInvitation = async (inviteId) => {
+    try {
+      await usersAPI.revokeInvitation(inviteId);
+      toast.success('Invitation revoked');
+      fetchInvitations();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to revoke invitation');
+    }
+  };
+
+  const closeInviteDialog = () => {
+    setInviteDialogOpen(false);
+    setGeneratedLink(null);
+    setInviteForm({ email: '', name: '', role: 'viewer' });
+  };
+
   if (user?.role !== 'admin') {
     return (
       <div className="flex items-center justify-center h-64 text-slate-500">
@@ -89,19 +162,29 @@ export default function UserManager() {
 
   const pendingUsers = users.filter(u => u.status === 'pending');
   const otherUsers = users.filter(u => u.status !== 'pending');
+  const pendingInvitations = invitations.filter(i => i.status === 'pending');
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-          <Users className="w-5 h-5 text-indigo-600" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <Users className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              User Management
+            </h1>
+            <p className="text-sm text-slate-500">{users.length} total users</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            User Management
-          </h1>
-          <p className="text-sm text-slate-500">{users.length} total users</p>
-        </div>
+        <Button
+          onClick={() => setInviteDialogOpen(true)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+        >
+          <UserPlus className="w-4 h-4 mr-2" />
+          Invite User
+        </Button>
       </div>
 
       {loading ? (
@@ -145,6 +228,43 @@ export default function UserManager() {
                       >
                         <XCircle className="w-4 h-4 mr-1" />
                         Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pendingInvitations.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-500" />
+                <h2 className="text-lg font-semibold text-slate-800">Pending Invitations ({pendingInvitations.length})</h2>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                {pendingInvitations.map(inv => (
+                  <div key={inv.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+                        {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">{inv.name || 'No name'}</p>
+                        <p className="text-sm text-slate-500">{inv.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                        {inv.role}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRevokeInvitation(inv.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <XCircle className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -225,6 +345,104 @@ export default function UserManager() {
           </div>
         </>
       )}
+
+      {/* Invite User Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={closeInviteDialog}>
+        <DialogContent className="sm:max-w-[440px] bg-white">
+          <DialogHeader>
+            <DialogTitle>Invite User</DialogTitle>
+            <DialogDescription>
+              {generatedLink
+                ? 'Share this link with the person you want to invite.'
+                : 'Create an invitation link for a new user. They will be auto-approved when they register.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {!generatedLink ? (
+            <form onSubmit={handleInvite} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="invite-email">Email</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="user@company.com"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  required
+                  className="h-10 bg-gray-50/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invite-name">Name (optional)</Label>
+                <Input
+                  id="invite-name"
+                  placeholder="John Doe"
+                  value={inviteForm.name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                  className="h-10 bg-gray-50/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select
+                  value={inviteForm.role}
+                  onValueChange={(value) => setInviteForm({ ...inviteForm, role: value })}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map(r => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={inviteLoading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {inviteLoading ? 'Creating...' : 'Create Invitation'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Invitation Link</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={generatedLink}
+                    className="h-10 bg-gray-50 text-sm font-mono"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500">
+                  This link will allow the recipient to register and be automatically approved.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={closeInviteDialog}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

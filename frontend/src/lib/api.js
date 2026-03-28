@@ -18,6 +18,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !isRedirectingTo401) {
+      // Skip redirect if already on the login page to avoid infinite reload loop
+      if (globalThis.location.pathname === '/login') {
+        return Promise.reject(error);
+      }
       isRedirectingTo401 = true;
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
@@ -33,6 +37,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
+  validateInvite: (token) => api.get(`/auth/invite/${token}`),
 };
 
 // Locations
@@ -41,6 +46,8 @@ export const locationsAPI = {
   create: (data) => api.post('/locations', data),
   update: (id, data) => api.put(`/locations/${id}`, data),
   delete: (id) => api.delete(`/locations/${id}`),
+  getDriveTime: (fromId, toId) => api.get('/locations/drive-time', { params: { from_id: fromId, to_id: toId } }),
+  getDriveTimeFromHub: (lat, lng) => api.get('/locations/drive-time-from-hub', { params: { lat, lng } }),
 };
 
 // Employees
@@ -129,6 +136,9 @@ export const usersAPI = {
   reject: (userId) => api.put(`/users/${userId}/reject`),
   updateRole: (userId, role) => api.put(`/users/${userId}/role`, { role }),
   delete: (userId) => api.delete(`/users/${userId}`),
+  invite: (data) => api.post('/users/invite', data),
+  getInvitations: () => api.get('/users/invitations'),
+  revokeInvitation: (id) => api.delete(`/users/invitations/${id}`),
 };
 
 export default api;

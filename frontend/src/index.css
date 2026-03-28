@@ -33,6 +33,33 @@
     --radius: 0.625rem;
     --sidebar-width: 260px;
   }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 20% 98%;
+    --card: 222 47% 13%;
+    --card-foreground: 210 20% 98%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 168 80% 30%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 223 40% 18%;
+    --muted-foreground: 215 15% 65%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 223 30% 22%;
+    --input: 223 30% 22%;
+    --ring: 239 84% 67%;
+    --chart-1: 239 84% 67%;
+    --chart-2: 168 80% 42%;
+    --chart-3: 38 92% 55%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 280 65% 65%;
+  }
 }
 
 @layer base {
@@ -51,8 +78,10 @@
 @layer base {
   [data-debug-wrapper="true"] {
     display: contents !important;
+    pointer-events: none !important;
   }
   [data-debug-wrapper="true"] > * {
+    pointer-events: auto;
     margin-left: inherit;
     margin-right: inherit;
     margin-top: inherit;

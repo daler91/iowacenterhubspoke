@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta
 
 class HubSpokeAPITester:
-    def __init__(self, base_url="https://employee-dispatch-1.preview.emergentagent.com"):
+    def __init__(self, base_url="http://localhost:8001"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0
@@ -725,8 +725,8 @@ def main():
             result = test_func()
             if not result:
                 print(f"⚠️  {test_name} had issues but continuing...")
-        except Exception as e:
-            print(f"❌ {test_name} failed with exception: {str(e)}")
+        except Exception:
+            print(f"❌ {test_name} failed with an exception.")
     
     # Print results
     print("\n" + "=" * 50)

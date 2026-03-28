@@ -14,6 +14,7 @@ const STATUS_CLASSES = {
 };
 
 import { useOutletContext } from 'react-router-dom';
+import { EntityLink } from './ui/entity-link';
 
 export default function WeeklyReport() {
   const { classes } = useOutletContext();
@@ -167,7 +168,7 @@ export default function WeeklyReport() {
                     {emp.employee_name?.charAt(0)?.toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{emp.employee_name}</p>
+                    <EntityLink type="employee" id={emp.employee_id} className="font-semibold text-slate-800">{emp.employee_name}</EntityLink>
                     <p className="text-xs text-slate-400">{emp.days_worked} day{emp.days_worked === 1 ? '' : 's'} worked</p>
                   </div>
                 </div>
@@ -208,7 +209,7 @@ export default function WeeklyReport() {
                         {scheduleDetail.class_name}
                       </Badge>
                     </div>
-                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{scheduleDetail.location}</div>
+                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
                     <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
                     <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
                     <div className="bg-white px-3 py-2">

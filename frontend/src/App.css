@@ -79,6 +79,38 @@
   background: #94a3b8;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Dark mode overrides for calendar */
+.dark .calendar-grid,
+.dark .calendar-grid-day {
+  background-color: #1e293b;
+}
+
+.dark .drive-block {
+  background-color: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(51, 65, 85, 0.4) 5px,
+    rgba(51, 65, 85, 0.4) 10px
+  );
+}
+
+.dark .warning-block {
+  background-color: #451a03;
+  color: #fbbf24;
+  border-color: #92400e;
+}
+
 /* Animations */
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -147,6 +179,13 @@
   height: 8px;
   background: #4F46E5;
   border-radius: 50%;
+}
+
+/* Google Places Autocomplete dropdown - must render above Radix Dialog (z-50)
+   and receive clicks despite Radix modal setting pointer-events: none on body */
+.pac-container {
+  z-index: 10000 !important;
+  pointer-events: auto !important;
 }
 
 .dnd-drop-indicator-label {

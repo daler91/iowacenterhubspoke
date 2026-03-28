@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Car, AlertTriangle, GripVertical, Check } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
+import { cn, computeDriveChain } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 import { useAuth } from '../lib/auth';
 import {
@@ -49,7 +49,7 @@ function snapYToMinutes(y) {
 }
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
-function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule }) {
+const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule },
@@ -58,29 +58,36 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
 
   const startMin = timeToMinutes(schedule.start_time);
   const endMin = timeToMinutes(schedule.end_time);
-  const driveMin = schedule.drive_time_minutes || 0;
   const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
+  // Use chain info for contextual drive blocks
+  const ci = chainInfo || {};
+  const driveBeforeMin = ci.driveBeforeMin ?? (schedule.drive_time_minutes || 0);
+  const driveAfterMin = ci.driveAfterMin ?? (schedule.drive_time_minutes || 0);
+  const isTTAfter = ci.driveAfterStyle === 'town-to-town';
+
   const classTop = minutesToTop(startMin);
   const classHeight = ((endMin - startMin) / 60) * PX_PER_HOUR;
-  const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveMin));
-  const driveBeforeHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveBeforeTop = Math.max(0, minutesToTop(startMin - driveBeforeMin));
+  const driveBeforeHeight = (driveBeforeMin / 60) * PX_PER_HOUR;
   const driveAfterTop = minutesToTop(endMin);
-  const driveAfterHeight = (driveMin / 60) * PX_PER_HOUR;
+  const driveAfterHeight = (driveAfterMin / 60) * PX_PER_HOUR;
 
   return (
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
-      {/* Drive before */}
-      {driveMin > 0 && (
+      {/* Drive before (hub drive for first class, nothing for others in chain) */}
+      {driveBeforeMin > 0 && (
         <div
           className="schedule-block drive-block"
           style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
             <Car className="w-4 h-4" />
-            <span className="text-xs font-medium">Drive from Hub - {driveMin} min</span>
+            <span className="text-xs font-medium">
+              {ci.driveBeforeLabel || `Drive from Hub - ${driveBeforeMin} min`}
+            </span>
           </div>
         </div>
       )}
@@ -134,40 +141,29 @@ function DraggableDayBlock({ schedule, canEdit, selectionMode, isSelected, toggl
           <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
         </div>
         {schedule.town_to_town && !selectionMode && (
-          <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
-            <AlertTriangle className="w-3 h-3 text-white" />
+          <div className="absolute top-2 right-2 bg-teal-500 rounded-full p-1">
+            <ArrowRightLeft className="w-3 h-3 text-white" />
           </div>
         )}
       </button>
 
-      {/* Drive after */}
-      {driveMin > 0 && (
+      {/* Drive after (hub return for last, city-to-city for others in chain) */}
+      {driveAfterMin > 0 && (
         <div
-          className="schedule-block drive-block"
+          className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
           style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: '16px' }}
         >
           <div className="flex items-center gap-2">
-            <Car className="w-4 h-4" />
-            <span className="text-xs font-medium">Return to Hub - {driveMin} min</span>
-          </div>
-        </div>
-      )}
-
-      {/* Town-to-town warning */}
-      {schedule.town_to_town && (
-        <div
-          className="absolute left-2 right-[16px] bg-amber-50 border border-amber-200 rounded-lg p-2 z-30"
-          style={{ top: `${classTop - 28}px` }}
-        >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-xs font-semibold text-amber-700">Town-to-Town Travel Detected</span>
+            {isTTAfter ? <ArrowRightLeft className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+            <span className="text-xs font-medium">
+              {ci.driveAfterLabel || `Return to Hub - ${driveAfterMin} min`}
+            </span>
           </div>
         </div>
       )}
     </div>
   );
-}
+});
 
 DraggableDayBlock.propTypes = {
   schedule: PropTypes.object.isRequired,
@@ -176,6 +172,7 @@ DraggableDayBlock.propTypes = {
   isSelected: PropTypes.func,
   toggleItem: PropTypes.func,
   onEditSchedule: PropTypes.func,
+  chainInfo: PropTypes.object,
 };
 
 // ─── Droppable area ───────────────────────────────────────────────────────
@@ -245,7 +242,11 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
   const dateStr = format(currentDate, 'yyyy-MM-dd');
-  const daySchedules = (schedules || []).filter(s => s.date === dateStr);
+  const daySchedules = useMemo(
+    () => (schedules || []).filter(s => s.date === dateStr),
+    [schedules, dateStr]
+  );
+  const driveChain = useMemo(() => computeDriveChain(daySchedules), [daySchedules]);
 
   const [activeSchedule, setActiveSchedule] = useState(null);
   const [dropIndicatorMinutes, setDropIndicatorMinutes] = useState(null);
@@ -346,6 +347,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
                   isSelected={isSelected}
                   toggleItem={toggleItem}
                   onEditSchedule={onEditSchedule}
+                  chainInfo={driveChain[schedule.id]}
                 />
               ))}
             </DroppableDayArea>

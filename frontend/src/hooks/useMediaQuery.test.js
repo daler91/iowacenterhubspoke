@@ -1,19 +1,19 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { useMediaQuery } from './useMediaQuery';
 
 describe('useMediaQuery', () => {
   let originalMatchMedia;
 
   beforeAll(() => {
-    originalMatchMedia = window.matchMedia;
+    originalMatchMedia = globalThis.matchMedia;
   });
 
   afterAll(() => {
-    window.matchMedia = originalMatchMedia;
+    globalThis.matchMedia = originalMatchMedia;
   });
 
   it('should return true if media query matches', () => {
-    window.matchMedia = jest.fn().mockImplementation(query => ({
+    globalThis.matchMedia = jest.fn().mockImplementation(query => ({
       matches: true,
       media: query,
       onchange: null,

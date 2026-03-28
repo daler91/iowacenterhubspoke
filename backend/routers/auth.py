@@ -15,34 +15,74 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 ADMIN_EMAILS = ["russell.dale1@gmail.com"]
 
+@router.get("/invite/{token}")
+async def validate_invite(token: str):
+    invitation = await db.invitations.find_one({"token": token, "status": "pending"}, {"_id": 0})
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation link")
+    return {
+        "valid": True,
+        "email": invitation["email"],
+        "name": invitation.get("name"),
+        "role": invitation["role"],
+    }
+
+
 @router.post("/register", responses={400: {"model": ErrorResponse, "description": "Email already registered"}})
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserRegister, response: Response):
     existing = await db.users.find_one({"email": data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+
+    invitation = None
+    if data.invite_token:
+        invitation = await db.invitations.find_one(
+            {"token": data.invite_token, "status": "pending"}, {"_id": 0}
+        )
+        if not invitation:
+            raise HTTPException(status_code=400, detail="Invalid or expired invitation link")
+        if invitation["email"].lower() != data.email.lower():
+            raise HTTPException(status_code=400, detail="Email does not match invitation")
+
     user_id = str(uuid.uuid4())
     is_admin_email = data.email in ADMIN_EMAILS
+    if invitation:
+        role = invitation["role"]
+        status = USER_STATUS_APPROVED
+    elif is_admin_email:
+        role = ROLE_ADMIN
+        status = USER_STATUS_APPROVED
+    else:
+        role = ROLE_VIEWER
+        status = USER_STATUS_PENDING
+
     user_doc = {
         "id": user_id,
         "name": data.name,
         "email": data.email,
         "password_hash": hash_password(data.password),
-        "role": ROLE_ADMIN if is_admin_email else ROLE_VIEWER,
-        "status": USER_STATUS_APPROVED if is_admin_email else USER_STATUS_PENDING,
+        "role": role,
+        "status": status,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
     logger.info(f"User registered: {data.email}", extra={"entity": {"user_id": user_id}})
 
-    if is_admin_email:
-        token = create_token(user_id, data.email, data.name, user_doc["role"])
+    if invitation:
+        await db.invitations.update_one(
+            {"id": invitation["id"]},
+            {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+    if is_admin_email or invitation:
+        token = create_token(user_id, data.email, data.name, role)
         response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
-        return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email, "role": user_doc["role"]}}
+        return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email, "role": role}}
     else:
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
-@router.post("/login", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}})
+@router.post("/login", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}, 403: {"model": ErrorResponse, "description": "Account pending approval or denied"}})
 @limiter.limit("5/minute")
 async def login(request: Request, data: UserLogin, response: Response):
     user = await db.users.find_one({"email": data.email}, {"_id": 0})

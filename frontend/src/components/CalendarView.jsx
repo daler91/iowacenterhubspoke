@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
-import { useRef, useCallback, useEffect } from 'react';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 
-import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import ExportCsvDialog from './ExportCsvDialog';
 import ImportCsvDialog from './ImportCsvDialog';
 import { useAuth } from '../lib/auth';
@@ -45,6 +45,7 @@ export default function CalendarView() {
   const isAdmin = user?.role === 'admin';
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [relocateConflictData, setRelocateConflictData] = useState(null);
 
   const {
     selectionMode,
@@ -59,6 +60,7 @@ export default function CalendarView() {
 
   // URL State
   const calendarView = searchParams.get('view') || 'week';
+  const exportDaysOffset = { month: 30, week: 7 }[calendarView] || 1;
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
@@ -88,11 +90,14 @@ export default function CalendarView() {
   const setFilterEmployee = (id) => updateParams({ employee: id });
   const setFilterLocation = (id) => updateParams({ location: id });
 
-  const filteredSchedules = (schedules || []).filter(s => {
-    if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
-    if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
-    return true;
-  });
+  const filteredSchedules = useMemo(() =>
+    (schedules || []).filter(s => {
+      if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
+      if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
+      return true;
+    }),
+    [schedules, filterEmployee, filterLocation]
+  );
 
   const navigateDate = (direction) => {
     let nextDate;
@@ -134,19 +139,43 @@ export default function CalendarView() {
     updateParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
-  const handleRelocate = async (scheduleId, newDate, newStart, newEnd) => {
+  const handleRelocate = async (scheduleId, newDate, newStart, newEnd, force = false) => {
+    // Optimistic update: move the schedule immediately in local state
+    fetchSchedules(
+      (current) => (current || []).map(s =>
+        s.id === scheduleId
+          ? { ...s, date: newDate, start_time: newStart, end_time: newEnd }
+          : s
+      ),
+      { revalidate: false }
+    );
+
     try {
-      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd });
+      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
       toast.success('Schedule moved');
-      fetchSchedules();
+      fetchSchedules(); // Revalidate with server truth (includes updated drive times)
       fetchActivities();
+      setRelocateConflictData(null);
     } catch (err) {
+      fetchSchedules(); // Rollback optimistic update
       if (err.response?.status === 409) {
-        toast.error('Conflict at the new time slot');
+        setRelocateConflictData({
+          scheduleId,
+          newDate,
+          newStart,
+          newEnd,
+          conflicts: err.response.data.detail?.conflicts || []
+        });
       } else {
         toast.error('Failed to move schedule');
       }
     }
+  };
+
+  const handleForceRelocate = () => {
+    if (!relocateConflictData) return;
+    const { scheduleId, newDate, newStart, newEnd } = relocateConflictData;
+    handleRelocate(scheduleId, newDate, newStart, newEnd, true);
   };
 
   const handleBulkComplete = () => {
@@ -349,13 +378,13 @@ export default function CalendarView() {
         />
       )}
 
-                  {exportOpen && (
+      {exportOpen && (
         <ExportCsvDialog
           open={exportOpen}
           onOpenChange={setExportOpen}
           currentFilters={{
             start_date: format(currentDate, 'yyyy-MM-dd'),
-            end_date: format(addDays(currentDate, calendarView === 'month' ? 30 : (calendarView === 'week' ? 7 : 1)), 'yyyy-MM-dd'),
+            end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
             location_id: searchParams.get('location') || undefined,
             employee_id: searchParams.get('employee') || undefined,
           }}
@@ -372,6 +401,47 @@ export default function CalendarView() {
           }}
         />
       )}
+
+      {/* Relocate conflict dialog */}
+      <Dialog open={relocateConflictData !== null} onOpenChange={(open) => { if (!open) setRelocateConflictData(null); }}>
+        <DialogContent className="sm:max-w-[480px] bg-white" data-testid="relocate-conflict-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Schedule Conflict Detected
+            </DialogTitle>
+            <DialogDescription>
+              Moving this schedule would create a conflict with existing schedules. You can force the move or cancel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {(relocateConflictData?.conflicts || []).map((conflict, i) => (
+              <div key={conflict.schedule_id || i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm font-medium text-amber-800">{conflict.location}</p>
+                <p className="text-xs text-amber-600">{conflict.time}</p>
+                <p className="text-xs text-amber-500 mt-1">{conflict.overlap}</p>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              data-testid="relocate-conflict-cancel"
+              onClick={() => setRelocateConflictData(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              data-testid="relocate-conflict-force"
+              onClick={handleForceRelocate}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Force Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import PropTypes from "prop-types";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
@@ -12,7 +13,7 @@ function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-slate-500">Loading...</p>
@@ -51,12 +52,15 @@ const ClassManager = lazy(() => import("./components/ClassManager"));
 const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
 const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
 const UserManager = lazy(() => import("./components/UserManager"));
+const EmployeeProfile = lazy(() => import("./components/EmployeeProfile"));
+const LocationProfile = lazy(() => import("./components/LocationProfile"));
+const ClassProfile = lazy(() => import("./components/ClassProfile"));
 
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
+        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
           <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
       }>
@@ -82,6 +86,9 @@ function AppRoutes() {
             <Route path="locations" element={<LocationManager />} />
             <Route path="classes" element={<ClassManager />} />
             <Route path="employees" element={<EmployeeManager />} />
+            <Route path="employees/:id" element={<EmployeeProfile />} />
+            <Route path="locations/:id" element={<LocationProfile />} />
+            <Route path="classes/:id" element={<ClassProfile />} />
             <Route path="users" element={<UserManager />} />
           </Route>
         </Routes>
@@ -92,10 +99,12 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-      <Toaster position="top-right" richColors />
-    </AuthProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <AuthProvider>
+        <AppRoutes />
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

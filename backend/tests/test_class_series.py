@@ -148,7 +148,7 @@ class TestScheduleWithClass(TestSetup):
         response = session.post(f"{BASE_URL}/api/employees", json=payload, headers=auth_headers)
         assert response.status_code == 200, f"Failed to create employee: {response.text}"
         TestScheduleWithClass.test_employee_id = response.json()["id"]
-        print(f"PASS: Created test employee {TestScheduleWithClass.test_employee_id}")
+        print("PASS: Created test employee")
     
     def test_setup_location(self, session, auth_headers):
         """Get existing location or create one"""

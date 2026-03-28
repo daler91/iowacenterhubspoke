@@ -11,6 +11,7 @@ import { useAuth } from '../lib/auth';
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
 import { useOutletContext } from 'react-router-dom';
+import { EntityLink } from './ui/entity-link';
 import EmployeeProfile from './EmployeeProfile';
 
 export default function EmployeeManager() {
@@ -123,7 +124,7 @@ export default function EmployeeManager() {
                 {emp.name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <p className="font-semibold text-slate-800">{emp.name}</p>
+                <EntityLink type="employee" id={emp.id} className="font-semibold text-slate-800">{emp.name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   {emp.email && (
                     <div className="flex items-center gap-1">

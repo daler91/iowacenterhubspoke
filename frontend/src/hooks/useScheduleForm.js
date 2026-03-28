@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { mutate } from 'swr';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
@@ -15,14 +16,17 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     end_time: '12:00',
     notes: '',
     travel_override_minutes: null,
+    drive_to_override_minutes: null,
+    drive_from_override_minutes: null,
     recurrence: 'none',
     recurrence_end_mode: 'never',
     recurrence_end_date: '',
     recurrence_occurrences: '',
   });
   const [loading, setLoading] = useState(false);
-  const [showOverride, setShowOverride] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState({ conflicts: [], outlook_conflicts: [] });
+  const [townToTown, setTownToTown] = useState(null);
+  const [travelChain, setTravelChain] = useState(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
   const conflictTimerRef = useRef(null);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
@@ -40,12 +44,13 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
+        drive_to_override_minutes: editSchedule.drive_to_override_minutes || editSchedule.travel_override_minutes || null,
+        drive_from_override_minutes: editSchedule.drive_from_override_minutes || null,
         recurrence: 'none',
         recurrence_end_mode: 'never',
         recurrence_end_date: '',
         recurrence_occurrences: '',
       });
-      if (editSchedule.town_to_town) setShowOverride(true);
     } else {
       const startDate = new Date().toISOString().split('T')[0];
       setForm({
@@ -57,13 +62,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
         end_time: '12:00',
         notes: '',
         travel_override_minutes: null,
+        drive_to_override_minutes: null,
+        drive_from_override_minutes: null,
         recurrence: 'none',
         recurrence_end_mode: 'never',
         recurrence_end_date: '',
         recurrence_occurrences: '',
       });
       setCustomRecurrence(createDefaultCustomRecurrence(startDate));
-      setShowOverride(false);
     }
   }, [editSchedule, open]);
 
@@ -71,6 +77,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
   const fetchConflictPreview = useCallback(() => {
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+      setTownToTown(null);
+      setTravelChain(null);
       return;
     }
     const payload = {
@@ -80,14 +88,25 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       start_time: form.start_time,
       end_time: form.end_time,
       travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
+      drive_to_override_minutes: form.drive_to_override_minutes ? Number.parseInt(form.drive_to_override_minutes, 10) : null,
+      drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(form.drive_from_override_minutes, 10) : null,
+      schedule_id: editSchedule?.id || null,
     };
     schedulesAPI.checkConflicts(payload)
-      .then(res => setPreviewConflicts({
-        conflicts: res.data.conflicts || [],
-        outlook_conflicts: res.data.outlook_conflicts || [],
-      }))
-      .catch(() => setPreviewConflicts({ conflicts: [], outlook_conflicts: [] }));
-  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes]);
+      .then(res => {
+        setPreviewConflicts({
+          conflicts: res.data.conflicts || [],
+          outlook_conflicts: res.data.outlook_conflicts || [],
+        });
+        setTownToTown(res.data.town_to_town || null);
+        setTravelChain(res.data.travel_chain || null);
+      })
+      .catch(() => {
+        setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+        setTownToTown(null);
+        setTravelChain(null);
+      });
+  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -126,8 +145,10 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
     const travelMinutes = form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null;
+    const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(form.drive_to_override_minutes, 10) : null;
+    const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(form.drive_from_override_minutes, 10) : null;
     const classId = form.class_id || null;
-    const payload = { ...form, class_id: classId, travel_override_minutes: travelMinutes };
+    const payload = { ...form, class_id: classId, travel_override_minutes: travelMinutes, drive_to_override_minutes: driveToOverride, drive_from_override_minutes: driveFromOverride };
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
@@ -173,6 +194,20 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     }
   };
 
+  const handleConflictError = (err) => {
+    const detail = err.response.data?.detail || {};
+    const outlookConflicts = detail?.outlook_conflicts || [];
+    const internalConflicts = detail?.conflicts || [];
+    if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
+      setOutlookOverride(true);
+      toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
+    } else {
+      const msg = detail?.message || 'Schedule conflict detected';
+      const conflictList = internalConflicts.map(c => `${c.location} (${c.time})`).join(', ');
+      toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
@@ -199,18 +234,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       onOpenChange(false);
     } catch (err) {
       if (err.response?.status === 409) {
-        const detail = err.response.data?.detail || {};
-        const outlookConflicts = detail?.outlook_conflicts || [];
-        const internalConflicts = detail?.conflicts || [];
-        if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
-          // Outlook-only conflict — enable override
-          setOutlookOverride(true);
-          toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
-        } else {
-          const msg = detail?.message || 'Schedule conflict detected';
-          const conflictList = internalConflicts.map(c => `${c.location} (${c.time})`).join(', ');
-          toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
-        }
+        handleConflictError(err);
       } else {
         toast.error(err.response?.data?.detail || 'Failed to save schedule');
       }
@@ -254,15 +278,34 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     }
   };
 
+  const handleOverrideChange = useCallback(async (field, minutes, scheduleId) => {
+    const fieldKey = field === 'drive_to' ? 'drive_to_override_minutes' : 'drive_from_override_minutes';
+    const currentId = editSchedule?.id || null;
+
+    // If this leg belongs to the current schedule (or new schedule), update local form state
+    if (!scheduleId || scheduleId === currentId) {
+      setForm(prev => ({ ...prev, [fieldKey]: minutes }));
+      return;
+    }
+
+    // Cross-schedule override: update the other schedule directly via API
+    try {
+      await schedulesAPI.update(scheduleId, { [fieldKey]: minutes });
+      fetchConflictPreview();
+      mutate('schedules'); // Invalidate calendar data so drive blocks update
+    } catch {
+      // silently fail — chain will show stale data until next refresh
+    }
+  }, [editSchedule, fetchConflictPreview]);
+
   return {
     form, setForm,
     loading, setLoading,
-    showOverride, setShowOverride,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, outlookOverride, setOutlookOverride,
+    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride,
     handleSubmit, handleDelete,
-    handleDateChange, handleRecurrenceChange
+    handleDateChange, handleRecurrenceChange, handleOverrideChange
   };
 }

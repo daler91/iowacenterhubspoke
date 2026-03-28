@@ -83,6 +83,9 @@ async def get_trends(
     return {"period": period, "weeks_back": weeks_back, "data": data}
 
 
+MAX_FORECAST_WEEKS = 52
+
+
 @router.get("/forecast")
 async def get_forecast(
     user: CurrentUser,
@@ -90,6 +93,8 @@ async def get_forecast(
     employee_id: Optional[str] = None,
     class_id: Optional[str] = None,
 ):
+    weeks_ahead = max(1, min(weeks_ahead, MAX_FORECAST_WEEKS))
+
     cutoff = (dt_date.today() - td(weeks=12)).isoformat()
     query = {"date": {"$gte": cutoff}, "deleted_at": None}
     if employee_id:
@@ -134,6 +139,99 @@ async def get_forecast(
     return {"historical": historical, "forecast": forecast, "method": "linear_regression"}
 
 
+def _compute_driver_totals(schedules):
+    total_drive_mins = 0
+    driver_totals = defaultdict(lambda: {"name": "", "drive_mins": 0, "schedules": 0})
+    for s in schedules:
+        drive = s.get("drive_time_minutes", 0) * 2
+        total_drive_mins += drive
+        emp_id = s.get("employee_id", "")
+        driver_totals[emp_id]["name"] = s.get("employee_name", "?")
+        driver_totals[emp_id]["drive_mins"] += drive
+        driver_totals[emp_id]["schedules"] += 1
+    return total_drive_mins, driver_totals
+
+
+def _get_other_locations(by_date, date_key, employee_id, exclude_id):
+    return {
+        s.get("location_id")
+        for s in by_date[date_key]
+        if s.get("employee_id") == employee_id and s["id"] != exclude_id
+    }
+
+
+def _compute_swap_savings(a, b, by_date, date_key):
+    a_drive = a.get("drive_time_minutes", 0)
+    b_drive = b.get("drive_time_minutes", 0)
+    if a_drive == b_drive:
+        return 0, ""
+
+    a_other_locs = _get_other_locations(by_date, date_key, a.get("employee_id"), a["id"])
+    b_other_locs = _get_other_locations(by_date, date_key, b.get("employee_id"), b["id"])
+
+    savings = 0
+    reason = ""
+    if b.get("location_id") in a_other_locs and a.get("location_id") not in a_other_locs:
+        savings += a_drive * 2
+        reason = f"{a.get('employee_name')} already visits {b.get('location_name')}"
+    if a.get("location_id") in b_other_locs and b.get("location_id") not in b_other_locs:
+        savings += b_drive * 2
+        reason = f"{b.get('employee_name')} already visits {a.get('location_name')}"
+    return savings, reason
+
+
+def _build_suggestion(a, b, date_key, savings, reason):
+    a_drive = a.get("drive_time_minutes", 0)
+    b_drive = b.get("drive_time_minutes", 0)
+    return {
+        "date": date_key,
+        "employee_a": a.get("employee_name", "?"),
+        "employee_a_id": a.get("employee_id"),
+        "employee_b": b.get("employee_name", "?"),
+        "employee_b_id": b.get("employee_id"),
+        "location_a": a.get("location_name", "?"),
+        "location_b": b.get("location_name", "?"),
+        "schedule_a_id": a.get("id"),
+        "schedule_b_id": b.get("id"),
+        "current_drive_mins": (a_drive + b_drive) * 2,
+        "optimized_drive_mins": (a_drive + b_drive) * 2 - savings,
+        "savings_mins": savings,
+        "reason": reason,
+    }
+
+
+def _should_skip_pair(a, b, loc_map):
+    if a.get("employee_id") == b.get("employee_id"):
+        return True
+    if a.get("location_id") == b.get("location_id"):
+        return True
+    if not loc_map.get(a.get("location_id")) or not loc_map.get(b.get("location_id")):
+        return True
+    return False
+
+
+def _find_swap_suggestions(schedules, loc_map):
+    by_date = defaultdict(list)
+    for s in schedules:
+        by_date[s["date"]].append(s)
+
+    suggestions = []
+    for date_key, day_schedules in by_date.items():
+        if len(day_schedules) < 2:
+            continue
+        for i in range(len(day_schedules)):
+            for j in range(i + 1, len(day_schedules)):
+                a, b = day_schedules[i], day_schedules[j]
+                if _should_skip_pair(a, b, loc_map):
+                    continue
+                savings, reason = _compute_swap_savings(a, b, by_date, date_key)
+                if savings > 0:
+                    suggestions.append(_build_suggestion(a, b, date_key, savings, reason))
+
+    suggestions.sort(key=lambda s: -s["savings_mins"])
+    return suggestions
+
+
 @router.get("/drive-optimization")
 async def get_drive_optimization(
     user: CurrentUser,
@@ -153,96 +251,12 @@ async def get_drive_optimization(
     locations = await db.locations.find({"deleted_at": None}, {"_id": 0}).to_list(200)
     loc_map = {loc["id"]: loc for loc in locations}
 
-    # Summary stats
-    total_drive_mins = 0
-    driver_totals = defaultdict(lambda: {"name": "", "drive_mins": 0, "schedules": 0})
-    for s in schedules:
-        drive = s.get("drive_time_minutes", 0) * 2
-        total_drive_mins += drive
-        emp_id = s.get("employee_id", "")
-        driver_totals[emp_id]["name"] = s.get("employee_name", "?")
-        driver_totals[emp_id]["drive_mins"] += drive
-        driver_totals[emp_id]["schedules"] += 1
-
+    total_drive_mins, driver_totals = _compute_driver_totals(schedules)
     schedule_count = len(schedules) or 1
     highest_driver = max(driver_totals.values(), key=lambda d: d["drive_mins"]) if driver_totals else {"name": "N/A", "drive_mins": 0}
 
-    # Find swap suggestions: group schedules by date, look for beneficial swaps
-    by_date = defaultdict(list)
-    for s in schedules:
-        by_date[s["date"]].append(s)
+    suggestions = _find_swap_suggestions(schedules, loc_map)
 
-    suggestions = []
-    for date_key, day_schedules in by_date.items():
-        if len(day_schedules) < 2:
-            continue
-        # Compare all pairs
-        for i in range(len(day_schedules)):
-            for j in range(i + 1, len(day_schedules)):
-                a = day_schedules[i]
-                b = day_schedules[j]
-                if a.get("employee_id") == b.get("employee_id"):
-                    continue
-                if a.get("location_id") == b.get("location_id"):
-                    continue
-
-                loc_a = loc_map.get(a.get("location_id"))
-                loc_b = loc_map.get(b.get("location_id"))
-                if not loc_a or not loc_b:
-                    continue
-
-                # Current cost: A->locA + B->locB (round trip)
-                current_drive = (a.get("drive_time_minutes", 0) + b.get("drive_time_minutes", 0)) * 2
-                # Swapped cost: A->locB + B->locA (use location drive times as proxy)
-                swapped_drive = (loc_b.get("drive_time_minutes", 0) + loc_a.get("drive_time_minutes", 0)) * 2
-
-                # This is the same since drive_time is from hub. We need a better heuristic:
-                # If employee already has other schedules at a location that day, swapping could help.
-                # Use a simpler model: compare per-employee total if swapped
-                # For now, check if one employee has significantly more drive time
-                a_drive = a.get("drive_time_minutes", 0)
-                b_drive = b.get("drive_time_minutes", 0)
-                if a_drive == b_drive:
-                    continue
-
-                # If swapping reduces max individual drive time (balancing)
-                current_max = max(a_drive, b_drive) * 2
-                swapped_max = max(b_drive, a_drive) * 2  # same, so skip symmetric
-
-                # Better heuristic: check if employee has another schedule at the other's location same day
-                a_other_locs = {s.get("location_id") for s in by_date[date_key] if s.get("employee_id") == a.get("employee_id") and s["id"] != a["id"]}
-                b_other_locs = {s.get("location_id") for s in by_date[date_key] if s.get("employee_id") == b.get("employee_id") and s["id"] != b["id"]}
-
-                savings = 0
-                reason = ""
-                # If A already goes to B's location, swapping this schedule eliminates extra drive
-                if b.get("location_id") in a_other_locs and a.get("location_id") not in a_other_locs:
-                    savings += a_drive * 2  # A saves a round trip
-                    reason = f"{a.get('employee_name')} already visits {b.get('location_name')}"
-                if a.get("location_id") in b_other_locs and b.get("location_id") not in b_other_locs:
-                    savings += b_drive * 2
-                    reason = f"{b.get('employee_name')} already visits {a.get('location_name')}"
-
-                if savings > 0:
-                    suggestions.append({
-                        "date": date_key,
-                        "employee_a": a.get("employee_name", "?"),
-                        "employee_a_id": a.get("employee_id"),
-                        "employee_b": b.get("employee_name", "?"),
-                        "employee_b_id": b.get("employee_id"),
-                        "location_a": a.get("location_name", "?"),
-                        "location_b": b.get("location_name", "?"),
-                        "schedule_a_id": a.get("id"),
-                        "schedule_b_id": b.get("id"),
-                        "current_drive_mins": (a_drive + b_drive) * 2,
-                        "optimized_drive_mins": (a_drive + b_drive) * 2 - savings,
-                        "savings_mins": savings,
-                        "reason": reason,
-                    })
-
-    suggestions.sort(key=lambda s: -s["savings_mins"])
-
-    # Per-employee drive summary for chart
     employee_drive = sorted(
         [{"name": v["name"], "drive_hours": round(v["drive_mins"] / 60, 1), "schedules": v["schedules"]}
          for v in driver_totals.values()],

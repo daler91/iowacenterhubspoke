@@ -6,6 +6,7 @@ class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
+    invite_token: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str
@@ -62,9 +63,13 @@ class ScheduleCreate(BaseModel):
     class_id: Optional[str] = None
     date: str  # YYYY-MM-DD
     start_time: str  # HH:MM
-    end_time: str  # HH:MM
+    end_time: str
+    force: Optional[bool] = False  # HH:MM
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
+    schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
     recurrence_end_mode: Optional[str] = None
@@ -80,7 +85,9 @@ class ScheduleUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     status: Optional[str] = None
     recurrence: Optional[str] = None
     recurrence_end_date: Optional[str] = None
@@ -96,6 +103,7 @@ class ScheduleRelocate(BaseModel):
     date: str
     start_time: str
     end_time: str
+    force: Optional[bool] = False
 
 class BulkDeleteRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
@@ -120,6 +128,11 @@ class BulkClassUpdateRequest(BaseModel):
 class UserRoleUpdate(BaseModel):
     role: str
 
+class InviteCreate(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    role: str
+
 class ErrorResponse(BaseModel):
     detail: str
     code: str
@@ -132,5 +145,6 @@ class ScheduleImportItem(BaseModel):
     date: str
     start_time: str
     end_time: str
+    force: Optional[bool] = False
     notes: Optional[str] = None
     row_idx: int

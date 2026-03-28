@@ -7,6 +7,16 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+# Sentry error tracking (opt-in via SENTRY_DSN env var)
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        traces_sample_rate=0.2,
+        environment=os.getenv("ENVIRONMENT", "development"),
+    )
+
 from core.logger import setup_logging, get_logger, request_id_var
 
 # Set up JSON structured logging
@@ -62,7 +72,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:;"
+    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob:; worker-src 'self' blob:;"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
@@ -98,6 +108,29 @@ api_router.include_router(reports.router)
 api_router.include_router(system.router)
 api_router.include_router(analytics.router)
 api_router.include_router(users.router)
+
+
+@api_router.get("/health", tags=["system"])
+async def health_check():
+    """Health check endpoint for load balancers and deployment monitoring."""
+    checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
+    try:
+        await client.admin.command("ping")
+    except Exception:
+        checks["mongo"] = "unavailable"
+        checks["status"] = "degraded"
+
+    try:
+        import redis as _redis
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        r = _redis.from_url(redis_url, socket_connect_timeout=2)
+        r.ping()
+    except Exception:
+        checks["redis"] = "unavailable"
+        checks["status"] = "degraded"
+
+    status_code = 200 if checks["status"] == "healthy" else 503
+    return JSONResponse(content=checks, status_code=status_code)
 
 # ========== SEED DATA ==========
 
@@ -137,7 +170,19 @@ async def seed_data():
     # Create required indexes
     try:
         await db.schedules.create_index([("employee_id", 1), ("date", 1)])
-        logger.info("Ensured index on schedules collection for employee_id and date")
+        await db.schedules.create_index([("employee_id", 1), ("date", 1), ("deleted_at", 1)])
+        await db.schedules.create_index([("location_id", 1), ("date", 1)])
+        await db.schedules.create_index([("date", 1), ("status", 1)])
+        await db.schedules.create_index([("deleted_at", 1)])
+        await db.employees.create_index([("deleted_at", 1)])
+        await db.locations.create_index([("deleted_at", 1)])
+        await db.classes.create_index([("deleted_at", 1)])
+        await db.activity_logs.create_index([("timestamp", -1)])
+        await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
+        await db.drive_time_cache.create_index("key", unique=True)
+        await db.invitations.create_index("token", unique=True)
+        await db.invitations.create_index("email")
+        logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
 

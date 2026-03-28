@@ -12,7 +12,7 @@
 'use strict';
 
 const { MongoClient } = require('mongodb');
-const { randomUUID } = require('crypto');
+const { randomUUID } = require('node:crypto');
 
 const MONGO_URL = process.env.MONGO_URL;
 const DB_NAME = process.env.DB_NAME || 'iowa_center_hub';
@@ -28,7 +28,7 @@ const LOCATIONS = [
   { city_name: 'Boone', drive_time_minutes: 45, latitude: 42.0597, longitude: -93.8802 },
   { city_name: 'Waterloo', drive_time_minutes: 90, latitude: 42.4928, longitude: -92.3426 },
   { city_name: 'Cedar Rapids', drive_time_minutes: 120, latitude: 41.9779, longitude: -91.6656 },
-  { city_name: 'Des Moines', drive_time_minutes: 60, latitude: 41.5868, longitude: -93.6250 },
+  { city_name: 'Des Moines', drive_time_minutes: 60, latitude: 41.5868, longitude: -93.625 },
 ];
 
 const EMPLOYEES = [
@@ -72,9 +72,9 @@ function now() {
   return new Date().toISOString();
 }
 
-async function seed() {
-  const client = new MongoClient(MONGO_URL);
+const client = new MongoClient(MONGO_URL);
 
+async function seed() {
   try {
     console.log('Connecting to MongoDB…');
     await client.connect();
@@ -207,4 +207,7 @@ async function seed() {
   }
 }
 
-seed();
+seed().catch((err) => {
+  console.error('\n❌ Unexpected error:', err);
+  process.exitCode = 1;
+});

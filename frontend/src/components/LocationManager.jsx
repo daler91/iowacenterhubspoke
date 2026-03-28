@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { MapPin, Plus, Pencil, Trash2, Car } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { APIProvider } from '@vis.gl/react-google-maps';
+import PlacesAutocomplete from './PlacesAutocomplete';
 
 import { useOutletContext } from 'react-router-dom';
+import { EntityLink } from './ui/entity-link';
+import LocationProfile from './LocationProfile';
+
+const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 export default function LocationManager() {
   const { user } = useAuth();
@@ -18,10 +24,33 @@ export default function LocationManager() {
     fetchLocations();
     fetchActivities();
   };
+  const [selectedLocationId, setSelectedLocationId] = useState(null);
+  const onViewProfile = (id) => setSelectedLocationId(id);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
+  const [calculatingDrive, setCalculatingDrive] = useState(false);
+
+  const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
+    setForm(prev => ({
+      ...prev,
+      city_name,
+      latitude: String(latitude),
+      longitude: String(longitude),
+    }));
+
+    // Auto-calculate drive time from hub
+    setCalculatingDrive(true);
+    try {
+      const res = await locationsAPI.getDriveTimeFromHub(latitude, longitude);
+      setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
+    } catch {
+      // Keep manual entry if calculation fails
+    } finally {
+      setCalculatingDrive(false);
+    }
+  }, []);
 
   const openNew = () => {
     setEditing(null);
@@ -85,6 +114,10 @@ export default function LocationManager() {
   if (loading) saveLabel = 'Saving...';
   else if (editing) saveLabel = 'Update Location';
 
+  if (selectedLocationId) {
+    return <LocationProfile locationId={selectedLocationId} onBack={() => setSelectedLocationId(null)} />;
+  }
+
   return (
     <div className="space-y-6 animate-slide-in" data-testid="location-manager">
       {/* Header */}
@@ -129,7 +162,7 @@ export default function LocationManager() {
                 <MapPin className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <p className="font-semibold text-slate-800">{loc.city_name}</p>
+                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800">{loc.city_name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   <div className="flex items-center gap-1">
                     <Car className="w-3 h-3 text-slate-400" />
@@ -144,6 +177,15 @@ export default function LocationManager() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`view-location-${loc.id}`}
+                onClick={() => onViewProfile(loc.id)}
+                className="text-slate-400 hover:text-teal-600"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
               {isAdmin && (
                 <>
                   <Button
@@ -181,76 +223,176 @@ export default function LocationManager() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] bg-white" data-testid="location-form-dialog">
+        <DialogContent
+          className="sm:max-w-[440px] bg-white"
+          data-testid="location-form-dialog"
+          onPointerDownOutside={(e) => {
+            // Radix uses custom events - the real DOM target is in detail.originalEvent
+            const target = e.detail?.originalEvent?.target || e.target;
+            if (target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.detail?.originalEvent?.target || e.target;
+            if (target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
+          onFocusOutside={(e) => {
+            // Prevent focus trap from fighting with Places dropdown
+            const target = e.detail?.originalEvent?.relatedTarget || e.target;
+            if (target?.closest?.('.pac-container')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
               {editing ? 'Edit Location' : 'Add Location'}
             </DialogTitle>
             <DialogDescription>
-              {editing ? 'Update the location details.' : 'Add a new spoke location with estimated drive time from Hub.'}
+              {editing
+                ? 'Update the location details.'
+                : 'Search for a city to auto-fill coordinates and drive time, or enter manually.'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>City Name</Label>
-              <Input
-                data-testid="location-city-input"
-                placeholder="e.g. Ames"
-                value={form.city_name}
-                onChange={(e) => setForm({ ...form, city_name: e.target.value })}
-                required
-                className="bg-gray-50/50"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Drive Time from Hub (minutes)</Label>
-              <Input
-                type="number"
-                data-testid="location-drive-time-input"
-                placeholder="e.g. 45"
-                value={form.drive_time_minutes}
-                onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
-                required
-                className="bg-gray-50/50"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          {MAPS_KEY && MAPS_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY' ? (
+            <APIProvider apiKey={MAPS_KEY} libraries={['places']}>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>City Name</Label>
+                  <PlacesAutocomplete
+                    value={form.city_name}
+                    onChange={(val) => setForm({ ...form, city_name: val })}
+                    onSelect={handlePlaceSelect}
+                    placeholder="Search for a city..."
+                    disabled={loading}
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Select from suggestions to auto-fill coordinates and drive time
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Drive Time from Hub (minutes)</Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      data-testid="location-drive-time-input"
+                      placeholder="e.g. 45"
+                      value={form.drive_time_minutes}
+                      onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                      required
+                      className="bg-gray-50/50"
+                    />
+                    {calculatingDrive && (
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      data-testid="location-lat-input"
+                      placeholder="41.5868"
+                      value={form.latitude}
+                      onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                      className="bg-gray-50/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      data-testid="location-lng-input"
+                      placeholder="-93.6540"
+                      value={form.longitude}
+                      onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                      className="bg-gray-50/50"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="submit"
+                    data-testid="location-save-btn"
+                    disabled={loading || calculatingDrive}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                  >
+                    {calculatingDrive ? 'Calculating drive time...' : saveLabel}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </APIProvider>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Latitude (optional)</Label>
+                <Label>City Name</Label>
                 <Input
-                  type="number"
-                  step="any"
-                  data-testid="location-lat-input"
-                  placeholder="41.5868"
-                  value={form.latitude}
-                  onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                  data-testid="location-city-input"
+                  placeholder="e.g. Ames"
+                  value={form.city_name}
+                  onChange={(e) => setForm({ ...form, city_name: e.target.value })}
+                  required
                   className="bg-gray-50/50"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Longitude (optional)</Label>
+                <Label>Drive Time from Hub (minutes)</Label>
                 <Input
                   type="number"
-                  step="any"
-                  data-testid="location-lng-input"
-                  placeholder="-93.6540"
-                  value={form.longitude}
-                  onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                  data-testid="location-drive-time-input"
+                  placeholder="e.g. 45"
+                  value={form.drive_time_minutes}
+                  onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                  required
                   className="bg-gray-50/50"
                 />
               </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="submit"
-                data-testid="location-save-btn"
-                disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
-              >
-                {saveLabel}
-              </Button>
-            </DialogFooter>
-          </form>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Latitude (optional)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    data-testid="location-lat-input"
+                    placeholder="41.5868"
+                    value={form.latitude}
+                    onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                    className="bg-gray-50/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Longitude (optional)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    data-testid="location-lng-input"
+                    placeholder="-93.6540"
+                    value={form.longitude}
+                    onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                    className="bg-gray-50/50"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  data-testid="location-save-btn"
+                  disabled={loading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                >
+                  {saveLabel}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

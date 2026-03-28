@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { authAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,9 +11,35 @@ import { MapPin, Clock, Users } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
+  const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [inviteData, setInviteData] = useState(null);
+  const inviteToken = searchParams.get('invite');
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authAPI.validateInvite(inviteToken);
+        if (cancelled) return;
+        setInviteData(res.data);
+        setIsLogin(false);
+        setForm(prev => ({
+          ...prev,
+          email: res.data.email,
+          name: res.data.name || '',
+        }));
+      } catch {
+        if (!cancelled) {
+          toast.error('This invitation link is invalid or has expired');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inviteToken]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,7 +49,7 @@ export default function LoginPage() {
         await login(form.email, form.password);
         toast.success('Welcome back!');
       } else {
-        const result = await register(form.name, form.email, form.password);
+        const result = await register(form.name, form.email, form.password, inviteToken || null);
         if (result.pending) {
           toast.info('Registration submitted! An admin will review your account.');
           setIsLogin(true);
@@ -43,7 +71,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex" data-testid="login-page">
+    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] flex" data-testid="login-page">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 relative overflow-hidden flex-col justify-between p-12">
         <div className="relative z-10">
@@ -97,7 +125,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-y-auto relative z-10">
         <Card className="w-full max-w-md border-0 shadow-lg bg-white">
           <CardHeader className="space-y-1 pb-6">
             <div className="lg:hidden flex items-center gap-2 mb-4">
@@ -107,13 +135,27 @@ export default function LoginPage() {
               <span className="font-bold text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>HubSpoke</span>
             </div>
             <CardTitle className="text-2xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              {isLogin ? 'Sign in' : 'Create account'}
+              {inviteData ? 'Accept Invitation' : isLogin ? 'Sign in' : 'Create account'}
             </CardTitle>
             <CardDescription>
-              {isLogin ? 'Enter your credentials to access the scheduler' : 'Get started with your scheduling hub'}
+              {inviteData
+                ? `You've been invited to join as ${inviteData.role}`
+                : isLogin
+                  ? 'Enter your credentials to access the scheduler'
+                  : 'Get started with your scheduling hub'}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {inviteData && (
+              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <p className="text-sm text-indigo-700 font-medium">
+                  Invitation for {inviteData.email}
+                </p>
+                <p className="text-xs text-indigo-500 mt-1">
+                  Complete your registration below to get started.
+                </p>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <div className="space-y-2">
@@ -139,7 +181,8 @@ export default function LoginPage() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
-                  className="h-11 bg-gray-50/50"
+                  disabled={!!inviteData}
+                  className={`h-11 bg-gray-50/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div className="space-y-2">
@@ -163,20 +206,23 @@ export default function LoginPage() {
               >
                 {(() => {
                   if (loading) return 'Please wait...';
+                  if (inviteData) return 'Create Account';
                   return isLogin ? 'Sign In' : 'Create Account';
                 })()}
               </Button>
             </form>
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                data-testid="toggle-auth-mode"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-              </button>
-            </div>
+            {!inviteData && (
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  data-testid="toggle-auth-mode"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

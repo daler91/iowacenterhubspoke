@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -52,7 +53,7 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
 
       const response = await schedulesAPI.exportCsv(params);
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = globalThis.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
 
@@ -60,7 +61,7 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
       let fileName = 'schedules_export.csv';
       if (contentDisposition) {
         const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (fileNameMatch && fileNameMatch.length === 2) {
+        if (fileNameMatch?.length === 2) {
           fileName = fileNameMatch[1];
         }
       }
@@ -126,3 +127,9 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
     </Dialog>
   );
 }
+
+ExportCsvDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onOpenChange: PropTypes.func.isRequired,
+  currentFilters: PropTypes.object,
+};

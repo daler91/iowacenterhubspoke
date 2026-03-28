@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
@@ -43,16 +43,20 @@ export default function DashboardPage() {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved,
     onEditSchedule: handleEditSchedule,
     onStatClick: handleStatClick
-  };
+  }), [
+    locations, employees, classes, schedules, stats, activities, workloadData,
+    fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
+    handleClassRefresh, handleScheduleSaved, handleEditSchedule, handleStatClick
+  ]);
 
   return (
-    <div className="flex h-screen bg-[#F9FAFB] overflow-hidden" data-testid="dashboard-page">
+    <div className="flex h-screen bg-[#F9FAFB] dark:bg-gray-950 overflow-hidden" data-testid="dashboard-page">
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
         <button
@@ -74,14 +78,14 @@ export default function DashboardPage() {
       </div>
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar with hamburger + notifications */}
-        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-100 bg-white shrink-0" data-testid="top-bar">
+        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0" data-testid="top-bar">
           <button
-            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100"
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             data-testid="mobile-menu-btn"
           >
             <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <path className="text-slate-600 dark:text-slate-300" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <div className="ml-auto">

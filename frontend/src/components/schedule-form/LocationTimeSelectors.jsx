@@ -3,7 +3,8 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { MapPin, Car, Clock, AlertTriangle, Calendar } from 'lucide-react';
+import { MapPin, Car, AlertTriangle, Calendar } from 'lucide-react';
+import { TravelChainPreview } from './TravelChainPreview';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
 const OUTLOOK_STATUS_COLORS = { busy: 'bg-red-100 text-red-700', tentative: 'bg-amber-100 text-amber-700', oof: 'bg-purple-100 text-purple-700' };
@@ -17,9 +18,10 @@ function formatOutlookTime(dateTime) {
 export function LocationTimeSelectors({
   form, setForm,
   locations, selectedLocation,
-  showOverride, setShowOverride,
   onDateChange,
   previewConflicts,
+  travelChain,
+  onOverrideChange,
 }) {
   return (
     <>
@@ -99,9 +101,9 @@ export function LocationTimeSelectors({
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.outlook_conflicts.map((c, i) => (
+            {previewConflicts.outlook_conflicts.map((c) => (
               <Badge
-                key={i}
+                key={`${c.status}-${c.start}-${c.end}`}
                 variant="secondary"
                 className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
               >
@@ -125,8 +127,8 @@ export function LocationTimeSelectors({
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.conflicts.map((c, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
+            {previewConflicts.conflicts.map((c) => (
+              <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
                 {c.location} ({c.time})
               </Badge>
             ))}
@@ -134,38 +136,8 @@ export function LocationTimeSelectors({
         </div>
       )}
 
-      <div>
-        <button
-          type="button"
-          data-testid="toggle-travel-override"
-          onClick={() => setShowOverride(!showOverride)}
-          className="text-xs text-indigo-600 font-medium hover:text-indigo-700 flex items-center gap-1"
-        >
-          <Clock className="w-3 h-3" />
-          {showOverride ? 'Hide' : 'Override'} travel time
-        </button>
-        {showOverride && (
-          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span className="text-xs font-semibold text-amber-700">
-                Town-to-Town Travel: Verify drive time manually
-              </span>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-amber-700">Override drive time (minutes)</Label>
-              <Input
-                type="number"
-                data-testid="travel-override-input"
-                placeholder="e.g. 45"
-                value={form.travel_override_minutes || ''}
-                onChange={(e) => setForm({ ...form, travel_override_minutes: e.target.value })}
-                className="h-9 bg-white"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Day travel chain preview with inline per-leg overrides */}
+      <TravelChainPreview travelChain={travelChain} onOverrideChange={onOverrideChange} />
 
       <div className="space-y-2">
         <Label className="text-sm font-medium text-slate-700">Notes (optional)</Label>
@@ -187,7 +159,6 @@ LocationTimeSelectors.propTypes = {
     date: PropTypes.string,
     start_time: PropTypes.string,
     end_time: PropTypes.string,
-    travel_override_minutes: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     notes: PropTypes.string,
   }).isRequired,
   setForm: PropTypes.func.isRequired,
@@ -199,7 +170,22 @@ LocationTimeSelectors.propTypes = {
   selectedLocation: PropTypes.shape({
     drive_time_minutes: PropTypes.number,
   }),
-  showOverride: PropTypes.bool.isRequired,
-  setShowOverride: PropTypes.func.isRequired,
   onDateChange: PropTypes.func.isRequired,
+  previewConflicts: PropTypes.shape({
+    outlook_conflicts: PropTypes.arrayOf(PropTypes.shape({
+      status: PropTypes.string,
+      start: PropTypes.string,
+      end: PropTypes.string,
+    })),
+    conflicts: PropTypes.arrayOf(PropTypes.shape({
+      location: PropTypes.string,
+      time: PropTypes.string,
+    })),
+  }),
+  travelChain: PropTypes.shape({
+    legs: PropTypes.array,
+    total_drive_minutes: PropTypes.number,
+    class_count: PropTypes.number,
+  }),
+  onOverrideChange: PropTypes.func,
 };
