@@ -3,30 +3,15 @@
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import HTTPException
 
 from database import db
 from models.schemas import ScheduleCreate
-from services.activity import log_activity
 from routers.classes import get_class_snapshot
-from services.schedule_utils import (
-    build_recurrence_rule,
-    build_recurrence_dates,
-    check_conflicts,
-    check_outlook_conflicts,
-    time_to_minutes,
-)
 from services.drive_time import get_drive_time_between_locations
-from core.auth import CurrentUser, SchedulerRequired, AdminRequired
 from core.logger import get_logger
-from core.constants import (
-    STATUS_UPCOMING,
-    STATUS_IN_PROGRESS,
-    STATUS_COMPLETED,
-    DEFAULT_EMPLOYEE_COLOR,
-)
+from core.constants import STATUS_UPCOMING
 
 logger = get_logger(__name__)
 
@@ -160,12 +145,21 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
                 if drive_minutes is None or minutes < drive_minutes:
                     drive_minutes = minutes
         except Exception:
-            logger.warning("Failed to get drive time between %s and %s", location_id, other_loc_id, exc_info=True)
+            logger.warning(
+                "Failed to get drive time between %s and %s",
+                location_id, other_loc_id, exc_info=True,
+            )
 
     if drive_minutes is not None:
-        warning = f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. Other locations: {', '.join(other_cities)}"
+        warning = (
+            f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. "
+            f"Other locations: {', '.join(other_cities)}"
+        )
     else:
-        warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+        warning = (
+            "Town-to-Town Travel Detected: Verify drive time manually. "
+            f"Other locations: {', '.join(other_cities)}"
+        )
     return True, warning, drive_minutes
 
 
@@ -220,9 +214,15 @@ async def _check_town_to_town_bulk(
                     drive_minutes = m
 
             if drive_minutes is not None:
-                warning = f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. Other locations: {', '.join(other_cities)}"
+                warning = (
+                    f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. "
+                    f"Other locations: {', '.join(other_cities)}"
+                )
             else:
-                warning = f"Town-to-Town Travel Detected: Verify drive time manually. Other locations: {', '.join(other_cities)}"
+                warning = (
+                    "Town-to-Town Travel Detected: Verify drive time manually. "
+                    f"Other locations: {', '.join(other_cities)}"
+                )
             results[date] = (True, warning, drive_minutes)
 
     return results

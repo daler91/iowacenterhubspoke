@@ -2,21 +2,25 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
+
 class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(..., min_length=8)
     invite_token: Optional[str] = None
 
+
 class UserLogin(BaseModel):
     email: str
     password: str
+
 
 class LocationCreate(BaseModel):
     city_name: str
     drive_time_minutes: int
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
 
 class LocationUpdate(BaseModel):
     city_name: Optional[str] = None
@@ -25,11 +29,13 @@ class LocationUpdate(BaseModel):
     longitude: Optional[float] = None
     deleted_at: Optional[str] = None
 
+
 class EmployeeCreate(BaseModel):
     name: str
     email: Optional[str] = None
     phone: Optional[str] = None
     color: Optional[str] = DEFAULT_EMPLOYEE_COLOR
+
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
@@ -37,6 +43,7 @@ class EmployeeUpdate(BaseModel):
     phone: Optional[str] = None
     color: Optional[str] = None
     deleted_at: Optional[str] = None
+
 
 class RecurrenceRule(BaseModel):
     interval: int = 1
@@ -46,16 +53,19 @@ class RecurrenceRule(BaseModel):
     end_date: Optional[str] = None
     occurrences: Optional[int] = None
 
+
 class ClassCreate(BaseModel):
     name: str
     description: Optional[str] = None
     color: Optional[str] = DEFAULT_CLASS_COLOR
+
 
 class ClassUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
     deleted_at: Optional[str] = None
+
 
 class ScheduleCreate(BaseModel):
     employee_id: str
@@ -77,6 +87,7 @@ class ScheduleCreate(BaseModel):
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
 
+
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
     location_id: Optional[str] = None
@@ -96,8 +107,10 @@ class ScheduleUpdate(BaseModel):
     custom_recurrence: Optional[RecurrenceRule] = None
     deleted_at: Optional[str] = None
 
+
 class StatusUpdate(BaseModel):
     status: str  # upcoming, in_progress, completed
+
 
 class ScheduleRelocate(BaseModel):
     date: str
@@ -105,12 +118,15 @@ class ScheduleRelocate(BaseModel):
     end_time: str
     force: Optional[bool] = False
 
+
 class BulkDeleteRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
+
 
 class BulkStatusUpdateRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     status: str  # upcoming, in_progress, completed
+
 
 class BulkReassignRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
@@ -121,26 +137,32 @@ class BulkLocationUpdateRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     location_id: str
 
+
 class BulkClassUpdateRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     class_id: str
 
+
 class UserRoleUpdate(BaseModel):
     role: str
+
 
 class InviteCreate(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     role: str
 
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
+
 
 class ErrorResponse(BaseModel):
     detail: str
     code: str
     errors: Optional[list] = None
+
 
 class ScheduleImportItem(BaseModel):
     employee_id: str

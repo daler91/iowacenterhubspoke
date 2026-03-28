@@ -1,7 +1,6 @@
 import os
 import math
 from datetime import datetime, timezone
-from functools import lru_cache
 from collections import OrderedDict
 import threading
 
@@ -168,7 +167,8 @@ async def get_drive_time_between_locations(from_id, to_id):
 
     if not from_loc or not to_loc:
         return None
-    if not (from_loc.get("latitude") and from_loc.get("longitude") and to_loc.get("latitude") and to_loc.get("longitude")):
+    if not (from_loc.get("latitude") and from_loc.get("longitude")
+            and to_loc.get("latitude") and to_loc.get("longitude")):
         return None
 
     key = _cache_key(from_id, to_id)

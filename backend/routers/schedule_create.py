@@ -1,7 +1,7 @@
 """Schedule creation: single and recurring (bulk) schedule creation."""
 
 import uuid
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 
 from database import db
 from models.schemas import ScheduleCreate
@@ -100,7 +100,10 @@ async def _handle_single_schedule(
     class_label = f" for {class_doc['name']}" if class_doc else ""
     await log_activity(
         action="schedule_created",
-        description=f"{employee['name']} assigned to {location['city_name']}{class_label} — 1 class starting {data.date}",
+        description=(
+            f"{employee['name']} assigned to {location['city_name']}"
+            f"{class_label} — 1 class starting {data.date}"
+        ),
         entity_type="schedule",
         entity_id=doc["id"],
         user_name=user.get("name", "System"),
@@ -151,7 +154,10 @@ async def _handle_bulk_background(
     class_label = f" for {class_doc['name']}" if class_doc else ""
     await log_activity(
         action="schedule_created_bulk_enqueued",
-        description=f"Bulk schedule pipeline queued for {employee['name']} at {location['city_name']}{class_label} ({len(dates_to_schedule)} dates)",
+        description=(
+            f"Bulk schedule pipeline queued for {employee['name']} at "
+            f"{location['city_name']}{class_label} ({len(dates_to_schedule)} dates)"
+        ),
         entity_type="schedule_batch",
         entity_id=str(uuid.uuid4()),
         user_name=user.get("name", "System"),
@@ -231,7 +237,10 @@ async def _handle_bulk_synchronous(
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
             action="schedule_created",
-            description=f"{employee['name']} assigned to {location['city_name']}{class_label} — {count_label} starting {data.date}",
+            description=(
+                f"{employee['name']} assigned to {location['city_name']}"
+                f"{class_label} — {count_label} starting {data.date}"
+            ),
             entity_type="schedule",
             entity_id=created[0]["id"],
             user_name=user.get("name", "System"),

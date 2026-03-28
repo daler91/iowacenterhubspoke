@@ -3,6 +3,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from core.constants import DEFAULT_REDIS_URL
 
+
 async def get_redis_pool():
     redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     try:

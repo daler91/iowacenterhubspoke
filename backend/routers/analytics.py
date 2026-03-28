@@ -1,4 +1,4 @@
-from datetime import date as dt_date, timedelta as td, timezone, datetime
+from datetime import date as dt_date, timedelta as td
 from fastapi import APIRouter
 from typing import Optional
 from collections import defaultdict
@@ -253,7 +253,11 @@ async def get_drive_optimization(
 
     total_drive_mins, driver_totals = _compute_driver_totals(schedules)
     schedule_count = len(schedules) or 1
-    highest_driver = max(driver_totals.values(), key=lambda d: d["drive_mins"]) if driver_totals else {"name": "N/A", "drive_mins": 0}
+    highest_driver = (
+        max(driver_totals.values(), key=lambda d: d["drive_mins"])
+        if driver_totals
+        else {"name": "N/A", "drive_mins": 0}
+    )
 
     suggestions = _find_swap_suggestions(schedules, loc_map)
 

@@ -4,7 +4,6 @@ from fastapi import FastAPI, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -18,22 +17,23 @@ if _sentry_dsn:
         environment=os.getenv("ENVIRONMENT", "development"),
     )
 
-from core.logger import setup_logging, get_logger, request_id_var
+from core.logger import setup_logging, get_logger, request_id_var  # noqa: E402
 
 # Set up JSON structured logging
 setup_logging()
 logger = get_logger(__name__)
 
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from core.rate_limit import limiter
+from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
+from slowapi import _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+from core.rate_limit import limiter  # noqa: E402
 
-from database import client, db, mongo_url, ROOT_DIR
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users
-from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL
+from database import client, db, mongo_url, ROOT_DIR  # noqa: E402
+from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users  # noqa: E402
+from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,11 +97,21 @@ async def lifespan(app: FastAPI):
         count = await db.locations.count_documents({})
         if count == 0:
             default_locations = [
-                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa", "drive_time_minutes": 75, "latitude": 41.2964, "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Grinnell", "drive_time_minutes": 60, "latitude": 41.7431, "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge", "drive_time_minutes": 105, "latitude": 42.4975, "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Carroll", "drive_time_minutes": 105, "latitude": 42.0664, "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Marshalltown", "drive_time_minutes": 60, "latitude": 42.0492, "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa",
+                 "drive_time_minutes": 75, "latitude": 41.2964,
+                 "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Grinnell",
+                 "drive_time_minutes": 60, "latitude": 41.7431,
+                 "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge",
+                 "drive_time_minutes": 105, "latitude": 42.4975,
+                 "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Carroll",
+                 "drive_time_minutes": 105, "latitude": 42.0664,
+                 "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
+                {"id": str(uuid.uuid4()), "city_name": "Marshalltown",
+                 "drive_time_minutes": 60, "latitude": 42.0492,
+                 "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
             ]
             await db.locations.insert_many(default_locations)
             logger.info("Seeded default locations")
@@ -141,6 +151,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     detail = getattr(exc, "detail", str(exc))
@@ -150,12 +161,14 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         content={"detail": detail, "code": str(status_code), "errors": None}
     )
 
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
         content={"detail": "Validation Error", "code": "422", "errors": exc.errors()}
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -165,16 +178,17 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal Server Error", "code": "500", "errors": None}
     )
 
-from slowapi.middleware import SlowAPIMiddleware
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 app.add_middleware(SlowAPIMiddleware)
 
-from core.auth import generate_csrf_token, validate_csrf_token
+from core.auth import generate_csrf_token, validate_csrf_token  # noqa: E402
 
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
     "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/health",
     "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/logout", "/api/v1/health",
 }
+
 
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
@@ -214,7 +228,7 @@ async def csrf_middleware(request: Request, call_next):
 
     return response
 
-import hashlib as _hashlib
+import hashlib as _hashlib  # noqa: E402
 
 # Cache-Control + ETag for GET API responses
 # Short-lived cache for dynamic data; browsers revalidate via If-None-Match
@@ -277,6 +291,7 @@ async def add_security_headers(request: Request, call_next):
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
@@ -341,8 +356,9 @@ app.include_router(api_router)
 # Backward-compatible: mount same routes under /api/ for existing clients
 legacy_router = APIRouter(prefix="/api")
 for sub_router in [auth.router, locations.router, employees.router, classes.router,
-                    schedules.router, reports.router, system.router, analytics.router, users.router]:
+                   schedules.router, reports.router, system.router, analytics.router, users.router]:
     legacy_router.include_router(sub_router)
+
 
 @legacy_router.get("/health", tags=["system"], include_in_schema=False)
 async def health_check_legacy():
@@ -365,4 +381,3 @@ elif (_static_dir / "assets").exists():
         if file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))
         return FileResponse(str(_static_dir / "index.html"))
-

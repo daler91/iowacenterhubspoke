@@ -248,7 +248,10 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     logger.info(f"Sync completed for {entity_type}: {entity_id}")
 
 
-async def create_outlook_event(ctx, schedule_id: str, email: str, subject: str, location_name: str, date: str, start_time: str, end_time: str, notes: str = ""):
+async def create_outlook_event(
+    ctx, schedule_id: str, email: str, subject: str, location_name: str,
+    date: str, start_time: str, end_time: str, notes: str = "",
+):
     from services.outlook import create_outlook_event as _create
     from database import db
 
@@ -270,7 +273,7 @@ async def delete_outlook_event(ctx, email: str, event_id: str):
         logger.warning("Failed to delete Outlook event %s", event_id)
 
 
-from core.constants import DEFAULT_REDIS_URL
+from core.constants import DEFAULT_REDIS_URL  # noqa: E402
 
 redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 

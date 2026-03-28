@@ -121,7 +121,7 @@ async def export_schedules(
     )
 
     emp_map = {e["_id"]: e for e in employees}
-    loc_map = {l["_id"]: l for l in locations}
+    loc_map = {loc["_id"]: loc for loc in locations}
     class_map = {c["_id"]: c for c in classes}
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
@@ -207,7 +207,10 @@ async def import_schedules_preview(
     if missing:
         raise HTTPException(
             status_code=400,
-            detail="Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name",
+            detail=(
+                "Missing required columns. File must have headers: "
+                "date, start_time, end_time, employee_email, location_name"
+            ),
         )
 
     all_employees = await db.employees.find({"deleted_at": None}).to_list(
@@ -313,7 +316,10 @@ async def import_schedules_commit(
                 errors.append(
                     {
                         "row": item.row_idx,
-                        "error": f"Conflict with existing schedule for {employee.get('name')} on {item.date} at {item.start_time}",
+                        "error": (
+                            f"Conflict with existing schedule for "
+                            f"{employee.get('name')} on {item.date} at {item.start_time}"
+                        ),
                     }
                 )
                 continue

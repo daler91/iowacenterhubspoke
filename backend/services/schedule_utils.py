@@ -6,12 +6,15 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 def time_to_minutes(time_str: str) -> int:
     h, m = time_str.split(':')
     return int(h) * 60 + int(m)
 
+
 def calculate_class_minutes(start_time: str, end_time: str) -> int:
     return time_to_minutes(end_time) - time_to_minutes(start_time)
+
 
 def add_months(source_date, months: int):
     month_index = source_date.month - 1 + months
@@ -20,8 +23,10 @@ def add_months(source_date, months: int):
     day = min(source_date.day, calendar.monthrange(year, month)[1])
     return source_date.replace(year=year, month=month, day=day)
 
+
 def get_start_weekday_value(start_date):
     return (start_date.weekday() + 1) % 7
+
 
 def build_recurrence_rule(data: ScheduleCreate):
     from datetime import date as dt_date
@@ -72,6 +77,7 @@ def build_recurrence_rule(data: ScheduleCreate):
 
     return None
 
+
 def _build_monthly_dates(start_date, interval, occurrence_limit, end_date):
     dates = []
     current = start_date
@@ -83,6 +89,7 @@ def _build_monthly_dates(start_date, interval, occurrence_limit, end_date):
             break
         current = add_months(current, interval)
     return dates
+
 
 def _build_weekly_dates(start_date, interval, weekdays, occurrence_limit, end_date):
     from datetime import timedelta as td
@@ -99,6 +106,7 @@ def _build_weekly_dates(start_date, interval, weekdays, occurrence_limit, end_da
         current += td(days=1)
     return dates
 
+
 def _parse_recurrence_limits(rule):
     from datetime import date as dt_date
     default_limit = 24 if rule.frequency == "month" else 52
@@ -111,6 +119,7 @@ def _parse_recurrence_limits(rule):
     if rule.end_mode == "on_date" and rule.end_date:
         end_date = dt_date.fromisoformat(rule.end_date)
     return occurrence_limit, end_date
+
 
 def build_recurrence_dates(start_date_str: str, rule: Optional[RecurrenceRule]):
     from datetime import date as dt_date
@@ -130,16 +139,23 @@ def build_recurrence_dates(start_date_str: str, rule: Optional[RecurrenceRule]):
     dates = _build_weekly_dates(start_date, interval, weekdays, occurrence_limit, end_date)
     return dates or [start_date_str]
 
-async def check_conflicts(employee_id: str, date: str, start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
+
+async def check_conflicts(
+    employee_id: str, date: str, start_time: str, end_time: str,
+    drive_minutes: int, exclude_id: str = None
+):
     new_start = time_to_minutes(start_time) - drive_minutes
     new_end = time_to_minutes(end_time) + drive_minutes
 
     query = {"employee_id": employee_id, "date": date, "deleted_at": None}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
-    
-    logger.debug(f"Checking conflicts for employee {employee_id} on {date}", extra={"context": {"start_time": start_time, "end_time": end_time}})
-    
+
+    logger.debug(
+        f"Checking conflicts for employee {employee_id} on {date}",
+        extra={"context": {"start_time": start_time, "end_time": end_time}}
+    )
+
     existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
 
     conflicts = []
@@ -169,7 +185,11 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
     from services.outlook import check_outlook_availability
     return await check_outlook_availability(employee["email"], date, start_time, end_time)
 
-async def check_conflicts_bulk(employee_id: str, dates: list[str], start_time: str, end_time: str, drive_minutes: int, exclude_id: str = None):
+
+async def check_conflicts_bulk(
+    employee_id: str, dates: list[str], start_time: str, end_time: str,
+    drive_minutes: int, exclude_id: str = None
+):
     new_start = time_to_minutes(start_time) - drive_minutes
     new_end = time_to_minutes(end_time) + drive_minutes
 
@@ -181,7 +201,10 @@ async def check_conflicts_bulk(employee_id: str, dates: list[str], start_time: s
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
 
-    logger.debug(f"Checking conflicts for employee {employee_id} on {len(dates)} dates", extra={"context": {"start_time": start_time, "end_time": end_time}})
+    logger.debug(
+        f"Checking conflicts for employee {employee_id} on {len(dates)} dates",
+        extra={"context": {"start_time": start_time, "end_time": end_time}}
+    )
 
     # We might have many schedules, let's use a larger limit
     existing = await db.schedules.find(query, {"_id": 0}).to_list(10000)
