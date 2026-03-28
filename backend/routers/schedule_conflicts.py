@@ -195,11 +195,13 @@ async def _build_travel_chain(
 
 @router.post(
     "/check-conflicts",
+    summary="Check for scheduling conflicts",
     responses={
         404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
     },
 )
 async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
+    """Check for time conflicts and Outlook conflicts before creating a schedule."""
     location = await db.locations.find_one(
         {"id": data.location_id}, {"_id": 0}
     )

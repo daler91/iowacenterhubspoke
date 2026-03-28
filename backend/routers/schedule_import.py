@@ -78,7 +78,7 @@ def _validate_import_row(
 router = APIRouter(tags=["schedules"])
 
 
-@router.get("/export")
+@router.get("/export", summary="Export schedules as CSV")
 async def export_schedules(
     current_user: AdminRequired,
     start_date: Optional[str] = None,
@@ -170,6 +170,7 @@ async def export_schedules(
 
 @router.post(
     "/import/preview",
+    summary="Preview CSV import (dry run)",
     responses={400: {"model": ErrorResponse, "description": "Invalid CSV file or missing required columns"}},
 )
 async def import_schedules_preview(
@@ -271,7 +272,7 @@ async def import_schedules_preview(
     }
 
 
-@router.post("/import")
+@router.post("/import", summary="Commit CSV import")
 async def import_schedules_commit(
     current_user: AdminRequired, items: list[ScheduleImportItem]
 ):

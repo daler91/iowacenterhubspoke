@@ -121,10 +121,128 @@
   animation: slideIn 0.3s ease-out;
 }
 
-/* Print styles for PDF */
+/* Print styles — optimized for schedule views */
 @media print {
-  .no-print { display: none !important; }
+  /* Hide non-content UI elements */
+  .no-print,
+  nav, aside,
+  button:not(.print-keep),
+  [data-testid="calendar-prev"],
+  [data-testid="calendar-next"],
+  [data-testid="calendar-today"],
+  [data-testid="calendar-select-mode"],
+  [data-testid="export-pdf-btn"],
+  [data-testid="print-btn"],
+  [data-testid="report-export-pdf"],
+  [data-testid="report-print"],
+  [role="tablist"],
+  .sonner-toaster,
+  [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+
   .print-only { display: block !important; }
+
+  /* Reset page to white, full width */
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Remove max-width constraints so schedule uses full page */
+  main, [class*="max-w-"] {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  /* Calendar grid fills the page */
+  .calendar-grid {
+    grid-template-columns: 50px repeat(7, 1fr) !important;
+    font-size: 9px !important;
+    gap: 0 !important;
+    border: 1px solid #000 !important;
+    background-color: #000 !important;
+    page-break-inside: avoid;
+  }
+
+  .calendar-grid-day {
+    grid-template-columns: 50px 1fr !important;
+    font-size: 10px !important;
+    gap: 0 !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* Make schedule blocks solid for print */
+  .schedule-block {
+    border-radius: 2px !important;
+    padding: 2px 4px !important;
+    font-size: 8px !important;
+    box-shadow: none !important;
+    transform: none !important;
+    border-width: 1px !important;
+  }
+
+  .class-block {
+    border-left-width: 3px !important;
+  }
+
+  .drive-block {
+    background-image: none !important;
+    background-color: #f0f0f0 !important;
+    border-style: solid !important;
+    border-color: #999 !important;
+  }
+
+  /* Ensure text is readable */
+  * {
+    color: #000 !important;
+    text-shadow: none !important;
+  }
+
+  .class-block, .class-block * {
+    color: #fff !important;
+  }
+
+  /* Remove animations and transitions */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Stats strip — compact row */
+  [data-testid="stats-strip"] {
+    display: flex !important;
+    gap: 8px;
+    font-size: 10px;
+    page-break-after: avoid;
+  }
+
+  /* Weekly report table */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 9px !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #ccc !important;
+    padding: 3px 6px !important;
+  }
 }
 
 /* Mobile responsive */

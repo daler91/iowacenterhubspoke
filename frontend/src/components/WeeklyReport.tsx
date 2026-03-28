@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users } from 'lucide-react';
+import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STATUS_CLASSES = {
@@ -85,6 +85,9 @@ export default function WeeklyReport() {
           </Button>
           <Button variant="outline" size="sm" onClick={exportPDF} data-testid="report-export-pdf">
             <FileDown className="w-4 h-4 mr-1" /> Export PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print" data-testid="report-print">
+            <Printer className="w-4 h-4 mr-1" /> Print
           </Button>
         </div>
       </div>

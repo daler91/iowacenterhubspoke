@@ -43,31 +43,45 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_token(user_id: str, email: str, name: str, role: str = '') -> str:
+def create_token(user_id: str, email: str, name: str, role: str = '', iat: float = None) -> str:
     payload = {
         'user_id': user_id,
         'email': email,
         'name': name,
         'role': role,
+        'iat': int(iat or datetime.now(timezone.utc).timestamp()),
         'exp': int(datetime.now(timezone.utc).timestamp()) + 86400 * 7
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
+async def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
     token = request.cookies.get('auth_token')
     if not token and authorization and authorization.startswith('Bearer '):
         token = authorization.split(' ')[1]
-        
+
     if not token:
         raise HTTPException(status_code=401, detail='Not authenticated')
-        
+
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail='Token expired')
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail='Invalid token')
+
+    # Session invalidation: reject tokens issued before a password change
+    token_iat = payload.get('iat', 0)
+    if token_iat:
+        from database import db
+        user_doc = await db.users.find_one(
+            {"id": payload['user_id']}, {"password_changed_at": 1}
+        )
+        if user_doc and user_doc.get('password_changed_at'):
+            changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
+            if token_iat < changed_ts:
+                raise HTTPException(status_code=401, detail='Session invalidated by password change. Please log in again.')
+
+    return payload
 
 from typing import Annotated, Optional, List
 from fastapi import Depends

@@ -57,7 +57,7 @@ def _aggregate_schedules_by_period(schedules, period_fn):
     return result
 
 
-@router.get("/trends")
+@router.get("/trends", summary="Get scheduling trend data")
 async def get_trends(
     user: CurrentUser,
     period: str = "weekly",
@@ -86,7 +86,7 @@ async def get_trends(
 MAX_FORECAST_WEEKS = 52
 
 
-@router.get("/forecast")
+@router.get("/forecast", summary="Get schedule forecast")
 async def get_forecast(
     user: CurrentUser,
     weeks_ahead: int = 8,
@@ -232,7 +232,7 @@ def _find_swap_suggestions(schedules, loc_map):
     return suggestions
 
 
-@router.get("/drive-optimization")
+@router.get("/drive-optimization", summary="Get drive time optimization suggestions")
 async def get_drive_optimization(
     user: CurrentUser,
     date_from: Optional[str] = None,

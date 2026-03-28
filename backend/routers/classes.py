@@ -37,20 +37,22 @@ async def sync_class_snapshot_background(class_id: str):
     if pool:
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="class", entity_id=class_id)
 
-@router.get("")
+@router.get("", summary="List all class types")
 async def get_classes(user: CurrentUser):
+    """Return all active class types, sorted by name."""
     classes = await db.classes.find({"deleted_at": None}, {"_id": 0}).sort("name", 1).to_list(200)
     return classes
 
-@router.get("/{class_id}", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+@router.get("/{class_id}", summary="Get a single class type", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def get_class(class_id: str, user: CurrentUser):
     class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
     return class_doc
 
-@router.post("")
+@router.post("", summary="Create a new class type")
 async def create_class(data: ClassCreate, user: AdminRequired):
+    """Add a new class type with name, description, and calendar color."""
     class_id = str(uuid.uuid4())
     doc = {
         "id": class_id,
@@ -66,7 +68,7 @@ async def create_class(data: ClassCreate, user: AdminRequired):
     await log_activity("class_created", f"Class type '{data.name}' added", "class", class_id, user.get('name', 'System'))
     return doc
 
-@router.put("/{class_id}", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+@router.put("/{class_id}", summary="Update a class type", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -82,8 +84,9 @@ async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
     await log_activity("class_updated", f"Class type '{updated['name']}' updated", "class", class_id, user.get('name', 'System'))
     return updated
 
-@router.delete("/{class_id}", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+@router.delete("/{class_id}", summary="Soft-delete a class type", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def delete_class(class_id: str, user: AdminRequired):
+    """Soft-delete a class type. Existing schedules retain the class name/color as archived data."""
     class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
@@ -105,8 +108,9 @@ async def delete_class(class_id: str, user: AdminRequired):
     await log_activity("class_deleted", f"Class type '{class_doc['name']}' marked as deleted", "class", class_id, user.get('name', 'System'))
     return {"message": "Class deleted"}
 
-@router.get("/{class_id}/stats", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+@router.get("/{class_id}/stats", summary="Get class type statistics", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def get_class_stats(class_id: str, user: CurrentUser, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """Return schedule counts, employee/location breakdowns, and recent schedules for a class type."""
     class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
@@ -161,7 +165,7 @@ async def get_class_stats(class_id: str, user: CurrentUser, start_date: Optional
         "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
     }
 
-@router.post("/{class_id}/restore", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
+@router.post("/{class_id}/restore", summary="Restore a deleted class type", responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}})
 async def restore_class(class_id: str, user: AdminRequired):
     result = await db.classes.update_one(
         {"id": class_id}, 

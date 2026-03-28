@@ -32,7 +32,7 @@ from routers.schedule_helpers import (
 router = APIRouter(tags=["schedules"])
 
 
-@router.post("/bulk-delete")
+@router.post("/bulk-delete", summary="Bulk delete schedules")
 async def bulk_delete_schedules(
     data: BulkDeleteRequest, user: SchedulerRequired
 ):
@@ -59,6 +59,7 @@ async def bulk_delete_schedules(
 
 @router.put(
     "/bulk-status",
+    summary="Bulk update schedule status",
     responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
 )
 async def bulk_update_status(
@@ -97,6 +98,7 @@ async def bulk_update_status(
 
 @router.put(
     "/bulk-reassign",
+    summary="Bulk reassign schedules to another employee",
     responses={
         404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}
     },
@@ -144,6 +146,7 @@ async def bulk_reassign_schedules(
 
 @router.put(
     "/bulk-location",
+    summary="Bulk update schedule location",
     responses={
         404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
     },
@@ -191,6 +194,7 @@ async def bulk_update_location(
 
 @router.put(
     "/bulk-class",
+    summary="Bulk update schedule class type",
     responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
 )
 async def bulk_update_class(

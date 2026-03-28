@@ -47,7 +47,7 @@ from routers.schedule_helpers import (
 router = APIRouter(tags=["schedules"])
 
 
-@router.get("/")
+@router.get("/", summary="List schedules")
 async def get_schedules(
     user: CurrentUser,
     date_from: Optional[str] = None,
@@ -79,6 +79,7 @@ async def get_schedules(
 
 @router.get(
     "/{schedule_id}",
+    summary="Get a single schedule",
     responses={
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
     },
@@ -316,6 +317,7 @@ async def _handle_bulk_synchronous(
 
 @router.post(
     "/",
+    summary="Create a schedule (single or recurring)",
     responses={
         404: {
             "model": ErrorResponse,
@@ -328,6 +330,8 @@ async def _handle_bulk_synchronous(
     },
 )
 async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
+    """Create one or more schedules. Supports recurrence patterns (weekly, biweekly, custom).
+    Checks for conflicts including drive time buffers and Outlook calendar."""
     location, employee, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = (
@@ -429,6 +433,7 @@ async def _handle_drive_overrides(schedule_id: str, update_data: dict):
 
 @router.put(
     "/{schedule_id}",
+    summary="Update a schedule",
     responses={
         400: {"model": ErrorResponse, "description": "No fields to update"},
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
@@ -480,6 +485,7 @@ async def update_schedule(
 
 @router.delete(
     "/{schedule_id}",
+    summary="Soft-delete a schedule",
     responses={
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
     },
@@ -519,6 +525,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
 
 @router.post(
     "/{schedule_id}/restore",
+    summary="Restore a deleted schedule",
     responses={
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND}
     },
@@ -547,6 +554,7 @@ async def restore_schedule(schedule_id: str, user: SchedulerRequired):
 
 @router.put(
     "/{schedule_id}/status",
+    summary="Update schedule status",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid status"},
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
@@ -586,6 +594,7 @@ async def update_schedule_status(
 
 @router.put(
     "/{schedule_id}/relocate",
+    summary="Relocate a schedule to a new date/time",
     responses={
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
         409: {"model": ErrorResponse, "description": "Conflict at new time"},
