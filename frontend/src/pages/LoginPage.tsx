@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
-  const [inviteData, setInviteData] = useState(null);
+  const [inviteData, setInviteData] = useState<{ email: string; name?: string; role: string } | null>(null);
   const inviteToken = searchParams.get('invite');
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function LoginPage() {
     return () => { cancelled = true; };
   }, [inviteToken]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -58,7 +58,7 @@ export default function LoginPage() {
           toast.success('Account created successfully!');
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 403) {
         toast.warning(detail || 'Access denied');

@@ -1,22 +1,36 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import PropTypes from 'prop-types';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { authAPI } from './api';
 
-const AuthContext = createContext(null);
+interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+interface AuthContextValue {
+  user: AuthUser | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<any>;
+  register: (name: string, email: string, password: string, inviteToken?: string | null) => Promise<any>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => {
       try {
         const res = await authAPI.me();
-        const userData = { 
-          id: res.data.user_id, 
-          name: res.data.name, 
-          email: res.data.email, 
-          role: res.data.role 
+        const userData: AuthUser = {
+          id: res.data.user_id,
+          name: res.data.name,
+          email: res.data.email,
+          role: res.data.role
         };
         setUser(userData);
         localStorage.setItem('auth_user', JSON.stringify(userData));
@@ -30,15 +44,15 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email: string, password: string) => {
     const res = await authAPI.login({ email, password });
     localStorage.setItem('auth_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data;
   }, []);
 
-  const register = useCallback(async (name, email, password, inviteToken = null) => {
-    const payload = { name, email, password };
+  const register = useCallback(async (name: string, email: string, password: string, inviteToken: string | null = null) => {
+    const payload: Record<string, string> = { name, email, password };
     if (inviteToken) payload.invite_token = inviteToken;
     const res = await authAPI.register(payload);
     if (res.data.token && res.data.user) {
@@ -69,10 +83,6 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
-
-AuthProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
 
 export function useAuth() {
   const context = useContext(AuthContext);

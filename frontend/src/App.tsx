@@ -1,6 +1,6 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import PropTypes from "prop-types";
+import { lazy, Suspense, type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
@@ -8,8 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-/** @param {{ children: React.ReactNode }} props */
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
@@ -24,22 +23,11 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
-ProtectedRoute.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
-/** @param {{ children: React.ReactNode }} props */
-function PublicRoute({ children }) {
+function PublicRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? <Navigate to="/" replace /> : children;
 }
-
-PublicRoute.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
-import { lazy, Suspense } from "react";
 
 const MapView = lazy(() => import("./components/MapView"));
 const WorkloadDashboard = lazy(() => import("./components/WorkloadDashboard"));

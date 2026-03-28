@@ -1,33 +1,56 @@
-import { clsx } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge"
 
-export function cn(...inputs) {
+export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+interface DriveChainEntry {
+  driveBeforeMin: number;
+  driveAfterMin: number;
+  driveBeforeLabel: string | null;
+  driveAfterLabel: string | null;
+  driveBeforeStyle: string | null;
+  driveAfterStyle: string | null;
+}
+
+interface DaySchedule {
+  id: string;
+  employee_id: string;
+  location_id: string;
+  location_name?: string;
+  start_time: string;
+  end_time: string;
+  drive_time_minutes?: number;
+  drive_to_override_minutes?: number | null;
+  drive_from_override_minutes?: number | null;
+  town_to_town_drive_minutes?: number | null;
+  [key: string]: unknown;
 }
 
 /**
  * Compute drive-block chain info for a day's schedules.
  *
  * When an employee has multiple classes on the same day, they are chained:
- *   First  → hub drive before, city-to-city (or 0 if same location) after
- *   Middle → no drive before, city-to-city (or 0 if same location) after
- *   Last   → no drive before, hub drive after
+ *   First  -> hub drive before, city-to-city (or 0 if same location) after
+ *   Middle -> no drive before, city-to-city (or 0 if same location) after
+ *   Last   -> no drive before, hub drive after
  *
  * Single class per employee gets normal hub before + hub after.
  *
- * Returns: { scheduleId → { driveBeforeMin, driveAfterMin, driveBeforeLabel, driveAfterLabel, driveBeforeStyle, driveAfterStyle } }
+ * Returns: { scheduleId -> { driveBeforeMin, driveAfterMin, driveBeforeLabel, driveAfterLabel, driveBeforeStyle, driveAfterStyle } }
  */
-export function computeDriveChain(daySchedules) {
-  const timeToMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+export function computeDriveChain(daySchedules: DaySchedule[]): Record<string, DriveChainEntry> {
+  const timeToMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
   // Group by employee
-  const byEmployee = {};
+  const byEmployee: Record<string, DaySchedule[]> = {};
   for (const s of daySchedules) {
     if (!byEmployee[s.employee_id]) byEmployee[s.employee_id] = [];
     byEmployee[s.employee_id].push(s);
   }
 
-  const chain = {};
+  const chain: Record<string, DriveChainEntry> = {};
 
   for (const empSchedules of Object.values(byEmployee)) {
     const sorted = [...empSchedules].sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
@@ -62,8 +85,8 @@ export function computeDriveChain(daySchedules) {
 
       // Determine drive time to next class
       let driveToNext = 0;
-      let driveToNextLabel = null;
-      let driveToNextStyle = null;
+      let driveToNextLabel: string | null = null;
+      let driveToNextStyle: string | null = null;
       if (!isLast) {
         const next = sorted[i + 1];
         if (s.location_id === next.location_id) {
