@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
@@ -125,24 +124,5 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   );
 }
 
-ScheduleForm.propTypes = {
-  open: PropTypes.bool.isRequired,
-  onOpenChange: PropTypes.func.isRequired,
-  locations: PropTypes.array,
-  employees: PropTypes.array,
-  classes: PropTypes.array,
-  editSchedule: PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    employee_id: PropTypes.string,
-    class_id: PropTypes.string,
-    location_id: PropTypes.string,
-    date: PropTypes.string,
-    start_time: PropTypes.string,
-    end_time: PropTypes.string,
-    notes: PropTypes.string,
-    travel_override_minutes: PropTypes.number,
-    town_to_town: PropTypes.bool,
-  }),
-  onSaved: PropTypes.func,
-  onClassCreated: PropTypes.func,
+),
 };

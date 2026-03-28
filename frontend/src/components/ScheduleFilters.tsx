@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 
@@ -57,11 +56,3 @@ export default function ScheduleFilters({
   );
 }
 
-ScheduleFilters.propTypes = {
-  filterEmployee: PropTypes.string.isRequired,
-  setFilterEmployee: PropTypes.func.isRequired,
-  filterLocation: PropTypes.string.isRequired,
-  setFilterLocation: PropTypes.func.isRequired,
-  employees: PropTypes.array.isRequired,
-  locations: PropTypes.array.isRequired,
-};

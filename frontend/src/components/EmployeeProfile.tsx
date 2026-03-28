@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, MapPin, BookOpen,
   CheckCircle2, CalendarDays, Mail, Phone
@@ -187,7 +186,3 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
   );
 }
 
-EmployeeProfile.propTypes = {
-  employeeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  onBack: PropTypes.func,
-};

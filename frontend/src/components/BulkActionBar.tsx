@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import { Trash2, UserCog, ChevronDown, X, MapPin, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -296,12 +295,3 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   );
 }
 
-BulkActionBar.propTypes = {
-  selectedCount: PropTypes.number.isRequired,
-  selectedIds: PropTypes.instanceOf(Set).isRequired,
-  onComplete: PropTypes.func.isRequired,
-  onDeselectAll: PropTypes.func.isRequired,
-  employees: PropTypes.array,
-  locations: PropTypes.array,
-  classes: PropTypes.array,
-};

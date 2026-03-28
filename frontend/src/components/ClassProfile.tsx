@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import {
   ArrowLeft, Clock, Car, BookOpen,
   CheckCircle2, CalendarDays, Users, Filter
@@ -256,7 +255,3 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
   );
 }
 
-ClassProfile.propTypes = {
-  classId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  onBack: PropTypes.func,
-};

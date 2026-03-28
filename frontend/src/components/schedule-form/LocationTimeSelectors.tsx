@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
@@ -153,39 +152,11 @@ export function LocationTimeSelectors({
   );
 }
 
-LocationTimeSelectors.propTypes = {
-  form: PropTypes.shape({
-    location_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    date: PropTypes.string,
-    start_time: PropTypes.string,
-    end_time: PropTypes.string,
-    notes: PropTypes.string,
-  }).isRequired,
-  setForm: PropTypes.func.isRequired,
-  locations: PropTypes.arrayOf(PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    city_name: PropTypes.string.isRequired,
-    drive_time_minutes: PropTypes.number,
+).isRequired,
   })),
-  selectedLocation: PropTypes.shape({
-    drive_time_minutes: PropTypes.number,
   }),
-  onDateChange: PropTypes.func.isRequired,
-  previewConflicts: PropTypes.shape({
-    outlook_conflicts: PropTypes.arrayOf(PropTypes.shape({
-      status: PropTypes.string,
-      start: PropTypes.string,
-      end: PropTypes.string,
     })),
-    conflicts: PropTypes.arrayOf(PropTypes.shape({
-      location: PropTypes.string,
-      time: PropTypes.string,
     })),
   }),
-  travelChain: PropTypes.shape({
-    legs: PropTypes.array,
-    total_drive_minutes: PropTypes.number,
-    class_count: PropTypes.number,
   }),
-  onOverrideChange: PropTypes.func,
 };

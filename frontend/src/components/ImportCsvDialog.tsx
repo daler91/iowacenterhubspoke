@@ -10,7 +10,6 @@ import {
 } from './ui/dialog';
 import { schedulesAPI } from '../lib/api';
 import { toast } from 'sonner';
-import PropTypes from 'prop-types';
 import { Upload, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -94,11 +93,6 @@ function PreviewResults({ file, previewData, onReset }) {
   );
 }
 
-PreviewResults.propTypes = {
-  file: PropTypes.object.isRequired,
-  previewData: PropTypes.object.isRequired,
-  onReset: PropTypes.func.isRequired,
-};
 
 export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess }) {
   const [file, setFile] = useState(null);
@@ -235,8 +229,3 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
   );
 }
 
-ImportCsvDialog.propTypes = {
-  open: PropTypes.bool.isRequired,
-  onOpenChange: PropTypes.func.isRequired,
-  onImportSuccess: PropTypes.func.isRequired,
-};

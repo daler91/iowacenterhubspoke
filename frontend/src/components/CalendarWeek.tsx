@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, memo } from 'react';
-import PropTypes from 'prop-types';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
@@ -200,16 +199,6 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
   );
 });
 
-DraggableBlock.propTypes = {
-  schedule: PropTypes.object.isRequired,
-  dateStr: PropTypes.string.isRequired,
-  canEdit: PropTypes.bool,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
-  onEditSchedule: PropTypes.func,
-  chainInfo: PropTypes.object,
-};
 
 // ─── Droppable day column ─────────────────────────────────────────────────
 function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
@@ -248,11 +237,6 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
   );
 }
 
-DroppableDay.propTypes = {
-  dateStr: PropTypes.string.isRequired,
-  children: PropTypes.node,
-  dropIndicatorMinutes: PropTypes.number,
-};
 
 // ─── Drag overlay ghost card ──────────────────────────────────────────────
 function DragOverlayCard({ schedule }) {
@@ -280,9 +264,6 @@ function DragOverlayCard({ schedule }) {
   );
 }
 
-DragOverlayCard.propTypes = {
-  schedule: PropTypes.object,
-};
 
 // ─── Main component ───────────────────────────────────────────────────────
 export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule, onEditSchedule, onRelocate, selectionMode, isSelected, toggleItem }) {
@@ -457,13 +438,3 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
   );
 }
 
-CalendarWeek.propTypes = {
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  schedules: PropTypes.array,
-  onDeleteSchedule: PropTypes.func,
-  onEditSchedule: PropTypes.func,
-  onRelocate: PropTypes.func,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
-};

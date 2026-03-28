@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
@@ -128,15 +127,5 @@ export function RecurrenceOptions({
   );
 }
 
-RecurrenceOptions.propTypes = {
-  form: PropTypes.shape({
-    recurrence: PropTypes.string,
-    recurrence_end_mode: PropTypes.string,
-    recurrence_end_date: PropTypes.string,
-    recurrence_occurrences: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  }).isRequired,
-  setForm: PropTypes.func.isRequired,
-  customRecurrence: PropTypes.object,
-  onRecurrenceChange: PropTypes.func.isRequired,
-  openCustomModal: PropTypes.func.isRequired,
+).isRequired,
 };

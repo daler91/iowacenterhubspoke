@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -139,26 +138,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   );
 }
 
-KanbanCard.propTypes = {
-  schedule: PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    class_color: PropTypes.string,
-    class_name: PropTypes.string,
-    status: PropTypes.string,
-    town_to_town: PropTypes.bool,
-    location_name: PropTypes.string,
-    employee_name: PropTypes.string,
-    date: PropTypes.string,
-    start_time: PropTypes.string,
-    end_time: PropTypes.string,
-    drive_time_minutes: PropTypes.number,
-    notes: PropTypes.string,
-  }).isRequired,
-  onStatusChange: PropTypes.func.isRequired,
-  onEdit: PropTypes.func,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
+).isRequired,
 };
 
 import { useOutletContext } from 'react-router-dom';

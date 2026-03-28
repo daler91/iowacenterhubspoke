@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Calendar as CalIcon, TrendingUp, Users, MapPin } from 'lucide-react';
 
 export default function StatsStrip({ stats = {}, onStatClick }) {
@@ -87,7 +86,3 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
   );
 }
 
-StatsStrip.propTypes = {
-  stats: PropTypes.object,
-  onStatClick: PropTypes.func.isRequired,
-};

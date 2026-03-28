@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import PropTypes from 'prop-types';
 import { Car, ArrowDown, Pencil, RotateCcw } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
@@ -126,10 +125,6 @@ function DriveTimePill({ leg, onOverrideChange }) {
   );
 }
 
-DriveTimePill.propTypes = {
-  leg: PropTypes.object.isRequired,
-  onOverrideChange: PropTypes.func,
-};
 
 export function TravelChainPreview({ travelChain, onOverrideChange }) {
   if (!travelChain || travelChain.class_count < 1) return null;
@@ -254,25 +249,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
   );
 }
 
-TravelChainPreview.propTypes = {
-  travelChain: PropTypes.shape({
-    legs: PropTypes.arrayOf(
-      PropTypes.shape({
-        type: PropTypes.oneOf(['drive', 'class']).isRequired,
-        from_label: PropTypes.string,
-        to_label: PropTypes.string,
-        minutes: PropTypes.number,
-        start_time: PropTypes.string,
-        end_time: PropTypes.string,
-        location_name: PropTypes.string,
-        is_current: PropTypes.bool,
-        is_overridden: PropTypes.bool,
-        override_field: PropTypes.string,
-        owner_is_current: PropTypes.bool,
-      })
+)
     ),
-    total_drive_minutes: PropTypes.number,
-    class_count: PropTypes.number,
   }),
-  onOverrideChange: PropTypes.func,
 };

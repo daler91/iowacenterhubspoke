@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, memo } from 'react';
-import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
@@ -165,15 +164,6 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
   );
 });
 
-DraggableDayBlock.propTypes = {
-  schedule: PropTypes.object.isRequired,
-  canEdit: PropTypes.bool,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
-  onEditSchedule: PropTypes.func,
-  chainInfo: PropTypes.object,
-};
 
 // ─── Droppable area ───────────────────────────────────────────────────────
 function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
@@ -202,11 +192,6 @@ function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
   );
 }
 
-DroppableDayArea.propTypes = {
-  dateStr: PropTypes.string.isRequired,
-  children: PropTypes.node,
-  dropIndicatorMinutes: PropTypes.number,
-};
 
 // ─── Drag overlay ghost card ──────────────────────────────────────────────
 function DayDragOverlayCard({ schedule }) {
@@ -233,9 +218,6 @@ function DayDragOverlayCard({ schedule }) {
   );
 }
 
-DayDragOverlayCard.propTypes = {
-  schedule: PropTypes.object,
-};
 
 // ─── Main component ───────────────────────────────────────────────────────
 export default function CalendarDay({ currentDate, schedules, onEditSchedule, onRelocate, selectionMode, isSelected, toggleItem }) {
@@ -362,12 +344,3 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
   );
 }
 
-CalendarDay.propTypes = {
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  schedules: PropTypes.array,
-  onEditSchedule: PropTypes.func,
-  onRelocate: PropTypes.func,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
-};

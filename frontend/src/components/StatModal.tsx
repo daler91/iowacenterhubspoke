@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import {
   Dialog,
@@ -120,13 +119,3 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
   );
 }
 
-StatModal.propTypes = {
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  title: PropTypes.string.isRequired,
-  type: PropTypes.oneOf(['today', 'scheduled', 'team', 'locations']).isRequired,
-  data: PropTypes.array.isRequired,
-  classes: PropTypes.array,
-  employees: PropTypes.array,
-  locations: PropTypes.array,
-};

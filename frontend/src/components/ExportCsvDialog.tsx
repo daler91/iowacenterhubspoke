@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -128,8 +127,3 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
   );
 }
 
-ExportCsvDialog.propTypes = {
-  open: PropTypes.bool.isRequired,
-  onOpenChange: PropTypes.func.isRequired,
-  currentFilters: PropTypes.object,
-};

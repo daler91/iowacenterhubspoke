@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { Loader2 } from 'lucide-react';
-import PropTypes from 'prop-types';
 
 export default function PlacesAutocomplete({ value, onChange, onSelect, placeholder, disabled }) {
   const inputRef = useRef(null);
@@ -87,10 +86,3 @@ export default function PlacesAutocomplete({ value, onChange, onSelect, placehol
   );
 }
 
-PlacesAutocomplete.propTypes = {
-  value: PropTypes.string,
-  onChange: PropTypes.func,
-  onSelect: PropTypes.func,
-  placeholder: PropTypes.string,
-  disabled: PropTypes.bool,
-};

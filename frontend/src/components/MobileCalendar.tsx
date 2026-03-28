@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import PropTypes from 'prop-types';
 import { format, addDays, subDays } from 'date-fns';
 import { Car, AlertTriangle, ChevronLeft, ChevronRight, Clock, MapPin, User, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -246,12 +245,3 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
   );
 }
 
-MobileCalendar.propTypes = {
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  schedules: PropTypes.array,
-  onEditSchedule: PropTypes.func,
-  setCurrentDate: PropTypes.func.isRequired,
-  selectionMode: PropTypes.bool,
-  isSelected: PropTypes.func,
-  toggleItem: PropTypes.func,
-};

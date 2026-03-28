@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -236,10 +235,3 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
   );
 }
 
-CustomRecurrenceDialog.propTypes = {
-  open: PropTypes.bool.isRequired,
-  onOpenChange: PropTypes.func.isRequired,
-  startDate: PropTypes.string.isRequired,
-  value: PropTypes.object,
-  onSave: PropTypes.func,
-};

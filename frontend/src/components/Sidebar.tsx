@@ -1,5 +1,4 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import { useTheme } from 'next-themes';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
@@ -196,8 +195,3 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   );
 }
 
-Sidebar.propTypes = {
-  collapsed: PropTypes.bool,
-  onToggle: PropTypes.func,
-  onNewSchedule: PropTypes.func,
-};

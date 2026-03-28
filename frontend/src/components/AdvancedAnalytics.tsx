@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { useOutletContext } from 'react-router-dom';
 import useSWR from 'swr';
 import {
@@ -428,40 +427,13 @@ function EmptyState({ message }) {
   );
 }
 
-const entityListShape = PropTypes.arrayOf(PropTypes.object);
 
-TrendsTab.propTypes = {
-  employees: entityListShape,
-  locations: entityListShape,
-  classes: entityListShape,
+
+
+
+)).isRequired,
 };
 
-ForecastTab.propTypes = {
-  employees: entityListShape,
-  classes: entityListShape,
-};
-
-SummaryCard.propTypes = {
-  icon: PropTypes.elementType.isRequired,
-  iconBg: PropTypes.string.isRequired,
-  iconColor: PropTypes.string.isRequired,
-  label: PropTypes.string.isRequired,
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-};
-
-FilterSelect.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.string.isRequired,
-  onChange: PropTypes.func.isRequired,
-  options: PropTypes.arrayOf(PropTypes.shape({
-    value: PropTypes.string.isRequired,
-    label: PropTypes.string.isRequired,
-  })).isRequired,
-};
-
-EmptyState.propTypes = {
-  message: PropTypes.string.isRequired,
-};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 

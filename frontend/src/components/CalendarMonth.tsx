@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import PropTypes from 'prop-types';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, isSameMonth, isToday
@@ -111,8 +110,3 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
   );
 }
 
-CalendarMonth.propTypes = {
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  schedules: PropTypes.array,
-  onDateClick: PropTypes.func,
-};

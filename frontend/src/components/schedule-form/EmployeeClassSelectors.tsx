@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { PlusCircle, BookOpen } from 'lucide-react';
@@ -93,26 +92,8 @@ export function EmployeeClassSelectors({
   );
 }
 
-EmployeeClassSelectors.propTypes = {
-  form: PropTypes.shape({
-    employee_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    class_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  }).isRequired,
-  setForm: PropTypes.func.isRequired,
-  employees: PropTypes.arrayOf(PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    name: PropTypes.string.isRequired,
-    color: PropTypes.string,
+).isRequired,
   })),
-  classes: PropTypes.arrayOf(PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    name: PropTypes.string.isRequired,
-    color: PropTypes.string,
   })),
-  selectedClass: PropTypes.shape({
-    name: PropTypes.string,
-    color: PropTypes.string,
-    description: PropTypes.string,
   }),
-  onAddClass: PropTypes.func.isRequired,
 };
