@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
+import type { Schedule, Employee, Location } from '../lib/types';
 
-export function useStatModal({ schedules = [], employees = [], locations = [] }) {
+type StatType = 'today' | 'scheduled' | 'team' | 'locations';
+
+interface UseStatModalProps {
+  schedules?: Schedule[];
+  employees?: Employee[];
+  locations?: Location[];
+}
+
+export function useStatModal({ schedules = [], employees = [], locations = [] }: UseStatModalProps) {
   const [statModalOpen, setStatModalOpen] = useState(false);
-  const [statModalType, setStatModalType] = useState('today');
-  const [statModalData, setStatModalData] = useState([]);
+  const [statModalType, setStatModalType] = useState<StatType>('today');
+  const [statModalData, setStatModalData] = useState<(Schedule | Employee | Location)[]>([]);
   const [statModalTitle, setStatModalTitle] = useState('');
 
-  const handleStatClick = (type) => {
+  const handleStatClick = (type: StatType) => {
     setStatModalType(type);
 
     if (type === 'today') {
@@ -18,7 +27,7 @@ export function useStatModal({ schedules = [], employees = [], locations = [] })
       setStatModalTitle('Today\'s Schedule');
     } else if (type === 'scheduled') {
       const futureSchedules = (schedules || []).filter(s => new Date(s.date) >= new Date(new Date().setHours(0,0,0,0)));
-      futureSchedules.sort((a, b) => new Date(a.date) - new Date(b.date));
+      futureSchedules.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setStatModalData(futureSchedules);
       setStatModalTitle('All Scheduled Classes');
     } else if (type === 'team') {
