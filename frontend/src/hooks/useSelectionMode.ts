@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 
 export default function useSelectionMode() {
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleSelectionMode = useCallback(() => {
     setSelectionMode(prev => {
@@ -11,7 +11,7 @@ export default function useSelectionMode() {
     });
   }, []);
 
-  const toggleItem = useCallback((id) => {
+  const toggleItem = useCallback((id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -23,7 +23,7 @@ export default function useSelectionMode() {
     });
   }, []);
 
-  const selectAll = useCallback((ids) => {
+  const selectAll = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids));
   }, []);
 
@@ -31,7 +31,7 @@ export default function useSelectionMode() {
     setSelectedIds(new Set());
   }, []);
 
-  const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
+  const isSelected = useCallback((id: string) => selectedIds.has(id), [selectedIds]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());

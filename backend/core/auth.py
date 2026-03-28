@@ -1,6 +1,8 @@
 import os
 import secrets
 import logging
+import hashlib
+import hmac
 import bcrypt
 import jwt
 from datetime import datetime, timezone
@@ -15,6 +17,25 @@ if not JWT_SECRET:
     JWT_SECRET = secrets.token_urlsafe(32)
     logging.warning("JWT_SECRET environment variable is missing. Using a randomly generated secret. All user sessions will be invalidated when the server restarts. Do not use this configuration in production.")
 JWT_ALGORITHM = 'HS256'
+
+# CSRF protection - double-submit cookie pattern
+CSRF_SECRET = os.environ.get('CSRF_SECRET', JWT_SECRET)
+
+
+def generate_csrf_token() -> str:
+    """Generate a CSRF token derived from a random nonce + HMAC signature."""
+    nonce = secrets.token_hex(16)
+    sig = hmac.new(CSRF_SECRET.encode(), nonce.encode(), hashlib.sha256).hexdigest()[:16]
+    return f"{nonce}.{sig}"
+
+
+def validate_csrf_token(token: str) -> bool:
+    """Validate a CSRF token's HMAC signature."""
+    if not token or "." not in token:
+        return False
+    nonce, sig = token.rsplit(".", 1)
+    expected = hmac.new(CSRF_SECRET.encode(), nonce.encode(), hashlib.sha256).hexdigest()[:16]
+    return hmac.compare_digest(sig, expected)
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

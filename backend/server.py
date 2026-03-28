@@ -66,6 +66,52 @@ async def general_exception_handler(request: Request, exc: Exception):
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)
 
+from core.auth import generate_csrf_token, validate_csrf_token
+
+CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+CSRF_EXEMPT_PATHS = {
+    "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/health",
+    "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/logout", "/api/v1/health",
+}
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    """Double-submit cookie CSRF protection.
+
+    On every response, set a readable csrf_token cookie.
+    On mutating requests, require X-CSRF-Token header matching the cookie.
+    """
+    if request.method not in CSRF_SAFE_METHODS and request.url.path.startswith("/api"):
+        if request.url.path not in CSRF_EXEMPT_PATHS:
+            cookie_token = request.cookies.get("csrf_token")
+            header_token = request.headers.get("x-csrf-token")
+            if not cookie_token or not header_token or cookie_token != header_token:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "CSRF token missing or invalid", "code": "403", "errors": None}
+                )
+            if not validate_csrf_token(cookie_token):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "CSRF token signature invalid", "code": "403", "errors": None}
+                )
+
+    response = await call_next(request)
+
+    # Set/refresh CSRF cookie on every response if not present
+    if not request.cookies.get("csrf_token"):
+        csrf_token = generate_csrf_token()
+        response.set_cookie(
+            key="csrf_token",
+            value=csrf_token,
+            httponly=False,  # Must be readable by JavaScript
+            secure=True,
+            samesite="lax",
+            max_age=86400 * 7,
+        )
+
+    return response
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -98,7 +144,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-api_router = APIRouter(prefix="/api")
+api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
 api_router.include_router(locations.router)
 api_router.include_router(employees.router)
@@ -204,6 +250,19 @@ async def seed_data():
 # ========== APP SETUP ==========
 
 app.include_router(api_router)
+
+# Backward-compatible: mount same routes under /api/ for existing clients
+legacy_router = APIRouter(prefix="/api")
+for sub_router in [auth.router, locations.router, employees.router, classes.router,
+                    schedules.router, reports.router, system.router, analytics.router, users.router]:
+    legacy_router.include_router(sub_router)
+
+@legacy_router.get("/health", tags=["system"], include_in_schema=False)
+async def health_check_legacy():
+    """Backward-compat health check at /api/health."""
+    return await health_check()
+
+app.include_router(legacy_router)
 
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"
