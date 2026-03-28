@@ -15,13 +15,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     end_time: '12:00',
     notes: '',
     travel_override_minutes: null,
+    drive_to_override_minutes: null,
+    drive_from_override_minutes: null,
     recurrence: 'none',
     recurrence_end_mode: 'never',
     recurrence_end_date: '',
     recurrence_occurrences: '',
   });
   const [loading, setLoading] = useState(false);
-  const [showOverride, setShowOverride] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState({ conflicts: [], outlook_conflicts: [] });
   const [townToTown, setTownToTown] = useState(null);
   const [travelChain, setTravelChain] = useState(null);
@@ -42,12 +43,13 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
+        drive_to_override_minutes: editSchedule.drive_to_override_minutes || editSchedule.travel_override_minutes || null,
+        drive_from_override_minutes: editSchedule.drive_from_override_minutes || null,
         recurrence: 'none',
         recurrence_end_mode: 'never',
         recurrence_end_date: '',
         recurrence_occurrences: '',
       });
-      if (editSchedule.town_to_town) setShowOverride(true);
     } else {
       const startDate = new Date().toISOString().split('T')[0];
       setForm({
@@ -59,13 +61,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
         end_time: '12:00',
         notes: '',
         travel_override_minutes: null,
+        drive_to_override_minutes: null,
+        drive_from_override_minutes: null,
         recurrence: 'none',
         recurrence_end_mode: 'never',
         recurrence_end_date: '',
         recurrence_occurrences: '',
       });
       setCustomRecurrence(createDefaultCustomRecurrence(startDate));
-      setShowOverride(false);
     }
   }, [editSchedule, open]);
 
@@ -84,6 +87,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       start_time: form.start_time,
       end_time: form.end_time,
       travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
+      drive_to_override_minutes: form.drive_to_override_minutes ? Number.parseInt(form.drive_to_override_minutes, 10) : null,
+      drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(form.drive_from_override_minutes, 10) : null,
       schedule_id: editSchedule?.id || null,
     };
     schedulesAPI.checkConflicts(payload)
@@ -100,7 +105,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
         setTownToTown(null);
         setTravelChain(null);
       });
-  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, editSchedule]);
+  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -139,8 +144,10 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
     const travelMinutes = form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null;
+    const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(form.drive_to_override_minutes, 10) : null;
+    const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(form.drive_from_override_minutes, 10) : null;
     const classId = form.class_id || null;
-    const payload = { ...form, class_id: classId, travel_override_minutes: travelMinutes };
+    const payload = { ...form, class_id: classId, travel_override_minutes: travelMinutes, drive_to_override_minutes: driveToOverride, drive_from_override_minutes: driveFromOverride };
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
@@ -270,15 +277,22 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     }
   };
 
+  const handleOverrideChange = useCallback((field, minutes) => {
+    if (field === 'drive_to') {
+      setForm(prev => ({ ...prev, drive_to_override_minutes: minutes }));
+    } else if (field === 'drive_from') {
+      setForm(prev => ({ ...prev, drive_from_override_minutes: minutes }));
+    }
+  }, []);
+
   return {
     form, setForm,
     loading, setLoading,
-    showOverride, setShowOverride,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
     previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride,
     handleSubmit, handleDelete,
-    handleDateChange, handleRecurrenceChange
+    handleDateChange, handleRecurrenceChange, handleOverrideChange
   };
 }

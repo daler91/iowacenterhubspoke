@@ -66,7 +66,9 @@ class ScheduleCreate(BaseModel):
     end_time: str
     force: Optional[bool] = False  # HH:MM
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
@@ -83,7 +85,9 @@ class ScheduleUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     status: Optional[str] = None
     recurrence: Optional[str] = None
     recurrence_end_date: Optional[str] = None

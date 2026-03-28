@@ -19,13 +19,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const {
     form, setForm,
     loading,
-    showOverride, setShowOverride,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
     previewConflicts, townToTown, travelChain, outlookOverride,
     handleSubmit, handleDelete,
-    handleDateChange, handleRecurrenceChange
+    handleDateChange, handleRecurrenceChange, handleOverrideChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange });
 
   const selectedLocation = locations?.find(l => l.id === form.location_id);
@@ -68,11 +67,10 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             setForm={setForm}
             locations={locations}
             selectedLocation={selectedLocation}
-            showOverride={showOverride}
-            setShowOverride={setShowOverride}
             onDateChange={handleDateChange}
             previewConflicts={previewConflicts}
             travelChain={travelChain}
+            onOverrideChange={handleOverrideChange}
           />
 
           {!editSchedule && (
