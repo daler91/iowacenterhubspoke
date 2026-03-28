@@ -1,0 +1,58 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Button } from './ui/button';
+
+export default function ScheduleFilters({ 
+  filterEmployee, 
+  setFilterEmployee, 
+  filterLocation, 
+  setFilterLocation, 
+  employees, 
+  locations 
+}) {
+  const hasFilters = filterEmployee !== 'all' || filterLocation !== 'all';
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Filter:</span>
+      <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+        <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-employee">
+          <SelectValue placeholder="All employees" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Employees</SelectItem>
+          {(employees || []).map(emp => (
+            <SelectItem key={emp.id} value={emp.id}>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: emp.color }} />
+                {emp.name}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={filterLocation} onValueChange={setFilterLocation}>
+        <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-location">
+          <SelectValue placeholder="All locations" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Locations</SelectItem>
+          {(locations || []).map(loc => (
+            <SelectItem key={loc.id} value={loc.id}>{loc.city_name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {hasFilters && (
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => { setFilterEmployee('all'); setFilterLocation('all'); }} 
+          className="text-xs text-slate-400" 
+          data-testid="clear-filters"
+        >
+          Clear filters
+        </Button>
+      )}
+    </div>
+  );
+}
+
