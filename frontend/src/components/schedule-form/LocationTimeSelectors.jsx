@@ -3,7 +3,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { MapPin, Car, Clock, AlertTriangle, Calendar } from 'lucide-react';
+import { MapPin, Car, AlertTriangle, Calendar } from 'lucide-react';
 import { TravelChainPreview } from './TravelChainPreview';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
@@ -18,10 +18,10 @@ function formatOutlookTime(dateTime) {
 export function LocationTimeSelectors({
   form, setForm,
   locations, selectedLocation,
-  showOverride, setShowOverride,
   onDateChange,
   previewConflicts,
   travelChain,
+  onOverrideChange,
 }) {
   return (
     <>
@@ -136,33 +136,8 @@ export function LocationTimeSelectors({
         </div>
       )}
 
-      {/* Day travel chain preview */}
-      <TravelChainPreview travelChain={travelChain} />
-
-      <div>
-        <button
-          type="button"
-          data-testid="toggle-travel-override"
-          onClick={() => setShowOverride(!showOverride)}
-          className="text-xs text-slate-500 font-medium hover:text-slate-700 flex items-center gap-1"
-        >
-          <Clock className="w-3 h-3" />
-          {showOverride ? 'Hide' : 'Manual'} travel override
-        </button>
-        {showOverride && (
-          <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-1">
-            <Label className="text-xs text-slate-600">Override drive time (minutes)</Label>
-            <Input
-              type="number"
-              data-testid="travel-override-input"
-              placeholder="e.g. 45"
-              value={form.travel_override_minutes || ''}
-              onChange={(e) => setForm({ ...form, travel_override_minutes: e.target.value })}
-              className="h-9 bg-white"
-            />
-          </div>
-        )}
-      </div>
+      {/* Day travel chain preview with inline per-leg overrides */}
+      <TravelChainPreview travelChain={travelChain} onOverrideChange={onOverrideChange} />
 
       <div className="space-y-2">
         <Label className="text-sm font-medium text-slate-700">Notes (optional)</Label>
@@ -184,7 +159,6 @@ LocationTimeSelectors.propTypes = {
     date: PropTypes.string,
     start_time: PropTypes.string,
     end_time: PropTypes.string,
-    travel_override_minutes: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     notes: PropTypes.string,
   }).isRequired,
   setForm: PropTypes.func.isRequired,
@@ -196,8 +170,6 @@ LocationTimeSelectors.propTypes = {
   selectedLocation: PropTypes.shape({
     drive_time_minutes: PropTypes.number,
   }),
-  showOverride: PropTypes.bool.isRequired,
-  setShowOverride: PropTypes.func.isRequired,
   onDateChange: PropTypes.func.isRequired,
   previewConflicts: PropTypes.shape({
     outlook_conflicts: PropTypes.arrayOf(PropTypes.shape({
@@ -215,4 +187,5 @@ LocationTimeSelectors.propTypes = {
     total_drive_minutes: PropTypes.number,
     class_count: PropTypes.number,
   }),
+  onOverrideChange: PropTypes.func,
 };

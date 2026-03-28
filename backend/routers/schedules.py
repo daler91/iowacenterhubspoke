@@ -451,6 +451,8 @@ async def _build_travel_chain(
     current_start: str,
     current_end: str,
     schedule_id: str = None,
+    drive_to_override: int = None,
+    drive_from_override: int = None,
 ):
     """Build the full day travel chain for an employee including the current form entry."""
     query = {"employee_id": employee_id, "date": date, "deleted_at": None}
@@ -468,6 +470,8 @@ async def _build_travel_chain(
                 "start_time": s["start_time"],
                 "end_time": s["end_time"],
                 "is_current": False,
+                "drive_to_override_minutes": s.get("drive_to_override_minutes"),
+                "drive_from_override_minutes": s.get("drive_from_override_minutes"),
             }
         )
 
@@ -483,6 +487,8 @@ async def _build_travel_chain(
             "start_time": current_start,
             "end_time": current_end,
             "is_current": True,
+            "drive_to_override_minutes": drive_to_override,
+            "drive_from_override_minutes": drive_from_override,
         }
     )
 
@@ -504,18 +510,25 @@ async def _build_travel_chain(
     total_drive = 0
 
     # First leg: Hub → first location (arrive by first class start)
-    first_loc = loc_map.get(entries[0]["location_id"])
-    first_hub_drive = first_loc["drive_time_minutes"] if first_loc else 0
-    first_drive_end = entries[0]["start_time"]
+    first_entry = entries[0]
+    first_loc = loc_map.get(first_entry["location_id"])
+    default_first_drive = first_loc["drive_time_minutes"] if first_loc else 0
+    first_override = first_entry.get("drive_to_override_minutes")
+    first_hub_drive = first_override if first_override else default_first_drive
+    is_first_overridden = first_override is not None and first_override > 0
+    first_drive_end = first_entry["start_time"]
     first_drive_start = _subtract_minutes_from_time(first_drive_end, first_hub_drive)
     legs.append(
         {
             "type": "drive",
             "from_label": HUB_LABEL,
-            "to_label": entries[0]["location_name"],
+            "to_label": first_entry["location_name"],
             "minutes": first_hub_drive,
             "start_time": first_drive_start,
             "end_time": first_drive_end,
+            "is_overridden": is_first_overridden,
+            "override_field": "drive_to",
+            "owner_is_current": first_entry["is_current"],
         }
     )
     total_drive += first_hub_drive
@@ -537,15 +550,28 @@ async def _build_travel_chain(
             next_entry = entries[i + 1]
             if entry["location_id"] == next_entry["location_id"]:
                 drive_min = 0
+                is_overridden = False
             else:
                 try:
-                    drive_min = (
+                    calculated = (
                         await get_drive_time_between_locations(
                             entry["location_id"], next_entry["location_id"]
                         )
                     ) or 0
                 except Exception:
-                    drive_min = 0
+                    calculated = 0
+                # Check overrides: from_entry's drive_from or to_entry's drive_to
+                from_override = entry.get("drive_from_override_minutes")
+                to_override = next_entry.get("drive_to_override_minutes")
+                if from_override:
+                    drive_min = from_override
+                    is_overridden = True
+                elif to_override:
+                    drive_min = to_override
+                    is_overridden = True
+                else:
+                    drive_min = calculated
+                    is_overridden = False
             between_start = entry["end_time"]
             between_end = _add_minutes_to_time(between_start, drive_min)
             legs.append(
@@ -556,13 +582,19 @@ async def _build_travel_chain(
                     "minutes": drive_min,
                     "start_time": between_start,
                     "end_time": between_end,
+                    "is_overridden": is_overridden,
+                    "override_field": "drive_from",
+                    "owner_is_current": entry["is_current"],
                 }
             )
             total_drive += drive_min
         else:
             # Last leg: last location → Hub
             last_loc = loc_map.get(entry["location_id"])
-            last_hub_drive = last_loc["drive_time_minutes"] if last_loc else 0
+            default_last_drive = last_loc["drive_time_minutes"] if last_loc else 0
+            from_override = entry.get("drive_from_override_minutes")
+            last_hub_drive = from_override if from_override else default_last_drive
+            is_last_overridden = from_override is not None and from_override > 0
             last_drive_start = entry["end_time"]
             last_drive_end = _add_minutes_to_time(last_drive_start, last_hub_drive)
             legs.append(
@@ -573,6 +605,9 @@ async def _build_travel_chain(
                     "minutes": last_hub_drive,
                     "start_time": last_drive_start,
                     "end_time": last_drive_end,
+                    "is_overridden": is_last_overridden,
+                    "override_field": "drive_from",
+                    "owner_is_current": entry["is_current"],
                 }
             )
             total_drive += last_hub_drive
@@ -742,7 +777,9 @@ def _build_schedule_doc(
         "town_to_town": town_to_town,
         "town_to_town_warning": town_to_town_warning,
         "town_to_town_drive_minutes": town_to_town_drive_minutes,
-        "travel_override_minutes": data.travel_override_minutes,
+        "travel_override_minutes": data.travel_override_minutes,  # DEPRECATED
+        "drive_to_override_minutes": data.drive_to_override_minutes,
+        "drive_from_override_minutes": data.drive_from_override_minutes,
         "notes": data.notes,
         "status": STATUS_UPCOMING,
         "recurrence": data.recurrence,
@@ -1026,8 +1063,8 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     location, employee, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = (
-        data.travel_override_minutes
-        if data.travel_override_minutes
+        data.drive_to_override_minutes
+        if data.drive_to_override_minutes
         else location["drive_time_minutes"]
     )
     recurrence_rule = build_recurrence_rule(data)
@@ -1102,24 +1139,27 @@ async def _get_class_update(class_id: str, update_data: dict):
     )
 
 
-async def _handle_travel_override(schedule_id: str, update_data: dict):
-    if update_data["travel_override_minutes"]:
-        update_data["drive_time_minutes"] = update_data[
-            "travel_override_minutes"
-        ]
-        return
-
-    # Override cleared — recalculate from location
+async def _handle_drive_overrides(schedule_id: str, update_data: dict):
+    """Handle per-leg drive time overrides (drive_to and drive_from)."""
+    # Resolve location for restoring defaults
     location_id = update_data.get("location_id")
     if not location_id:
         existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
         if existing:
             location_id = existing.get("location_id")
 
+    loc = None
     if location_id:
         loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
-        if loc:
+
+    # drive_to_override_minutes controls drive_time_minutes (hub→location)
+    if "drive_to_override_minutes" in update_data:
+        if update_data["drive_to_override_minutes"]:
+            update_data["drive_time_minutes"] = update_data["drive_to_override_minutes"]
+        elif loc:
             update_data["drive_time_minutes"] = loc["drive_time_minutes"]
+
+    # drive_from_override_minutes is stored directly on the doc (used by chain builder)
 
 
 @router.put(
@@ -1142,8 +1182,8 @@ async def update_schedule(
         await _get_employee_update(update_data["employee_id"], update_data)
     if "class_id" in update_data:
         await _get_class_update(update_data["class_id"], update_data)
-    if "travel_override_minutes" in update_data:
-        await _handle_travel_override(schedule_id, update_data)
+    if "drive_to_override_minutes" in update_data or "drive_from_override_minutes" in update_data:
+        await _handle_drive_overrides(schedule_id, update_data)
 
     result = await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None}, {"$set": update_data}
@@ -1362,8 +1402,8 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     drive_time = (
-        data.travel_override_minutes
-        if data.travel_override_minutes
+        data.drive_to_override_minutes
+        if data.drive_to_override_minutes
         else location["drive_time_minutes"]
     )
     conflicts = await check_conflicts(
@@ -1384,6 +1424,8 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
             data.start_time,
             data.end_time,
             schedule_id=getattr(data, "schedule_id", None),
+            drive_to_override=data.drive_to_override_minutes,
+            drive_from_override=data.drive_from_override_minutes,
         )
         # Keep town_to_town for backward compatibility
         tt, tt_warning, tt_drive_min = await _check_town_to_town(
