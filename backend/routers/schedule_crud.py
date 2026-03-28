@@ -47,7 +47,7 @@ from routers.schedule_helpers import (
 router = APIRouter(tags=["schedules"])
 
 
-@router.get("")
+@router.get("/")
 async def get_schedules(
     user: CurrentUser,
     date_from: Optional[str] = None,
@@ -315,7 +315,7 @@ async def _handle_bulk_synchronous(
 
 
 @router.post(
-    "",
+    "/",
     responses={
         404: {
             "model": ErrorResponse,
