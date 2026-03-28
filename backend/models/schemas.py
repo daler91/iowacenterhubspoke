@@ -67,6 +67,7 @@ class ScheduleCreate(BaseModel):
     force: Optional[bool] = False  # HH:MM
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None
+    schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
     recurrence_end_mode: Optional[str] = None

@@ -24,6 +24,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
   const [showOverride, setShowOverride] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState({ conflicts: [], outlook_conflicts: [] });
   const [townToTown, setTownToTown] = useState(null);
+  const [travelChain, setTravelChain] = useState(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
   const conflictTimerRef = useRef(null);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
@@ -73,6 +74,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
       setTownToTown(null);
+      setTravelChain(null);
       return;
     }
     const payload = {
@@ -82,6 +84,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
       start_time: form.start_time,
       end_time: form.end_time,
       travel_override_minutes: form.travel_override_minutes ? Number.parseInt(form.travel_override_minutes, 10) : null,
+      schedule_id: editSchedule?.id || null,
     };
     schedulesAPI.checkConflicts(payload)
       .then(res => {
@@ -90,12 +93,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
           outlook_conflicts: res.data.outlook_conflicts || [],
         });
         setTownToTown(res.data.town_to_town || null);
+        setTravelChain(res.data.travel_chain || null);
       })
       .catch(() => {
         setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
         setTownToTown(null);
+        setTravelChain(null);
       });
-  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes]);
+  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -272,7 +277,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }) {
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, townToTown, outlookOverride, setOutlookOverride,
+    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange
   };
