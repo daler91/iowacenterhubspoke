@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import ScheduleCreate, ErrorResponse
 from core.auth import CurrentUser
-from services.schedule_utils import check_conflicts, check_outlook_conflicts
+from services.schedule_utils import check_conflicts, check_outlook_conflicts, check_google_conflicts
 from services.drive_time import get_drive_time_between_locations
 from routers.schedule_helpers import (
     LOCATION_NOT_FOUND,
@@ -209,6 +209,9 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     outlook_conflicts = await check_outlook_conflicts(
         data.employee_id, data.date, data.start_time, data.end_time
     )
+    google_conflicts = await check_google_conflicts(
+        data.employee_id, data.date, data.start_time, data.end_time
+    )
 
     travel_chain = None
     town_to_town_info = None
@@ -245,9 +248,10 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
             }
 
     return {
-        "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0,
+        "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0 or len(google_conflicts) > 0,
         "conflicts": conflicts,
         "outlook_conflicts": outlook_conflicts,
+        "google_conflicts": google_conflicts,
         "town_to_town": town_to_town_info,
         "travel_chain": travel_chain,
     }

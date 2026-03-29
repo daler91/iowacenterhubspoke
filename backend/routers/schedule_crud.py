@@ -31,6 +31,7 @@ from routers.schedule_helpers import (
     NO_FIELDS_TO_UPDATE,
     _sync_same_day_town_to_town,
     _enqueue_outlook_delete,
+    _enqueue_google_delete,
 )
 from routers.schedule_create import create_schedule as _create_schedule
 
@@ -235,6 +236,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     )
     if schedule:
         await _enqueue_outlook_delete(schedule)
+        await _enqueue_google_delete(schedule)
         await _sync_same_day_town_to_town(
             schedule["employee_id"],
             schedule["date"],

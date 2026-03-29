@@ -116,6 +116,32 @@ export function LocationTimeSelectors({
         </div>
       )}
 
+      {/* Google Calendar conflict preview */}
+      {previewConflicts?.google_conflicts?.length > 0 && (
+        <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2" data-testid="google-conflict-banner">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-teal-600" />
+            <span className="text-xs font-semibold text-teal-700">
+              Google Calendar Conflicts
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {previewConflicts.google_conflicts.map((c) => (
+              <Badge
+                key={`google-${c.start}-${c.end}`}
+                variant="secondary"
+                className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700"
+              >
+                Busy {formatOutlookTime(c.start)}&ndash;{formatOutlookTime(c.end)}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-[11px] text-teal-600">
+            This employee has Google Calendar conflicts during this time.
+          </p>
+        </div>
+      )}
+
       {/* Internal schedule conflict preview */}
       {previewConflicts?.conflicts?.length > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2" data-testid="internal-conflict-banner">

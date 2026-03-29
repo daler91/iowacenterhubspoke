@@ -36,6 +36,7 @@ interface CustomRecurrence {
 interface ConflictPreview {
   conflicts: Array<Record<string, unknown>>;
   outlook_conflicts: Array<Record<string, unknown>>;
+  google_conflicts: Array<Record<string, unknown>>;
 }
 
 interface UseScheduleFormProps {
@@ -63,10 +64,11 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     recurrence_occurrences: '',
   });
   const [loading, setLoading] = useState(false);
-  const [previewConflicts, setPreviewConflicts] = useState<ConflictPreview>({ conflicts: [], outlook_conflicts: [] });
+  const [previewConflicts, setPreviewConflicts] = useState<ConflictPreview>({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
   const [townToTown, setTownToTown] = useState<Record<string, unknown> | null>(null);
   const [travelChain, setTravelChain] = useState<Record<string, unknown> | null>(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
+  const [googleOverride, setGoogleOverride] = useState(false);
   const conflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [quickClassOpen, setQuickClassOpen] = useState(false);
   const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
@@ -115,7 +117,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   // Debounced conflict preview (fires when key fields change)
   const fetchConflictPreview = useCallback(() => {
     if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
-      setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+      setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
       return;
@@ -136,12 +138,13 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
         setPreviewConflicts({
           conflicts: res.data.conflicts || [],
           outlook_conflicts: res.data.outlook_conflicts || [],
+          google_conflicts: res.data.google_conflicts || [],
         });
         setTownToTown(res.data.town_to_town || null);
         setTravelChain(res.data.travel_chain || null);
       })
       .catch(() => {
-        setPreviewConflicts({ conflicts: [], outlook_conflicts: [] });
+        setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
         setTownToTown(null);
         setTravelChain(null);
       });
@@ -149,6 +152,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
   useEffect(() => {
     setOutlookOverride(false);
+    setGoogleOverride(false);
     if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current);
     conflictTimerRef.current = setTimeout(fetchConflictPreview, 500);
     return () => { if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current); };
@@ -239,10 +243,16 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   const handleConflictError = (err: any) => {
     const detail = err.response.data?.detail || {};
     const outlookConflicts = detail?.outlook_conflicts || [];
+    const googleConflicts = detail?.google_conflicts || [];
     const internalConflicts = detail?.conflicts || [];
-    if (outlookConflicts.length > 0 && internalConflicts.length === 0) {
-      setOutlookOverride(true);
-      toast.warning('Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.', { duration: 6000 });
+    if (internalConflicts.length === 0 && (outlookConflicts.length > 0 || googleConflicts.length > 0)) {
+      if (outlookConflicts.length > 0) setOutlookOverride(true);
+      if (googleConflicts.length > 0) setGoogleOverride(true);
+      const sources = [
+        outlookConflicts.length > 0 && 'Outlook',
+        googleConflicts.length > 0 && 'Google Calendar',
+      ].filter(Boolean).join(' and ');
+      toast.warning(`Employee has ${sources} conflicts. Click "Schedule anyway" to override.`, { duration: 6000 });
     } else {
       const msg = detail?.message || 'Schedule conflict detected';
       const conflictList = internalConflicts.map((c: any) => `${c.location} (${c.time})`).join(', ');
@@ -265,6 +275,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     try {
       const payload = buildPayload();
       if (outlookOverride) payload.force_outlook = true;
+      if (googleOverride) payload.force_google = true;
       if (editSchedule) {
         await schedulesAPI.update(editSchedule.id, payload);
         toast.success('Schedule updated');
@@ -345,7 +356,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride,
+    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride, googleOverride, setGoogleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   };

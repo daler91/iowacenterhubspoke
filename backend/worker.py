@@ -109,6 +109,31 @@ async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
             logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
 
 
+async def _enqueue_google_events(ctx, created, employee, class_doc, location):
+    from core.google_config import GOOGLE_CALENDAR_ENABLED
+    if not GOOGLE_CALENDAR_ENABLED or not employee.get('email'):
+        return
+    for doc in created:
+        try:
+            pool = ctx.get('redis')
+            if not pool:
+                continue
+            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+            await pool.enqueue_job(
+                "create_google_event",
+                schedule_id=doc['id'],
+                email=employee['email'],
+                subject=subject,
+                location_name=location['city_name'],
+                date=doc['date'],
+                start_time=doc['start_time'],
+                end_time=doc['end_time'],
+                notes=doc.get('notes', ''),
+            )
+        except Exception:
+            logger.exception("Failed to enqueue Google Calendar event for schedule %s", doc['id'])
+
+
 async def _log_bulk_creation(log_activity, created, employee, location, class_doc, dates_to_schedule, user_name):
     count_label = (
         f"{len(created)} classes" if len(created) > 1 else "class"
@@ -185,6 +210,7 @@ async def generate_bulk_schedules(
         await _log_bulk_creation(log_activity, created, employee, location, class_doc, dates_to_schedule, user_name)
 
     await _enqueue_outlook_events(ctx, created, employee, class_doc, location)
+    await _enqueue_google_events(ctx, created, employee, class_doc, location)
 
     logger.info(
         f"Bulk sched generation completed. Created: {len(created)}, "
@@ -273,11 +299,36 @@ async def delete_outlook_event(ctx, email: str, event_id: str):
         logger.warning("Failed to delete Outlook event %s", event_id)
 
 
+async def create_google_event(
+    ctx, schedule_id: str, email: str, subject: str, location_name: str,
+    date: str, start_time: str, end_time: str, notes: str = "",
+):
+    from services.google_calendar import create_google_event as _create
+    from database import db
+
+    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None)
+    if event_id:
+        await db.schedules.update_one({"id": schedule_id}, {"$set": {"google_calendar_event_id": event_id}})
+        logger.info("Google Calendar event created for schedule %s: %s", schedule_id, event_id)
+    else:
+        logger.warning("Google Calendar event creation returned no ID for schedule %s", schedule_id)
+
+
+async def delete_google_event(ctx, email: str, event_id: str):
+    from services.google_calendar import delete_google_event as _delete
+
+    success = await _delete(email, event_id)
+    if success:
+        logger.info("Google Calendar event %s deleted", event_id)
+    else:
+        logger.warning("Failed to delete Google Calendar event %s", event_id)
+
+
 from core.constants import DEFAULT_REDIS_URL  # noqa: E402
 
 redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 
 class WorkerSettings:
-    functions = [generate_bulk_schedules, sync_schedules_denormalized, create_outlook_event, delete_outlook_event]
+    functions = [generate_bulk_schedules, sync_schedules_denormalized, create_outlook_event, delete_outlook_event, create_google_event, delete_google_event]
     redis_settings = RedisSettings.from_dsn(redis_url)

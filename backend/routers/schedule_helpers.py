@@ -25,6 +25,7 @@ HUB_LABEL = "Hub (Des Moines)"
 
 _background_tasks: set = set()
 _outlook_logger = logging.getLogger("outlook.enqueue")
+_google_logger = logging.getLogger("google_calendar.enqueue")
 
 
 # --- Outlook helpers ---
@@ -92,6 +93,73 @@ async def _enqueue_outlook_delete(schedule: dict):
             )
     except Exception:
         _outlook_logger.exception("Failed to enqueue Outlook event deletion")
+
+
+# --- Google Calendar helpers ---
+
+def _enqueue_google_event(
+    employee: dict, location: dict, class_doc: dict | None, doc: dict
+):
+    """Fire-and-forget: enqueue Google Calendar event creation if configured."""
+    from core.google_config import GOOGLE_CALENDAR_ENABLED
+
+    if not GOOGLE_CALENDAR_ENABLED or not employee.get("email"):
+        return
+    import asyncio
+
+    task = asyncio.ensure_future(
+        _enqueue_google_event_async(employee, location, class_doc, doc)
+    )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def _enqueue_google_event_async(employee, location, class_doc, doc):
+    try:
+        from core.queue import get_redis_pool
+
+        pool = await get_redis_pool()
+        if pool:
+            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+            await pool.enqueue_job(
+                "create_google_event",
+                schedule_id=doc["id"],
+                email=employee["email"],
+                subject=subject,
+                location_name=location["city_name"],
+                date=doc["date"],
+                start_time=doc["start_time"],
+                end_time=doc["end_time"],
+                notes=doc.get("notes", ""),
+            )
+    except Exception:
+        _google_logger.exception("Failed to enqueue Google Calendar event creation")
+
+
+async def _enqueue_google_delete(schedule: dict):
+    """Fire-and-forget: enqueue Google Calendar event deletion if applicable."""
+    from core.google_config import GOOGLE_CALENDAR_ENABLED
+
+    google_event_id = schedule.get("google_calendar_event_id")
+    if not GOOGLE_CALENDAR_ENABLED or not google_event_id:
+        return
+    employee = await db.employees.find_one(
+        {"id": schedule["employee_id"]}, {"_id": 0}
+    )
+    if not employee or not employee.get("email"):
+        return
+    try:
+        from core.queue import get_redis_pool
+
+        pool = await get_redis_pool()
+        if pool:
+            await pool.enqueue_job(
+                "delete_google_event",
+                email=employee["email"],
+                event_id=google_event_id,
+            )
+    except Exception:
+        _google_logger.exception("Failed to enqueue Google Calendar event deletion")
 
 
 # --- Time helpers ---

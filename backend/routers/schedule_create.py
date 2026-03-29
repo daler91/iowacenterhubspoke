@@ -12,6 +12,7 @@ from services.schedule_utils import (
     build_recurrence_dates,
     check_conflicts,
     check_outlook_conflicts,
+    check_google_conflicts,
 )
 from routers.schedule_helpers import (
     logger,
@@ -21,6 +22,7 @@ from routers.schedule_helpers import (
     _check_town_to_town_bulk,
     _sync_same_day_town_to_town,
     _enqueue_outlook_event,
+    _enqueue_google_event,
 )
 
 
@@ -64,6 +66,20 @@ async def _handle_single_schedule(
                 },
             )
 
+    if not data.force_google:
+        google_conflicts = await check_google_conflicts(
+            data.employee_id, date_to_schedule, data.start_time, data.end_time
+        )
+        if google_conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Google Calendar conflict detected",
+                    "conflicts": [],
+                    "google_conflicts": google_conflicts,
+                },
+            )
+
     town_to_town, town_to_town_warning, town_to_town_drive_minutes = await _check_town_to_town(
         data.employee_id, date_to_schedule, data.location_id
     )
@@ -82,6 +98,7 @@ async def _handle_single_schedule(
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
     _enqueue_outlook_event(employee, location, class_doc, doc)
+    _enqueue_google_event(employee, location, class_doc, doc)
     logger.info(
         "Schedule created",
         extra={

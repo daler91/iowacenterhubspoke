@@ -62,6 +62,7 @@ export interface Schedule {
   recurrence?: string;
   recurrence_rule?: Record<string, unknown> | null;
   outlook_event_id?: string | null;
+  google_calendar_event_id?: string | null;
   created_at: string;
   deleted_at?: string | null;
 }
