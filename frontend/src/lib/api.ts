@@ -69,6 +69,8 @@ export const employeesAPI = {
   create: (data: Record<string, unknown>) => api.post('/employees', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/employees/${id}`, data),
   delete: (id: string) => api.delete(`/employees/${id}`),
+  googleAuthorize: (id: string) => api.get(`/google/authorize/${id}`),
+  googleDisconnect: (id: string) => api.delete(`/google/${id}/disconnect`),
 };
 
 // Classes

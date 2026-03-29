@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -84,6 +84,25 @@ export default function EmployeeManager() {
     }
   };
 
+  const handleGoogleConnect = async (empId: string) => {
+    try {
+      const res = await employeesAPI.googleAuthorize(empId);
+      window.location.href = res.data.auth_url;
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to start Google Calendar authorization');
+    }
+  };
+
+  const handleGoogleDisconnect = async (empId: string) => {
+    try {
+      await employeesAPI.googleDisconnect(empId);
+      toast.success('Google Calendar disconnected');
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to disconnect Google Calendar');
+    }
+  };
+
   let saveLabel = 'Add Employee';
   if (loading) saveLabel = 'Saving...';
   else if (editing) saveLabel = 'Update Employee';
@@ -138,6 +157,12 @@ export default function EmployeeManager() {
                       <span className="text-xs text-slate-500">{emp.phone}</span>
                     </div>
                   )}
+                  {emp.google_calendar_connected && (
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-teal-500" />
+                      <span className="text-xs text-teal-600">Google Calendar</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -153,6 +178,28 @@ export default function EmployeeManager() {
               </Button>
               {isAdmin && (
                 <>
+                  {emp.email && !emp.google_calendar_connected && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Connect Google Calendar"
+                      onClick={() => handleGoogleConnect(emp.id)}
+                      className="text-slate-400 hover:text-teal-600"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {emp.google_calendar_connected && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Disconnect Google Calendar"
+                      onClick={() => handleGoogleDisconnect(emp.id)}
+                      className="text-teal-500 hover:text-red-600"
+                    >
+                      <Unlink className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

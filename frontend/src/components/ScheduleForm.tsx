@@ -21,7 +21,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, travelChain, outlookOverride,
+    previewConflicts, travelChain, outlookOverride, googleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange });
@@ -36,7 +36,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
 
   let submitLabel = 'Schedule Class';
   if (loading) submitLabel = 'Saving...';
-  else if (outlookOverride) submitLabel = 'Schedule Anyway';
+  else if (outlookOverride || googleOverride) submitLabel = 'Schedule Anyway';
   else if (editSchedule) submitLabel = 'Update Schedule';
 
   return (
@@ -100,7 +100,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               type="submit"
               data-testid="schedule-save-btn"
               disabled={loading}
-              className={`${outlookOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white flex-1`}
+              className={`${outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white flex-1`}
             >
               {submitLabel}
             </Button>

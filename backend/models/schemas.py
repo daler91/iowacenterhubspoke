@@ -86,6 +86,7 @@ class ScheduleCreate(BaseModel):
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
+    force_google: Optional[bool] = False
 
 
 class ScheduleUpdate(BaseModel):

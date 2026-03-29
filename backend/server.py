@@ -31,7 +31,10 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from core.rate_limit import limiter  # noqa: E402
 
 from database import client, db, ROOT_DIR  # noqa: E402
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users  # noqa: E402
+from routers import (  # noqa: E402
+    auth, locations, employees, classes, schedules, reports,
+    system, analytics, users, google_oauth,
+)
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
 
@@ -89,6 +92,7 @@ async def lifespan(app: FastAPI):
         )
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
+        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
@@ -325,6 +329,7 @@ api_router.include_router(reports.router)
 api_router.include_router(system.router)
 api_router.include_router(analytics.router)
 api_router.include_router(users.router)
+api_router.include_router(google_oauth.router)
 
 
 @api_router.get("/health", tags=["system"])

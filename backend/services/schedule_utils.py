@@ -186,6 +186,19 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
     return await check_outlook_availability(employee["email"], date, start_time, end_time)
 
 
+async def check_google_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+    from core.google_config import GOOGLE_CALENDAR_ENABLED
+    if not GOOGLE_CALENDAR_ENABLED:
+        return []
+
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee or not employee.get("email"):
+        return []
+
+    from services.google_calendar import check_google_availability
+    return await check_google_availability(employee["email"], date, start_time, end_time, employee=employee)
+
+
 async def check_conflicts_bulk(
     employee_id: str, dates: list[str], start_time: str, end_time: str,
     drive_minutes: int, exclude_id: str = None

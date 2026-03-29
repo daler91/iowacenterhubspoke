@@ -14,7 +14,12 @@ router = APIRouter(tags=["system"])
 async def get_system_config(user: CurrentUser):
     """Return current system feature flags (e.g. Outlook integration status)."""
     from core.outlook_config import OUTLOOK_ENABLED
-    return {"outlook_enabled": OUTLOOK_ENABLED}
+    from core.google_config import GOOGLE_CALENDAR_ENABLED, GOOGLE_OAUTH_ENABLED
+    return {
+        "outlook_enabled": OUTLOOK_ENABLED,
+        "google_calendar_enabled": GOOGLE_CALENDAR_ENABLED,
+        "google_oauth_enabled": GOOGLE_OAUTH_ENABLED,
+    }
 
 
 @router.get("/activity-logs", summary="Get activity logs")
