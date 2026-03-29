@@ -21,7 +21,7 @@ async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
     """Return paginated list of active employees."""
     query = {"deleted_at": None}
     total = await db.employees.count_documents(query)
-    projection = {"_id": 0, "google_refresh_token": 0}
+    projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
     employees = await db.employees.find(query, projection).skip(skip).limit(limit).to_list(limit)
     return {"items": employees, "total": total, "skip": skip, "limit": limit}
 
@@ -32,7 +32,7 @@ async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
     responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
 )
 async def get_employee(employee_id: str, user: CurrentUser):
-    projection = {"_id": 0, "google_refresh_token": 0}
+    projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
     employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, projection)
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)

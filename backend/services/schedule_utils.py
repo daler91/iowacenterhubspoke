@@ -174,8 +174,8 @@ async def check_conflicts(
 
 
 async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
-    from core.outlook_config import OUTLOOK_ENABLED
-    if not OUTLOOK_ENABLED:
+    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
+    if not OUTLOOK_CALENDAR_ENABLED:
         return []
 
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
@@ -183,7 +183,7 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
         return []
 
     from services.outlook import check_outlook_availability
-    return await check_outlook_availability(employee["email"], date, start_time, end_time)
+    return await check_outlook_availability(employee["email"], date, start_time, end_time, employee=employee)
 
 
 async def check_google_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:

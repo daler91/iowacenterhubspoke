@@ -85,8 +85,8 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
 
 
 async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
-    from core.outlook_config import OUTLOOK_ENABLED
-    if not OUTLOOK_ENABLED or not employee.get('email'):
+    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
+    if not OUTLOOK_CALENDAR_ENABLED or not employee.get('email'):
         return
     for doc in created:
         try:
@@ -104,6 +104,7 @@ async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
                 start_time=doc['start_time'],
                 end_time=doc['end_time'],
                 notes=doc.get('notes', ''),
+                employee_id=employee['id'],
             )
         except Exception:
             logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
@@ -278,11 +279,19 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
 async def create_outlook_event(
     ctx, schedule_id: str, email: str, subject: str, location_name: str,
     date: str, start_time: str, end_time: str, notes: str = "",
+    employee_id: str = "",
 ):
     from services.outlook import create_outlook_event as _create
     from database import db
 
-    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None)
+    employee = None
+    if employee_id:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+
+    event_id = await _create(
+        email, subject, location_name, date, start_time, end_time,
+        notes or None, employee=employee,
+    )
     if event_id:
         await db.schedules.update_one({"id": schedule_id}, {"$set": {"outlook_event_id": event_id}})
         logger.info("Outlook event created for schedule %s: %s", schedule_id, event_id)
@@ -290,10 +299,15 @@ async def create_outlook_event(
         logger.warning("Outlook event creation returned no ID for schedule %s", schedule_id)
 
 
-async def delete_outlook_event(ctx, email: str, event_id: str):
+async def delete_outlook_event(ctx, email: str, event_id: str, employee_id: str = ""):
     from services.outlook import delete_outlook_event as _delete
+    from database import db
 
-    success = await _delete(email, event_id)
+    employee = None
+    if employee_id:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+
+    success = await _delete(email, event_id, employee=employee)
     if success:
         logger.info("Outlook event %s deleted", event_id)
     else:

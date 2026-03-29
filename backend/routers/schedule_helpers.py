@@ -34,9 +34,9 @@ def _enqueue_outlook_event(
     employee: dict, location: dict, class_doc: dict | None, doc: dict
 ):
     """Fire-and-forget: enqueue Outlook event creation if configured."""
-    from core.outlook_config import OUTLOOK_ENABLED
+    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
 
-    if not OUTLOOK_ENABLED or not employee.get("email"):
+    if not OUTLOOK_CALENDAR_ENABLED or not employee.get("email"):
         return
     import asyncio
 
@@ -64,6 +64,7 @@ async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
                 start_time=doc["start_time"],
                 end_time=doc["end_time"],
                 notes=doc.get("notes", ""),
+                employee_id=employee["id"],
             )
     except Exception:
         _outlook_logger.exception("Failed to enqueue Outlook event creation")
@@ -71,10 +72,10 @@ async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
 
 async def _enqueue_outlook_delete(schedule: dict):
     """Fire-and-forget: enqueue Outlook event deletion if applicable."""
-    from core.outlook_config import OUTLOOK_ENABLED
+    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
 
     outlook_event_id = schedule.get("outlook_event_id")
-    if not OUTLOOK_ENABLED or not outlook_event_id:
+    if not OUTLOOK_CALENDAR_ENABLED or not outlook_event_id:
         return
     employee = await db.employees.find_one(
         {"id": schedule["employee_id"]}, {"_id": 0}
@@ -90,6 +91,7 @@ async def _enqueue_outlook_delete(schedule: dict):
                 "delete_outlook_event",
                 email=employee["email"],
                 event_id=outlook_event_id,
+                employee_id=employee["id"],
             )
     except Exception:
         _outlook_logger.exception("Failed to enqueue Outlook event deletion")

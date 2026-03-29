@@ -71,6 +71,8 @@ export const employeesAPI = {
   delete: (id: string) => api.delete(`/employees/${id}`),
   googleAuthorize: (id: string) => api.get(`/google/authorize/${id}`),
   googleDisconnect: (id: string) => api.delete(`/google/${id}/disconnect`),
+  outlookAuthorize: (id: string) => api.get(`/outlook/authorize/${id}`),
+  outlookDisconnect: (id: string) => api.delete(`/outlook/${id}/disconnect`),
 };
 
 // Classes
