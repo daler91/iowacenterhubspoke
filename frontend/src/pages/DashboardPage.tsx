@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     const googleOAuth = searchParams.get('google_oauth');
+    const outlookOAuth = searchParams.get('outlook_oauth');
     const message = searchParams.get('message');
     if (googleOAuth) {
       if (googleOAuth === 'success') {
@@ -57,6 +58,17 @@ export default function DashboardPage() {
         toast.error(message || 'Google Calendar authorization failed');
       }
       searchParams.delete('google_oauth');
+      searchParams.delete('message');
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (outlookOAuth) {
+      if (outlookOAuth === 'success') {
+        toast.success(message || 'Outlook Calendar connected');
+        fetchEmployees();
+      } else {
+        toast.error(message || 'Outlook Calendar authorization failed');
+      }
+      searchParams.delete('outlook_oauth');
       searchParams.delete('message');
       setSearchParams(searchParams, { replace: true });
     }

@@ -103,6 +103,25 @@ export default function EmployeeManager() {
     }
   };
 
+  const handleOutlookConnect = async (empId: string) => {
+    try {
+      const res = await employeesAPI.outlookAuthorize(empId);
+      window.location.href = res.data.auth_url;
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to start Outlook Calendar authorization');
+    }
+  };
+
+  const handleOutlookDisconnect = async (empId: string) => {
+    try {
+      await employeesAPI.outlookDisconnect(empId);
+      toast.success('Outlook Calendar disconnected');
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to disconnect Outlook Calendar');
+    }
+  };
+
   let saveLabel = 'Add Employee';
   if (loading) saveLabel = 'Saving...';
   else if (editing) saveLabel = 'Update Employee';
@@ -163,6 +182,12 @@ export default function EmployeeManager() {
                       <span className="text-xs text-teal-600">Google Calendar</span>
                     </div>
                   )}
+                  {emp.outlook_calendar_connected && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-blue-500" />
+                      <span className="text-xs text-blue-600">Outlook Calendar</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -196,6 +221,28 @@ export default function EmployeeManager() {
                       title="Disconnect Google Calendar"
                       onClick={() => handleGoogleDisconnect(emp.id)}
                       className="text-teal-500 hover:text-red-600"
+                    >
+                      <Unlink className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {emp.email && !emp.outlook_calendar_connected && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Connect Outlook Calendar"
+                      onClick={() => handleOutlookConnect(emp.id)}
+                      className="text-slate-400 hover:text-blue-600"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {emp.outlook_calendar_connected && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Disconnect Outlook Calendar"
+                      onClick={() => handleOutlookDisconnect(emp.id)}
+                      className="text-blue-500 hover:text-red-600"
                     >
                       <Unlink className="w-4 h-4" />
                     </Button>
