@@ -140,42 +140,36 @@ def _enqueue_google_event(
     task.add_done_callback(_background_tasks.discard)
 
 
+async def _fetch_refresh_token(employee_id: str) -> str | None:
+    """Fetch only the Google refresh token for an employee."""
+    doc = await db.employees.find_one(
+        {"id": employee_id},
+        {"google_refresh_token": 1},
+    )
+    return doc.get("google_refresh_token") if doc else None
+
+
 async def _create_google_event_direct(
     *, schedule_id, employee_id, google_email, subject,
     location_name, date, start_time, end_time, notes,
 ):
     """Create Google Calendar event directly, with queue fallback."""
-    # Re-fetch employee inside to get refresh token for API call
-    employee = await db.employees.find_one(
-        {"id": employee_id}, {"_id": 0}
+    token = await _fetch_refresh_token(employee_id)
+    creds = {"google_refresh_token": token} if token else None
+
+    event_id = await _try_create_event(
+        google_email, subject, location_name,
+        date, start_time, end_time, notes, creds,
     )
-
-    # Try direct creation first (no worker needed)
-    try:
-        from services.google_calendar import create_google_event as _create
-
-        event_id = await _create(
-            google_email, subject, location_name,
-            date, start_time, end_time,
-            notes or None, employee=employee,
+    if event_id:
+        await db.schedules.update_one(
+            {"id": schedule_id},
+            {"$set": {"google_calendar_event_id": event_id}},
         )
-        if event_id:
-            await db.schedules.update_one(
-                {"id": schedule_id},
-                {"$set": {"google_calendar_event_id": event_id}},
-            )
-            _google_logger.info(
-                "Google event created for schedule %s", schedule_id
-            )
-            return
-        _google_logger.warning(
-            "Google event returned no ID for schedule %s", schedule_id
+        _google_logger.info(
+            "Google event created for schedule %s", schedule_id
         )
-    except Exception as exc:
-        _google_logger.error(
-            "Google event creation failed for %s: %s",
-            schedule_id, type(exc).__name__,
-        )
+        return
 
     # Fallback: enqueue for worker if direct creation failed
     try:
@@ -201,6 +195,23 @@ async def _create_google_event_direct(
         )
 
 
+async def _try_create_event(
+    google_email, subject, location_name,
+    date, start_time, end_time, notes, creds,
+):
+    """Attempt event creation, isolating sensitive creds from callers."""
+    try:
+        from services.google_calendar import create_google_event as _create
+
+        return await _create(
+            google_email, subject, location_name,
+            date, start_time, end_time,
+            notes or None, employee=creds,
+        )
+    except Exception:
+        return None
+
+
 async def _enqueue_google_delete(schedule: dict):
     """Delete Google Calendar event directly, with queue fallback."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
@@ -208,31 +219,27 @@ async def _enqueue_google_delete(schedule: dict):
     google_event_id = schedule.get("google_calendar_event_id")
     if not GOOGLE_CALENDAR_ENABLED or not google_event_id:
         return
-    employee = await db.employees.find_one(
-        {"id": schedule["employee_id"]}, {"_id": 0}
+
+    employee_id = schedule["employee_id"]
+    emp = await db.employees.find_one(
+        {"id": employee_id},
+        {"email": 1, "google_calendar_email": 1},
     )
-    if not employee or not employee.get("email"):
+    if not emp or not emp.get("email"):
         return
 
-    google_email = employee.get("google_calendar_email") or employee["email"]
-    employee_id = employee["id"]
+    google_email = emp.get("google_calendar_email") or emp["email"]
+    token = await _fetch_refresh_token(employee_id)
+    creds = {"google_refresh_token": token} if token else None
 
-    # Try direct deletion first
-    try:
-        from services.google_calendar import delete_google_event as _del
-
-        success = await _del(
-            google_email, google_event_id, employee=employee
+    success = await _try_delete_event(
+        google_email, google_event_id, creds
+    )
+    if success:
+        _google_logger.info(
+            "Google event %s deleted", google_event_id
         )
-        if success:
-            _google_logger.info(
-                "Google event %s deleted", google_event_id
-            )
-            return
-    except Exception as exc:
-        _google_logger.error(
-            "Google event deletion failed: %s", type(exc).__name__
-        )
+        return
 
     # Fallback: enqueue for worker
     try:
@@ -251,6 +258,16 @@ async def _enqueue_google_delete(schedule: dict):
             "Failed to enqueue Google event delete: %s",
             type(exc).__name__,
         )
+
+
+async def _try_delete_event(google_email, event_id, creds):
+    """Attempt event deletion, isolating sensitive creds from callers."""
+    try:
+        from services.google_calendar import delete_google_event as _del
+
+        return await _del(google_email, event_id, employee=creds)
+    except Exception:
+        return False
 
 
 # --- Time helpers ---
