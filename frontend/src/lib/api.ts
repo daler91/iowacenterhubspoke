@@ -92,8 +92,8 @@ export const schedulesAPI = {
   },
   importCommit: (data: unknown) => api.post('/schedules/import', data),
 
-  getAll: (params?: Record<string, unknown>) => api.get('/schedules', { params }),
-  create: (data: Record<string, unknown>) => api.post('/schedules', data),
+  getAll: (params?: Record<string, unknown>) => api.get('/schedules/', { params }),
+  create: (data: Record<string, unknown>) => api.post('/schedules/', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/schedules/${id}`, data),
   delete: (id: string) => api.delete(`/schedules/${id}`),
   updateStatus: (id: string, status: string) => api.put(`/schedules/${id}/status`, { status }),
