@@ -5,7 +5,11 @@ import type { Location, Employee, ClassType, Schedule, DashboardStats, ActivityL
 
 function extractItems<T>(res: any): T[] {
   const data = res.data?.items ?? res.data;
-  return Array.isArray(data) ? data : [];
+  const result = Array.isArray(data) ? data : [];
+  if (result.length === 0 && res.data) {
+    console.warn('[extractItems] Returned empty array. Raw response data type:', typeof res.data, 'keys:', res.data && typeof res.data === 'object' ? Object.keys(res.data) : 'N/A', 'data:', JSON.stringify(res.data).slice(0, 200));
+  }
+  return result;
 }
 
 const swrOptions = {

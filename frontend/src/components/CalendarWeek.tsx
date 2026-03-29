@@ -282,9 +282,17 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
   const schedulesByDay = useMemo(() => {
     const map = {};
+    const allSchedules = schedules || [];
+    if (allSchedules.length > 0) {
+      const sampleDates = allSchedules.slice(0, 5).map(s => s.date);
+      const weekDates = days.map(d => format(d, 'yyyy-MM-dd'));
+      console.log('[CalendarWeek] Total schedules:', allSchedules.length, '| Week dates:', weekDates, '| Sample schedule dates:', sampleDates);
+    } else {
+      console.warn('[CalendarWeek] schedules array is EMPTY');
+    }
     days.forEach(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
-      map[dateStr] = (schedules || []).filter(s => s.date === dateStr);
+      map[dateStr] = allSchedules.filter(s => s.date === dateStr);
     });
     return map;
   }, [schedules, days]);
