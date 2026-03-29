@@ -117,13 +117,37 @@ def _enqueue_google_event(
 
 
 async def _enqueue_google_event_async(employee, location, class_doc, doc):
+    """Create Google Calendar event directly, with queue fallback."""
+    google_email = employee.get("google_calendar_email") or employee.get("email")
+    if not google_email:
+        return
+    subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+
+    # Try direct creation first (no worker needed)
+    try:
+        from services.google_calendar import create_google_event as _create_event
+
+        event_id = await _create_event(
+            google_email, subject, location["city_name"],
+            doc["date"], doc["start_time"], doc["end_time"],
+            doc.get("notes") or None, employee=employee,
+        )
+        if event_id:
+            await db.schedules.update_one(
+                {"id": doc["id"]}, {"$set": {"google_calendar_event_id": event_id}}
+            )
+            _google_logger.info("Google Calendar event created for schedule %s: %s", doc["id"], event_id)
+            return
+        _google_logger.warning("Google Calendar event creation returned no ID for schedule %s", doc["id"])
+    except Exception:
+        _google_logger.exception("Direct Google Calendar event creation failed for schedule %s, trying queue", doc["id"])
+
+    # Fallback: enqueue for worker if direct creation failed
     try:
         from core.queue import get_redis_pool
 
         pool = await get_redis_pool()
         if pool:
-            google_email = employee.get("google_calendar_email") or employee["email"]
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
             await pool.enqueue_job(
                 "create_google_event",
                 schedule_id=doc["id"],
@@ -141,7 +165,7 @@ async def _enqueue_google_event_async(employee, location, class_doc, doc):
 
 
 async def _enqueue_google_delete(schedule: dict):
-    """Fire-and-forget: enqueue Google Calendar event deletion if applicable."""
+    """Delete Google Calendar event directly, with queue fallback."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
 
     google_event_id = schedule.get("google_calendar_event_id")
@@ -152,12 +176,26 @@ async def _enqueue_google_delete(schedule: dict):
     )
     if not employee or not employee.get("email"):
         return
+
+    google_email = employee.get("google_calendar_email") or employee["email"]
+
+    # Try direct deletion first
+    try:
+        from services.google_calendar import delete_google_event as _delete_event
+
+        success = await _delete_event(google_email, google_event_id, employee=employee)
+        if success:
+            _google_logger.info("Google Calendar event %s deleted", google_event_id)
+            return
+    except Exception:
+        _google_logger.exception("Direct Google Calendar event deletion failed, trying queue")
+
+    # Fallback: enqueue for worker
     try:
         from core.queue import get_redis_pool
 
         pool = await get_redis_pool()
         if pool:
-            google_email = employee.get("google_calendar_email") or employee["email"]
             await pool.enqueue_job(
                 "delete_google_event",
                 email=google_email,

@@ -115,24 +115,23 @@ async def _enqueue_google_events(ctx, created, employee, class_doc, location):
     if not GOOGLE_CALENDAR_ENABLED or not employee.get('google_calendar_connected'):
         return
     google_email = employee.get('google_calendar_email') or employee['email']
+    from database import db as _db
     for doc in created:
         try:
-            pool = ctx.get('redis')
-            if not pool:
-                continue
+            from services.google_calendar import create_google_event as _create
             subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-            await pool.enqueue_job(
-                "create_google_event",
-                schedule_id=doc['id'],
-                email=google_email,
-                subject=subject,
-                location_name=location['city_name'],
-                date=doc['date'],
-                start_time=doc['start_time'],
-                end_time=doc['end_time'],
-                notes=doc.get('notes', ''),
-                employee_id=employee['id'],
+            event_id = await _create(
+                google_email, subject, location['city_name'],
+                doc['date'], doc['start_time'], doc['end_time'],
+                doc.get('notes') or None, employee=employee,
             )
+            if event_id:
+                await _db.schedules.update_one(
+                    {"id": doc['id']}, {"$set": {"google_calendar_event_id": event_id}}
+                )
+                logger.info("Google Calendar event created for schedule %s: %s", doc['id'], event_id)
+            else:
+                logger.warning("Google Calendar event creation returned no ID for schedule %s", doc['id'])
         except Exception:
             logger.exception("Failed to enqueue Google Calendar event for schedule %s", doc['id'])
 
