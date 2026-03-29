@@ -70,6 +70,16 @@ export default function LoginPage() {
     }
   };
 
+  let pageTitle = 'Create account';
+  let pageDescription = 'Get started with your scheduling hub';
+  if (inviteData) {
+    pageTitle = 'Accept Invitation';
+    pageDescription = `You've been invited to join as ${inviteData.role}`;
+  } else if (isLogin) {
+    pageTitle = 'Sign in';
+    pageDescription = 'Enter your credentials to access the scheduler';
+  }
+
   return (
     <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] flex" data-testid="login-page">
       {/* Left branding panel */}
@@ -135,14 +145,10 @@ export default function LoginPage() {
               <span className="font-bold text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>HubSpoke</span>
             </div>
             <CardTitle className="text-2xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              {inviteData ? 'Accept Invitation' : isLogin ? 'Sign in' : 'Create account'}
+              {pageTitle}
             </CardTitle>
             <CardDescription>
-              {inviteData
-                ? `You've been invited to join as ${inviteData.role}`
-                : isLogin
-                  ? 'Enter your credentials to access the scheduler'
-                  : 'Get started with your scheduling hub'}
+              {pageDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>

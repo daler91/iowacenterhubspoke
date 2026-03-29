@@ -76,7 +76,7 @@ function buildChainEntry(sorted: DaySchedule[], i: number): DriveChainEntry {
   const driveBefore = isFirst ? (s.drive_to_override_minutes || hubDrive) : 0;
   const driveBeforeLabel = isFirst ? `Drive from Hub - ${driveBefore} min` : null;
 
-  const nextDrive = !isLast ? resolveDriveToNext(s, sorted[i + 1]) : { minutes: 0, label: null, style: null };
+  const nextDrive = isLast ? { minutes: 0, label: null, style: null } : resolveDriveToNext(s, sorted[i + 1]);
 
   const driveAfter = isLast ? (s.drive_from_override_minutes || hubDrive) : nextDrive.minutes;
   const driveAfterLabel = isLast ? `Return to Hub - ${driveAfter} min` : nextDrive.label;

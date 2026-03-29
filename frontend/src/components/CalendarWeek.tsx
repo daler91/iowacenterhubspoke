@@ -289,13 +289,6 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     return map;
   }, [schedules, days]);
 
-  // Build a quick lookup for schedule by id
-  const schedulesById = useMemo(() => {
-    const map = {};
-    (schedules || []).forEach(s => { map[s.id] = s; });
-    return map;
-  }, [schedules]);
-
   const handleDragStart = useCallback((event) => {
     const schedule = event.active.data.current?.schedule;
     if (schedule) setActiveSchedule(schedule);
