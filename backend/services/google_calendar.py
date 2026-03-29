@@ -100,7 +100,7 @@ async def _get_access_token_service_account(email: str) -> str | None:
             }
             return creds.token
         except Exception:
-            logger.exception("Failed to acquire Google service account token for %s", email)
+            logger.exception("Failed to acquire Google service account token")
             return None
 
 
@@ -143,7 +143,7 @@ async def _get_access_token(email: str, employee: dict | None = None) -> str | N
         )
         if token:
             return token
-        logger.warning("OAuth token refresh failed for %s, trying service account", email)
+        logger.warning("OAuth token refresh failed, trying service account")
 
     # 2. Fall back to service account (works for Workspace)
     if GOOGLE_SERVICE_ACCOUNT_ENABLED:
@@ -181,7 +181,7 @@ async def check_google_availability(
             resp.raise_for_status()
             data = resp.json()
     except Exception:
-        logger.exception("Google freeBusy failed for %s", email)
+        logger.exception("Google freeBusy check failed")
         return []
 
     conflicts = []
@@ -239,7 +239,7 @@ async def create_google_event(
             resp.raise_for_status()
             return resp.json().get("id")
     except Exception:
-        logger.exception("Failed to create Google Calendar event for %s", email)
+        logger.exception("Failed to create Google Calendar event")
         return None
 
 
@@ -259,5 +259,5 @@ async def delete_google_event(
             resp.raise_for_status()
             return True
     except Exception:
-        logger.exception("Failed to delete Google Calendar event %s for %s", event_id, email)
+        logger.exception("Failed to delete Google Calendar event %s", event_id)
         return False

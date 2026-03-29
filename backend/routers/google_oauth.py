@@ -61,15 +61,15 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     """Handle Google OAuth callback, exchange code for tokens, store on employee."""
     if error:
         logger.warning("Google OAuth error: %s", error)
-        return _redirect_with_status("error", f"Google authorization failed: {error}")
+        return _redirect_with_status("error", "error_auth")
 
     if not code or not state:
-        return _redirect_with_status("error", "Missing authorization code or state")
+        return _redirect_with_status("error", "error_missing")
 
     state_doc = await db.google_oauth_states.find_one_and_delete({"state": state})
     employee_id = state_doc.get("employee_id") if state_doc else None
     if not employee_id:
-        return _redirect_with_status("error", "Invalid or expired OAuth state")
+        return _redirect_with_status("error", "error_state")
 
     # Exchange code for tokens
     try:
@@ -85,13 +85,13 @@ async def google_callback(request: Request, code: str = None, state: str = None,
             tokens = resp.json()
     except Exception:
         logger.exception("Failed to exchange Google OAuth code for tokens")
-        return _redirect_with_status("error", "Failed to exchange authorization code")
+        return _redirect_with_status("error", "error_exchange")
 
     refresh_token = tokens.get("refresh_token")
     access_token = tokens.get("access_token")
     if not refresh_token:
         logger.error("No refresh_token in Google OAuth response for employee %s", employee_id)
-        return _redirect_with_status("error", "No refresh token received. Please try again.")
+        return _redirect_with_status("error", "error_token")
 
     # Fetch the Google account email to verify identity
     google_email = None
@@ -116,7 +116,7 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     await db.employees.update_one({"id": employee_id}, {"$set": update})
     logger.info("Google Calendar connected for employee %s (email: %s)", employee_id, google_email or "unknown")
 
-    return _redirect_with_status("success", "Google Calendar connected successfully")
+    return _redirect_with_status("success", "success")
 
 
 @router.delete("/{employee_id}/disconnect", summary="Disconnect Google Calendar for an employee")
@@ -156,7 +156,18 @@ async def google_disconnect(employee_id: str, user: SchedulerRequired):
     return {"message": "Google Calendar disconnected"}
 
 
-def _redirect_with_status(status: str, message: str) -> RedirectResponse:
+_OAUTH_MESSAGES = {
+    "success": "Google Calendar connected successfully",
+    "error_auth": "Google authorization failed",
+    "error_missing": "Missing authorization code or state",
+    "error_state": "Invalid or expired OAuth state",
+    "error_exchange": "Failed to exchange authorization code",
+    "error_token": "No refresh token received. Please try again.",
+}
+
+
+def _redirect_with_status(status: str, message_key: str) -> RedirectResponse:
     """Redirect back to the frontend with status in query params."""
+    message = _OAUTH_MESSAGES.get(message_key, "Unknown error")
     params = urllib.parse.urlencode({"google_oauth": status, "message": message})
     return RedirectResponse(url=f"/?{params}")

@@ -31,7 +31,10 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from core.rate_limit import limiter  # noqa: E402
 
 from database import client, db, ROOT_DIR  # noqa: E402
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users, google_oauth  # noqa: E402
+from routers import (  # noqa: E402
+    auth, locations, employees, classes, schedules, reports,
+    system, analytics, users, google_oauth,
+)
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
 

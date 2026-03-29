@@ -312,7 +312,10 @@ async def create_google_event(
     if employee_id:
         employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
 
-    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None, employee=employee)
+    event_id = await _create(
+        email, subject, location_name, date, start_time, end_time,
+        notes or None, employee=employee,
+    )
     if event_id:
         await db.schedules.update_one({"id": schedule_id}, {"$set": {"google_calendar_event_id": event_id}})
         logger.info("Google Calendar event created for schedule %s: %s", schedule_id, event_id)
@@ -341,5 +344,9 @@ redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 
 class WorkerSettings:
-    functions = [generate_bulk_schedules, sync_schedules_denormalized, create_outlook_event, delete_outlook_event, create_google_event, delete_google_event]
+    functions = [
+        generate_bulk_schedules, sync_schedules_denormalized,
+        create_outlook_event, delete_outlook_event,
+        create_google_event, delete_google_event,
+    ]
     redis_settings = RedisSettings.from_dsn(redis_url)
