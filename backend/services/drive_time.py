@@ -172,7 +172,7 @@ async def get_drive_time_between_locations(from_id, to_id):
         return None
 
     key = _cache_key(from_id, to_id)
-    minutes, cached = await get_drive_time_between(
+    minutes, _ = await get_drive_time_between(
         from_loc["latitude"], from_loc["longitude"],
         to_loc["latitude"], to_loc["longitude"],
         cache_key=key,
@@ -183,7 +183,7 @@ async def get_drive_time_between_locations(from_id, to_id):
 async def get_drive_time_from_hub(lat, lng):
     """Get drive time from Hub (Des Moines) to given coordinates."""
     key = _hub_cache_key(lat, lng)
-    minutes, cached = await get_drive_time_between(
+    minutes, _ = await get_drive_time_between(
         HUB_LAT, HUB_LNG, lat, lng, cache_key=key,
     )
     return minutes

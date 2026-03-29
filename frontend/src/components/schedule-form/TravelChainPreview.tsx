@@ -22,7 +22,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
   const field = leg.override_field;
 
   const handleApply = () => {
-    const parsed = parseInt(value, 10);
+    const parsed = Number.parseInt(value, 10);
     if (parsed > 0) {
       onOverrideChange(field, parsed, leg.owner_schedule_id);
     }
@@ -102,7 +102,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
             type="button"
             size="sm"
             onClick={handleApply}
-            disabled={!value || parseInt(value, 10) <= 0}
+            disabled={!value || Number.parseInt(value, 10) <= 0}
             className="flex-1"
           >
             Apply

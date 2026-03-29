@@ -60,7 +60,7 @@ export default function PlacesAutocomplete({ value, onChange, onSelect, placehol
 
     return () => {
       if (autocompleteRef.current) {
-        window.google?.maps?.event?.clearInstanceListeners(autocompleteRef.current);
+        globalThis.google?.maps?.event?.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, [places]);

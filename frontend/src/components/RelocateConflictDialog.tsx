@@ -21,7 +21,7 @@ interface RelocateConflictDialogProps {
   onForce: () => void;
 }
 
-export default function RelocateConflictDialog({ data, onClose, onForce }: RelocateConflictDialogProps) {
+export default function RelocateConflictDialog({ data, onClose, onForce }: Readonly<RelocateConflictDialogProps>) {
   return (
     <Dialog open={data !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[480px] bg-white" data-testid="relocate-conflict-dialog">

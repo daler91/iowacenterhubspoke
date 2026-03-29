@@ -1,4 +1,4 @@
-import axios, { type AxiosRequestConfig } from 'axios';
+import axios from 'axios';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
 const API_BASE = `${BACKEND_URL}/api/v1`;
@@ -10,7 +10,7 @@ const api = axios.create({
 });
 
 function getCsrfToken(): string | null {
-  const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+  const match = /(?:^|; )csrf_token=([^;]*)/.exec(document.cookie);
   return match ? decodeURIComponent(match[1]) : null;
 }
 

@@ -200,7 +200,7 @@ export default function CalendarView() {
         onExportCsv={() => setExportOpen(true)}
         onImportCsv={() => setImportOpen(true)}
         onExportPdf={exportPDF}
-        onPrint={() => window.print()}
+        onPrint={() => globalThis.print()}
       />
 
       <ScheduleFilters
