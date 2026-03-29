@@ -86,7 +86,7 @@ export default function WeeklyReport() {
           <Button variant="outline" size="sm" onClick={exportPDF} data-testid="report-export-pdf">
             <FileDown className="w-4 h-4 mr-1" /> Export PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print" data-testid="report-print">
+          <Button variant="outline" size="sm" onClick={() => globalThis.print()} className="no-print" data-testid="report-print">
             <Printer className="w-4 h-4 mr-1" /> Print
           </Button>
         </div>

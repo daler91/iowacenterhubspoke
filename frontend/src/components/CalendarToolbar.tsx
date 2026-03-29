@@ -33,7 +33,7 @@ export default function CalendarToolbar({
   onImportCsv,
   onExportPdf,
   onPrint,
-}: CalendarToolbarProps) {
+}: Readonly<CalendarToolbarProps>) {
   const dateLabel = (() => {
     if (calendarView === 'month') return format(currentDate, 'MMMM yyyy');
     if (calendarView === 'day') return format(currentDate, 'MMMM d, yyyy');

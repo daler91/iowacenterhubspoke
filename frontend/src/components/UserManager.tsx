@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Users, CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail, Link } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -116,7 +116,7 @@ export default function UserManager() {
         name: inviteForm.name || null,
         role: inviteForm.role,
       });
-      const link = `${window.location.origin}/login?invite=${res.data.token}`;
+      const link = `${globalThis.location.origin}/login?invite=${res.data.token}`;
       setGeneratedLink(link);
       toast.success('Invitation created');
       fetchInvitations();
@@ -358,7 +358,39 @@ export default function UserManager() {
             </DialogDescription>
           </DialogHeader>
 
-          {!generatedLink ? (
+          {generatedLink ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Invitation Link</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={generatedLink}
+                    className="h-10 bg-gray-50 text-sm font-mono"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500">
+                  This link will allow the recipient to register and be automatically approved.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={closeInviteDialog}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
             <form onSubmit={handleInvite} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="invite-email">Email</Label>
@@ -408,38 +440,6 @@ export default function UserManager() {
                 </Button>
               </DialogFooter>
             </form>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Invitation Link</Label>
-                <div className="flex gap-2">
-                  <Input
-                    readOnly
-                    value={generatedLink}
-                    className="h-10 bg-gray-50 text-sm font-mono"
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-500">
-                  This link will allow the recipient to register and be automatically approved.
-                </p>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  onClick={closeInviteDialog}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                >
-                  Done
-                </Button>
-              </DialogFooter>
-            </div>
           )}
         </DialogContent>
       </Dialog>

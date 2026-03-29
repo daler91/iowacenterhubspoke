@@ -136,8 +136,11 @@ export default function MapView() {
         {validLocations.map(loc => (
           <div
             key={loc.id}
+            role="button"
+            tabIndex={0}
             className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => navigate(`/locations/${loc.id}`)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/locations/${loc.id}`); } }}
           >
             <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
               <Navigation className="w-4 h-4 text-white" />

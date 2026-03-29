@@ -48,7 +48,7 @@ export function LoadingChart() {
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({ message }: Readonly<{ message: string }>) {
   return (
     <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">
       {message}
