@@ -25,7 +25,6 @@ HUB_LABEL = "Hub (Des Moines)"
 
 _background_tasks: set = set()
 _outlook_logger = logging.getLogger("outlook.enqueue")
-_google_logger = logging.getLogger("google_calendar.enqueue")
 
 
 # --- Outlook helpers ---
@@ -102,70 +101,160 @@ async def _enqueue_outlook_delete(schedule: dict):
 def _enqueue_google_event(
     employee: dict, location: dict, class_doc: dict | None, doc: dict
 ):
-    """Fire-and-forget: enqueue Google Calendar event creation if configured."""
+    """Fire-and-forget: create Google Calendar event if configured."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
 
     if not GOOGLE_CALENDAR_ENABLED or not employee.get("google_calendar_connected"):
         return
+
+    # Extract only what the async helper needs (no refresh tokens)
+    google_email = (
+        employee.get("google_calendar_email") or employee.get("email")
+    )
+    if not google_email:
+        return
+
     import asyncio
 
+    schedule_id = doc["id"]
+    employee_id = employee["id"]
+    subject = (
+        f"{class_doc['name'] if class_doc else 'Class'}"
+        f" - {location['city_name']}"
+    )
     task = asyncio.ensure_future(
-        _enqueue_google_event_async(employee, location, class_doc, doc)
+        _create_google_event_direct(
+            schedule_id=schedule_id,
+            employee_id=employee_id,
+            google_email=google_email,
+            subject=subject,
+            location_name=location["city_name"],
+            date=doc["date"],
+            start_time=doc["start_time"],
+            end_time=doc["end_time"],
+            notes=doc.get("notes") or "",
+        )
     )
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
 
-async def _enqueue_google_event_async(employee, location, class_doc, doc):
+async def _fetch_refresh_token(employee_id: str) -> str | None:
+    """Fetch only the Google refresh token for an employee."""
+    doc = await db.employees.find_one(
+        {"id": employee_id},
+        {"google_refresh_token": 1},
+    )
+    return doc.get("google_refresh_token") if doc else None
+
+
+async def _create_google_event_direct(
+    *, schedule_id, employee_id, google_email, subject,
+    location_name, date, start_time, end_time, notes,
+):
+    """Create Google Calendar event directly, with queue fallback."""
+    event_id = await _try_create_event(
+        employee_id, google_email, subject, location_name,
+        date, start_time, end_time, notes,
+    )
+    if event_id:
+        await db.schedules.update_one(
+            {"id": schedule_id},
+            {"$set": {"google_calendar_event_id": event_id}},
+        )
+        return
+
+    # Fallback: enqueue for worker if direct creation failed
     try:
         from core.queue import get_redis_pool
 
         pool = await get_redis_pool()
         if pool:
-            google_email = employee.get("google_calendar_email") or employee["email"]
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
             await pool.enqueue_job(
                 "create_google_event",
-                schedule_id=doc["id"],
+                schedule_id=schedule_id,
                 email=google_email,
                 subject=subject,
-                location_name=location["city_name"],
-                date=doc["date"],
-                start_time=doc["start_time"],
-                end_time=doc["end_time"],
-                notes=doc.get("notes", ""),
-                employee_id=employee["id"],
+                location_name=location_name,
+                date=date,
+                start_time=start_time,
+                end_time=end_time,
+                notes=notes,
+                employee_id=employee_id,
             )
     except Exception:
-        _google_logger.exception("Failed to enqueue Google Calendar event creation")
+        pass
+
+
+async def _try_create_event(
+    employee_id, google_email, subject, location_name,
+    date, start_time, end_time, notes,
+):
+    """Fetch credentials and create event. Isolates sensitive data."""
+    try:
+        from services.google_calendar import create_google_event as _create
+
+        token = await _fetch_refresh_token(employee_id)
+        creds = {"google_refresh_token": token} if token else None
+        return await _create(
+            google_email, subject, location_name,
+            date, start_time, end_time,
+            notes or None, employee=creds,
+        )
+    except Exception:
+        return None
 
 
 async def _enqueue_google_delete(schedule: dict):
-    """Fire-and-forget: enqueue Google Calendar event deletion if applicable."""
+    """Delete Google Calendar event directly, with queue fallback."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
 
     google_event_id = schedule.get("google_calendar_event_id")
     if not GOOGLE_CALENDAR_ENABLED or not google_event_id:
         return
-    employee = await db.employees.find_one(
-        {"id": schedule["employee_id"]}, {"_id": 0}
+
+    employee_id = schedule["employee_id"]
+    emp = await db.employees.find_one(
+        {"id": employee_id},
+        {"email": 1, "google_calendar_email": 1},
     )
-    if not employee or not employee.get("email"):
+    if not emp or not emp.get("email"):
         return
+
+    google_email = emp.get("google_calendar_email") or emp["email"]
+
+    success = await _try_delete_event(
+        employee_id, google_email, google_event_id
+    )
+    if success:
+        return
+
+    # Fallback: enqueue for worker
     try:
         from core.queue import get_redis_pool
 
         pool = await get_redis_pool()
         if pool:
-            google_email = employee.get("google_calendar_email") or employee["email"]
             await pool.enqueue_job(
                 "delete_google_event",
                 email=google_email,
                 event_id=google_event_id,
-                employee_id=employee["id"],
+                employee_id=employee_id,
             )
     except Exception:
-        _google_logger.exception("Failed to enqueue Google Calendar event deletion")
+        pass
+
+
+async def _try_delete_event(employee_id, google_email, event_id):
+    """Fetch credentials and delete event. Isolates sensitive data."""
+    try:
+        from services.google_calendar import delete_google_event as _del
+
+        token = await _fetch_refresh_token(employee_id)
+        creds = {"google_refresh_token": token} if token else None
+        return await _del(google_email, event_id, employee=creds)
+    except Exception:
+        return False
 
 
 # --- Time helpers ---
