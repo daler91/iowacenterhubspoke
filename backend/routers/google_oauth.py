@@ -2,6 +2,8 @@
 
 import secrets
 import urllib.parse
+from datetime import datetime, timezone
+
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -22,9 +24,6 @@ from core.google_config import (
 logger = get_logger(__name__)
 router = APIRouter(prefix="/google", tags=["google-oauth"])
 
-# In-memory state store (short-lived, maps state -> employee_id)
-_oauth_states: dict[str, str] = {}
-
 
 @router.get("/authorize/{employee_id}", summary="Start Google OAuth flow for an employee")
 async def google_authorize(employee_id: str, user: SchedulerRequired):
@@ -37,7 +36,11 @@ async def google_authorize(employee_id: str, user: SchedulerRequired):
         raise HTTPException(status_code=404, detail="Employee not found")
 
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = employee_id
+    await db.google_oauth_states.insert_one({
+        "state": state,
+        "employee_id": employee_id,
+        "created_at": datetime.now(timezone.utc),
+    })
 
     params = {
         "client_id": GOOGLE_OAUTH_CLIENT_ID,
@@ -63,7 +66,8 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     if not code or not state:
         return _redirect_with_status("error", "Missing authorization code or state")
 
-    employee_id = _oauth_states.pop(state, None)
+    state_doc = await db.google_oauth_states.find_one_and_delete({"state": state})
+    employee_id = state_doc.get("employee_id") if state_doc else None
     if not employee_id:
         return _redirect_with_status("error", "Invalid or expired OAuth state")
 

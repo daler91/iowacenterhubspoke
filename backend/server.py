@@ -89,6 +89,7 @@ async def lifespan(app: FastAPI):
         )
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
+        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
