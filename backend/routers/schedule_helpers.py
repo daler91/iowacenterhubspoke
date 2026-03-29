@@ -25,7 +25,6 @@ HUB_LABEL = "Hub (Des Moines)"
 
 _background_tasks: set = set()
 _outlook_logger = logging.getLogger("outlook.enqueue")
-_google_logger = logging.getLogger("google_calendar.enqueue")
 
 
 # --- Outlook helpers ---
@@ -163,9 +162,6 @@ async def _create_google_event_direct(
             {"id": schedule_id},
             {"$set": {"google_calendar_event_id": event_id}},
         )
-        _google_logger.info(
-            "Google event created for schedule %s", schedule_id
-        )
         return
 
     # Fallback: enqueue for worker if direct creation failed
@@ -186,10 +182,8 @@ async def _create_google_event_direct(
                 notes=notes,
                 employee_id=employee_id,
             )
-    except Exception as exc:
-        _google_logger.error(
-            "Failed to enqueue Google event: %s", type(exc).__name__
-        )
+    except Exception:
+        pass
 
 
 async def _try_create_event(
@@ -233,9 +227,6 @@ async def _enqueue_google_delete(schedule: dict):
         employee_id, google_email, google_event_id
     )
     if success:
-        _google_logger.info(
-            "Google event %s deleted", google_event_id
-        )
         return
 
     # Fallback: enqueue for worker
@@ -250,11 +241,8 @@ async def _enqueue_google_delete(schedule: dict):
                 event_id=google_event_id,
                 employee_id=employee_id,
             )
-    except Exception as exc:
-        _google_logger.error(
-            "Failed to enqueue Google event delete: %s",
-            type(exc).__name__,
-        )
+    except Exception:
+        pass
 
 
 async def _try_delete_event(employee_id, google_email, event_id):
