@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Badge } from './ui/badge';
-import { Users, MapPin, Clock } from 'lucide-react';
+import { Users, MapPin, Clock, BookOpen } from 'lucide-react';
 import { EntityLink } from './ui/entity-link';
 
 export default function StatModal({ isOpen, onClose, title, type, data, classes, employees, locations }) {
@@ -27,6 +27,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             {type === 'scheduled' && `All upcoming schedules (${data.length})`}
             {type === 'team' && `All team members (${data.length})`}
             {type === 'locations' && `All locations (${data.length})`}
+            {type === 'classes' && `All class types (${data.length})`}
           </DialogDescription>
         </DialogHeader>
 
@@ -34,7 +35,11 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
           {(type === 'today' || type === 'scheduled') && (
             data.length > 0 ? (
               data.map((schedule) => {
-                const classDetails = getClassById(schedule.class_id);
+                const classLookup = getClassById(schedule.class_id);
+                const displayClass = {
+                  name: classLookup.name !== 'Unknown Class' ? classLookup.name : (schedule.class_name || 'Unknown Class'),
+                  color: classLookup.color !== '#ccc' ? classLookup.color : (schedule.class_color || '#ccc'),
+                };
                 const employee = getEmployeeById(schedule.employee_id);
                 const location = getLocationById(schedule.location_id);
                 const isToday = type === 'today';
@@ -44,8 +49,8 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                   <div key={schedule.id} className="flex flex-col p-4 border rounded-xl hover:bg-slate-50 transition-colors">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classDetails.color }} />
-                        <span className="font-semibold text-slate-800">{classDetails.name}</span>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: displayClass.color }} />
+                        <span className="font-semibold text-slate-800">{displayClass.name}</span>
                       </div>
                       <Badge variant="outline" className="text-xs bg-slate-50">
                         {dateText}
@@ -111,6 +116,26 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
               </div>
             ) : (
               <div className="text-center py-8 text-slate-500">No locations found.</div>
+            )
+          )}
+
+          {type === 'classes' && (
+            data.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.map((classItem) => (
+                  <div key={classItem.id} className="flex items-start gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ backgroundColor: classItem.color || '#0F766E' }}>
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <EntityLink type="class" id={classItem.id} className="font-medium text-slate-800">{classItem.name}</EntityLink>
+                      <div className="text-xs text-slate-500 mt-1 break-words">{classItem.description || 'No description'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500">No class types found.</div>
             )
           )}
         </div>

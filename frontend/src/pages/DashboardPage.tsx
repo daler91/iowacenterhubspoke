@@ -36,7 +36,7 @@ export default function DashboardPage() {
     statModalData,
     statModalTitle,
     handleStatClick
-  } = useStatModal({ schedules, employees, locations });
+  } = useStatModal({ schedules, employees, locations, classes });
 
   // Close mobile sidebar on route change
   useEffect(() => {

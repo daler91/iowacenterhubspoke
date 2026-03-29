@@ -55,10 +55,12 @@ async def sync_class_snapshot_background(class_id: str):
 
 
 @router.get("", summary="List all class types")
-async def get_classes(user: CurrentUser):
-    """Return all active class types, sorted by name."""
-    classes = await db.classes.find({"deleted_at": None}, {"_id": 0}).sort("name", 1).to_list(200)
-    return classes
+async def get_classes(user: CurrentUser, skip: int = 0, limit: int = 200):
+    """Return paginated list of active class types, sorted by name."""
+    query = {"deleted_at": None}
+    total = await db.classes.count_documents(query)
+    classes = await db.classes.find(query, {"_id": 0}).sort("name", 1).skip(skip).limit(limit).to_list(limit)
+    return {"items": classes, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get(
