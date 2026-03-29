@@ -43,6 +43,7 @@ const UserManager = lazy(() => import("./components/UserManager"));
 const EmployeeProfile = lazy(() => import("./components/EmployeeProfile"));
 const LocationProfile = lazy(() => import("./components/LocationProfile"));
 const ClassProfile = lazy(() => import("./components/ClassProfile"));
+const PersonalSettings = lazy(() => import("./components/PersonalSettings"));
 
 function AppRoutes() {
   return (
@@ -78,6 +79,7 @@ function AppRoutes() {
             <Route path="locations/:id" element={<LocationProfile />} />
             <Route path="classes/:id" element={<ClassProfile />} />
             <Route path="users" element={<UserManager />} />
+            <Route path="settings" element={<PersonalSettings />} />
           </Route>
         </Routes>
       </Suspense>

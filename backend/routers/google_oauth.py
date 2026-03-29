@@ -170,4 +170,4 @@ def _redirect_with_status(status: str, message_key: str) -> RedirectResponse:
     """Redirect back to the frontend with status in query params."""
     message = _OAUTH_MESSAGES.get(message_key, "Unknown error")
     params = urllib.parse.urlencode({"google_oauth": status, "message": message})
-    return RedirectResponse(url=f"/?{params}")
+    return RedirectResponse(url=f"/settings?{params}")

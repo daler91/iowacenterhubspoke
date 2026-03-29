@@ -1,6 +1,5 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
-import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
-import { toast } from 'sonner';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
@@ -43,36 +42,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
-
-  // Handle Google OAuth redirect
-  const [searchParams, setSearchParams] = useSearchParams();
-  useEffect(() => {
-    const googleOAuth = searchParams.get('google_oauth');
-    const outlookOAuth = searchParams.get('outlook_oauth');
-    const message = searchParams.get('message');
-    if (googleOAuth) {
-      if (googleOAuth === 'success') {
-        toast.success(message || 'Google Calendar connected');
-        fetchEmployees();
-      } else {
-        toast.error(message || 'Google Calendar authorization failed');
-      }
-      searchParams.delete('google_oauth');
-      searchParams.delete('message');
-      setSearchParams(searchParams, { replace: true });
-    }
-    if (outlookOAuth) {
-      if (outlookOAuth === 'success') {
-        toast.success(message || 'Outlook Calendar connected');
-        fetchEmployees();
-      } else {
-        toast.error(message || 'Outlook Calendar authorization failed');
-      }
-      searchParams.delete('outlook_oauth');
-      searchParams.delete('message');
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, []);
 
   const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,

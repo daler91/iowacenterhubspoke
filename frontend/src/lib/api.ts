@@ -49,6 +49,9 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
   validateInvite: (token: string) => api.get(`/auth/invite/${token}`),
+  myEmployee: () => api.get('/auth/my-employee'),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.post('/auth/change-password', data),
 };
 
 // Locations

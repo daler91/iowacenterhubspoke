@@ -6,7 +6,7 @@ import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
   Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp,
-  Moon, Sun
+  Moon, Sun, Settings
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -156,6 +156,20 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
             </div>
           </div>
         )}
+        <button
+          data-testid="settings-btn"
+          onClick={() => navigate('/settings')}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+            location.pathname === '/settings'
+              ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300"
+              : "text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200",
+            collapsed && "justify-center"
+          )}
+        >
+          <Settings className={cn("w-5 h-5 shrink-0", location.pathname === '/settings' ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400")} />
+          {!collapsed && <span>Settings</span>}
+        </button>
         <button
           data-testid="theme-toggle"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
