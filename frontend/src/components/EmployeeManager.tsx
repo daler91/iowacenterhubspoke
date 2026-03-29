@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar, Unlink } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -81,44 +81,6 @@ export default function EmployeeManager() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete employee');
-    }
-  };
-
-  const handleGoogleConnect = async (empId: string) => {
-    try {
-      const res = await employeesAPI.googleAuthorize(empId);
-      window.location.href = res.data.auth_url;
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to start Google Calendar authorization');
-    }
-  };
-
-  const handleGoogleDisconnect = async (empId: string) => {
-    try {
-      await employeesAPI.googleDisconnect(empId);
-      toast.success('Google Calendar disconnected');
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to disconnect Google Calendar');
-    }
-  };
-
-  const handleOutlookConnect = async (empId: string) => {
-    try {
-      const res = await employeesAPI.outlookAuthorize(empId);
-      window.location.href = res.data.auth_url;
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to start Outlook Calendar authorization');
-    }
-  };
-
-  const handleOutlookDisconnect = async (empId: string) => {
-    try {
-      await employeesAPI.outlookDisconnect(empId);
-      toast.success('Outlook Calendar disconnected');
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to disconnect Outlook Calendar');
     }
   };
 
@@ -203,50 +165,6 @@ export default function EmployeeManager() {
               </Button>
               {isAdmin && (
                 <>
-                  {emp.email && !emp.google_calendar_connected && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Connect Google Calendar"
-                      onClick={() => handleGoogleConnect(emp.id)}
-                      className="text-slate-400 hover:text-teal-600"
-                    >
-                      <Calendar className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {emp.google_calendar_connected && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Disconnect Google Calendar"
-                      onClick={() => handleGoogleDisconnect(emp.id)}
-                      className="text-teal-500 hover:text-red-600"
-                    >
-                      <Unlink className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {emp.email && !emp.outlook_calendar_connected && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Connect Outlook Calendar"
-                      onClick={() => handleOutlookConnect(emp.id)}
-                      className="text-slate-400 hover:text-blue-600"
-                    >
-                      <Mail className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {emp.outlook_calendar_connected && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Disconnect Outlook Calendar"
-                      onClick={() => handleOutlookDisconnect(emp.id)}
-                      className="text-blue-500 hover:text-red-600"
-                    >
-                      <Unlink className="w-4 h-4" />
-                    </Button>
-                  )}
                   <Button
                     variant="ghost"
                     size="sm"

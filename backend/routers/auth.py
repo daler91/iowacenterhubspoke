@@ -154,6 +154,16 @@ async def get_me(user: CurrentUser):
     }
 
 
+@router.get("/my-employee", summary="Get the employee record linked to the current user (by email)")
+async def get_my_employee(user: CurrentUser):
+    """Look up the employee record matching the authenticated user's email."""
+    employee = await db.employees.find_one(
+        {"email": user["email"], "deleted_at": None},
+        {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0},
+    )
+    return {"employee": employee}
+
+
 @router.post(
     "/change-password",
     summary="Change password and invalidate existing sessions",
