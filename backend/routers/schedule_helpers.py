@@ -134,13 +134,22 @@ async def _enqueue_google_event_async(employee, location, class_doc, doc):
         )
         if event_id:
             await db.schedules.update_one(
-                {"id": doc["id"]}, {"$set": {"google_calendar_event_id": event_id}}
+                {"id": doc["id"]},
+                {"$set": {"google_calendar_event_id": event_id}},
             )
-            _google_logger.info("Google Calendar event created for schedule %s: %s", doc["id"], event_id)
+            _google_logger.info(
+                "Google event created for schedule %s", doc["id"]
+            )
             return
-        _google_logger.warning("Google Calendar event creation returned no ID for schedule %s", doc["id"])
-    except Exception:
-        _google_logger.exception("Direct Google Calendar event creation failed for schedule %s, trying queue", doc["id"])
+        _google_logger.warning(
+            "Google event creation returned no ID for schedule %s",
+            doc["id"],
+        )
+    except Exception as exc:
+        _google_logger.error(
+            "Direct Google event creation failed for schedule %s: %s",
+            doc["id"], type(exc).__name__,
+        )
 
     # Fallback: enqueue for worker if direct creation failed
     try:
@@ -187,8 +196,10 @@ async def _enqueue_google_delete(schedule: dict):
         if success:
             _google_logger.info("Google Calendar event %s deleted", google_event_id)
             return
-    except Exception:
-        _google_logger.exception("Direct Google Calendar event deletion failed, trying queue")
+    except Exception as exc:
+        _google_logger.error(
+            "Direct Google event deletion failed: %s", type(exc).__name__
+        )
 
     # Fallback: enqueue for worker
     try:
