@@ -39,7 +39,7 @@ router = APIRouter(tags=["schedules"])
 
 # --- List / Get ---
 
-@router.get("", summary="List schedules")
+@router.get("/", summary="List schedules")
 async def get_schedules(
     user: CurrentUser,
     date_from: Optional[str] = None,
@@ -88,7 +88,7 @@ async def get_schedule(schedule_id: str, user: CurrentUser):
 # --- Create ---
 
 @router.post(
-    "",
+    "/",
     summary="Create a schedule (single or recurring)",
     responses={
         404: {
