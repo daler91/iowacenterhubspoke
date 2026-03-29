@@ -15,7 +15,7 @@ from models.schemas import ScheduleImportItem, ErrorResponse
 from core.auth import AdminRequired
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
-from core.constants import STATUS_UPCOMING
+from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT
 from routers.schedule_helpers import logger
 
 
@@ -104,24 +104,24 @@ async def export_schedules(
         query["location_id"] = location_id
 
     cursor = db.schedules.find(query).sort("date", 1)
-    schedules = await cursor.to_list(length=None)
+    schedules = await cursor.to_list(length=MAX_QUERY_LIMIT)
 
     emp_ids = list({s["employee_id"] for s in schedules if "employee_id" in s})
     loc_ids = list({s["location_id"] for s in schedules if "location_id" in s})
     class_ids = list({s["class_id"] for s in schedules if s.get("class_id")})
 
     employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
 
     emp_map = {e["_id"]: e for e in employees}
-    loc_map = {l["_id"]: l for l in locations}
+    loc_map = {loc["_id"]: loc for loc in locations}
     class_map = {c["_id"]: c for c in classes}
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
@@ -207,17 +207,20 @@ async def import_schedules_preview(
     if missing:
         raise HTTPException(
             status_code=400,
-            detail="Missing required columns. File must have headers: date, start_time, end_time, employee_email, location_name",
+            detail=(
+                "Missing required columns. File must have headers: "
+                "date, start_time, end_time, employee_email, location_name"
+            ),
         )
 
     all_employees = await db.employees.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     all_locations = await db.locations.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
     all_classes = await db.classes.find({"deleted_at": None}).to_list(
-        length=None
+        length=MAX_QUERY_LIMIT
     )
 
     emp_by_email = {
@@ -313,7 +316,10 @@ async def import_schedules_commit(
                 errors.append(
                     {
                         "row": item.row_idx,
-                        "error": f"Conflict with existing schedule for {employee.get('name')} on {item.date} at {item.start_time}",
+                        "error": (
+                            f"Conflict with existing schedule for "
+                            f"{employee.get('name')} on {item.date} at {item.start_time}"
+                        ),
                     }
                 )
                 continue

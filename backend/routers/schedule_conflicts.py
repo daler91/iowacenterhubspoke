@@ -1,7 +1,5 @@
 """Schedule conflict checking and travel chain building."""
 
-from typing import Optional
-
 from fastapi import APIRouter, HTTPException
 
 from database import db
@@ -10,7 +8,6 @@ from core.auth import CurrentUser
 from services.schedule_utils import check_conflicts, check_outlook_conflicts
 from services.drive_time import get_drive_time_between_locations
 from routers.schedule_helpers import (
-    logger,
     LOCATION_NOT_FOUND,
     HUB_LABEL,
     _add_minutes_to_time,

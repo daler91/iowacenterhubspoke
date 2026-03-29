@@ -62,7 +62,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
             "deleted_at": None,
         },
         {"_id": 0},
-    ).to_list(None)
+    ).to_list(10000)
 
     schedules_by_date = {}
     for s in existing_schedules:
@@ -78,7 +78,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     if location_ids:
         other_locations = await db.locations.find(
             {"id": {"$in": list(location_ids)}}, {"_id": 0}
-        ).to_list(None)
+        ).to_list(10000)
     loc_map = {loc["id"]: loc for loc in other_locations}
 
     return schedules_by_date, loc_map
@@ -140,7 +140,7 @@ async def generate_bulk_schedules(
 ):
     from models.schemas import ScheduleCreate, RecurrenceRule
     from database import db
-    from routers.schedules import _build_schedule_doc
+    from routers.schedule_helpers import _build_schedule_doc
     from services.activity import log_activity
 
     data = ScheduleCreate(**data_dict)
@@ -204,7 +204,7 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     from database import db
     from routers.classes import get_class_snapshot
 
-    logger.info(f"Syncing denormalized fields for {entity_type}: {entity_id}")
+    logger.info("Syncing denormalized fields", extra={"entity": {"type": entity_type, "id": entity_id}})
 
     if entity_type == "employee":
         employee = await db.employees.find_one({"id": entity_id}, {"_id": 0})
@@ -245,10 +245,13 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
                 },
             )
 
-    logger.info(f"Sync completed for {entity_type}: {entity_id}")
+    logger.info("Sync completed", extra={"entity": {"type": entity_type, "id": entity_id}})
 
 
-async def create_outlook_event(ctx, schedule_id: str, email: str, subject: str, location_name: str, date: str, start_time: str, end_time: str, notes: str = ""):
+async def create_outlook_event(
+    ctx, schedule_id: str, email: str, subject: str, location_name: str,
+    date: str, start_time: str, end_time: str, notes: str = "",
+):
     from services.outlook import create_outlook_event as _create
     from database import db
 
@@ -270,7 +273,9 @@ async def delete_outlook_event(ctx, email: str, event_id: str):
         logger.warning("Failed to delete Outlook event %s", event_id)
 
 
-redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+from core.constants import DEFAULT_REDIS_URL  # noqa: E402
+
+redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 
 class WorkerSettings:

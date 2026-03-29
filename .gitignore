@@ -38,12 +38,20 @@ dist
 *token.json*
 *credentials.json*
 
-# Logs and debug files
+# Logs, debug files, and test output
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
+*.log
+test_out*.txt
+test_output*.txt
+test_report*.txt
+test_result*.md
+traceback.txt
+err*.txt
+test_reports/
 
 # System files
 .DS_Store

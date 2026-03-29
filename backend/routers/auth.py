@@ -15,6 +15,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 ADMIN_EMAILS = ["russell.dale1@gmail.com"]
 
+
 @router.get("/invite/{token}", summary="Validate invitation link")
 async def validate_invite(token: str):
     invitation = await db.invitations.find_one({"token": token, "status": "pending"}, {"_id": 0})
@@ -28,7 +29,11 @@ async def validate_invite(token: str):
     }
 
 
-@router.post("/register", summary="Register a new user account", responses={400: {"model": ErrorResponse, "description": "Email already registered"}})
+@router.post(
+    "/register",
+    summary="Register a new user account",
+    responses={400: {"model": ErrorResponse, "description": "Email already registered"}},
+)
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserRegister, response: Response):
     """Create a new user account. Invited and admin-email users are auto-approved; others require admin approval."""
@@ -68,7 +73,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
-    logger.info(f"User registered: {data.email}", extra={"entity": {"user_id": user_id}})
+    logger.info("User registered", extra={"entity": {"user_id": user_id}})
 
     if invitation:
         await db.invitations.update_one(
@@ -78,12 +83,26 @@ async def register(request: Request, data: UserRegister, response: Response):
 
     if is_admin_email or invitation:
         token = create_token(user_id, data.email, data.name, role)
-        response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
-        return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email, "role": role}}
+        response.set_cookie(
+            key="auth_token", value=token, httponly=True,
+            secure=True, samesite="lax", max_age=86400 * 7,
+        )
+        return {
+            "token": token,
+            "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
+        }
     else:
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
-@router.post("/login", summary="Log in with email and password", responses={401: {"model": ErrorResponse, "description": "Invalid credentials"}, 403: {"model": ErrorResponse, "description": "Account pending approval or denied"}})
+
+@router.post(
+    "/login",
+    summary="Log in with email and password",
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid credentials"},
+        403: {"model": ErrorResponse, "description": "Account pending approval or denied"},
+    },
+)
 @limiter.limit("5/minute")
 async def login(request: Request, data: UserLogin, response: Response):
     """Authenticate and receive a JWT token via HTTP-only cookie. Pending/rejected users are blocked."""
@@ -100,9 +119,16 @@ async def login(request: Request, data: UserLogin, response: Response):
     role = user.get("role", ROLE_VIEWER)
     token = create_token(user['id'], user['email'], user['name'], role)
     user_var.set(user['email'])
-    logger.info(f"User logged in: {user['email']}", extra={"entity": {"user_id": user['id']}})
-    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
-    return {"token": token, "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role}}
+    logger.info("User logged in", extra={"entity": {"user_id": user['id']}})
+    response.set_cookie(
+        key="auth_token", value=token, httponly=True,
+        secure=True, samesite="lax", max_age=86400 * 7,
+    )
+    return {
+        "token": token,
+        "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role},
+    }
+
 
 @router.post("/logout", summary="Log out and clear session")
 @limiter.limit("5/minute")
@@ -110,6 +136,7 @@ async def logout(request: Request, response: Response):
     """Clear the auth_token cookie to end the session."""
     response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
     return {"message": "Logged out successfully"}
+
 
 @router.get("/me", summary="Get current user profile")
 async def get_me(user: CurrentUser):
@@ -148,7 +175,7 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
             "password_changed_at": now.isoformat(),
         }}
     )
-    logger.info(f"Password changed for user: {user['email']}")
+    logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Issue a new token (with iat after password_changed_at)
     token = create_token(user['user_id'], user['email'], user['name'], user.get('role', ROLE_VIEWER))

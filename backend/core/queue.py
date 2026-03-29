@@ -1,9 +1,11 @@
 import os
 from arq import create_pool
 from arq.connections import RedisSettings
+from core.constants import DEFAULT_REDIS_URL
+
 
 async def get_redis_pool():
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     try:
         pool = await create_pool(RedisSettings.from_dsn(redis_url))
         return pool

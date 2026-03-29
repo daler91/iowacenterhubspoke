@@ -17,6 +17,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 LOCATION_NOT_FOUND = "Location not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
+
 @router.get("", summary="List all locations")
 async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
     """Return paginated list of active (non-deleted) locations."""
@@ -24,6 +25,7 @@ async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
     total = await db.locations.count_documents(query)
     locations = await db.locations.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return {"items": locations, "total": total, "skip": skip, "limit": limit}
+
 
 @router.get("/drive-time")
 async def get_drive_time_between_endpoint(from_id: str, to_id: str, user: CurrentUser):
@@ -41,12 +43,17 @@ async def get_drive_time_from_hub_endpoint(lat: float, lng: float, user: Current
     return {"drive_time_minutes": minutes}
 
 
-@router.get("/{location_id}", summary="Get a single location", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+@router.get(
+    "/{location_id}",
+    summary="Get a single location",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
 async def get_location(location_id: str, user: CurrentUser):
     location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     return location
+
 
 @router.post("", summary="Create a new location")
 async def create_location(data: LocationCreate, user: AdminRequired):
@@ -63,11 +70,26 @@ async def create_location(data: LocationCreate, user: AdminRequired):
     }
     await db.locations.insert_one(doc)
     doc.pop("_id", None)
-    logger.info(f"Location created: {data.city_name}", extra={"entity": {"location_id": loc_id}})
-    await log_activity("location_created", f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)", "location", loc_id, user.get('name', 'System'))
+    logger.info(
+        "Location created",
+        extra={"entity": {"location_id": loc_id}},
+    )
+    await log_activity(
+        "location_created",
+        f"Location '{data.city_name}' added ({data.drive_time_minutes}m from Hub)",
+        "location", loc_id, user.get('name', 'System'),
+    )
     return doc
 
-@router.put("/{location_id}", summary="Update a location", responses={400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE}, 404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+
+@router.put(
+    "/{location_id}",
+    summary="Update a location",
+    responses={
+        400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE},
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND},
+    },
+)
 async def update_location(location_id: str, data: LocationUpdate, user: AdminRequired):
     """Update location fields. Triggers background sync of denormalized schedule data."""
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -76,9 +98,9 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
     result = await db.locations.update_one({"id": location_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    logger.info(f"Location updated: {location_id}", extra={"entity": {"location_id": location_id}})
+    logger.info("Location updated", extra={"entity": {"location_id": location_id}})
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
-    
+
     # Trigger background sync for denormalized fields
     pool = await get_redis_pool()
     if pool:
@@ -92,24 +114,43 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
                 "drive_time_minutes": updated["drive_time_minutes"],
             }},
         )
-        logger.info(f"Inline sync completed for location {location_id}")
+        logger.info("Inline sync completed for location", extra={"entity": {"location_id": location_id}})
 
     return updated
 
-@router.delete("/{location_id}", summary="Soft-delete a location", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+
+@router.delete(
+    "/{location_id}",
+    summary="Soft-delete a location",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
 async def delete_location(location_id: str, user: AdminRequired):
     result = await db.locations.update_one(
-        {"id": location_id, "deleted_at": None}, 
+        {"id": location_id, "deleted_at": None},
         {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    logger.info(f"Location soft-deleted: {location_id}", extra={"entity": {"location_id": location_id}})
-    await log_activity("location_deleted", f"Location '{location_id}' marked as deleted", "location", location_id, user.get('name', 'System'))
+    logger.info(
+        "Location soft-deleted",
+        extra={"entity": {"location_id": location_id}},
+    )
+    await log_activity(
+        "location_deleted", f"Location '{location_id}' marked as deleted",
+        "location", location_id, user.get('name', 'System'),
+    )
     return {"message": "Location deleted"}
 
-@router.get("/{location_id}/stats", summary="Get location statistics", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
-async def get_location_stats(location_id: str, user: CurrentUser, start_date: Optional[str] = None, end_date: Optional[str] = None):
+
+@router.get(
+    "/{location_id}/stats",
+    summary="Get location statistics",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
+async def get_location_stats(
+    location_id: str, user: CurrentUser,
+    start_date: Optional[str] = None, end_date: Optional[str] = None,
+):
     """Return schedule counts, drive/class hours, and breakdowns for a location."""
     location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
     if not location:
@@ -136,7 +177,7 @@ async def get_location_stats(location_id: str, user: CurrentUser, start_date: Op
             eh, em = s['end_time'].split(':')
             total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
         except (ValueError, KeyError):
-            pass
+            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
 
         status = s.get('status', 'upcoming')
         if status == 'completed':
@@ -165,14 +206,25 @@ async def get_location_stats(location_id: str, user: CurrentUser, start_date: Op
         "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
     }
 
-@router.post("/{location_id}/restore", summary="Restore a deleted location", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
+
+@router.post(
+    "/{location_id}/restore",
+    summary="Restore a deleted location",
+    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+)
 async def restore_location(location_id: str, user: AdminRequired):
     result = await db.locations.update_one(
-        {"id": location_id}, 
+        {"id": location_id},
         {"$set": {"deleted_at": None}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    logger.info(f"Location restored: {location_id}", extra={"entity": {"location_id": location_id}})
-    await log_activity("location_restored", f"Location '{location_id}' restored", "location", location_id, user.get('name', 'System'))
+    logger.info(
+        "Location restored",
+        extra={"entity": {"location_id": location_id}},
+    )
+    await log_activity(
+        "location_restored", f"Location '{location_id}' restored",
+        "location", location_id, user.get('name', 'System'),
+    )
     return {"message": "Location restored"}
