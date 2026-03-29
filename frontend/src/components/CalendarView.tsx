@@ -184,6 +184,16 @@ export default function CalendarView() {
           Scheduling Calendar
         </h2>
         <p className="text-slate-500">Your main planning view — focused on classes, travel time, and weekly flow.</p>
+        {(schedules || []).length === 0 && (
+          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2" data-testid="schedule-debug">
+            No schedule data loaded. Total in context: {(schedules || []).length} | Filtered: {filteredSchedules.length}
+          </p>
+        )}
+        {(schedules || []).length > 0 && filteredSchedules.length > 0 && (
+          <p className="text-xs text-slate-400" data-testid="schedule-count">
+            {filteredSchedules.length} schedules loaded — showing {calendarView} view
+          </p>
+        )}
       </div>
 
       <StatsStrip stats={stats} onStatClick={onStatClick} />
