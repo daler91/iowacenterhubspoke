@@ -83,10 +83,11 @@ function DriveTimePill({ leg, onOverrideChange }) {
         }}
       >
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-slate-700">
+          <label htmlFor="override-drive-time" className="text-xs font-medium text-slate-700">
             Override drive time
           </label>
           <Input
+            id="override-drive-time"
             ref={inputRef}
             type="number"
             min="1"
@@ -154,7 +155,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
             const isSameCity = leg.minutes === 0 && !isHub && !leg.is_overridden;
 
             return (
-              <div key={`drive-${i}`} className="flex items-stretch">
+              <div key={`drive-${leg.from_label}-${leg.to_label}`} className="flex items-stretch">
                 {/* Vertical line + node */}
                 <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                   {isHub && (
@@ -207,7 +208,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
 
           // Class leg
           return (
-            <div key={`class-${i}`} className="flex items-stretch">
+            <div key={`class-${leg.owner_schedule_id}`} className="flex items-stretch">
               <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                 <div className={cn(
                   "w-3 h-3 rounded-full border-2 z-10 shrink-0",

@@ -203,20 +203,16 @@
     border-color: #999 !important;
   }
 
-  /* Ensure text is readable */
+  /* Ensure text is readable, remove animations and transitions */
   * {
     color: #000 !important;
     text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
   }
 
   .class-block, .class-block * {
     color: #fff !important;
-  }
-
-  /* Remove animations and transitions */
-  * {
-    animation: none !important;
-    transition: none !important;
   }
 
   /* Stats strip — compact row */

@@ -2,7 +2,7 @@ from playwright.sync_api import sync_playwright
 import os
 
 def check_admin():
-    os.environ['PWDEBUG'] = '0'  # noqa: S105 – Playwright debug flag, not a credential
+    os.environ['PWDEBUG'] = '0'  # noqa: S105 - Playwright debug flag, not a credential
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
