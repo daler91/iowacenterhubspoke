@@ -192,11 +192,12 @@ async def check_google_conflicts(employee_id: str, date: str, start_time: str, e
         return []
 
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-    if not employee or not employee.get("email"):
+    if not employee or not employee.get("google_calendar_connected"):
         return []
 
+    google_email = employee.get("google_calendar_email") or employee["email"]
     from services.google_calendar import check_google_availability
-    return await check_google_availability(employee["email"], date, start_time, end_time, employee=employee)
+    return await check_google_availability(google_email, date, start_time, end_time, employee=employee)
 
 
 async def check_conflicts_bulk(
