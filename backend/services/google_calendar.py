@@ -6,10 +6,15 @@ from google.oauth2 import service_account
 
 from core.google_config import (
     GOOGLE_CALENDAR_ENABLED,
+    GOOGLE_SERVICE_ACCOUNT_ENABLED,
+    GOOGLE_OAUTH_ENABLED,
     GOOGLE_SERVICE_ACCOUNT_FILE,
     GOOGLE_SA_CLIENT_EMAIL,
     GOOGLE_SA_PRIVATE_KEY,
     GOOGLE_SA_PROJECT_ID,
+    GOOGLE_OAUTH_CLIENT_ID,
+    GOOGLE_OAUTH_CLIENT_SECRET,
+    GOOGLE_OAUTH_TOKEN_URL,
     GOOGLE_CALENDAR_API_BASE,
     GOOGLE_CALENDAR_TIMEZONE,
     GOOGLE_CALENDAR_SCOPES,
@@ -17,7 +22,7 @@ from core.google_config import (
 
 logger = logging.getLogger("google_calendar")
 
-# Token cache keyed by email (Google requires per-user impersonation)
+# Token cache keyed by email
 _token_cache: dict[str, dict] = {}
 _token_lock = asyncio.Lock()
 
@@ -46,18 +51,37 @@ def _build_credentials() -> service_account.Credentials | None:
         return None
 
 
-async def _get_access_token(email: str) -> str | None:
-    if not GOOGLE_CALENDAR_ENABLED:
+async def _refresh_oauth_token(refresh_token: str) -> dict | None:
+    """Exchange a refresh token for a new access token via OAuth 2.0."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(GOOGLE_OAUTH_TOKEN_URL, data={
+                "client_id": GOOGLE_OAUTH_CLIENT_ID,
+                "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            return {
+                "access_token": data["access_token"],
+                "expires_in": data.get("expires_in", 3600),
+            }
+    except Exception:
+        logger.exception("Failed to refresh Google OAuth token")
         return None
 
+
+async def _get_access_token_service_account(email: str) -> str | None:
+    """Get access token via service account impersonation (for Workspace accounts)."""
     now = time.time()
-    cached = _token_cache.get(email)
+    cache_key = f"sa:{email}"
+    cached = _token_cache.get(cache_key)
     if cached and cached["access_token"] and cached["expires_at"] > now + 300:
         return cached["access_token"]
 
     async with _token_lock:
-        # Double-check after acquiring lock
-        cached = _token_cache.get(email)
+        cached = _token_cache.get(cache_key)
         if cached and cached["access_token"] and cached["expires_at"] > now + 300:
             return cached["access_token"]
 
@@ -66,19 +90,66 @@ async def _get_access_token(email: str) -> str | None:
             if not base_creds:
                 return None
             creds = base_creds.with_subject(email)
-            # Refresh is a blocking I/O call; run in thread
             import google.auth.transport.requests
             await asyncio.to_thread(
                 creds.refresh, google.auth.transport.requests.Request()
             )
-            _token_cache[email] = {
+            _token_cache[cache_key] = {
                 "access_token": creds.token,
-                "expires_at": now + 3300,  # ~55 min (Google tokens last 1h)
+                "expires_at": now + 3300,
             }
             return creds.token
         except Exception:
-            logger.exception("Failed to acquire Google access token for %s", email)
+            logger.exception("Failed to acquire Google service account token for %s", email)
             return None
+
+
+async def _get_access_token_oauth(refresh_token: str, email: str) -> str | None:
+    """Get access token via stored OAuth refresh token (for Gmail accounts)."""
+    now = time.time()
+    cache_key = f"oauth:{email}"
+    cached = _token_cache.get(cache_key)
+    if cached and cached["access_token"] and cached["expires_at"] > now + 300:
+        return cached["access_token"]
+
+    async with _token_lock:
+        cached = _token_cache.get(cache_key)
+        if cached and cached["access_token"] and cached["expires_at"] > now + 300:
+            return cached["access_token"]
+
+        result = await _refresh_oauth_token(refresh_token)
+        if not result:
+            return None
+        _token_cache[cache_key] = {
+            "access_token": result["access_token"],
+            "expires_at": now + result["expires_in"] - 300,
+        }
+        return result["access_token"]
+
+
+async def _get_access_token(email: str, employee: dict | None = None) -> str | None:
+    """Get an access token for the given email.
+
+    Tries OAuth refresh token first (if employee has one stored),
+    then falls back to service account impersonation.
+    """
+    if not GOOGLE_CALENDAR_ENABLED:
+        return None
+
+    # 1. Try OAuth refresh token (works for regular Gmail)
+    if employee and employee.get("google_refresh_token") and GOOGLE_OAUTH_ENABLED:
+        token = await _get_access_token_oauth(
+            employee["google_refresh_token"], email
+        )
+        if token:
+            return token
+        logger.warning("OAuth token refresh failed for %s, trying service account", email)
+
+    # 2. Fall back to service account (works for Workspace)
+    if GOOGLE_SERVICE_ACCOUNT_ENABLED:
+        return await _get_access_token_service_account(email)
+
+    return None
 
 
 def _build_datetime(date: str, time_str: str) -> str:
@@ -86,16 +157,17 @@ def _build_datetime(date: str, time_str: str) -> str:
 
 
 async def check_google_availability(
-    email: str, date: str, start_time: str, end_time: str
+    email: str, date: str, start_time: str, end_time: str,
+    employee: dict | None = None,
 ) -> list[dict]:
-    token = await _get_access_token(email)
+    token = await _get_access_token(email, employee)
     if not token:
         return []
 
     url = f"{GOOGLE_CALENDAR_API_BASE}/freeBusy"
     body = {
-        "timeMin": _build_datetime(date, start_time) + f"-06:00",
-        "timeMax": _build_datetime(date, end_time) + f"-06:00",
+        "timeMin": _build_datetime(date, start_time) + "-06:00",
+        "timeMax": _build_datetime(date, end_time) + "-06:00",
         "timeZone": GOOGLE_CALENDAR_TIMEZONE,
         "items": [{"id": email}],
     }
@@ -132,8 +204,9 @@ async def create_google_event(
     start_time: str,
     end_time: str,
     notes: str | None = None,
+    employee: dict | None = None,
 ) -> str | None:
-    token = await _get_access_token(email)
+    token = await _get_access_token(email, employee)
     if not token:
         return None
 
@@ -170,8 +243,10 @@ async def create_google_event(
         return None
 
 
-async def delete_google_event(email: str, event_id: str) -> bool:
-    token = await _get_access_token(email)
+async def delete_google_event(
+    email: str, event_id: str, employee: dict | None = None,
+) -> bool:
+    token = await _get_access_token(email, employee)
     if not token:
         return False
 

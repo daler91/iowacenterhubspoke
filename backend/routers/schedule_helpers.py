@@ -131,6 +131,7 @@ async def _enqueue_google_event_async(employee, location, class_doc, doc):
                 start_time=doc["start_time"],
                 end_time=doc["end_time"],
                 notes=doc.get("notes", ""),
+                employee_id=employee["id"],
             )
     except Exception:
         _google_logger.exception("Failed to enqueue Google Calendar event creation")
@@ -157,6 +158,7 @@ async def _enqueue_google_delete(schedule: dict):
                 "delete_google_event",
                 email=employee["email"],
                 event_id=google_event_id,
+                employee_id=employee["id"],
             )
     except Exception:
         _google_logger.exception("Failed to enqueue Google Calendar event deletion")

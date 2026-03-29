@@ -31,7 +31,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from core.rate_limit import limiter  # noqa: E402
 
 from database import client, db, ROOT_DIR  # noqa: E402
-from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users  # noqa: E402
+from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users, google_oauth  # noqa: E402
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
 
@@ -325,6 +325,7 @@ api_router.include_router(reports.router)
 api_router.include_router(system.router)
 api_router.include_router(analytics.router)
 api_router.include_router(users.router)
+api_router.include_router(google_oauth.router)
 
 
 @api_router.get("/health", tags=["system"])

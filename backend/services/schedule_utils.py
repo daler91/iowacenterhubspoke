@@ -196,7 +196,7 @@ async def check_google_conflicts(employee_id: str, date: str, start_time: str, e
         return []
 
     from services.google_calendar import check_google_availability
-    return await check_google_availability(employee["email"], date, start_time, end_time)
+    return await check_google_availability(employee["email"], date, start_time, end_time, employee=employee)
 
 
 async def check_conflicts_bulk(

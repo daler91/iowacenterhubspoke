@@ -129,6 +129,7 @@ async def _enqueue_google_events(ctx, created, employee, class_doc, location):
                 start_time=doc['start_time'],
                 end_time=doc['end_time'],
                 notes=doc.get('notes', ''),
+                employee_id=employee['id'],
             )
         except Exception:
             logger.exception("Failed to enqueue Google Calendar event for schedule %s", doc['id'])
@@ -302,11 +303,16 @@ async def delete_outlook_event(ctx, email: str, event_id: str):
 async def create_google_event(
     ctx, schedule_id: str, email: str, subject: str, location_name: str,
     date: str, start_time: str, end_time: str, notes: str = "",
+    employee_id: str = "",
 ):
     from services.google_calendar import create_google_event as _create
     from database import db
 
-    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None)
+    employee = None
+    if employee_id:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+
+    event_id = await _create(email, subject, location_name, date, start_time, end_time, notes or None, employee=employee)
     if event_id:
         await db.schedules.update_one({"id": schedule_id}, {"$set": {"google_calendar_event_id": event_id}})
         logger.info("Google Calendar event created for schedule %s: %s", schedule_id, event_id)
@@ -314,10 +320,15 @@ async def create_google_event(
         logger.warning("Google Calendar event creation returned no ID for schedule %s", schedule_id)
 
 
-async def delete_google_event(ctx, email: str, event_id: str):
+async def delete_google_event(ctx, email: str, event_id: str, employee_id: str = ""):
     from services.google_calendar import delete_google_event as _delete
+    from database import db
 
-    success = await _delete(email, event_id)
+    employee = None
+    if employee_id:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+
+    success = await _delete(email, event_id, employee=employee)
     if success:
         logger.info("Google Calendar event %s deleted", event_id)
     else:
