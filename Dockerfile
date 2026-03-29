@@ -1,12 +1,12 @@
 # Stage 1: Build frontend
 FROM node:20-slim AS frontend-build
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
+RUN npm ci
 COPY frontend/ ./
 ARG VITE_GOOGLE_MAPS_API_KEY
 ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
-RUN yarn build
+RUN npm run build
 
 # Stage 2: Python backend + frontend static files
 FROM python:3.11-slim
