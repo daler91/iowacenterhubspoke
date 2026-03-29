@@ -109,7 +109,13 @@ async def delete_user(user_id: str, user: AdminRequired):
     return {"message": "User deleted"}
 
 
-@router.post("/invite", summary="Create an invitation link")
+@router.post(
+    "/invite",
+    summary="Create an invitation link",
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid role, user already exists, or active invitation already exists"},
+    },
+)
 async def create_invitation(data: InviteCreate, user: AdminRequired):
     """Generate a one-time invitation link for a new user with a pre-assigned role."""
     if data.role not in VALID_ROLES:
@@ -158,7 +164,14 @@ async def list_invitations(user: AdminRequired):
     return {"invitations": invitations}
 
 
-@router.delete("/invitations/{invite_id}", summary="Revoke an invitation")
+@router.delete(
+    "/invitations/{invite_id}",
+    summary="Revoke an invitation",
+    responses={
+        400: {"model": ErrorResponse, "description": "Only pending invitations can be revoked"},
+        404: {"model": ErrorResponse, "description": "Invitation not found"},
+    },
+)
 async def revoke_invitation(invite_id: str, user: AdminRequired):
     invite = await db.invitations.find_one({"id": invite_id}, {"_id": 0})
     if not invite:

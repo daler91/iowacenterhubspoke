@@ -27,7 +27,10 @@ async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
     return {"items": locations, "total": total, "skip": skip, "limit": limit}
 
 
-@router.get("/drive-time")
+@router.get(
+    "/drive-time",
+    responses={400: {"model": ErrorResponse, "description": "Both locations must have latitude and longitude set"}},
+)
 async def get_drive_time_between_endpoint(from_id: str, to_id: str, user: CurrentUser):
     """Get drive time between two locations using Google Distance Matrix (with caching)."""
     minutes = await get_drive_time_between_locations(from_id, to_id)

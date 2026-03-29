@@ -18,6 +18,62 @@ from routers.schedule_helpers import (
 router = APIRouter(tags=["schedules"])
 
 
+def _build_hub_leg(entry, loc_map, direction):
+    """Build a Hub↔location drive leg. direction is 'to' (Hub→loc) or 'from' (loc→Hub)."""
+    loc = loc_map.get(entry["location_id"])
+    default_drive = loc["drive_time_minutes"] if loc else 0
+    override_field = "drive_to_override_minutes" if direction == "to" else "drive_from_override_minutes"
+    override = entry.get(override_field)
+    drive_min = override if override else default_drive
+    is_overridden = override is not None and override > 0
+
+    if direction == "to":
+        drive_end = entry["start_time"]
+        drive_start = _subtract_minutes_from_time(drive_end, drive_min)
+        from_label, to_label = HUB_LABEL, entry["location_name"]
+    else:
+        drive_start = entry["end_time"]
+        drive_end = _add_minutes_to_time(drive_start, drive_min)
+        from_label, to_label = entry["location_name"], HUB_LABEL
+
+    leg = {
+        "type": "drive",
+        "from_label": from_label,
+        "to_label": to_label,
+        "minutes": drive_min,
+        "start_time": drive_start,
+        "end_time": drive_end,
+        "is_overridden": is_overridden,
+        "override_field": "drive_to" if direction == "to" else "drive_from",
+        "owner_is_current": entry["is_current"],
+        "owner_schedule_id": entry.get("schedule_id"),
+    }
+    return leg, drive_min
+
+
+async def _resolve_between_drive(entry, next_entry):
+    """Resolve drive time and override status between two consecutive entries."""
+    if entry["location_id"] == next_entry["location_id"]:
+        return 0, False
+
+    try:
+        calculated = (
+            await get_drive_time_between_locations(
+                entry["location_id"], next_entry["location_id"]
+            )
+        ) or 0
+    except Exception:
+        calculated = 0
+
+    from_override = entry.get("drive_from_override_minutes")
+    to_override = next_entry.get("drive_to_override_minutes")
+    if from_override:
+        return from_override, True
+    if to_override:
+        return to_override, True
+    return calculated, False
+
+
 async def _build_travel_chain(
     employee_id: str,
     date: str,
@@ -81,29 +137,9 @@ async def _build_travel_chain(
     total_drive = 0
 
     # First leg: Hub -> first location
-    first_entry = entries[0]
-    first_loc = loc_map.get(first_entry["location_id"])
-    default_first_drive = first_loc["drive_time_minutes"] if first_loc else 0
-    first_override = first_entry.get("drive_to_override_minutes")
-    first_hub_drive = first_override if first_override else default_first_drive
-    is_first_overridden = first_override is not None and first_override > 0
-    first_drive_end = first_entry["start_time"]
-    first_drive_start = _subtract_minutes_from_time(first_drive_end, first_hub_drive)
-    legs.append(
-        {
-            "type": "drive",
-            "from_label": HUB_LABEL,
-            "to_label": first_entry["location_name"],
-            "minutes": first_hub_drive,
-            "start_time": first_drive_start,
-            "end_time": first_drive_end,
-            "is_overridden": is_first_overridden,
-            "override_field": "drive_to",
-            "owner_is_current": first_entry["is_current"],
-            "owner_schedule_id": first_entry.get("schedule_id"),
-        }
-    )
-    total_drive += first_hub_drive
+    first_leg, first_drive = _build_hub_leg(entries[0], loc_map, "to")
+    legs.append(first_leg)
+    total_drive += first_drive
 
     for i, entry in enumerate(entries):
         legs.append(
@@ -118,29 +154,7 @@ async def _build_travel_chain(
 
         if i < len(entries) - 1:
             next_entry = entries[i + 1]
-            if entry["location_id"] == next_entry["location_id"]:
-                drive_min = 0
-                is_overridden = False
-            else:
-                try:
-                    calculated = (
-                        await get_drive_time_between_locations(
-                            entry["location_id"], next_entry["location_id"]
-                        )
-                    ) or 0
-                except Exception:
-                    calculated = 0
-                from_override = entry.get("drive_from_override_minutes")
-                to_override = next_entry.get("drive_to_override_minutes")
-                if from_override:
-                    drive_min = from_override
-                    is_overridden = True
-                elif to_override:
-                    drive_min = to_override
-                    is_overridden = True
-                else:
-                    drive_min = calculated
-                    is_overridden = False
+            drive_min, is_overridden = await _resolve_between_drive(entry, next_entry)
             between_start = entry["end_time"]
             between_end = _add_minutes_to_time(between_start, drive_min)
             legs.append(
@@ -159,29 +173,9 @@ async def _build_travel_chain(
             )
             total_drive += drive_min
         else:
-            # Last leg: last location -> Hub
-            last_loc = loc_map.get(entry["location_id"])
-            default_last_drive = last_loc["drive_time_minutes"] if last_loc else 0
-            from_override = entry.get("drive_from_override_minutes")
-            last_hub_drive = from_override if from_override else default_last_drive
-            is_last_overridden = from_override is not None and from_override > 0
-            last_drive_start = entry["end_time"]
-            last_drive_end = _add_minutes_to_time(last_drive_start, last_hub_drive)
-            legs.append(
-                {
-                    "type": "drive",
-                    "from_label": entry["location_name"],
-                    "to_label": HUB_LABEL,
-                    "minutes": last_hub_drive,
-                    "start_time": last_drive_start,
-                    "end_time": last_drive_end,
-                    "is_overridden": is_last_overridden,
-                    "override_field": "drive_from",
-                    "owner_is_current": entry["is_current"],
-                    "owner_schedule_id": entry.get("schedule_id"),
-                }
-            )
-            total_drive += last_hub_drive
+            last_leg, last_drive = _build_hub_leg(entry, loc_map, "from")
+            legs.append(last_leg)
+            total_drive += last_drive
 
     return {
         "legs": legs,
