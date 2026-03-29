@@ -113,7 +113,7 @@ async def delete_user(user_id: str, user: AdminRequired):
     "/invite",
     summary="Create an invitation link",
     responses={
-        400: {"model": ErrorResponse, "description": "Invalid role, user already exists, or active invitation already exists"},
+        400: {"model": ErrorResponse, "description": "Invalid role, user or invitation already exists"},
     },
 )
 async def create_invitation(data: InviteCreate, user: AdminRequired):
