@@ -118,21 +118,35 @@ def _enqueue_google_event(
 
     schedule_id = doc["id"]
     employee_id = employee["id"]
-    subject = (
-        f"{class_doc['name'] if class_doc else 'Class'}"
-        f" - {location['city_name']}"
+    class_name = class_doc['name'] if class_doc else 'Class'
+    city_name = location["city_name"]
+    subject = f"{class_name} - {city_name}"
+
+    # Drive time for separate calendar events
+    drive_to = (
+        doc.get("drive_to_override_minutes")
+        or doc.get("drive_time_minutes")
+        or 0
     )
+    drive_from = (
+        doc.get("drive_from_override_minutes")
+        or doc.get("drive_time_minutes")
+        or 0
+    )
+
     task = asyncio.ensure_future(
-        _create_google_event_direct(
+        _create_google_events_with_drive_time(
             schedule_id=schedule_id,
             employee_id=employee_id,
             google_email=google_email,
             subject=subject,
-            location_name=location["city_name"],
+            location_name=city_name,
             date=doc["date"],
             start_time=doc["start_time"],
             end_time=doc["end_time"],
             notes=doc.get("notes") or "",
+            drive_to=drive_to,
+            drive_from=drive_from,
         )
     )
     _background_tasks.add(task)
@@ -148,42 +162,52 @@ async def _fetch_refresh_token(employee_id: str) -> str | None:
     return doc.get("google_refresh_token") if doc else None
 
 
-async def _create_google_event_direct(
+async def _create_google_events_with_drive_time(
     *, schedule_id, employee_id, google_email, subject,
     location_name, date, start_time, end_time, notes,
+    drive_to, drive_from,
 ):
-    """Create Google Calendar event directly, with queue fallback."""
-    event_id = await _try_create_event(
-        employee_id, google_email, subject, location_name,
-        date, start_time, end_time, notes,
-    )
-    if event_id:
-        await db.schedules.update_one(
-            {"id": schedule_id},
-            {"$set": {"google_calendar_event_id": event_id}},
+    """Create class event plus separate drive-time events on Google Calendar."""
+    event_ids = []
+
+    # 1. Drive TO event (before class)
+    if drive_to > 0:
+        drive_to_start = _subtract_minutes_from_time(start_time, drive_to)
+        eid = await _try_create_event(
+            employee_id, google_email,
+            f"Drive to {location_name} ({drive_to} min)",
+            location_name, date, drive_to_start, start_time, None,
         )
-        return
+        if eid:
+            event_ids.append(eid)
 
-    # Fallback: enqueue for worker if direct creation failed
-    try:
-        from core.queue import get_redis_pool
+    # 2. Main class event
+    main_eid = await _try_create_event(
+        employee_id, google_email, subject,
+        location_name, date, start_time, end_time, notes,
+    )
+    if main_eid:
+        event_ids.append(main_eid)
 
-        pool = await get_redis_pool()
-        if pool:
-            await pool.enqueue_job(
-                "create_google_event",
-                schedule_id=schedule_id,
-                email=google_email,
-                subject=subject,
-                location_name=location_name,
-                date=date,
-                start_time=start_time,
-                end_time=end_time,
-                notes=notes,
-                employee_id=employee_id,
-            )
-    except Exception:
-        pass
+    # 3. Drive FROM event (after class)
+    if drive_from > 0:
+        drive_from_end = _add_minutes_to_time(end_time, drive_from)
+        eid = await _try_create_event(
+            employee_id, google_email,
+            f"Drive from {location_name} ({drive_from} min)",
+            location_name, date, end_time, drive_from_end, None,
+        )
+        if eid:
+            event_ids.append(eid)
+
+    # Store all event IDs on schedule for cleanup on delete
+    if event_ids:
+        update = {"google_calendar_event_id": event_ids[0]}
+        if len(event_ids) > 1:
+            update["google_calendar_event_ids"] = event_ids
+        await db.schedules.update_one(
+            {"id": schedule_id}, {"$set": update},
+        )
 
 
 async def _try_create_event(
@@ -206,11 +230,18 @@ async def _try_create_event(
 
 
 async def _enqueue_google_delete(schedule: dict):
-    """Delete Google Calendar event directly, with queue fallback."""
+    """Delete all Google Calendar events for a schedule."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
 
-    google_event_id = schedule.get("google_calendar_event_id")
-    if not GOOGLE_CALENDAR_ENABLED or not google_event_id:
+    if not GOOGLE_CALENDAR_ENABLED:
+        return
+
+    # Collect all event IDs (single legacy + multi drive-time)
+    event_ids = list(schedule.get("google_calendar_event_ids") or [])
+    legacy_id = schedule.get("google_calendar_event_id")
+    if legacy_id and legacy_id not in event_ids:
+        event_ids.append(legacy_id)
+    if not event_ids:
         return
 
     employee_id = schedule["employee_id"]
@@ -223,26 +254,8 @@ async def _enqueue_google_delete(schedule: dict):
 
     google_email = emp.get("google_calendar_email") or emp["email"]
 
-    success = await _try_delete_event(
-        employee_id, google_email, google_event_id
-    )
-    if success:
-        return
-
-    # Fallback: enqueue for worker
-    try:
-        from core.queue import get_redis_pool
-
-        pool = await get_redis_pool()
-        if pool:
-            await pool.enqueue_job(
-                "delete_google_event",
-                email=google_email,
-                event_id=google_event_id,
-                employee_id=employee_id,
-            )
-    except Exception:
-        pass
+    for eid in event_ids:
+        await _try_delete_event(employee_id, google_email, eid)
 
 
 async def _try_delete_event(employee_id, google_email, event_id):

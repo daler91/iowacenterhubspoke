@@ -110,30 +110,85 @@ async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
             logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
 
 
+def _add_minutes(time_str: str, minutes: int) -> str:
+    h, m = map(int, time_str.split(":"))
+    total = h * 60 + m + minutes
+    return f"{(total // 60) % 24:02d}:{total % 60:02d}"
+
+
+def _subtract_minutes(time_str: str, minutes: int) -> str:
+    h, m = map(int, time_str.split(":"))
+    total = max(0, h * 60 + m - minutes)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 async def _enqueue_google_events(ctx, created, employee, class_doc, location):
     from core.google_config import GOOGLE_CALENDAR_ENABLED
     if not GOOGLE_CALENDAR_ENABLED or not employee.get('google_calendar_connected'):
         return
     google_email = employee.get('google_calendar_email') or employee['email']
     from database import db as _db
+    from services.google_calendar import create_google_event as _create
+    city = location['city_name']
+    class_name = class_doc['name'] if class_doc else 'Class'
+    subject = f"{class_name} - {city}"
     for doc in created:
         try:
-            from services.google_calendar import create_google_event as _create
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-            event_id = await _create(
-                google_email, subject, location['city_name'],
+            event_ids = []
+            drive_to = (
+                doc.get("drive_to_override_minutes")
+                or doc.get("drive_time_minutes") or 0
+            )
+            drive_from = (
+                doc.get("drive_from_override_minutes")
+                or doc.get("drive_time_minutes") or 0
+            )
+
+            # Drive TO event
+            if drive_to > 0:
+                dt_start = _subtract_minutes(doc['start_time'], drive_to)
+                eid = await _create(
+                    google_email,
+                    f"Drive to {city} ({drive_to} min)",
+                    city, doc['date'], dt_start, doc['start_time'],
+                    None, employee=employee,
+                )
+                if eid:
+                    event_ids.append(eid)
+
+            # Main class event
+            eid = await _create(
+                google_email, subject, city,
                 doc['date'], doc['start_time'], doc['end_time'],
                 doc.get('notes') or None, employee=employee,
             )
-            if event_id:
-                await _db.schedules.update_one(
-                    {"id": doc['id']}, {"$set": {"google_calendar_event_id": event_id}}
+            if eid:
+                event_ids.append(eid)
+
+            # Drive FROM event
+            if drive_from > 0:
+                df_end = _add_minutes(doc['end_time'], drive_from)
+                eid = await _create(
+                    google_email,
+                    f"Drive from {city} ({drive_from} min)",
+                    city, doc['date'], doc['end_time'], df_end,
+                    None, employee=employee,
                 )
-                logger.info("Google Calendar event created for schedule %s: %s", doc['id'], event_id)
-            else:
-                logger.warning("Google Calendar event creation returned no ID for schedule %s", doc['id'])
+                if eid:
+                    event_ids.append(eid)
+
+            if event_ids:
+                update = {"google_calendar_event_id": event_ids[0]}
+                if len(event_ids) > 1:
+                    update["google_calendar_event_ids"] = event_ids
+                await _db.schedules.update_one(
+                    {"id": doc['id']}, {"$set": update}
+                )
         except Exception:
-            logger.exception("Failed to enqueue Google Calendar event for schedule %s", doc['id'])
+            logger.exception(
+                "Failed to create Google Calendar events for schedule %s",
+                doc['id'],
+            )
 
 
 async def _log_bulk_creation(log_activity, created, employee, location, class_doc, dates_to_schedule, user_name):
