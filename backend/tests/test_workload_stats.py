@@ -90,7 +90,7 @@ async def test_workload_stats_with_invalid_schedule_times(mock_db_fixture):
     # Assertions
     assert stats["total_classes"] == 3
     # valid schedule: 60 mins -> class hours 1.0. others: 0
-    assert stats["total_class_hours"] == 1.0
+    assert stats["total_class_hours"] == pytest.approx(1.0)
     # drive time: 30 + 40 + 0 = 70 mins
     assert stats["total_drive_hours"] == pytest.approx(round(70 / 60, 1))
     assert stats["completed"] == 2
