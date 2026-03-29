@@ -112,8 +112,9 @@ async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
 
 async def _enqueue_google_events(ctx, created, employee, class_doc, location):
     from core.google_config import GOOGLE_CALENDAR_ENABLED
-    if not GOOGLE_CALENDAR_ENABLED or not employee.get('email'):
+    if not GOOGLE_CALENDAR_ENABLED or not employee.get('google_calendar_connected'):
         return
+    google_email = employee.get('google_calendar_email') or employee['email']
     for doc in created:
         try:
             pool = ctx.get('redis')
@@ -123,7 +124,7 @@ async def _enqueue_google_events(ctx, created, employee, class_doc, location):
             await pool.enqueue_job(
                 "create_google_event",
                 schedule_id=doc['id'],
-                email=employee['email'],
+                email=google_email,
                 subject=subject,
                 location_name=location['city_name'],
                 date=doc['date'],

@@ -105,7 +105,7 @@ def _enqueue_google_event(
     """Fire-and-forget: enqueue Google Calendar event creation if configured."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
 
-    if not GOOGLE_CALENDAR_ENABLED or not employee.get("email"):
+    if not GOOGLE_CALENDAR_ENABLED or not employee.get("google_calendar_connected"):
         return
     import asyncio
 
@@ -122,11 +122,12 @@ async def _enqueue_google_event_async(employee, location, class_doc, doc):
 
         pool = await get_redis_pool()
         if pool:
+            google_email = employee.get("google_calendar_email") or employee["email"]
             subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
             await pool.enqueue_job(
                 "create_google_event",
                 schedule_id=doc["id"],
-                email=employee["email"],
+                email=google_email,
                 subject=subject,
                 location_name=location["city_name"],
                 date=doc["date"],
@@ -156,9 +157,10 @@ async def _enqueue_google_delete(schedule: dict):
 
         pool = await get_redis_pool()
         if pool:
+            google_email = employee.get("google_calendar_email") or employee["email"]
             await pool.enqueue_job(
                 "delete_google_event",
-                email=employee["email"],
+                email=google_email,
                 event_id=google_event_id,
                 employee_id=employee["id"],
             )
