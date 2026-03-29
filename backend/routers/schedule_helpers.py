@@ -154,12 +154,9 @@ async def _create_google_event_direct(
     location_name, date, start_time, end_time, notes,
 ):
     """Create Google Calendar event directly, with queue fallback."""
-    token = await _fetch_refresh_token(employee_id)
-    creds = {"google_refresh_token": token} if token else None
-
     event_id = await _try_create_event(
-        google_email, subject, location_name,
-        date, start_time, end_time, notes, creds,
+        employee_id, google_email, subject, location_name,
+        date, start_time, end_time, notes,
     )
     if event_id:
         await db.schedules.update_one(
@@ -196,13 +193,15 @@ async def _create_google_event_direct(
 
 
 async def _try_create_event(
-    google_email, subject, location_name,
-    date, start_time, end_time, notes, creds,
+    employee_id, google_email, subject, location_name,
+    date, start_time, end_time, notes,
 ):
-    """Attempt event creation, isolating sensitive creds from callers."""
+    """Fetch credentials and create event. Isolates sensitive data."""
     try:
         from services.google_calendar import create_google_event as _create
 
+        token = await _fetch_refresh_token(employee_id)
+        creds = {"google_refresh_token": token} if token else None
         return await _create(
             google_email, subject, location_name,
             date, start_time, end_time,
@@ -229,11 +228,9 @@ async def _enqueue_google_delete(schedule: dict):
         return
 
     google_email = emp.get("google_calendar_email") or emp["email"]
-    token = await _fetch_refresh_token(employee_id)
-    creds = {"google_refresh_token": token} if token else None
 
     success = await _try_delete_event(
-        google_email, google_event_id, creds
+        employee_id, google_email, google_event_id
     )
     if success:
         _google_logger.info(
@@ -260,11 +257,13 @@ async def _enqueue_google_delete(schedule: dict):
         )
 
 
-async def _try_delete_event(google_email, event_id, creds):
-    """Attempt event deletion, isolating sensitive creds from callers."""
+async def _try_delete_event(employee_id, google_email, event_id):
+    """Fetch credentials and delete event. Isolates sensitive data."""
     try:
         from services.google_calendar import delete_google_event as _del
 
+        token = await _fetch_refresh_token(employee_id)
+        creds = {"google_refresh_token": token} if token else None
         return await _del(google_email, event_id, employee=creds)
     except Exception:
         return False
