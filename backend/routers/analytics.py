@@ -210,6 +210,19 @@ def _should_skip_pair(a, b, loc_map):
     return False
 
 
+def _evaluate_day_swaps(day_schedules, by_date, date_key, loc_map):
+    results = []
+    for i in range(len(day_schedules)):
+        for j in range(i + 1, len(day_schedules)):
+            a, b = day_schedules[i], day_schedules[j]
+            if _should_skip_pair(a, b, loc_map):
+                continue
+            savings, reason = _compute_swap_savings(a, b, by_date, date_key)
+            if savings > 0:
+                results.append(_build_suggestion(a, b, date_key, savings, reason))
+    return results
+
+
 def _find_swap_suggestions(schedules, loc_map):
     by_date = defaultdict(list)
     for s in schedules:
@@ -219,14 +232,7 @@ def _find_swap_suggestions(schedules, loc_map):
     for date_key, day_schedules in by_date.items():
         if len(day_schedules) < 2:
             continue
-        for i in range(len(day_schedules)):
-            for j in range(i + 1, len(day_schedules)):
-                a, b = day_schedules[i], day_schedules[j]
-                if _should_skip_pair(a, b, loc_map):
-                    continue
-                savings, reason = _compute_swap_savings(a, b, by_date, date_key)
-                if savings > 0:
-                    suggestions.append(_build_suggestion(a, b, date_key, savings, reason))
+        suggestions.extend(_evaluate_day_swaps(day_schedules, by_date, date_key, loc_map))
 
     suggestions.sort(key=lambda s: -s["savings_mins"])
     return suggestions

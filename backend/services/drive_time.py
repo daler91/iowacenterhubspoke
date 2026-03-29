@@ -106,6 +106,24 @@ def _hub_cache_key(lat, lng):
     return f"hub|{round(lat, 4)}|{round(lng, 4)}"
 
 
+async def _check_mongo_cache(cache_key):
+    """Check MongoDB cache for a valid drive time entry. Returns minutes or None."""
+    cached = await db.drive_time_cache.find_one({"key": cache_key}, {"_id": 0})
+    if not cached:
+        return None
+    created = cached.get("created_at", "")
+    if not created:
+        return None
+    try:
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(created)).days
+        if age < CACHE_TTL_DAYS:
+            _mem_set(cache_key, cached["drive_time_minutes"])
+            return cached["drive_time_minutes"]
+    except (ValueError, TypeError):
+        logger.warning("Invalid cached drive time entry for key %s", cache_key)
+    return None
+
+
 async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=None):
     """Get drive time between two coordinates. Checks in-memory cache, then MongoDB, then API, then estimates."""
     # 1. In-memory LRU cache (instant, no I/O)
@@ -116,17 +134,9 @@ async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=N
 
     # 2. MongoDB cache
     if cache_key:
-        cached = await db.drive_time_cache.find_one({"key": cache_key}, {"_id": 0})
-        if cached:
-            created = cached.get("created_at", "")
-            if created:
-                try:
-                    age = (datetime.now(timezone.utc) - datetime.fromisoformat(created)).days
-                    if age < CACHE_TTL_DAYS:
-                        _mem_set(cache_key, cached["drive_time_minutes"])
-                        return cached["drive_time_minutes"], True
-                except (ValueError, TypeError):
-                    logger.warning("Invalid cached drive time entry for key %s", cache_key)
+        mongo_hit = await _check_mongo_cache(cache_key)
+        if mongo_hit is not None:
+            return mongo_hit, True
 
     # 3. Google Distance Matrix API
     minutes = await _fetch_distance_matrix(from_lat, from_lng, to_lat, to_lng)

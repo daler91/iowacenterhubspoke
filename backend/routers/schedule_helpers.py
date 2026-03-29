@@ -163,6 +163,35 @@ async def _check_town_to_town(employee_id, sched_date, location_id):
     return True, warning, drive_minutes
 
 
+def _build_ttt_warning(drive_minutes, other_cities):
+    city_list = ", ".join(other_cities)
+    if drive_minutes is not None:
+        return (
+            f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. "
+            f"Other locations: {city_list}"
+        )
+    return (
+        "Town-to-Town Travel Detected: Verify drive time manually. "
+        f"Other locations: {city_list}"
+    )
+
+
+async def _compute_min_drive_time(location_id, scheds, cache):
+    drive_minutes = None
+    for s in scheds:
+        other_id = s["location_id"]
+        pair_key = tuple(sorted([location_id, other_id]))
+        if pair_key not in cache:
+            try:
+                cache[pair_key] = await get_drive_time_between_locations(location_id, other_id)
+            except Exception:
+                cache[pair_key] = None
+        m = cache[pair_key]
+        if m is not None and (drive_minutes is None or m < drive_minutes):
+            drive_minutes = m
+    return drive_minutes
+
+
 async def _check_town_to_town_bulk(
     employee_id: str, dates: list[str], location_id: str
 ):
@@ -199,31 +228,11 @@ async def _check_town_to_town_bulk(
             for s in scheds
             if s["location_id"] in loc_map
         })
-        if other_cities:
-            drive_minutes = None
-            for s in scheds:
-                other_id = s["location_id"]
-                pair_key = tuple(sorted([location_id, other_id]))
-                if pair_key not in drive_time_cache:
-                    try:
-                        drive_time_cache[pair_key] = await get_drive_time_between_locations(location_id, other_id)
-                    except Exception:
-                        drive_time_cache[pair_key] = None
-                m = drive_time_cache[pair_key]
-                if m is not None and (drive_minutes is None or m < drive_minutes):
-                    drive_minutes = m
-
-            if drive_minutes is not None:
-                warning = (
-                    f"Town-to-Town Travel: ~{drive_minutes} min drive between locations. "
-                    f"Other locations: {', '.join(other_cities)}"
-                )
-            else:
-                warning = (
-                    "Town-to-Town Travel Detected: Verify drive time manually. "
-                    f"Other locations: {', '.join(other_cities)}"
-                )
-            results[date] = (True, warning, drive_minutes)
+        if not other_cities:
+            continue
+        drive_minutes = await _compute_min_drive_time(location_id, scheds, drive_time_cache)
+        warning = _build_ttt_warning(drive_minutes, other_cities)
+        results[date] = (True, warning, drive_minutes)
 
     return results
 

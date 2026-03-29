@@ -16,7 +16,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 ADMIN_EMAILS = ["russell.dale1@gmail.com"]
 
 
-@router.get("/invite/{token}", summary="Validate invitation link")
+@router.get(
+    "/invite/{token}",
+    summary="Validate invitation link",
+    responses={404: {"model": ErrorResponse, "description": "Invalid or expired invitation link"}},
+)
 async def validate_invite(token: str):
     invitation = await db.invitations.find_one({"token": token, "status": "pending"}, {"_id": 0})
     if not invitation:
@@ -155,6 +159,7 @@ async def get_me(user: CurrentUser):
     summary="Change password and invalidate existing sessions",
     responses={
         400: {"model": ErrorResponse, "description": "Current password is incorrect"},
+        404: {"model": ErrorResponse, "description": "User not found"},
     },
 )
 async def change_password(data: PasswordChange, user: CurrentUser, response: Response):

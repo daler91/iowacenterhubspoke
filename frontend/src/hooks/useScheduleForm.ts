@@ -180,6 +180,16 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     return true;
   };
 
+  const resolveRecurrenceOccurrences = (isCustom: boolean): number | null => {
+    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
+      return Number.parseInt(customRecurrence.occurrences, 10);
+    }
+    if (form.recurrence_end_mode === 'after_occurrences') {
+      return Number.parseInt(form.recurrence_occurrences, 10);
+    }
+    return null;
+  };
+
   const buildPayload = () => {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
@@ -191,13 +201,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
-    }
-
-    let recurrenceOccurrences: number | null = null;
-    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
-      recurrenceOccurrences = Number.parseInt(customRecurrence.occurrences, 10);
-    } else if (form.recurrence_end_mode === 'after_occurrences') {
-      recurrenceOccurrences = Number.parseInt(form.recurrence_occurrences, 10);
     }
 
     const customRecurrencePayload = isCustom ? {
@@ -214,7 +217,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       recurrence: form.recurrence,
       recurrence_end_mode: isCustom ? customRecurrence.end_mode : form.recurrence_end_mode,
       recurrence_end_date: isCustom ? customRecurrence.end_date : form.recurrence_end_date,
-      recurrence_occurrences: recurrenceOccurrences,
+      recurrence_occurrences: resolveRecurrenceOccurrences(isCustom),
       custom_recurrence: customRecurrencePayload,
     };
   };
