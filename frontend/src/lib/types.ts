@@ -70,6 +70,7 @@ export interface DashboardStats {
   total_employees: number;
   total_locations: number;
   total_schedules: number;
+  total_classes: number;
   today_schedules: number;
 }
 

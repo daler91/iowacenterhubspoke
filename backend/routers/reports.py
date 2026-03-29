@@ -18,6 +18,7 @@ async def get_dashboard_stats(user: CurrentUser):
     total_employees = await db.employees.count_documents({"deleted_at": None})
     total_locations = await db.locations.count_documents({"deleted_at": None})
     total_schedules = await db.schedules.count_documents({"deleted_at": None})
+    total_classes = await db.classes.count_documents({"deleted_at": None})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     today_schedules = await db.schedules.count_documents(
         {"date": today, "deleted_at": None}
@@ -26,6 +27,7 @@ async def get_dashboard_stats(user: CurrentUser):
         "total_employees": total_employees,
         "total_locations": total_locations,
         "total_schedules": total_schedules,
+        "total_classes": total_classes,
         "today_schedules": today_schedules,
     }
 

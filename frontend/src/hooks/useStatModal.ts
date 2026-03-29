@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import type { Schedule, Employee, Location } from '../lib/types';
+import type { Schedule, Employee, Location, ClassType } from '../lib/types';
 
-type StatType = 'today' | 'scheduled' | 'team' | 'locations';
+type StatType = 'today' | 'scheduled' | 'team' | 'locations' | 'classes';
 
 interface UseStatModalProps {
   schedules?: Schedule[];
   employees?: Employee[];
   locations?: Location[];
+  classes?: ClassType[];
 }
 
-export function useStatModal({ schedules = [], employees = [], locations = [] }: UseStatModalProps) {
+export function useStatModal({ schedules = [], employees = [], locations = [], classes = [] }: UseStatModalProps) {
   const [statModalOpen, setStatModalOpen] = useState(false);
   const [statModalType, setStatModalType] = useState<StatType>('today');
   const [statModalData, setStatModalData] = useState<(Schedule | Employee | Location)[]>([]);
@@ -36,6 +37,9 @@ export function useStatModal({ schedules = [], employees = [], locations = [] }:
     } else if (type === 'locations') {
       setStatModalData(locations || []);
       setStatModalTitle('All Locations');
+    } else if (type === 'classes') {
+      setStatModalData(classes || []);
+      setStatModalTitle('All Class Types');
     }
 
     setStatModalOpen(true);
