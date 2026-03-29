@@ -31,6 +31,7 @@ export default function CalendarView() {
     fetchActivities,
     onEditSchedule,
     onStatClick,
+    fetchErrors,
   } = useOutletContext<any>();
 
   const stats = rawStats ?? {};
@@ -211,6 +212,13 @@ export default function CalendarView() {
         employees={employees}
         locations={locations}
       />
+
+      {fetchErrors?.schedules && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error">
+          <p className="text-sm text-red-700">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button onClick={() => fetchSchedules()} className="text-sm font-medium text-red-700 hover:text-red-800 underline">Retry</button>
+        </div>
+      )}
 
       <div ref={calendarRef}>
         <ErrorBoundary key={calendarView}>

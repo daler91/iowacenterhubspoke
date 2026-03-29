@@ -257,8 +257,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       return;
     }
     if (!editSchedule && !form.class_id) {
-      toast.error('Please select or create a class type');
-      return;
+      toast.warning('No class type selected — schedule will be created without one.');
     }
     if (!validateRecurrence()) return;
 

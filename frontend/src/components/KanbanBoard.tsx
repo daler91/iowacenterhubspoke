@@ -141,7 +141,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
 import { useOutletContext } from 'react-router-dom';
 
 export default function KanbanBoard() {
-  const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload } = useOutletContext();
+  const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
 
   const {
     selectionMode,
@@ -233,6 +233,13 @@ export default function KanbanBoard() {
           Bulk Select
         </Button>
       </div>
+
+      {fetchErrors?.schedules && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error">
+          <p className="text-sm text-red-700">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button onClick={() => onRefresh()} className="text-sm font-medium text-red-700 hover:text-red-800 underline">Retry</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
