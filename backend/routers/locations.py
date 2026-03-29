@@ -71,7 +71,7 @@ async def create_location(data: LocationCreate, user: AdminRequired):
     await db.locations.insert_one(doc)
     doc.pop("_id", None)
     logger.info(
-        f"Location created: {data.city_name}",
+        "Location created",
         extra={"entity": {"location_id": loc_id}},
     )
     await log_activity(
@@ -98,7 +98,7 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
     result = await db.locations.update_one({"id": location_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    logger.info(f"Location updated: {location_id}", extra={"entity": {"location_id": location_id}})
+    logger.info("Location updated", extra={"entity": {"location_id": location_id}})
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
 
     # Trigger background sync for denormalized fields
@@ -114,7 +114,7 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
                 "drive_time_minutes": updated["drive_time_minutes"],
             }},
         )
-        logger.info(f"Inline sync completed for location {location_id}")
+        logger.info("Inline sync completed for location", extra={"entity": {"location_id": location_id}})
 
     return updated
 
@@ -132,7 +132,7 @@ async def delete_location(location_id: str, user: AdminRequired):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     logger.info(
-        f"Location soft-deleted: {location_id}",
+        "Location soft-deleted",
         extra={"entity": {"location_id": location_id}},
     )
     await log_activity(
@@ -220,7 +220,7 @@ async def restore_location(location_id: str, user: AdminRequired):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     logger.info(
-        f"Location restored: {location_id}",
+        "Location restored",
         extra={"entity": {"location_id": location_id}},
     )
     await log_activity(

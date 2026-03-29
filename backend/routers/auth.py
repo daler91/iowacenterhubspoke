@@ -73,7 +73,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
-    logger.info(f"User registered: {data.email}", extra={"entity": {"user_id": user_id}})
+    logger.info("User registered", extra={"entity": {"user_id": user_id}})
 
     if invitation:
         await db.invitations.update_one(
@@ -119,7 +119,7 @@ async def login(request: Request, data: UserLogin, response: Response):
     role = user.get("role", ROLE_VIEWER)
     token = create_token(user['id'], user['email'], user['name'], role)
     user_var.set(user['email'])
-    logger.info(f"User logged in: {user['email']}", extra={"entity": {"user_id": user['id']}})
+    logger.info("User logged in", extra={"entity": {"user_id": user['id']}})
     response.set_cookie(
         key="auth_token", value=token, httponly=True,
         secure=True, samesite="lax", max_age=86400 * 7,
@@ -175,7 +175,7 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
             "password_changed_at": now.isoformat(),
         }}
     )
-    logger.info(f"Password changed for user: {user['email']}")
+    logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Issue a new token (with iat after password_changed_at)
     token = create_token(user['user_id'], user['email'], user['name'], user.get('role', ROLE_VIEWER))

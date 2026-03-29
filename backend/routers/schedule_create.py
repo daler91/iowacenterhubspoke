@@ -83,7 +83,7 @@ async def _handle_single_schedule(
     doc.pop("_id", None)
     _enqueue_outlook_event(employee, location, class_doc, doc)
     logger.info(
-        f"Schedule created: {doc['id']}",
+        "Schedule created",
         extra={
             "entity": {
                 "schedule_id": doc["id"],
@@ -141,7 +141,7 @@ async def _handle_bulk_background(
         user_name=user.get("name", "System"),
     )
     logger.info(
-        f"Bulk schedules enqueued for {employee['name']}",
+        "Bulk schedules enqueued",
         extra={
             "entity": {
                 "employee_id": data.employee_id,

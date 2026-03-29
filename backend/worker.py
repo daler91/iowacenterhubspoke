@@ -204,7 +204,7 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     from database import db
     from routers.classes import get_class_snapshot
 
-    logger.info(f"Syncing denormalized fields for {entity_type}: {entity_id}")
+    logger.info("Syncing denormalized fields", extra={"entity": {"type": entity_type, "id": entity_id}})
 
     if entity_type == "employee":
         employee = await db.employees.find_one({"id": entity_id}, {"_id": 0})
@@ -245,7 +245,7 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
                 },
             )
 
-    logger.info(f"Sync completed for {entity_type}: {entity_id}")
+    logger.info("Sync completed", extra={"entity": {"type": entity_type, "id": entity_id}})
 
 
 async def create_outlook_event(

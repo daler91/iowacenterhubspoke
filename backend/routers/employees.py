@@ -52,7 +52,7 @@ async def create_employee(data: EmployeeCreate, user: AdminRequired):
     }
     await db.employees.insert_one(doc)
     doc.pop("_id", None)
-    logger.info(f"Employee created: {data.name}", extra={"entity": {"employee_id": emp_id}})
+    logger.info("Employee created", extra={"entity": {"employee_id": emp_id}})
     await log_activity(
         "employee_created", f"Employee '{data.name}' added to team",
         "employee", emp_id, user.get('name', 'System'),
@@ -75,7 +75,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
     result = await db.employees.update_one({"id": employee_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
-    logger.info(f"Employee updated: {employee_id}", extra={"entity": {"employee_id": employee_id}})
+    logger.info("Employee updated", extra={"entity": {"employee_id": employee_id}})
     updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
 
     # Trigger background sync for denormalized fields
@@ -91,7 +91,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
                 "employee_color": updated.get("color", "#4F46E5"),
             }},
         )
-        logger.info(f"Inline sync completed for employee {employee_id}")
+        logger.info("Inline sync completed for employee", extra={"entity": {"employee_id": employee_id}})
 
     return updated
 
@@ -109,7 +109,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     logger.info(
-        f"Employee soft-deleted: {employee_id}",
+        "Employee soft-deleted",
         extra={"entity": {"employee_id": employee_id}},
     )
     await log_activity(
@@ -132,7 +132,7 @@ async def restore_employee(employee_id: str, user: AdminRequired):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     logger.info(
-        f"Employee restored: {employee_id}",
+        "Employee restored",
         extra={"entity": {"employee_id": employee_id}},
     )
     await log_activity(

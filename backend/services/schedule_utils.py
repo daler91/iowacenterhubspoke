@@ -152,8 +152,8 @@ async def check_conflicts(
         query["id"] = {"$ne": exclude_id}
 
     logger.debug(
-        f"Checking conflicts for employee {employee_id} on {date}",
-        extra={"context": {"start_time": start_time, "end_time": end_time}}
+        "Checking conflicts",
+        extra={"context": {"employee_id": employee_id, "date": date}}
     )
 
     existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
@@ -202,8 +202,8 @@ async def check_conflicts_bulk(
         query["id"] = {"$ne": exclude_id}
 
     logger.debug(
-        f"Checking conflicts for employee {employee_id} on {len(dates)} dates",
-        extra={"context": {"start_time": start_time, "end_time": end_time}}
+        "Checking bulk conflicts",
+        extra={"context": {"employee_id": employee_id, "dates_count": len(dates)}}
     )
 
     # We might have many schedules, let's use a larger limit

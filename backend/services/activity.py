@@ -18,6 +18,6 @@ async def log_activity(action: str, description: str, entity_type: str, entity_i
     }
     await db.activity_logs.insert_one(doc)
     logger.info(
-        f"Activity logged: {action}",
-        extra={"entity": {"type": entity_type, "id": entity_id}, "user": user_name}
+        "Activity logged",
+        extra={"entity": {"type": entity_type, "id": entity_id, "action": action}}
     )

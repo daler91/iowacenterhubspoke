@@ -51,7 +51,7 @@ async def sync_class_snapshot_background(class_id: str):
                     "class_description": snapshot["class_description"],
                 }},
             )
-            logger.info(f"Inline sync completed for class {class_id}")
+            logger.info("Inline sync completed for class", extra={"entity": {"class_id": class_id}})
 
 
 @router.get("", summary="List all class types")
@@ -87,7 +87,7 @@ async def create_class(data: ClassCreate, user: AdminRequired):
     }
     await db.classes.insert_one(doc)
     doc.pop("_id", None)
-    logger.info(f"Class created: {data.name}", extra={"entity": {"class_id": class_id}})
+    logger.info("Class created", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_created", f"Class type '{data.name}' added",
         "class", class_id, user.get('name', 'System'),
@@ -114,7 +114,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
 
     updated = await db.classes.find_one({"id": class_id}, {"_id": 0})
     await sync_class_snapshot_background(class_id)
-    logger.info(f"Class updated: {updated['name']}", extra={"entity": {"class_id": class_id}})
+    logger.info("Class updated", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_updated", f"Class type '{updated['name']}' updated",
         "class", class_id, user.get('name', 'System'),
@@ -146,7 +146,7 @@ async def delete_class(class_id: str, user: AdminRequired):
         {"id": class_id},
         {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
     )
-    logger.info(f"Class soft-deleted: {class_doc['name']}", extra={"entity": {"class_id": class_id}})
+    logger.info("Class soft-deleted", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_deleted", f"Class type '{class_doc['name']}' marked as deleted",
         "class", class_id, user.get('name', 'System'),
@@ -231,7 +231,7 @@ async def restore_class(class_id: str, user: AdminRequired):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
-    logger.info(f"Class restored: {class_id}", extra={"entity": {"class_id": class_id}})
+    logger.info("Class restored", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_restored", f"Class with ID '{class_id}' restored",
         "class", class_id, user.get('name', 'System'),

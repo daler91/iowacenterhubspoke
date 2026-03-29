@@ -30,7 +30,7 @@ from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 from core.rate_limit import limiter  # noqa: E402
 
-from database import client, db, mongo_url, ROOT_DIR  # noqa: E402
+from database import client, db, ROOT_DIR  # noqa: E402
 from routers import auth, locations, employees, classes, schedules, reports, system, analytics, users  # noqa: E402
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
@@ -40,9 +40,9 @@ async def lifespan(app: FastAPI):
     # ---- Startup ----
     try:
         await client.admin.command('ping')
-        logger.info(f"Connected to MongoDB at {mongo_url}")
+        logger.info("Connected to MongoDB")
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
+        logger.error("Failed to connect to MongoDB", exc_info=e)
         raise
 
     # Migrate existing users: set status to approved if missing
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
                     {"email": admin_email},
                     {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
                 )
-                logger.info(f"Promoted {admin_email} to admin role")
+                logger.info("Promoted configured admin user")
         except Exception as e:
             logger.warning(f"Failed to check/promote admin user: {e}")
 
