@@ -184,40 +184,25 @@ async def _build_travel_chain(
     }
 
 
-@router.post(
-    "/check-conflicts",
-    summary="Check for scheduling conflicts",
-    responses={
-        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
-    },
-)
-async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
-    """Check for time conflicts and Outlook conflicts before creating a schedule."""
-    location = await db.locations.find_one(
-        {"id": data.location_id}, {"_id": 0}
-    )
-    if not location:
-        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    drive_time = (
-        data.drive_to_override_minutes
-        if data.drive_to_override_minutes
-        else location["drive_time_minutes"]
-    )
+async def _check_conflicts_for_employee(
+    employee_id: str, data: ScheduleCreate, location: dict, drive_time: int
+):
+    """Check all conflict types for a single employee."""
     conflicts = await check_conflicts(
-        data.employee_id, data.date, data.start_time, data.end_time, drive_time
+        employee_id, data.date, data.start_time, data.end_time, drive_time
     )
     outlook_conflicts = await check_outlook_conflicts(
-        data.employee_id, data.date, data.start_time, data.end_time
+        employee_id, data.date, data.start_time, data.end_time
     )
     google_conflicts = await check_google_conflicts(
-        data.employee_id, data.date, data.start_time, data.end_time
+        employee_id, data.date, data.start_time, data.end_time
     )
 
     travel_chain = None
     town_to_town_info = None
-    if data.employee_id and data.date and data.location_id:
+    if employee_id and data.date and data.location_id:
         travel_chain = await _build_travel_chain(
-            data.employee_id,
+            employee_id,
             data.date,
             data.location_id,
             data.start_time,
@@ -227,12 +212,12 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
             drive_from_override=data.drive_from_override_minutes,
         )
         tt, tt_warning, tt_drive_min = await _check_town_to_town(
-            data.employee_id, data.date, data.location_id
+            employee_id, data.date, data.location_id
         )
         if tt:
             same_day = await db.schedules.find(
                 {
-                    "employee_id": data.employee_id,
+                    "employee_id": employee_id,
                     "date": data.date,
                     "location_id": {"$ne": data.location_id},
                     "deleted_at": None,
@@ -254,4 +239,59 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         "google_conflicts": google_conflicts,
         "town_to_town": town_to_town_info,
         "travel_chain": travel_chain,
+    }
+
+
+@router.post(
+    "/check-conflicts",
+    summary="Check for scheduling conflicts",
+    responses={
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
+    },
+)
+async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
+    """Check for time conflicts and Outlook conflicts before creating a schedule.
+    Supports multiple employees via employee_ids — returns per_employee breakdown."""
+    location = await db.locations.find_one(
+        {"id": data.location_id}, {"_id": 0}
+    )
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    drive_time = (
+        data.drive_to_override_minutes
+        if data.drive_to_override_minutes
+        else location["drive_time_minutes"]
+    )
+
+    employee_ids = data.employee_ids or [data.employee_id]
+
+    # Single employee — backward compatible response
+    if len(employee_ids) == 1:
+        return await _check_conflicts_for_employee(
+            employee_ids[0], data, location, drive_time
+        )
+
+    # Multiple employees — per-employee breakdown
+    per_employee = {}
+    any_conflicts = False
+    for emp_id in employee_ids:
+        result = await _check_conflicts_for_employee(
+            emp_id, data, location, drive_time
+        )
+        # Add employee name for frontend display
+        emp = await db.employees.find_one({"id": emp_id}, {"_id": 0, "name": 1})
+        result["employee_name"] = emp["name"] if emp else emp_id
+        per_employee[emp_id] = result
+        if result["has_conflicts"]:
+            any_conflicts = True
+
+    return {
+        "has_conflicts": any_conflicts,
+        "per_employee": per_employee,
+        # Provide empty top-level arrays for backward compat
+        "conflicts": [],
+        "outlook_conflicts": [],
+        "google_conflicts": [],
+        "town_to_town": None,
+        "travel_chain": None,
     }

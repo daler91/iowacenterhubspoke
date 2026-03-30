@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator
 from typing import List, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
@@ -68,7 +68,8 @@ class ClassUpdate(BaseModel):
 
 
 class ScheduleCreate(BaseModel):
-    employee_id: str
+    employee_id: Optional[str] = None
+    employee_ids: Optional[List[str]] = None
     location_id: str
     class_id: Optional[str] = None
     date: str  # YYYY-MM-DD
@@ -87,6 +88,19 @@ class ScheduleCreate(BaseModel):
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
     force_google: Optional[bool] = False
+
+    @model_validator(mode="after")
+    def _normalise_employees(self):
+        if self.employee_ids:
+            # Multi-employee mode: set employee_id to first for backward compat
+            if not self.employee_id:
+                self.employee_id = self.employee_ids[0]
+        elif self.employee_id:
+            # Single-employee mode: wrap into list
+            self.employee_ids = [self.employee_id]
+        else:
+            raise ValueError("Either employee_id or employee_ids is required")
+        return self
 
 
 class ScheduleUpdate(BaseModel):

@@ -9,6 +9,7 @@ const getDayValue = (dateStr: string) => new Date(`${dateStr}T00:00:00`).getDay(
 
 interface ScheduleFormData {
   employee_id: string;
+  employee_ids: string[];
   class_id: string;
   location_id: string;
   date: string;
@@ -37,6 +38,11 @@ interface ConflictPreview {
   conflicts: Array<Record<string, unknown>>;
   outlook_conflicts: Array<Record<string, unknown>>;
   google_conflicts: Array<Record<string, unknown>>;
+  per_employee?: Record<string, {
+    has_conflicts: boolean;
+    conflicts: Array<Record<string, unknown>>;
+    employee_name?: string;
+  }> | null;
 }
 
 interface UseScheduleFormProps {
@@ -49,6 +55,7 @@ interface UseScheduleFormProps {
 export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: UseScheduleFormProps) {
   const [form, setForm] = useState<ScheduleFormData>({
     employee_id: '',
+    employee_ids: [],
     class_id: '',
     location_id: '',
     date: '',
@@ -78,6 +85,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     if (editSchedule) {
       setForm({
         employee_id: editSchedule.employee_id,
+        employee_ids: [editSchedule.employee_id],
         class_id: editSchedule.class_id || '',
         location_id: editSchedule.location_id,
         date: editSchedule.date,
@@ -96,6 +104,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       const startDate = new Date().toISOString().split('T')[0];
       setForm({
         employee_id: '',
+        employee_ids: [],
         class_id: '',
         location_id: '',
         date: startDate,
@@ -116,14 +125,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
   // Debounced conflict preview (fires when key fields change)
   const fetchConflictPreview = useCallback(() => {
-    if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
+    const hasEmployee = editSchedule ? !!form.employee_id : form.employee_ids.length > 0;
+    if (!hasEmployee || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
       return;
     }
-    const payload = {
-      employee_id: form.employee_id,
+    const payload: Record<string, any> = {
       location_id: form.location_id,
       date: form.date,
       start_time: form.start_time,
@@ -133,12 +142,18 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null,
       schedule_id: editSchedule?.id || null,
     };
+    if (editSchedule) {
+      payload.employee_id = form.employee_id;
+    } else {
+      payload.employee_ids = form.employee_ids;
+    }
     schedulesAPI.checkConflicts(payload)
       .then((res: any) => {
         setPreviewConflicts({
           conflicts: res.data.conflicts || [],
           outlook_conflicts: res.data.outlook_conflicts || [],
           google_conflicts: res.data.google_conflicts || [],
+          per_employee: res.data.per_employee || null,
         });
         setTownToTown(res.data.town_to_town || null);
         setTravelChain(res.data.travel_chain || null);
@@ -148,7 +163,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
         setTownToTown(null);
         setTravelChain(null);
       });
-  }, [form.employee_id, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
+  }, [form.employee_id, form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -202,6 +217,13 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
     const classId = form.class_id || null;
     const payload: Record<string, any> = { ...form, class_id: classId, travel_override_minutes: travelMinutes, drive_to_override_minutes: driveToOverride, drive_from_override_minutes: driveFromOverride };
+    // For create mode, send employee_ids; for edit mode, send employee_id
+    if (editSchedule) {
+      delete payload.employee_ids;
+    } else {
+      payload.employee_ids = form.employee_ids;
+      delete payload.employee_id;
+    }
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
@@ -227,6 +249,20 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   };
 
   const handleCreateResponse = (res: any) => {
+    // Multi-employee response
+    if (res.data.multi_employee) {
+      const created = res.data.total_created || 0;
+      const failed = res.data.total_failed || 0;
+      if (failed > 0 && created > 0) {
+        toast.warning(`${created} scheduled, ${failed} had conflicts`, { duration: 6000 });
+      } else if (failed > 0 && created === 0) {
+        toast.error(`All ${failed} employees had conflicts`);
+      } else {
+        toast.success(`${created} employees scheduled successfully`);
+      }
+      return;
+    }
+    // Single-employee responses
     if (res.data.background) {
       toast.info(res.data.message);
     } else if (res.data.town_to_town_warning) {
@@ -262,7 +298,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.employee_id || !form.location_id || !form.date || !form.start_time || !form.end_time) {
+    const hasEmployee = editSchedule ? !!form.employee_id : form.employee_ids.length > 0;
+    if (!hasEmployee || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       toast.error('Please fill all required fields');
       return;
     }

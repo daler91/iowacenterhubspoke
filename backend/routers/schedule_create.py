@@ -17,7 +17,8 @@ from services.schedule_utils import (
 from routers.schedule_helpers import (
     logger,
     _build_schedule_doc,
-    _fetch_schedule_entities,
+    _fetch_employee,
+    _fetch_location_and_class,
     _check_town_to_town,
     _check_town_to_town_bulk,
     _sync_same_day_town_to_town,
@@ -270,22 +271,30 @@ async def _handle_bulk_synchronous(
     }
 
 
-async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
-    """Create one or more schedules. Supports recurrence patterns (weekly, biweekly, custom).
-    Checks for conflicts including drive time buffers and Outlook calendar."""
-    location, employee, class_doc = await _fetch_schedule_entities(data)
+async def _create_for_employee(
+    data: ScheduleCreate,
+    employee_id: str,
+    location: dict,
+    class_doc: dict | None,
+    user: SchedulerRequired,
+):
+    """Create schedule(s) for a single employee (single or recurring)."""
+    employee = await _fetch_employee(employee_id)
+
+    # Build a copy of data with this specific employee_id
+    emp_data = data.model_copy(update={"employee_id": employee_id, "employee_ids": [employee_id]})
 
     drive_time = (
-        data.drive_to_override_minutes
-        if data.drive_to_override_minutes
+        emp_data.drive_to_override_minutes
+        if emp_data.drive_to_override_minutes
         else location["drive_time_minutes"]
     )
-    recurrence_rule = build_recurrence_rule(data)
-    dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
+    recurrence_rule = build_recurrence_rule(emp_data)
+    dates_to_schedule = build_recurrence_dates(emp_data.date, recurrence_rule)
 
     if len(dates_to_schedule) == 1:
         return await _handle_single_schedule(
-            data,
+            emp_data,
             dates_to_schedule[0],
             drive_time,
             recurrence_rule,
@@ -296,7 +305,7 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
         )
 
     result = await _handle_bulk_background(
-        data,
+        emp_data,
         dates_to_schedule,
         drive_time,
         recurrence_rule,
@@ -309,7 +318,7 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
         return result
 
     return await _handle_bulk_synchronous(
-        data,
+        emp_data,
         dates_to_schedule,
         drive_time,
         recurrence_rule,
@@ -318,3 +327,44 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
         class_doc,
         user,
     )
+
+
+async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
+    """Create one or more schedules. Supports recurrence patterns (weekly, biweekly, custom).
+    Supports multiple employees — creates independent schedules per employee.
+    Checks for conflicts including drive time buffers and Outlook calendar."""
+    location, class_doc = await _fetch_location_and_class(data)
+
+    employee_ids = data.employee_ids or [data.employee_id]
+
+    # Single employee — preserve original behavior exactly
+    if len(employee_ids) == 1:
+        return await _create_for_employee(
+            data, employee_ids[0], location, class_doc, user
+        )
+
+    # Multiple employees — create independently, aggregate results
+    results = []
+    errors = []
+    for emp_id in employee_ids:
+        try:
+            result = await _create_for_employee(
+                data, emp_id, location, class_doc, user
+            )
+            results.append({"employee_id": emp_id, "result": result})
+        except HTTPException as e:
+            errors.append({"employee_id": emp_id, "error": e.detail})
+
+    total_created = 0
+    for r in results:
+        res = r["result"]
+        if isinstance(res, dict):
+            total_created += res.get("total_created", 1)
+
+    return {
+        "results": results,
+        "errors": errors,
+        "total_created": total_created,
+        "total_failed": len(errors),
+        "multi_employee": True,
+    }

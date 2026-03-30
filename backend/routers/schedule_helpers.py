@@ -490,18 +490,23 @@ def _build_schedule_doc(
     }
 
 
-async def _fetch_schedule_entities(data: ScheduleCreate):
+async def _fetch_employee(employee_id: str):
+    """Fetch and validate a single employee."""
+    employee = await db.employees.find_one(
+        {"id": employee_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not employee:
+        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+    return employee
+
+
+async def _fetch_location_and_class(data: ScheduleCreate):
+    """Fetch and validate location and optional class (shared across employees)."""
     location = await db.locations.find_one(
         {"id": data.location_id, "deleted_at": None}, {"_id": 0}
     )
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-
-    employee = await db.employees.find_one(
-        {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not employee:
-        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
     class_doc = None
     if data.class_id:
@@ -511,4 +516,10 @@ async def _fetch_schedule_entities(data: ScheduleCreate):
         if not class_doc:
             raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
+    return location, class_doc
+
+
+async def _fetch_schedule_entities(data: ScheduleCreate):
+    location, class_doc = await _fetch_location_and_class(data)
+    employee = await _fetch_employee(data.employee_id)
     return location, employee, class_doc
