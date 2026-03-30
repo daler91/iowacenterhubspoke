@@ -17,13 +17,11 @@ from services.schedule_utils import (
 from routers.schedule_helpers import (
     logger,
     _build_schedule_doc,
-    _fetch_employee,
-    _fetch_location_and_class,
+    _fetch_schedule_entities,
     _check_town_to_town,
     _check_town_to_town_bulk,
     _sync_same_day_town_to_town,
-    _enqueue_outlook_event,
-    _enqueue_google_event,
+    _enqueue_calendar_events_for_all,
 )
 
 
@@ -33,29 +31,41 @@ async def _handle_single_schedule(
     drive_time: int,
     recurrence_rule,
     location: dict,
-    employee: dict,
+    employees: list[dict],
     class_doc: dict | None,
     user: SchedulerRequired,
 ):
-    conflicts = await check_conflicts(
-        data.employee_id,
-        date_to_schedule,
-        data.start_time,
-        data.end_time,
-        drive_time,
-    )
-    if conflicts:
+    # Check conflicts for each employee
+    per_employee_conflicts = {}
+    for emp in employees:
+        conflicts = await check_conflicts(
+            emp["id"],
+            date_to_schedule,
+            data.start_time,
+            data.end_time,
+            drive_time,
+        )
+        if conflicts:
+            per_employee_conflicts[emp["id"]] = {
+                "name": emp["name"],
+                "conflicts": conflicts,
+            }
+
+    if per_employee_conflicts and not data.force:
         raise HTTPException(
             status_code=409,
             detail={
                 "message": "Schedule conflict detected",
-                "conflicts": conflicts,
+                "conflicts": [],
+                "per_employee_conflicts": per_employee_conflicts,
             },
         )
 
+    # Check Outlook/Google conflicts for first employee (primary)
+    primary = employees[0]
     if not data.force_outlook:
         outlook_conflicts = await check_outlook_conflicts(
-            data.employee_id, date_to_schedule, data.start_time, data.end_time
+            primary["id"], date_to_schedule, data.start_time, data.end_time
         )
         if outlook_conflicts:
             raise HTTPException(
@@ -69,7 +79,7 @@ async def _handle_single_schedule(
 
     if not data.force_google:
         google_conflicts = await check_google_conflicts(
-            data.employee_id, date_to_schedule, data.start_time, data.end_time
+            primary["id"], date_to_schedule, data.start_time, data.end_time
         )
         if google_conflicts:
             raise HTTPException(
@@ -81,9 +91,11 @@ async def _handle_single_schedule(
                 },
             )
 
-    town_to_town, town_to_town_warning, town_to_town_drive_minutes = await _check_town_to_town(
-        data.employee_id, date_to_schedule, data.location_id
+    # Check town-to-town for first employee
+    town_to_town, town_to_town_warning, town_to_town_drive_minutes = (
+        await _check_town_to_town(primary["id"], date_to_schedule, data.location_id)
     )
+
     doc = _build_schedule_doc(
         data,
         date_to_schedule,
@@ -92,34 +104,36 @@ async def _handle_single_schedule(
         town_to_town_warning,
         recurrence_rule,
         location,
-        employee,
+        employees,
         class_doc,
         town_to_town_drive_minutes=town_to_town_drive_minutes,
     )
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
-    _enqueue_outlook_event(employee, location, class_doc, doc)
-    _enqueue_google_event(employee, location, class_doc, doc)
+
+    # Create calendar events for all employees
+    _enqueue_calendar_events_for_all(employees, location, class_doc, doc)
+
     logger.info(
         "Schedule created",
         extra={
             "entity": {
                 "schedule_id": doc["id"],
-                "employee_id": data.employee_id,
+                "employee_ids": data.employee_ids,
                 "location_id": data.location_id,
             }
         },
     )
 
-    await _sync_same_day_town_to_town(
-        data.employee_id, date_to_schedule
-    )
+    for emp in employees:
+        await _sync_same_day_town_to_town(emp["id"], date_to_schedule)
 
+    emp_names = ", ".join(e["name"] for e in employees)
     class_label = f" for {class_doc['name']}" if class_doc else ""
     await log_activity(
         action="schedule_created",
         description=(
-            f"{employee['name']} assigned to {location['city_name']}"
+            f"{emp_names} assigned to {location['city_name']}"
             f"{class_label} — 1 class starting {data.date}"
         ),
         entity_type="schedule",
@@ -135,7 +149,7 @@ async def _handle_bulk_background(
     drive_time: int,
     recurrence_rule,
     location: dict,
-    employee: dict,
+    employees: list[dict],
     class_doc: dict | None,
     user: SchedulerRequired,
 ):
@@ -154,7 +168,7 @@ async def _handle_bulk_background(
         drive_time=drive_time,
         recurrence_rule_dict=recurrence_dict,
         location=location,
-        employee=employee,
+        employees=employees,
         class_doc=class_doc,
         user_name=user.get("name", "System"),
     )
@@ -162,18 +176,19 @@ async def _handle_bulk_background(
         "Bulk schedules enqueued",
         extra={
             "entity": {
-                "employee_id": data.employee_id,
+                "employee_ids": data.employee_ids,
                 "location_id": data.location_id,
                 "dates_count": len(dates_to_schedule),
             }
         },
     )
 
+    emp_names = ", ".join(e["name"] for e in employees)
     class_label = f" for {class_doc['name']}" if class_doc else ""
     await log_activity(
         action="schedule_created_bulk_enqueued",
         description=(
-            f"Bulk schedule pipeline queued for {employee['name']} at "
+            f"Bulk schedule pipeline queued for {emp_names} at "
             f"{location['city_name']}{class_label} ({len(dates_to_schedule)} dates)"
         ),
         entity_type="schedule_batch",
@@ -193,7 +208,7 @@ async def _handle_bulk_synchronous(
     drive_time: int,
     recurrence_rule,
     location: dict,
-    employee: dict,
+    employees: list[dict],
     class_doc: dict | None,
     user: SchedulerRequired,
 ):
@@ -202,8 +217,10 @@ async def _handle_bulk_synchronous(
     created = []
     conflicts_found = []
 
+    # Check conflicts for first employee (primary) for bulk
+    primary = employees[0]
     all_conflicts = await check_conflicts_bulk(
-        data.employee_id,
+        primary["id"],
         dates_to_schedule,
         data.start_time,
         data.end_time,
@@ -211,7 +228,7 @@ async def _handle_bulk_synchronous(
     )
 
     all_town_warnings = await _check_town_to_town_bulk(
-        data.employee_id, dates_to_schedule, data.location_id
+        primary["id"], dates_to_schedule, data.location_id
     )
 
     docs_to_insert = []
@@ -236,7 +253,7 @@ async def _handle_bulk_synchronous(
             town_to_town_warning,
             recurrence_rule,
             location,
-            employee,
+            employees,
             class_doc,
             town_to_town_drive_minutes=tt_drive_minutes,
         )
@@ -252,11 +269,12 @@ async def _handle_bulk_synchronous(
         count_label = (
             f"{len(created)} classes" if len(created) > 1 else "class"
         )
+        emp_names = ", ".join(e["name"] for e in employees)
         class_label = f" for {class_doc['name']}" if class_doc else ""
         await log_activity(
             action="schedule_created",
             description=(
-                f"{employee['name']} assigned to {location['city_name']}"
+                f"{emp_names} assigned to {location['city_name']}"
                 f"{class_label} — {count_label} starting {data.date}"
             ),
             entity_type="schedule",
@@ -271,46 +289,38 @@ async def _handle_bulk_synchronous(
     }
 
 
-async def _create_for_employee(
-    data: ScheduleCreate,
-    employee_id: str,
-    location: dict,
-    class_doc: dict | None,
-    user: SchedulerRequired,
-):
-    """Create schedule(s) for a single employee (single or recurring)."""
-    employee = await _fetch_employee(employee_id)
-
-    # Build a copy of data with this specific employee_id
-    emp_data = data.model_copy(update={"employee_id": employee_id, "employee_ids": [employee_id]})
+async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
+    """Create one or more schedules. Supports recurrence patterns and multiple employees.
+    Each schedule document contains all employees (attendees model)."""
+    location, employees, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = (
-        emp_data.drive_to_override_minutes
-        if emp_data.drive_to_override_minutes
+        data.drive_to_override_minutes
+        if data.drive_to_override_minutes
         else location["drive_time_minutes"]
     )
-    recurrence_rule = build_recurrence_rule(emp_data)
-    dates_to_schedule = build_recurrence_dates(emp_data.date, recurrence_rule)
+    recurrence_rule = build_recurrence_rule(data)
+    dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
 
     if len(dates_to_schedule) == 1:
         return await _handle_single_schedule(
-            emp_data,
+            data,
             dates_to_schedule[0],
             drive_time,
             recurrence_rule,
             location,
-            employee,
+            employees,
             class_doc,
             user,
         )
 
     result = await _handle_bulk_background(
-        emp_data,
+        data,
         dates_to_schedule,
         drive_time,
         recurrence_rule,
         location,
-        employee,
+        employees,
         class_doc,
         user,
     )
@@ -318,53 +328,12 @@ async def _create_for_employee(
         return result
 
     return await _handle_bulk_synchronous(
-        emp_data,
+        data,
         dates_to_schedule,
         drive_time,
         recurrence_rule,
         location,
-        employee,
+        employees,
         class_doc,
         user,
     )
-
-
-async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
-    """Create one or more schedules. Supports recurrence patterns (weekly, biweekly, custom).
-    Supports multiple employees — creates independent schedules per employee.
-    Checks for conflicts including drive time buffers and Outlook calendar."""
-    location, class_doc = await _fetch_location_and_class(data)
-
-    employee_ids = data.employee_ids or [data.employee_id]
-
-    # Single employee — preserve original behavior exactly
-    if len(employee_ids) == 1:
-        return await _create_for_employee(
-            data, employee_ids[0], location, class_doc, user
-        )
-
-    # Multiple employees — create independently, aggregate results
-    results = []
-    errors = []
-    for emp_id in employee_ids:
-        try:
-            result = await _create_for_employee(
-                data, emp_id, location, class_doc, user
-            )
-            results.append({"employee_id": emp_id, "result": result})
-        except HTTPException as e:
-            errors.append({"employee_id": emp_id, "error": e.detail})
-
-    total_created = 0
-    for r in results:
-        res = r["result"]
-        if isinstance(res, dict):
-            total_created += res.get("total_created", 1)
-
-    return {
-        "results": results,
-        "errors": errors,
-        "total_created": total_created,
-        "total_failed": len(errors),
-        "multi_employee": True,
-    }

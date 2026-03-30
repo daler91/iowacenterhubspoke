@@ -252,7 +252,16 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                   <Users className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <EntityLink type="employee" id={s.employee_id} className="text-sm font-medium text-slate-700">{s.employee_name}</EntityLink>
+                  {s.employees?.length > 0 ? (
+                    s.employees.map((emp, i) => (
+                      <span key={emp.id}>
+                        <EntityLink type="employee" id={emp.id} className="text-sm font-medium text-slate-700">{emp.name}</EntityLink>
+                        {i < s.employees.length - 1 && ', '}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm font-medium text-slate-700">Unassigned</span>
+                  )}
                   <p className="text-xs text-slate-400">{s.class_name} | {s.date} | {s.start_time}-{s.end_time}</p>
                 </div>
                 <Badge className={`border-0 text-[10px] ${getStatusStyle(s.status)}`}>

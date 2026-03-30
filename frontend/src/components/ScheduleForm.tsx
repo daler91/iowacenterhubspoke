@@ -35,12 +35,10 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   };
 
   const employeeCount = form.employee_ids?.length || 0;
-  const additionalCount = editSchedule ? employeeCount - 1 : 0;
   let submitLabel = 'Schedule Class';
   if (loading) submitLabel = 'Saving...';
   else if (outlookOverride || googleOverride) submitLabel = 'Schedule Anyway';
-  else if (editSchedule && additionalCount > 0) submitLabel = `Update & Add ${additionalCount} Employee${additionalCount > 1 ? 's' : ''}`;
-  else if (editSchedule) submitLabel = 'Update Schedule';
+  else if (editSchedule) submitLabel = employeeCount > 1 ? `Update (${employeeCount} Employees)` : 'Update Schedule';
   else if (employeeCount > 1) submitLabel = `Schedule ${employeeCount} Employees`;
 
   return (
@@ -63,7 +61,6 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             classes={classes}
             selectedClass={selectedClass}
             onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
-            isEditMode={!!editSchedule}
           />
 
           <LocationTimeSelectors

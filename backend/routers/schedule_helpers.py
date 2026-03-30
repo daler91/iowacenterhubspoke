@@ -11,7 +11,7 @@ from models.schemas import ScheduleCreate
 from routers.classes import get_class_snapshot
 from services.drive_time import get_drive_time_between_locations
 from core.logger import get_logger
-from core.constants import STATUS_UPCOMING
+from core.constants import STATUS_UPCOMING, DEFAULT_EMPLOYEE_COLOR
 
 logger = get_logger(__name__)
 
@@ -25,6 +25,64 @@ HUB_LABEL = "Hub (Des Moines)"
 
 _background_tasks: set = set()
 _outlook_logger = logging.getLogger("outlook.enqueue")
+
+
+# --- Employee snapshot helpers ---
+
+def _build_employee_snapshot(emp: dict) -> dict:
+    """Build a denormalized employee entry for the employees array."""
+    return {
+        "id": emp["id"],
+        "name": emp["name"],
+        "color": emp.get("color", DEFAULT_EMPLOYEE_COLOR),
+    }
+
+
+def _build_employees_snapshot(employees: list[dict]) -> list[dict]:
+    """Build the denormalized employees array."""
+    return [_build_employee_snapshot(e) for e in employees]
+
+
+# --- Calendar helpers ---
+
+def _enqueue_calendar_events_for_all(
+    employees: list[dict], location: dict, class_doc: dict | None, doc: dict
+):
+    """Create calendar events for ALL employees on a schedule."""
+    for employee in employees:
+        _enqueue_outlook_event(employee, location, class_doc, doc)
+        _enqueue_google_event(employee, location, class_doc, doc)
+
+
+async def _delete_calendar_events_for_all(schedule: dict):
+    """Delete calendar events for ALL employees on a schedule."""
+    calendar_events = schedule.get("calendar_events") or {}
+    employee_ids = schedule.get("employee_ids") or []
+
+    if calendar_events:
+        # New format: per-employee calendar event IDs
+        for emp_id, events in calendar_events.items():
+            emp = await db.employees.find_one(
+                {"id": emp_id},
+                {"_id": 0, "email": 1, "google_calendar_email": 1},
+            )
+            if not emp:
+                continue
+            # Delete Outlook events
+            outlook_eid = events.get("outlook_event_id")
+            if outlook_eid:
+                await _enqueue_outlook_delete_single(emp, outlook_eid)
+            # Delete Google events
+            google_eids = list(events.get("google_calendar_event_ids") or [])
+            legacy_gid = events.get("google_calendar_event_id")
+            if legacy_gid and legacy_gid not in google_eids:
+                google_eids.append(legacy_gid)
+            for geid in google_eids:
+                await _try_delete_event(emp_id, emp.get("google_calendar_email") or emp["email"], geid)
+    else:
+        # Legacy format: top-level event IDs for single employee
+        await _enqueue_outlook_delete_legacy(schedule)
+        await _enqueue_google_delete_legacy(schedule, employee_ids)
 
 
 # --- Outlook helpers ---
@@ -69,31 +127,39 @@ async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
         _outlook_logger.exception("Failed to enqueue Outlook event creation")
 
 
-async def _enqueue_outlook_delete(schedule: dict):
-    """Fire-and-forget: enqueue Outlook event deletion if applicable."""
+async def _enqueue_outlook_delete_single(emp: dict, event_id: str):
+    """Delete a single Outlook event for an employee."""
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
-
-    outlook_event_id = schedule.get("outlook_event_id")
-    if not OUTLOOK_CALENDAR_ENABLED or not outlook_event_id:
-        return
-    employee = await db.employees.find_one(
-        {"id": schedule["employee_id"]}, {"_id": 0}
-    )
-    if not employee or not employee.get("email"):
+    if not OUTLOOK_CALENDAR_ENABLED or not event_id or not emp.get("email"):
         return
     try:
         from core.queue import get_redis_pool
-
         pool = await get_redis_pool()
         if pool:
             await pool.enqueue_job(
                 "delete_outlook_event",
-                email=employee["email"],
-                event_id=outlook_event_id,
-                employee_id=employee["id"],
+                email=emp["email"],
+                event_id=event_id,
+                employee_id=emp.get("id", ""),
             )
     except Exception:
         _outlook_logger.exception("Failed to enqueue Outlook event deletion")
+
+
+async def _enqueue_outlook_delete_legacy(schedule: dict):
+    """Legacy: delete Outlook event using top-level outlook_event_id."""
+    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
+    outlook_event_id = schedule.get("outlook_event_id")
+    if not OUTLOOK_CALENDAR_ENABLED or not outlook_event_id:
+        return
+    # Use first employee_id for legacy schedules
+    emp_id = schedule.get("employee_id") or (schedule.get("employee_ids") or [None])[0]
+    if not emp_id:
+        return
+    emp = await db.employees.find_one({"id": emp_id}, {"_id": 0})
+    if not emp or not emp.get("email"):
+        return
+    await _enqueue_outlook_delete_single(emp, outlook_event_id)
 
 
 # --- Google Calendar helpers ---
@@ -107,7 +173,6 @@ def _enqueue_google_event(
     if not GOOGLE_CALENDAR_ENABLED or not employee.get("google_calendar_connected"):
         return
 
-    # Extract only what the async helper needs (no refresh tokens)
     google_email = (
         employee.get("google_calendar_email") or employee.get("email")
     )
@@ -122,7 +187,6 @@ def _enqueue_google_event(
     city_name = location["city_name"]
     subject = f"{class_name} - {city_name}"
 
-    # Drive time for separate calendar events
     drive_to = (
         doc.get("drive_to_override_minutes")
         or doc.get("drive_time_minutes")
@@ -167,7 +231,8 @@ async def _create_google_events_with_drive_time(
     location_name, date, start_time, end_time, notes,
     drive_to, drive_from,
 ):
-    """Create class event plus separate drive-time events on Google Calendar."""
+    """Create class event plus separate drive-time events on Google Calendar.
+    Stores event IDs in calendar_events.{employee_id}."""
     event_ids = []
 
     # 1. Drive TO event (before class)
@@ -200,13 +265,15 @@ async def _create_google_events_with_drive_time(
         if eid:
             event_ids.append(eid)
 
-    # Store all event IDs on schedule for cleanup on delete
+    # Store event IDs in calendar_events.{employee_id}
     if event_ids:
-        update = {"google_calendar_event_id": event_ids[0]}
-        if len(event_ids) > 1:
-            update["google_calendar_event_ids"] = event_ids
+        cal_data = {
+            "google_calendar_event_id": event_ids[0],
+            "google_calendar_event_ids": event_ids,
+        }
         await db.schedules.update_one(
-            {"id": schedule_id}, {"$set": update},
+            {"id": schedule_id},
+            {"$set": {f"calendar_events.{employee_id}": cal_data}},
         )
 
 
@@ -229,14 +296,12 @@ async def _try_create_event(
         return None
 
 
-async def _enqueue_google_delete(schedule: dict):
-    """Delete all Google Calendar events for a schedule."""
+async def _enqueue_google_delete_legacy(schedule: dict, employee_ids: list):
+    """Legacy: delete Google events using top-level event IDs."""
     from core.google_config import GOOGLE_CALENDAR_ENABLED
-
     if not GOOGLE_CALENDAR_ENABLED:
         return
 
-    # Collect all event IDs (single legacy + multi drive-time)
     event_ids = list(schedule.get("google_calendar_event_ids") or [])
     legacy_id = schedule.get("google_calendar_event_id")
     if legacy_id and legacy_id not in event_ids:
@@ -244,18 +309,18 @@ async def _enqueue_google_delete(schedule: dict):
     if not event_ids:
         return
 
-    employee_id = schedule["employee_id"]
+    emp_id = schedule.get("employee_id") or (employee_ids[0] if employee_ids else None)
+    if not emp_id:
+        return
     emp = await db.employees.find_one(
-        {"id": employee_id},
+        {"id": emp_id},
         {"email": 1, "google_calendar_email": 1},
     )
     if not emp or not emp.get("email"):
         return
-
     google_email = emp.get("google_calendar_email") or emp["email"]
-
     for eid in event_ids:
-        await _try_delete_event(employee_id, google_email, eid)
+        await _try_delete_event(emp_id, google_email, eid)
 
 
 async def _try_delete_event(employee_id, google_email, event_id):
@@ -289,9 +354,10 @@ def _subtract_minutes_from_time(time_str: str, minutes: int) -> str:
 # --- Town-to-town helpers ---
 
 async def _check_town_to_town(employee_id, sched_date, location_id):
+    """Check if employee has schedules at other locations on the same day."""
     same_day_schedules = await db.schedules.find(
         {
-            "employee_id": employee_id,
+            "employee_ids": employee_id,
             "date": sched_date,
             "location_id": {"$ne": location_id},
             "deleted_at": None,
@@ -373,7 +439,7 @@ async def _check_town_to_town_bulk(
 ):
     same_day_schedules = await db.schedules.find(
         {
-            "employee_id": employee_id,
+            "employee_ids": employee_id,
             "date": {"$in": dates},
             "location_id": {"$ne": location_id},
             "deleted_at": None,
@@ -417,7 +483,7 @@ async def _sync_same_day_town_to_town(
     employee_id: str, date: str, exclude_id: str = None
 ):
     """Recalculate town-to-town for all sibling schedules on employee+date."""
-    query = {"employee_id": employee_id, "date": date, "deleted_at": None}
+    query = {"employee_ids": employee_id, "date": date, "deleted_at": None}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
     siblings = await db.schedules.find(query, {"_id": 0}).to_list(100)
@@ -454,13 +520,16 @@ def _build_schedule_doc(
     town_to_town_warning,
     recurrence_rule,
     location,
-    employee,
+    employees,
     class_doc,
     town_to_town_drive_minutes=None,
 ):
+    """Build a schedule document with multiple employees."""
+    employee_ids = [e["id"] for e in employees]
     return {
         "id": str(uuid.uuid4()),
-        "employee_id": data.employee_id,
+        "employee_ids": employee_ids,
+        "employees": _build_employees_snapshot(employees),
         "location_id": data.location_id,
         "date": sched_date,
         "start_time": data.start_time,
@@ -482,13 +551,14 @@ def _build_schedule_doc(
             recurrence_rule.model_dump() if recurrence_rule else None
         ),
         "location_name": location["city_name"],
-        "employee_name": employee["name"],
-        "employee_color": employee.get("color", "#4F46E5"),
+        "calendar_events": {},
         "created_at": datetime.now(timezone.utc).isoformat(),
         "deleted_at": None,
         **get_class_snapshot(class_doc),
     }
 
+
+# --- Entity fetchers ---
 
 async def _fetch_employee(employee_id: str):
     """Fetch and validate a single employee."""
@@ -498,6 +568,23 @@ async def _fetch_employee(employee_id: str):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return employee
+
+
+async def _fetch_employees(employee_ids: list[str]):
+    """Fetch and validate multiple employees."""
+    employees = await db.employees.find(
+        {"id": {"$in": employee_ids}, "deleted_at": None}, {"_id": 0}
+    ).to_list(len(employee_ids))
+    if len(employees) != len(employee_ids):
+        found_ids = {e["id"] for e in employees}
+        missing = [eid for eid in employee_ids if eid not in found_ids]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Employee(s) not found: {', '.join(missing)}"
+        )
+    # Preserve original order
+    emp_map = {e["id"]: e for e in employees}
+    return [emp_map[eid] for eid in employee_ids]
 
 
 async def _fetch_location_and_class(data: ScheduleCreate):
@@ -520,6 +607,7 @@ async def _fetch_location_and_class(data: ScheduleCreate):
 
 
 async def _fetch_schedule_entities(data: ScheduleCreate):
+    """Fetch location, employees, and class for a schedule creation request."""
     location, class_doc = await _fetch_location_and_class(data)
-    employee = await _fetch_employee(data.employee_id)
-    return location, employee, class_doc
+    employees = await _fetch_employees(data.employee_ids)
+    return location, employees, class_doc

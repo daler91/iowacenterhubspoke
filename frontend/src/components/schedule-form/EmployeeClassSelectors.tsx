@@ -9,8 +9,7 @@ const CREATE_CLASS_VALUE = '__add_new_class__';
 export function EmployeeClassSelectors({
   form, setForm,
   employees, classes,
-  selectedClass, onAddClass,
-  isEditMode
+  selectedClass, onAddClass
 }) {
   const handleClassSelection = (value) => {
     if (value === CREATE_CLASS_VALUE) {
@@ -23,19 +22,12 @@ export function EmployeeClassSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">
-          {isEditMode ? 'Employee(s)' : 'Employees'}
-        </Label>
+        <Label className="text-sm font-medium text-slate-700">Employees</Label>
         <EmployeeMultiSelect
           employees={employees || []}
           selectedIds={form.employee_ids || []}
           onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
         />
-        {isEditMode && form.employee_ids?.length > 1 && (
-          <p className="text-xs text-indigo-600">
-            Additional employees will be scheduled for the same class, location, and time.
-          </p>
-        )}
       </div>
 
       <div className="space-y-2">

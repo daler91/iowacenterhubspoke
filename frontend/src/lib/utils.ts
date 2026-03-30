@@ -16,7 +16,7 @@ interface DriveChainEntry {
 
 interface DaySchedule {
   id: string;
-  employee_id: string;
+  employee_ids: string[];
   location_id: string;
   location_name?: string;
   start_time: string;
@@ -94,11 +94,14 @@ function buildChainEntry(sorted: DaySchedule[], i: number): DriveChainEntry {
 export function computeDriveChain(daySchedules: DaySchedule[]): Record<string, DriveChainEntry> {
   const timeToMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
-  // Group by employee
+  // Group by employee — a schedule with multiple employees is added to each employee's group
   const byEmployee: Record<string, DaySchedule[]> = {};
   for (const s of daySchedules) {
-    if (!byEmployee[s.employee_id]) byEmployee[s.employee_id] = [];
-    byEmployee[s.employee_id].push(s);
+    const empIds = s.employee_ids && s.employee_ids.length > 0 ? s.employee_ids : ['__unassigned__'];
+    for (const empId of empIds) {
+      if (!byEmployee[empId]) byEmployee[empId] = [];
+      byEmployee[empId].push(s);
+    }
   }
 
   const chain: Record<string, DriveChainEntry> = {};

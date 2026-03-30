@@ -8,7 +8,6 @@ import type { Schedule } from '../lib/types';
 const getDayValue = (dateStr: string) => new Date(`${dateStr}T00:00:00`).getDay();
 
 interface ScheduleFormData {
-  employee_id: string;
   employee_ids: string[];
   class_id: string;
   location_id: string;
@@ -54,7 +53,6 @@ interface UseScheduleFormProps {
 
 export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: UseScheduleFormProps) {
   const [form, setForm] = useState<ScheduleFormData>({
-    employee_id: '',
     employee_ids: [],
     class_id: '',
     location_id: '',
@@ -84,8 +82,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   useEffect(() => {
     if (editSchedule) {
       setForm({
-        employee_id: editSchedule.employee_id,
-        employee_ids: [editSchedule.employee_id],
+        employee_ids: editSchedule.employee_ids || (editSchedule.employee_id ? [editSchedule.employee_id] : []),
         class_id: editSchedule.class_id || '',
         location_id: editSchedule.location_id,
         date: editSchedule.date,
@@ -103,7 +100,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     } else {
       const startDate = new Date().toISOString().split('T')[0];
       setForm({
-        employee_id: '',
         employee_ids: [],
         class_id: '',
         location_id: '',
@@ -211,10 +207,13 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null;
     const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
     const classId = form.class_id || null;
-    const payload: Record<string, any> = { ...form, class_id: classId, travel_override_minutes: travelMinutes, drive_to_override_minutes: driveToOverride, drive_from_override_minutes: driveFromOverride };
-    // Always send employee_ids for multi-employee support
-    payload.employee_ids = form.employee_ids;
-    delete payload.employee_id;
+    const payload: Record<string, any> = {
+      ...form,
+      class_id: classId,
+      travel_override_minutes: travelMinutes,
+      drive_to_override_minutes: driveToOverride,
+      drive_from_override_minutes: driveFromOverride,
+    };
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
@@ -240,20 +239,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   };
 
   const handleCreateResponse = (res: any) => {
-    // Multi-employee response
-    if (res.data.multi_employee) {
-      const created = res.data.total_created || 0;
-      const failed = res.data.total_failed || 0;
-      if (failed > 0 && created > 0) {
-        toast.warning(`${created} scheduled, ${failed} had conflicts`, { duration: 6000 });
-      } else if (failed > 0 && created === 0) {
-        toast.error(`All ${failed} employees had conflicts`);
-      } else {
-        toast.success(`${created} employees scheduled successfully`);
-      }
-      return;
-    }
-    // Single-employee responses
     if (res.data.background) {
       toast.info(res.data.message);
     } else if (res.data.town_to_town_warning) {
@@ -304,35 +289,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       if (outlookOverride) payload.force_outlook = true;
       if (googleOverride) payload.force_google = true;
       if (editSchedule) {
-        // Update the existing schedule with the original employee
-        const updatePayload = { ...payload, employee_id: editSchedule.employee_id };
-        delete updatePayload.employee_ids;
-        await schedulesAPI.update(editSchedule.id, updatePayload);
-
-        // Create new schedules for any additional employees
-        const additionalEmployees = form.employee_ids.filter(id => id !== editSchedule.employee_id);
-        if (additionalEmployees.length > 0) {
-          const createPayload = { ...payload, employee_ids: additionalEmployees };
-          delete createPayload.employee_id;
-          try {
-            const res = await schedulesAPI.create(createPayload);
-            const created = res.data.multi_employee ? res.data.total_created : 1;
-            const failed = res.data.multi_employee ? res.data.total_failed : 0;
-            if (failed > 0) {
-              toast.warning(`Schedule updated. ${created} additional employee(s) added, ${failed} had conflicts.`, { duration: 6000 });
-            } else {
-              toast.success(`Schedule updated and ${created} additional employee(s) added.`);
-            }
-          } catch (addErr: any) {
-            if (addErr.response?.status === 409) {
-              toast.warning('Schedule updated, but additional employee(s) had conflicts.', { duration: 6000 });
-            } else {
-              toast.warning('Schedule updated, but failed to add additional employee(s).', { duration: 6000 });
-            }
-          }
-        } else {
-          toast.success('Schedule updated');
-        }
+        // Update the existing schedule with the full employee_ids list
+        await schedulesAPI.update(editSchedule.id, payload);
+        toast.success('Schedule updated');
       } else {
         handleCreateResponse(await schedulesAPI.create(payload));
       }

@@ -38,9 +38,8 @@ export interface ClassType {
 
 export interface Schedule {
   id: string;
-  employee_id: string;
-  employee_name: string;
-  employee_color?: string;
+  employee_ids: string[];
+  employees: Array<{ id: string; name: string; color?: string }>;
   location_id: string;
   location_name: string;
   class_id?: string | null;
@@ -61,10 +60,13 @@ export interface Schedule {
   town_to_town_drive_minutes?: number | null;
   recurrence?: string;
   recurrence_rule?: Record<string, unknown> | null;
-  outlook_event_id?: string | null;
-  google_calendar_event_id?: string | null;
+  calendar_events?: Record<string, Record<string, unknown>> | null;
   created_at: string;
   deleted_at?: string | null;
+  // Legacy fields (for backward compat with old data)
+  employee_id?: string;
+  employee_name?: string;
+  employee_color?: string;
 }
 
 export interface DashboardStats {

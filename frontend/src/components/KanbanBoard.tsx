@@ -93,7 +93,16 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <User className="w-3 h-3" />
-          <EntityLink type="employee" id={schedule.employee_id}>{schedule.employee_name}</EntityLink>
+          {schedule.employees?.length > 0 ? (
+            schedule.employees.map((emp, i) => (
+              <span key={emp.id}>
+                <EntityLink type="employee" id={emp.id}>{emp.name}</EntityLink>
+                {i < schedule.employees.length - 1 && ', '}
+              </span>
+            ))
+          ) : (
+            <span>Unassigned</span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Clock className="w-3 h-3" />

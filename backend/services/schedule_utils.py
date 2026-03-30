@@ -147,7 +147,7 @@ async def check_conflicts(
     new_start = time_to_minutes(start_time) - drive_minutes
     new_end = time_to_minutes(end_time) + drive_minutes
 
-    query = {"employee_id": employee_id, "date": date, "deleted_at": None}
+    query = {"employee_ids": employee_id, "date": date, "deleted_at": None}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
 
@@ -208,7 +208,7 @@ async def check_conflicts_bulk(
     new_end = time_to_minutes(end_time) + drive_minutes
 
     query = {
-        "employee_id": employee_id,
+        "employee_ids": employee_id,
         "date": {"$in": dates},
         "deleted_at": None
     }

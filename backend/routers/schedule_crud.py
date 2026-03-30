@@ -20,19 +20,18 @@ from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
     STATUS_COMPLETED,
-    DEFAULT_EMPLOYEE_COLOR,
 )
 from routers.schedule_helpers import (
     logger,
     SCHEDULE_NOT_FOUND,
     LOCATION_NOT_FOUND,
-    EMPLOYEE_NOT_FOUND,
     CLASS_NOT_FOUND,
     NO_FIELDS_TO_UPDATE,
     _sync_same_day_town_to_town,
-    _enqueue_outlook_delete,
-    _enqueue_google_delete,
-    _enqueue_google_event,
+    _delete_calendar_events_for_all,
+    _enqueue_calendar_events_for_all,
+    _fetch_employees,
+    _build_employees_snapshot,
 )
 from routers.schedule_create import create_schedule as _create_schedule
 
@@ -58,7 +57,7 @@ async def get_schedules(
     elif date_to:
         query["date"] = {"$lte": date_to}
     if employee_id:
-        query["employee_id"] = employee_id
+        query["employee_ids"] = employee_id
 
     total = await db.schedules.count_documents(query)
     schedules = (
@@ -118,16 +117,6 @@ async def _get_location_update(location_id: str, update_data: dict):
         update_data["drive_time_minutes"] = location["drive_time_minutes"]
 
 
-async def _get_employee_update(employee_id: str, update_data: dict):
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-    if not employee:
-        raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
-    update_data["employee_name"] = employee["name"]
-    update_data["employee_color"] = employee.get(
-        "color", DEFAULT_EMPLOYEE_COLOR
-    )
-
-
 async def _get_class_update(class_id: str, update_data: dict):
     class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not class_doc:
@@ -181,8 +170,13 @@ async def update_schedule(
 
     if "location_id" in update_data:
         await _get_location_update(update_data["location_id"], update_data)
-    if "employee_id" in update_data:
-        await _get_employee_update(update_data["employee_id"], update_data)
+    if "employee_ids" in update_data:
+        employees = await _fetch_employees(update_data["employee_ids"])
+        update_data["employees"] = _build_employees_snapshot(employees)
+        # Remove legacy single-employee fields if present
+        update_data.pop("employee_id", None)
+        update_data.pop("employee_name", None)
+        update_data.pop("employee_color", None)
     if "class_id" in update_data:
         await _get_class_update(update_data["class_id"], update_data)
     if "drive_to_override_minutes" in update_data or "drive_from_override_minutes" in update_data:
@@ -194,20 +188,21 @@ async def update_schedule(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-    recalc_fields = {"location_id", "date", "employee_id"}
+    recalc_fields = {"location_id", "date", "employee_ids"}
     if recalc_fields & update_data.keys():
         updated_sched = await db.schedules.find_one(
             {"id": schedule_id, "deleted_at": None}, {"_id": 0}
         )
         if updated_sched:
-            await _sync_same_day_town_to_town(
-                updated_sched["employee_id"],
-                updated_sched["date"],
-            )
+            for emp_id in updated_sched.get("employee_ids", []):
+                await _sync_same_day_town_to_town(
+                    emp_id,
+                    updated_sched["date"],
+                )
 
-    # Sync Google Calendar events (delete old, create new)
+    # Sync calendar events (delete old, create new)
     calendar_fields = {
-        "employee_id", "location_id", "class_id", "date",
+        "employee_ids", "location_id", "class_id", "date",
         "start_time", "end_time", "notes",
         "drive_to_override_minutes", "drive_from_override_minutes",
         "drive_time_minutes",
@@ -217,10 +212,9 @@ async def update_schedule(
             {"id": schedule_id, "deleted_at": None}, {"_id": 0}
         )
         if updated_sched:
-            await _enqueue_google_delete(old_schedule)
-            employee = await db.employees.find_one(
-                {"id": updated_sched["employee_id"], "deleted_at": None},
-                {"_id": 0},
+            await _delete_calendar_events_for_all(old_schedule)
+            employees = await _fetch_employees(
+                updated_sched.get("employee_ids", [])
             )
             location = await db.locations.find_one(
                 {"id": updated_sched["location_id"], "deleted_at": None},
@@ -232,9 +226,9 @@ async def update_schedule(
                     {"id": updated_sched["class_id"], "deleted_at": None},
                     {"_id": 0},
                 )
-            if employee and location:
-                _enqueue_google_event(
-                    employee, location, class_doc, updated_sched
+            if employees and location:
+                _enqueue_calendar_events_for_all(
+                    employees, location, class_doc, updated_sched
                 )
 
     logger.info(
@@ -273,12 +267,12 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
         extra={"entity": {"schedule_id": schedule_id}},
     )
     if schedule:
-        await _enqueue_outlook_delete(schedule)
-        await _enqueue_google_delete(schedule)
-        await _sync_same_day_town_to_town(
-            schedule["employee_id"],
-            schedule["date"],
-        )
+        await _delete_calendar_events_for_all(schedule)
+        for emp_id in schedule.get("employee_ids", []):
+            await _sync_same_day_town_to_town(
+                emp_id,
+                schedule["date"],
+            )
         await log_activity(
             "schedule_deleted",
             f"Class at {schedule.get('location_name', '?')} on {schedule.get('date', '?')} removed",
@@ -376,19 +370,23 @@ async def relocate_schedule(
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
     drive_time = schedule.get("drive_time_minutes", 0)
-    conflicts = await check_conflicts(
-        schedule["employee_id"],
-        data.date,
-        data.start_time,
-        data.end_time,
-        drive_time,
-        exclude_id=schedule_id,
-    )
-    if conflicts and not data.force:
-        raise HTTPException(
-            status_code=409,
-            detail={"message": "Conflict at new time", "conflicts": conflicts},
+    employee_ids = schedule.get("employee_ids", [])
+    # Use the first employee for conflict checking
+    first_employee_id = employee_ids[0] if employee_ids else None
+    if first_employee_id:
+        conflicts = await check_conflicts(
+            first_employee_id,
+            data.date,
+            data.start_time,
+            data.end_time,
+            drive_time,
+            exclude_id=schedule_id,
         )
+        if conflicts and not data.force:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "Conflict at new time", "conflicts": conflicts},
+            )
 
     update_fields = {
         "date": data.date,
@@ -406,24 +404,20 @@ async def relocate_schedule(
     )
 
     old_date = schedule.get("date")
-    await _sync_same_day_town_to_town(
-        schedule["employee_id"], data.date
-    )
-    if old_date and old_date != data.date:
-        await _sync_same_day_town_to_town(
-            schedule["employee_id"], old_date
-        )
+    for emp_id in employee_ids:
+        await _sync_same_day_town_to_town(emp_id, data.date)
+        if old_date and old_date != data.date:
+            await _sync_same_day_town_to_town(emp_id, old_date)
 
     updated = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
 
-    # Sync Google Calendar events (delete old, create new)
+    # Sync calendar events (delete old, create new)
     if updated:
-        await _enqueue_google_delete(schedule)
-        employee = await db.employees.find_one(
-            {"id": updated["employee_id"], "deleted_at": None},
-            {"_id": 0},
+        await _delete_calendar_events_for_all(schedule)
+        employees = await _fetch_employees(
+            updated.get("employee_ids", [])
         )
         location = await db.locations.find_one(
             {"id": updated["location_id"], "deleted_at": None},
@@ -435,8 +429,10 @@ async def relocate_schedule(
                 {"id": updated["class_id"], "deleted_at": None},
                 {"_id": 0},
             )
-        if employee and location:
-            _enqueue_google_event(employee, location, class_doc, updated)
+        if employees and location:
+            _enqueue_calendar_events_for_all(
+                employees, location, class_doc, updated
+            )
 
     await log_activity(
         "schedule_relocated",

@@ -89,8 +89,8 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
                         data-testid={`month-class-pill-${s.id}`}
                         className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
                         style={{
-                          backgroundColor: `${s.class_color || s.employee_color || COLORS.DEFAULT_CLASS}20`,
-                          color: s.class_color || s.employee_color || COLORS.DEFAULT_CLASS,
+                          backgroundColor: `${s.class_color || s.employees?.[0]?.color || COLORS.DEFAULT_CLASS}20`,
+                          color: s.class_color || s.employees?.[0]?.color || COLORS.DEFAULT_CLASS,
                         }}
                       >
                         {s.class_name || s.location_name}

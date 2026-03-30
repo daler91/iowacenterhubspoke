@@ -42,12 +42,13 @@ async def get_notifications(user: CurrentUser):
     for s in today_schedules:
         if s.get('status', 'upcoming') == 'upcoming':
             class_title = s.get('class_name') or s.get('location_name', '?')
+            emp_names = ", ".join(e.get("name", "?") for e in s.get("employees", [])) or "?"
             notifications.append({
                 "id": f"upcoming-{s['id']}",
                 "type": "upcoming_class",
                 "title": f"Upcoming: {class_title}",
                 "description": (
-                    f"{s.get('employee_name', '?')} at "
+                    f"{emp_names} at "
                     f"{s.get('start_time', '?')} - {s.get('end_time', '?')}"
                 ),
                 "severity": "info",
@@ -70,7 +71,7 @@ async def get_notifications(user: CurrentUser):
 
     # Unassigned check - employees with no schedules this week
     employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    scheduled_emp_ids = {s['employee_id'] for s in today_schedules}
+    scheduled_emp_ids = {eid for s in today_schedules for eid in s.get('employee_ids', [])}
     for emp in employees:
         if emp['id'] not in scheduled_emp_ids:
             notifications.append({

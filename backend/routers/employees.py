@@ -86,12 +86,14 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="employee", entity_id=employee_id)
     else:
         # Fallback: sync inline when Redis/worker isn't available
+        # Update the matching entry in the employees array using arrayFilters
         await db.schedules.update_many(
-            {"employee_id": employee_id},
+            {"employee_ids": employee_id},
             {"$set": {
-                "employee_name": updated["name"],
-                "employee_color": updated.get("color", "#4F46E5"),
+                "employees.$[elem].name": updated["name"],
+                "employees.$[elem].color": updated.get("color", "#4F46E5"),
             }},
+            array_filters=[{"elem.id": employee_id}],
         )
         logger.info("Inline sync completed for employee", extra={"entity": {"employee_id": employee_id}})
 
@@ -155,7 +157,7 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"employee_id": employee_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    all_schedules = await db.schedules.find({"employee_ids": employee_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
     total_classes = len(all_schedules)
     total_drive_minutes = 0
     total_class_minutes = 0
