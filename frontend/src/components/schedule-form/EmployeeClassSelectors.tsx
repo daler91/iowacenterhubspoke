@@ -24,30 +24,17 @@ export function EmployeeClassSelectors({
     <>
       <div className="space-y-2">
         <Label className="text-sm font-medium text-slate-700">
-          {isEditMode ? 'Employee' : 'Employees'}
+          {isEditMode ? 'Employee(s)' : 'Employees'}
         </Label>
-        {isEditMode ? (
-          <Select value={form.employee_id} onValueChange={(v) => setForm({ ...form, employee_id: v })}>
-            <SelectTrigger data-testid="schedule-employee-select" className="h-10 bg-gray-50/50">
-              <SelectValue placeholder="Select an employee" />
-            </SelectTrigger>
-            <SelectContent>
-              {(employees || []).map(emp => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: emp.color }} />
-                    {emp.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <EmployeeMultiSelect
-            employees={employees || []}
-            selectedIds={form.employee_ids || []}
-            onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
-          />
+        <EmployeeMultiSelect
+          employees={employees || []}
+          selectedIds={form.employee_ids || []}
+          onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
+        />
+        {isEditMode && form.employee_ids?.length > 1 && (
+          <p className="text-xs text-indigo-600">
+            Additional employees will be scheduled for the same class, location, and time.
+          </p>
         )}
       </div>
 
