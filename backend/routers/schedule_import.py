@@ -60,7 +60,7 @@ def _validate_import_row(
 
     return {
         "valid_data": {
-            "employee_id": employee["_id"],
+            "employee_ids": [employee["_id"]],
             "employee_name": employee["name"],
             "employee_email": employee["email"],
             "location_id": location["_id"],
@@ -99,18 +99,18 @@ async def export_schedules(
         query["date"] = {"$lte": end_date}
 
     if employee_id:
-        query["employee_id"] = employee_id
+        query["employee_ids"] = employee_id
     if location_id:
         query["location_id"] = location_id
 
     cursor = db.schedules.find(query).sort("date", 1)
     schedules = await cursor.to_list(length=MAX_QUERY_LIMIT)
 
-    emp_ids = list({s["employee_id"] for s in schedules if "employee_id" in s})
+    emp_ids = list({eid for s in schedules for eid in s.get("employee_ids", [])})
     loc_ids = list({s["location_id"] for s in schedules if "location_id" in s})
     class_ids = list({s["class_id"] for s in schedules if s.get("class_id")})
 
-    employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(
+    employees = await db.employees.find({"id": {"$in": emp_ids}}).to_list(
         length=MAX_QUERY_LIMIT
     )
     locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
@@ -120,7 +120,7 @@ async def export_schedules(
         length=MAX_QUERY_LIMIT
     )
 
-    emp_map = {e["_id"]: e for e in employees}
+    emp_map = {e["id"]: e for e in employees}
     loc_map = {loc["_id"]: loc for loc in locations}
     class_map = {c["_id"]: c for c in classes}
 
@@ -139,16 +139,28 @@ async def export_schedules(
     writer.writerow(field_list)
 
     for s in schedules:
-        emp = emp_map.get(s.get("employee_id"), {})
         loc = loc_map.get(s.get("location_id"), {})
         cls = class_map.get(s.get("class_id"), {})
+
+        # Get employee names/emails from the employees array or lookup
+        emp_names = []
+        emp_emails = []
+        for emp_entry in s.get("employees", []):
+            emp = emp_map.get(emp_entry.get("id"), {})
+            emp_names.append(emp.get("name", emp_entry.get("name", "Unknown")))
+            emp_emails.append(emp.get("email", ""))
+        if not emp_names:
+            for eid in s.get("employee_ids", []):
+                emp = emp_map.get(eid, {})
+                emp_names.append(emp.get("name", "Unknown"))
+                emp_emails.append(emp.get("email", ""))
 
         row_data = {
             "date": s.get("date", ""),
             "start_time": s.get("start_time", ""),
             "end_time": s.get("end_time", ""),
-            "employee_name": emp.get("name", "Unknown"),
-            "employee_email": emp.get("email", ""),
+            "employee_name": ", ".join(emp_names) if emp_names else "Unknown",
+            "employee_email": ", ".join(emp_emails) if emp_emails else "",
             "location_name": loc.get("city_name", "Unknown"),
             "class_name": cls.get("name", ""),
             "status": s.get("status", ""),
@@ -287,46 +299,60 @@ async def import_schedules_commit(
 
     for item in items:
         try:
-            employee = await db.employees.find_one(
-                {"_id": item.employee_id, "deleted_at": None}
-            )
+            # Fetch all employees for this schedule
+            employees_list = await db.employees.find(
+                {"id": {"$in": item.employee_ids}, "deleted_at": None}
+            ).to_list(len(item.employee_ids))
             location = await db.locations.find_one(
                 {"_id": item.location_id, "deleted_at": None}
             )
 
-            if not employee or not location:
+            if not employees_list or len(employees_list) != len(item.employee_ids) or not location:
                 errors.append(
                     {
                         "row": item.row_idx,
-                        "error": "Employee or Location no longer exists",
+                        "error": "Employee(s) or Location no longer exists",
                     }
                 )
                 continue
 
             drive_minutes = location.get("drive_time_minutes", 0)
-            conflict = await check_conflicts(
-                item.employee_id,
-                item.date,
-                item.start_time,
-                item.end_time,
-                drive_minutes,
-            )
 
-            if conflict:
-                errors.append(
-                    {
-                        "row": item.row_idx,
-                        "error": (
-                            f"Conflict with existing schedule for "
-                            f"{employee.get('name')} on {item.date} at {item.start_time}"
-                        ),
-                    }
+            # Check conflicts for each employee
+            has_conflict = False
+            for emp in employees_list:
+                conflict = await check_conflicts(
+                    emp["id"],
+                    item.date,
+                    item.start_time,
+                    item.end_time,
+                    drive_minutes,
                 )
+                if conflict:
+                    errors.append(
+                        {
+                            "row": item.row_idx,
+                            "error": (
+                                f"Conflict with existing schedule for "
+                                f"{emp.get('name')} on {item.date} at {item.start_time}"
+                            ),
+                        }
+                    )
+                    has_conflict = True
+                    break
+
+            if has_conflict:
                 continue
+
+            emp_snapshots = [
+                {"id": e["id"], "name": e["name"], "color": e.get("color", "#4F46E5")}
+                for e in employees_list
+            ]
 
             new_schedule = {
                 "_id": str(uuid.uuid4()),
-                "employee_id": item.employee_id,
+                "employee_ids": item.employee_ids,
+                "employees": emp_snapshots,
                 "location_id": item.location_id,
                 "class_id": item.class_id,
                 "date": item.date,
@@ -340,6 +366,7 @@ async def import_schedules_commit(
                 "recurrence_end_mode": None,
                 "recurrence_occurrences": None,
                 "custom_recurrence": None,
+                "calendar_events": {},
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "deleted_at": None,

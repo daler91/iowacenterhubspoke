@@ -85,7 +85,7 @@ async def _build_travel_chain(
     drive_from_override: int = None,
 ):
     """Build the full day travel chain for an employee including the current form entry."""
-    query = {"employee_id": employee_id, "date": date, "deleted_at": None}
+    query = {"employee_ids": employee_id, "date": date, "deleted_at": None}
     if schedule_id:
         query["id"] = {"$ne": schedule_id}
     db_schedules = await db.schedules.find(query, {"_id": 0}).to_list(100)
@@ -217,7 +217,7 @@ async def _check_conflicts_for_employee(
         if tt:
             same_day = await db.schedules.find(
                 {
-                    "employee_id": employee_id,
+                    "employee_ids": employee_id,
                     "date": data.date,
                     "location_id": {"$ne": data.location_id},
                     "deleted_at": None,
@@ -263,7 +263,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         else location["drive_time_minutes"]
     )
 
-    employee_ids = data.employee_ids or [data.employee_id]
+    employee_ids = data.employee_ids  # always a list thanks to the validator
 
     # Single employee — backward compatible response
     if len(employee_ids) == 1:
@@ -285,6 +285,18 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         if result["has_conflicts"]:
             any_conflicts = True
 
+    # Build a travel chain preview for the first employee
+    preview_chain = await _build_travel_chain(
+        employee_ids[0],
+        data.date,
+        data.location_id,
+        data.start_time,
+        data.end_time,
+        schedule_id=getattr(data, "schedule_id", None),
+        drive_to_override=data.drive_to_override_minutes,
+        drive_from_override=data.drive_from_override_minutes,
+    )
+
     return {
         "has_conflicts": any_conflicts,
         "per_employee": per_employee,
@@ -293,5 +305,5 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         "outlook_conflicts": [],
         "google_conflicts": [],
         "town_to_town": None,
-        "travel_chain": None,
+        "travel_chain": preview_chain,
     }

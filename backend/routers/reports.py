@@ -76,7 +76,8 @@ async def get_workload_stats(user: CurrentUser):
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:
-        schedules_by_employee[s.get("employee_id")].append(s)
+        for eid in s.get("employee_ids", []):
+            schedules_by_employee[eid].append(s)
 
     workload = []
     for emp in employees:
@@ -265,10 +266,10 @@ async def get_weekly_summary(
     employee_summaries = {}
     class_totals = {}
     for s in schedules:
-        eid = s["employee_id"]
-        if eid not in employee_summaries:
-            employee_summaries[eid] = _init_employee_summary(emp_map.get(eid, {}))
-        _aggregate_schedule(employee_summaries[eid], s, class_totals)
+        for eid in s.get("employee_ids", []):
+            if eid not in employee_summaries:
+                employee_summaries[eid] = _init_employee_summary(emp_map.get(eid, {}))
+            _aggregate_schedule(employee_summaries[eid], s, class_totals)
 
     result, total_classes, total_class_hrs, total_drive_hrs, finalized_class_totals = (
         _finalize_summaries(employee_summaries, class_totals)

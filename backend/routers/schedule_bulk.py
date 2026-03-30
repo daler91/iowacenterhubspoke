@@ -20,10 +20,10 @@ from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
     STATUS_COMPLETED,
-    DEFAULT_EMPLOYEE_COLOR,
 )
 from routers.schedule_helpers import (
     logger,
+    _build_employees_snapshot,
     EMPLOYEE_NOT_FOUND,
     LOCATION_NOT_FOUND,
     CLASS_NOT_FOUND,
@@ -106,37 +106,40 @@ async def bulk_update_status(
 async def bulk_reassign_schedules(
     data: BulkReassignRequest, user: SchedulerRequired
 ):
-    employee = await db.employees.find_one(
-        {"id": data.employee_id, "deleted_at": None}, {"_id": 0}
+    employees_cursor = db.employees.find(
+        {"id": {"$in": data.employee_ids}, "deleted_at": None}, {"_id": 0}
     )
-    if not employee:
+    employees = await employees_cursor.to_list(length=len(data.employee_ids))
+    if len(employees) != len(data.employee_ids):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
+
+    employees_snapshot = _build_employees_snapshot(employees)
+    employee_ids = [e["id"] for e in employees]
+    names = ", ".join(e["name"] for e in employees)
+
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {
             "$set": {
-                "employee_id": data.employee_id,
-                "employee_name": employee["name"],
-                "employee_color": employee.get(
-                    "color", DEFAULT_EMPLOYEE_COLOR
-                ),
+                "employee_ids": employee_ids,
+                "employees": employees_snapshot,
             }
         },
     )
     updated_count = result.modified_count
     if updated_count > 0:
         logger.info(
-            f"Bulk reassigned {updated_count} schedules to {employee['name']}",
+            f"Bulk reassigned {updated_count} schedules to {names}",
             extra={
                 "entity": {
                     "updated_count": updated_count,
-                    "employee_id": data.employee_id,
+                    "employee_ids": employee_ids,
                 }
             },
         )
         await log_activity(
             action="schedule_bulk_reassigned",
-            description=f"Bulk reassigned {updated_count} schedule(s) to {employee['name']}",
+            description=f"Bulk reassigned {updated_count} schedule(s) to {names}",
             entity_type="schedule_batch",
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),

@@ -68,14 +68,14 @@ class ClassUpdate(BaseModel):
 
 
 class ScheduleCreate(BaseModel):
-    employee_id: Optional[str] = None
-    employee_ids: Optional[List[str]] = None
+    employee_id: Optional[str] = None  # backward compat: single employee
+    employee_ids: Optional[List[str]] = None  # preferred: multiple employees
     location_id: str
     class_id: Optional[str] = None
     date: str  # YYYY-MM-DD
     start_time: str  # HH:MM
     end_time: str
-    force: Optional[bool] = False  # HH:MM
+    force: Optional[bool] = False
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
@@ -91,12 +91,11 @@ class ScheduleCreate(BaseModel):
 
     @model_validator(mode="after")
     def _normalise_employees(self):
+        """Ensure employee_ids is always a non-empty list."""
         if self.employee_ids:
-            # Multi-employee mode: set employee_id to first for backward compat
             if not self.employee_id:
                 self.employee_id = self.employee_ids[0]
         elif self.employee_id:
-            # Single-employee mode: wrap into list
             self.employee_ids = [self.employee_id]
         else:
             raise ValueError("Either employee_id or employee_ids is required")
@@ -104,7 +103,8 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleUpdate(BaseModel):
-    employee_id: Optional[str] = None
+    employee_ids: Optional[List[str]] = None  # replace all employees
+    employee_id: Optional[str] = None  # backward compat: sets single employee
     location_id: Optional[str] = None
     class_id: Optional[str] = None
     date: Optional[str] = None
@@ -145,7 +145,7 @@ class BulkStatusUpdateRequest(BaseModel):
 
 class BulkReassignRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
-    employee_id: str
+    employee_ids: List[str]  # set these employees on all selected schedules
 
 
 class BulkLocationUpdateRequest(BaseModel):
@@ -180,7 +180,7 @@ class ErrorResponse(BaseModel):
 
 
 class ScheduleImportItem(BaseModel):
-    employee_id: str
+    employee_ids: List[str]
     location_id: str
     class_id: Optional[str] = None
     date: str

@@ -70,7 +70,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
           ) : (
             <div className="space-y-3 pb-24">
               {daySchedules.map(schedule => {
-                const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+                const classColor = schedule.class_color || schedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
                 const className = schedule.class_name || 'Unassigned Class';
                 const selected = selectionMode && isSelected?.(schedule.id);
 
@@ -110,7 +110,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                         </div>
                         <div className="flex items-center text-sm text-slate-600">
                           <User className="w-4 h-4 mr-2 opacity-70" />
-                          <span className="truncate">{schedule.employee_name}</span>
+                          <span className="truncate">{schedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</span>
                         </div>
                       </div>
 
@@ -173,7 +173,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                 <div className="flex items-center gap-2 mb-2">
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: selectedSchedule.class_color || selectedSchedule.employee_color || COLORS.DEFAULT_CLASS }}
+                    style={{ backgroundColor: selectedSchedule.class_color || selectedSchedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS }}
                   />
                   <DrawerTitle className="text-xl">{selectedSchedule.class_name || 'Unassigned Class'}</DrawerTitle>
                 </div>
@@ -199,7 +199,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                     <User className="w-5 h-5 text-slate-400 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">Instructor</p>
-                      <p className="text-sm text-slate-600">{selectedSchedule.employee_name}</p>
+                      <p className="text-sm text-slate-600">{selectedSchedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</p>
                     </div>
                   </div>
                 </div>

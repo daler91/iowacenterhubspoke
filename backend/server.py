@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
 
     # Create required indexes
     try:
-        await db.schedules.create_index([("employee_id", 1), ("date", 1)])
-        await db.schedules.create_index([("employee_id", 1), ("date", 1), ("deleted_at", 1)])
+        await db.schedules.create_index([("employee_ids", 1), ("date", 1)])
+        await db.schedules.create_index([("employee_ids", 1), ("date", 1), ("deleted_at", 1)])
         await db.schedules.create_index([("location_id", 1), ("date", 1)])
         await db.schedules.create_index([("date", 1), ("status", 1)])
         await db.schedules.create_index([("deleted_at", 1)])

@@ -55,9 +55,14 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     min_date = min(dates_to_schedule)
     max_date = max(dates_to_schedule)
 
+    # Use the first employee for conflict prefetch
+    first_employee_id = data.employee_ids[0] if data.employee_ids else None
+    if not first_employee_id:
+        return {}, {}
+
     existing_schedules = await db.schedules.find(
         {
-            "employee_id": data.employee_id,
+            "employee_ids": first_employee_id,
             "date": {"$gte": min_date, "$lte": max_date},
             "deleted_at": None,
         },
@@ -84,30 +89,33 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     return schedules_by_date, loc_map
 
 
-async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
+async def _enqueue_outlook_events(ctx, created, employees, class_doc, location):
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
-    if not OUTLOOK_CALENDAR_ENABLED or not employee.get('email'):
+    if not OUTLOOK_CALENDAR_ENABLED:
         return
-    for doc in created:
-        try:
-            pool = ctx.get('redis')
-            if not pool:
-                continue
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-            await pool.enqueue_job(
-                "create_outlook_event",
-                schedule_id=doc['id'],
-                email=employee['email'],
-                subject=subject,
-                location_name=location['city_name'],
-                date=doc['date'],
-                start_time=doc['start_time'],
-                end_time=doc['end_time'],
-                notes=doc.get('notes', ''),
-                employee_id=employee['id'],
-            )
-        except Exception:
-            logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
+    for employee in employees:
+        if not employee.get('email'):
+            continue
+        for doc in created:
+            try:
+                pool = ctx.get('redis')
+                if not pool:
+                    continue
+                subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
+                await pool.enqueue_job(
+                    "create_outlook_event",
+                    schedule_id=doc['id'],
+                    email=employee['email'],
+                    subject=subject,
+                    location_name=location['city_name'],
+                    date=doc['date'],
+                    start_time=doc['start_time'],
+                    end_time=doc['end_time'],
+                    notes=doc.get('notes', ''),
+                    employee_id=employee['id'],
+                )
+            except Exception:
+                logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
 
 
 def _add_minutes(time_str: str, minutes: int) -> str:
@@ -122,84 +130,90 @@ def _subtract_minutes(time_str: str, minutes: int) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-async def _enqueue_google_events(ctx, created, employee, class_doc, location):
+async def _enqueue_google_events(ctx, created, employees, class_doc, location):
     from core.google_config import GOOGLE_CALENDAR_ENABLED
-    if not GOOGLE_CALENDAR_ENABLED or not employee.get('google_calendar_connected'):
+    if not GOOGLE_CALENDAR_ENABLED:
         return
-    google_email = employee.get('google_calendar_email') or employee['email']
     from database import db as _db
     from services.google_calendar import create_google_event as _create
     city = location['city_name']
     class_name = class_doc['name'] if class_doc else 'Class'
     subject = f"{class_name} - {city}"
-    for doc in created:
-        try:
-            event_ids = []
-            drive_to = (
-                doc.get("drive_to_override_minutes")
-                or doc.get("drive_time_minutes") or 0
-            )
-            drive_from = (
-                doc.get("drive_from_override_minutes")
-                or doc.get("drive_time_minutes") or 0
-            )
+    for employee in employees:
+        if not employee.get('google_calendar_connected'):
+            continue
+        google_email = employee.get('google_calendar_email') or employee['email']
+        for doc in created:
+            try:
+                event_ids = []
+                drive_to = (
+                    doc.get("drive_to_override_minutes")
+                    or doc.get("drive_time_minutes") or 0
+                )
+                drive_from = (
+                    doc.get("drive_from_override_minutes")
+                    or doc.get("drive_time_minutes") or 0
+                )
 
-            # Drive TO event
-            if drive_to > 0:
-                dt_start = _subtract_minutes(doc['start_time'], drive_to)
+                # Drive TO event
+                if drive_to > 0:
+                    dt_start = _subtract_minutes(doc['start_time'], drive_to)
+                    eid = await _create(
+                        google_email,
+                        f"Drive to {city} ({drive_to} min)",
+                        city, doc['date'], dt_start, doc['start_time'],
+                        None, employee=employee,
+                    )
+                    if eid:
+                        event_ids.append(eid)
+
+                # Main class event
                 eid = await _create(
-                    google_email,
-                    f"Drive to {city} ({drive_to} min)",
-                    city, doc['date'], dt_start, doc['start_time'],
-                    None, employee=employee,
+                    google_email, subject, city,
+                    doc['date'], doc['start_time'], doc['end_time'],
+                    doc.get('notes') or None, employee=employee,
                 )
                 if eid:
                     event_ids.append(eid)
 
-            # Main class event
-            eid = await _create(
-                google_email, subject, city,
-                doc['date'], doc['start_time'], doc['end_time'],
-                doc.get('notes') or None, employee=employee,
-            )
-            if eid:
-                event_ids.append(eid)
+                # Drive FROM event
+                if drive_from > 0:
+                    df_end = _add_minutes(doc['end_time'], drive_from)
+                    eid = await _create(
+                        google_email,
+                        f"Drive from {city} ({drive_from} min)",
+                        city, doc['date'], doc['end_time'], df_end,
+                        None, employee=employee,
+                    )
+                    if eid:
+                        event_ids.append(eid)
 
-            # Drive FROM event
-            if drive_from > 0:
-                df_end = _add_minutes(doc['end_time'], drive_from)
-                eid = await _create(
-                    google_email,
-                    f"Drive from {city} ({drive_from} min)",
-                    city, doc['date'], doc['end_time'], df_end,
-                    None, employee=employee,
+                if event_ids:
+                    cal_data = {
+                        "google_calendar_event_id": event_ids[0],
+                        "google_calendar_event_ids": event_ids,
+                    }
+                    await _db.schedules.update_one(
+                        {"id": doc['id']},
+                        {"$set": {f"calendar_events.{employee['id']}": cal_data}},
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to create Google Calendar events for schedule %s",
+                    doc['id'],
                 )
-                if eid:
-                    event_ids.append(eid)
-
-            if event_ids:
-                update = {"google_calendar_event_id": event_ids[0]}
-                if len(event_ids) > 1:
-                    update["google_calendar_event_ids"] = event_ids
-                await _db.schedules.update_one(
-                    {"id": doc['id']}, {"$set": update}
-                )
-        except Exception:
-            logger.exception(
-                "Failed to create Google Calendar events for schedule %s",
-                doc['id'],
-            )
 
 
-async def _log_bulk_creation(log_activity, created, employee, location, class_doc, dates_to_schedule, user_name):
+async def _log_bulk_creation(log_activity, created, employees, location, class_doc, dates_to_schedule, user_name):
     count_label = (
         f"{len(created)} classes" if len(created) > 1 else "class"
     )
     class_label = f" for {class_doc['name']}" if class_doc else ""
+    emp_names = ", ".join(e["name"] for e in employees)
     await log_activity(
         action="schedule_created_bulk",
         description=(
-            f"{employee['name']} assigned to {location['city_name']}"
+            f"{emp_names} assigned to {location['city_name']}"
             f"{class_label}\n - {count_label} starting "
             f"{dates_to_schedule[0]} (Background Task)"
         ),
@@ -216,7 +230,7 @@ async def generate_bulk_schedules(
     drive_time: int,
     recurrence_rule_dict: dict,
     location: dict,
-    employee: dict,
+    employees: list,
     class_doc: dict,
     user_name: str,
 ):
@@ -252,7 +266,7 @@ async def generate_bulk_schedules(
         town_to_town, town_to_town_warning = _check_town_to_town(day_schedules, data.location_id, loc_map)
         doc = _build_schedule_doc(
             data, sched_date, drive_time, town_to_town, town_to_town_warning,
-            recurrence_rule, location, employee, class_doc,
+            recurrence_rule, location, employees, class_doc,
         )
         docs_to_insert.append(doc)
 
@@ -264,17 +278,17 @@ async def generate_bulk_schedules(
             created.append(doc)
 
     if created:
-        await _log_bulk_creation(log_activity, created, employee, location, class_doc, dates_to_schedule, user_name)
+        await _log_bulk_creation(log_activity, created, employees, location, class_doc, dates_to_schedule, user_name)
 
-    await _enqueue_outlook_events(ctx, created, employee, class_doc, location)
-    await _enqueue_google_events(ctx, created, employee, class_doc, location)
+    await _enqueue_outlook_events(ctx, created, employees, class_doc, location)
+    await _enqueue_google_events(ctx, created, employees, class_doc, location)
 
     logger.info(
         f"Bulk sched generation completed. Created: {len(created)}, "
         f"Skipped due to conflicts: {len(conflicts_found)}",
         extra={
             "entity": {
-                "employee_id": data.employee_id,
+                "employee_ids": data.employee_ids,
                 "created_count": len(created),
                 "conflicts_count": len(conflicts_found),
             }
@@ -293,13 +307,14 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
         employee = await db.employees.find_one({"id": entity_id}, {"_id": 0})
         if employee:
             await db.schedules.update_many(
-                {"employee_id": entity_id},
+                {"employee_ids": entity_id},
                 {
                     "$set": {
-                        "employee_name": employee["name"],
-                        "employee_color": employee.get("color", "#4F46E5"),
+                        "employees.$[elem].name": employee["name"],
+                        "employees.$[elem].color": employee.get("color", "#4F46E5"),
                     }
                 },
+                array_filters=[{"elem.id": entity_id}],
             )
     elif entity_type == "location":
         location = await db.locations.find_one({"id": entity_id}, {"_id": 0})
@@ -348,7 +363,8 @@ async def create_outlook_event(
         notes or None, employee=employee,
     )
     if event_id:
-        await db.schedules.update_one({"id": schedule_id}, {"$set": {"outlook_event_id": event_id}})
+        update_key = f"calendar_events.{employee_id}.outlook_event_id" if employee_id else "outlook_event_id"
+        await db.schedules.update_one({"id": schedule_id}, {"$set": {update_key: event_id}})
         logger.info("Outlook event created for schedule %s: %s", schedule_id, event_id)
     else:
         logger.warning("Outlook event creation returned no ID for schedule %s", schedule_id)
@@ -386,7 +402,11 @@ async def create_google_event(
         notes or None, employee=employee,
     )
     if event_id:
-        await db.schedules.update_one({"id": schedule_id}, {"$set": {"google_calendar_event_id": event_id}})
+        if employee_id:
+            update_key = f"calendar_events.{employee_id}.google_calendar_event_id"
+        else:
+            update_key = "google_calendar_event_id"
+        await db.schedules.update_one({"id": schedule_id}, {"$set": {update_key: event_id}})
         logger.info("Google Calendar event created for schedule %s: %s", schedule_id, event_id)
     else:
         logger.warning("Google Calendar event creation returned no ID for schedule %s", schedule_id)

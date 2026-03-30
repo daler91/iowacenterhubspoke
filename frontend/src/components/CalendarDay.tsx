@@ -57,8 +57,9 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
 
   const startMin = timeToMinutes(schedule.start_time);
   const endMin = timeToMinutes(schedule.end_time);
-  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const classColor = schedule.class_color || schedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
+  const employeeDisplay = schedule.employees?.map(e => e.name).join(', ') || 'Unassigned';
   const selected = selectionMode && isSelected?.(schedule.id);
 
   // Use chain info for contextual drive blocks
@@ -135,7 +136,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
           <div>
             <p className="font-semibold text-xs uppercase tracking-wide">{className}</p>
             <p className="text-sm">{schedule.location_name}</p>
-            <p className="text-xs opacity-80">{schedule.employee_name}</p>
+            <p className="text-xs opacity-80">{employeeDisplay}</p>
           </div>
           <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
         </div>
@@ -196,8 +197,9 @@ function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
 // ─── Drag overlay ghost card ──────────────────────────────────────────────
 function DayDragOverlayCard({ schedule }) {
   if (!schedule) return null;
-  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const classColor = schedule.class_color || schedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
+  const employeeDisplay = schedule.employees?.map(e => e.name).join(', ') || 'Unassigned';
   const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
 
   return (
@@ -212,7 +214,7 @@ function DayDragOverlayCard({ schedule }) {
     >
       <p className="font-semibold text-xs uppercase tracking-wide truncate">{className}</p>
       <p className="text-sm truncate">{schedule.location_name}</p>
-      <p className="text-xs opacity-80 truncate">{schedule.employee_name}</p>
+      <p className="text-xs opacity-80 truncate">{employeeDisplay}</p>
       <p className="text-xs opacity-70 mt-auto">{schedule.start_time} - {schedule.end_time}</p>
     </div>
   );

@@ -40,7 +40,8 @@ def _aggregate_schedules_by_period(schedules, period_fn):
         except (ValueError, KeyError):
             logger.warning("Skipping schedule in trends: invalid class minutes for date %s", s.get("date", "?"))
         b["drive_minutes"] += s.get("drive_time_minutes", 0) * 2
-        b["employees"].add(s.get("employee_id", ""))
+        for eid in s.get("employee_ids", []):
+            b["employees"].add(eid)
         b["locations"].add(s.get("location_id", ""))
 
     result = []
@@ -69,7 +70,7 @@ async def get_trends(
     cutoff = (dt_date.today() - td(weeks=weeks_back)).isoformat()
     query = {"date": {"$gte": cutoff}, "deleted_at": None}
     if employee_id:
-        query["employee_id"] = employee_id
+        query["employee_ids"] = employee_id
     if location_id:
         query["location_id"] = location_id
     if class_id:
@@ -98,7 +99,7 @@ async def get_forecast(
     cutoff = (dt_date.today() - td(weeks=12)).isoformat()
     query = {"date": {"$gte": cutoff}, "deleted_at": None}
     if employee_id:
-        query["employee_id"] = employee_id
+        query["employee_ids"] = employee_id
     if class_id:
         query["class_id"] = class_id
 
@@ -145,10 +146,11 @@ def _compute_driver_totals(schedules):
     for s in schedules:
         drive = s.get("drive_time_minutes", 0) * 2
         total_drive_mins += drive
-        emp_id = s.get("employee_id", "")
-        driver_totals[emp_id]["name"] = s.get("employee_name", "?")
-        driver_totals[emp_id]["drive_mins"] += drive
-        driver_totals[emp_id]["schedules"] += 1
+        emp_lookup = {e["id"]: e.get("name", "?") for e in s.get("employees", [])}
+        for emp_id in s.get("employee_ids", []):
+            driver_totals[emp_id]["name"] = emp_lookup.get(emp_id, "?")
+            driver_totals[emp_id]["drive_mins"] += drive
+            driver_totals[emp_id]["schedules"] += 1
     return total_drive_mins, driver_totals
 
 
@@ -156,8 +158,20 @@ def _get_other_locations(by_date, date_key, employee_id, exclude_id):
     return {
         s.get("location_id")
         for s in by_date[date_key]
-        if s.get("employee_id") == employee_id and s["id"] != exclude_id
+        if employee_id in s.get("employee_ids", []) and s["id"] != exclude_id
     }
+
+
+def _first_employee_name(s):
+    """Get the first employee name from the employees array."""
+    employees = s.get("employees", [])
+    return employees[0].get("name", "?") if employees else "?"
+
+
+def _first_employee_id(s):
+    """Get the first employee ID from the employee_ids array."""
+    ids = s.get("employee_ids", [])
+    return ids[0] if ids else ""
 
 
 def _compute_swap_savings(a, b, by_date, date_key):
@@ -166,17 +180,19 @@ def _compute_swap_savings(a, b, by_date, date_key):
     if a_drive == b_drive:
         return 0, ""
 
-    a_other_locs = _get_other_locations(by_date, date_key, a.get("employee_id"), a["id"])
-    b_other_locs = _get_other_locations(by_date, date_key, b.get("employee_id"), b["id"])
+    a_emp_id = _first_employee_id(a)
+    b_emp_id = _first_employee_id(b)
+    a_other_locs = _get_other_locations(by_date, date_key, a_emp_id, a["id"])
+    b_other_locs = _get_other_locations(by_date, date_key, b_emp_id, b["id"])
 
     savings = 0
     reason = ""
     if b.get("location_id") in a_other_locs and a.get("location_id") not in a_other_locs:
         savings += a_drive * 2
-        reason = f"{a.get('employee_name')} already visits {b.get('location_name')}"
+        reason = f"{_first_employee_name(a)} already visits {b.get('location_name')}"
     if a.get("location_id") in b_other_locs and b.get("location_id") not in b_other_locs:
         savings += b_drive * 2
-        reason = f"{b.get('employee_name')} already visits {a.get('location_name')}"
+        reason = f"{_first_employee_name(b)} already visits {a.get('location_name')}"
     return savings, reason
 
 
@@ -185,10 +201,10 @@ def _build_suggestion(a, b, date_key, savings, reason):
     b_drive = b.get("drive_time_minutes", 0)
     return {
         "date": date_key,
-        "employee_a": a.get("employee_name", "?"),
-        "employee_a_id": a.get("employee_id"),
-        "employee_b": b.get("employee_name", "?"),
-        "employee_b_id": b.get("employee_id"),
+        "employee_a": _first_employee_name(a),
+        "employee_a_id": _first_employee_id(a),
+        "employee_b": _first_employee_name(b),
+        "employee_b_id": _first_employee_id(b),
         "location_a": a.get("location_name", "?"),
         "location_b": b.get("location_name", "?"),
         "schedule_a_id": a.get("id"),
@@ -201,7 +217,9 @@ def _build_suggestion(a, b, date_key, savings, reason):
 
 
 def _should_skip_pair(a, b, loc_map):
-    if a.get("employee_id") == b.get("employee_id"):
+    a_ids = set(a.get("employee_ids", []))
+    b_ids = set(b.get("employee_ids", []))
+    if a_ids & b_ids:
         return True
     if a.get("location_id") == b.get("location_id"):
         return True

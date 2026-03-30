@@ -73,8 +73,9 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
   const driveAfterTop = minutesToTop(endMin);
   const driveAfterHeight = (driveAfterMin / 60) * PX_PER_HOUR;
 
-  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const classColor = schedule.class_color || schedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
+  const employeeDisplay = schedule.employees?.map(e => e.name).join(', ') || 'Unassigned';
   const selected = selectionMode && isSelected?.(schedule.id);
 
   return (
@@ -146,7 +147,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                 <div>
                   <p className="font-semibold text-[10px] uppercase tracking-wide truncate" data-testid={`calendar-class-name-${schedule.id}`}>{className}</p>
                   <p className="text-[10px] opacity-90 truncate">{schedule.location_name}</p>
-                  <p className="text-[10px] opacity-75 truncate">{schedule.employee_name}</p>
+                  <p className="text-[10px] opacity-75 truncate">{employeeDisplay}</p>
                 </div>
                 <p className="text-[10px] opacity-70">
                   {schedule.start_time} - {schedule.end_time}
@@ -163,7 +164,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
             <div className="space-y-1">
               <p className="font-semibold">{className}</p>
               <p className="text-xs">Location: {schedule.location_name}</p>
-              <p className="text-xs">Employee: {schedule.employee_name}</p>
+              <p className="text-xs">Employee: {employeeDisplay}</p>
               <p className="text-xs">Time: {schedule.start_time} - {schedule.end_time}</p>
               <p className="text-xs">
                 Hub drive: {schedule.drive_time_minutes}m each way
@@ -241,8 +242,9 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
 // ─── Drag overlay ghost card ──────────────────────────────────────────────
 function DragOverlayCard({ schedule }) {
   if (!schedule) return null;
-  const classColor = schedule.class_color || schedule.employee_color || COLORS.DEFAULT_CLASS;
+  const classColor = schedule.class_color || schedule.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
+  const employeeDisplay = schedule.employees?.map(e => e.name).join(', ') || 'Unassigned';
   const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
 
   return (
@@ -256,7 +258,7 @@ function DragOverlayCard({ schedule }) {
     >
       <p className="font-semibold text-[10px] uppercase tracking-wide truncate">{className}</p>
       <p className="text-[10px] opacity-90 truncate">{schedule.location_name}</p>
-      <p className="text-[10px] opacity-75 truncate">{schedule.employee_name}</p>
+      <p className="text-[10px] opacity-75 truncate">{employeeDisplay}</p>
       <p className="text-[10px] opacity-70 mt-auto">
         {schedule.start_time} - {schedule.end_time}
       </p>

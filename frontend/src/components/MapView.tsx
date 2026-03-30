@@ -106,8 +106,8 @@ export default function MapView() {
                             <p className="text-[10px] text-slate-400 uppercase font-semibold mb-1">Today's Classes</p>
                             {locSchedules.map(s => (
                               <div key={s.id} className="flex items-center gap-2 mt-1">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employee_color }} />
-                                <span className="text-xs text-slate-600">{s.employee_name} ({s.start_time}-{s.end_time})</span>
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />
+                                <span className="text-xs text-slate-600">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
                               </div>
                             ))}
                           </div>

@@ -88,7 +88,7 @@ export default function CalendarView() {
 
   const filteredSchedules = useMemo(() =>
     (schedules || []).filter((s: any) => {
-      if (filterEmployee !== 'all' && s.employee_id !== filterEmployee) return false;
+      if (filterEmployee !== 'all' && !s.employee_ids?.includes(filterEmployee)) return false;
       if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
       return true;
     }),

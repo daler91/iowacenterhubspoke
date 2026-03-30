@@ -40,7 +40,6 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                   name: classLookup.name !== 'Unknown Class' ? classLookup.name : (schedule.class_name || 'Unknown Class'),
                   color: classLookup.color !== '#ccc' ? classLookup.color : (schedule.class_color || '#ccc'),
                 };
-                const employee = getEmployeeById(schedule.employee_id);
                 const location = getLocationById(schedule.location_id);
                 const isToday = type === 'today';
                 const dateText = isToday ? 'Today' : format(new Date(schedule.date), 'MMM d, yyyy');
@@ -64,7 +63,16 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                       </div>
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-slate-400" />
-                        <EntityLink type="employee" id={schedule.employee_id} className="text-slate-600">{employee.name}</EntityLink>
+                        {schedule.employees?.length > 0 ? (
+                          schedule.employees.map((emp, i) => (
+                            <span key={emp.id}>
+                              <EntityLink type="employee" id={emp.id} className="text-slate-600">{emp.name}</EntityLink>
+                              {i < schedule.employees.length - 1 && ', '}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-600">Unassigned</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 sm:col-span-2">
                         <MapPin className="w-4 h-4 text-slate-400" />
