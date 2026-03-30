@@ -30,6 +30,7 @@ from routers.schedule_helpers import (
     CLASS_NOT_FOUND,
     NO_FIELDS_TO_UPDATE,
     _sync_same_day_town_to_town,
+    _enqueue_outlook_event,
     _enqueue_outlook_delete,
     _enqueue_google_delete,
     _enqueue_google_event,
@@ -205,7 +206,7 @@ async def update_schedule(
                 updated_sched["date"],
             )
 
-    # Sync Google Calendar events (delete old, create new)
+    # Sync calendar events (delete old, create new)
     calendar_fields = {
         "employee_id", "location_id", "class_id", "date",
         "start_time", "end_time", "notes",
@@ -218,6 +219,7 @@ async def update_schedule(
         )
         if updated_sched:
             await _enqueue_google_delete(old_schedule)
+            await _enqueue_outlook_delete(old_schedule)
             employee = await db.employees.find_one(
                 {"id": updated_sched["employee_id"], "deleted_at": None},
                 {"_id": 0},
@@ -234,6 +236,9 @@ async def update_schedule(
                 )
             if employee and location:
                 _enqueue_google_event(
+                    employee, location, class_doc, updated_sched
+                )
+                _enqueue_outlook_event(
                     employee, location, class_doc, updated_sched
                 )
 
@@ -418,9 +423,10 @@ async def relocate_schedule(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
 
-    # Sync Google Calendar events (delete old, create new)
+    # Sync calendar events (delete old, create new)
     if updated:
         await _enqueue_google_delete(schedule)
+        await _enqueue_outlook_delete(schedule)
         employee = await db.employees.find_one(
             {"id": updated["employee_id"], "deleted_at": None},
             {"_id": 0},
@@ -437,6 +443,7 @@ async def relocate_schedule(
             )
         if employee and location:
             _enqueue_google_event(employee, location, class_doc, updated)
+            _enqueue_outlook_event(employee, location, class_doc, updated)
 
     await log_activity(
         "schedule_relocated",

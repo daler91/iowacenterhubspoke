@@ -86,28 +86,68 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
 
 async def _enqueue_outlook_events(ctx, created, employee, class_doc, location):
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
-    if not OUTLOOK_CALENDAR_ENABLED or not employee.get('email'):
+    if not OUTLOOK_CALENDAR_ENABLED or not employee.get('outlook_calendar_connected'):
         return
+    outlook_email = employee.get('outlook_calendar_email') or employee['email']
+    from database import db as _db
+    from services.outlook import create_outlook_event as _create
+    city = location['city_name']
+    class_name = class_doc['name'] if class_doc else 'Class'
+    subject = f"{class_name} - {city}"
     for doc in created:
         try:
-            pool = ctx.get('redis')
-            if not pool:
-                continue
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-            await pool.enqueue_job(
-                "create_outlook_event",
-                schedule_id=doc['id'],
-                email=employee['email'],
-                subject=subject,
-                location_name=location['city_name'],
-                date=doc['date'],
-                start_time=doc['start_time'],
-                end_time=doc['end_time'],
-                notes=doc.get('notes', ''),
-                employee_id=employee['id'],
+            event_ids = []
+            drive_to = (
+                doc.get("drive_to_override_minutes")
+                or doc.get("drive_time_minutes") or 0
             )
+            drive_from = (
+                doc.get("drive_from_override_minutes")
+                or doc.get("drive_time_minutes") or 0
+            )
+
+            if drive_to > 0:
+                dt_start = _subtract_minutes(doc['start_time'], drive_to)
+                eid = await _create(
+                    outlook_email,
+                    f"Drive to {city} ({drive_to} min)",
+                    city, doc['date'], dt_start, doc['start_time'],
+                    None, employee=employee,
+                )
+                if eid:
+                    event_ids.append(eid)
+
+            eid = await _create(
+                outlook_email, subject, city,
+                doc['date'], doc['start_time'], doc['end_time'],
+                doc.get('notes') or None, employee=employee,
+            )
+            if eid:
+                event_ids.append(eid)
+
+            if drive_from > 0:
+                df_end = _add_minutes(doc['end_time'], drive_from)
+                eid = await _create(
+                    outlook_email,
+                    f"Drive from {city} ({drive_from} min)",
+                    city, doc['date'], doc['end_time'], df_end,
+                    None, employee=employee,
+                )
+                if eid:
+                    event_ids.append(eid)
+
+            if event_ids:
+                update = {"outlook_event_id": event_ids[0]}
+                if len(event_ids) > 1:
+                    update["outlook_event_ids"] = event_ids
+                await _db.schedules.update_one(
+                    {"id": doc['id']}, {"$set": update}
+                )
         except Exception:
-            logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
+            logger.exception(
+                "Failed to create Outlook events for schedule %s",
+                doc['id'],
+            )
 
 
 def _add_minutes(time_str: str, minutes: int) -> str:

@@ -1,7 +1,6 @@
 """Shared constants, helpers, imports, and Outlook helpers used across schedule sub-routers."""
 
 import uuid
-import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -24,7 +23,6 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 HUB_LABEL = "Hub (Des Moines)"
 
 _background_tasks: set = set()
-_outlook_logger = logging.getLogger("outlook.enqueue")
 
 
 # --- Outlook helpers ---
@@ -32,68 +30,169 @@ _outlook_logger = logging.getLogger("outlook.enqueue")
 def _enqueue_outlook_event(
     employee: dict, location: dict, class_doc: dict | None, doc: dict
 ):
-    """Fire-and-forget: enqueue Outlook event creation if configured."""
+    """Fire-and-forget: create Outlook event if configured."""
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
 
-    if not OUTLOOK_CALENDAR_ENABLED or not employee.get("email"):
+    if not OUTLOOK_CALENDAR_ENABLED or not employee.get("outlook_calendar_connected"):
         return
+
+    outlook_email = (
+        employee.get("outlook_calendar_email") or employee.get("email")
+    )
+    if not outlook_email:
+        return
+
     import asyncio
 
+    schedule_id = doc["id"]
+    employee_id = employee["id"]
+    class_name = class_doc['name'] if class_doc else 'Class'
+    city_name = location["city_name"]
+    subject = f"{class_name} - {city_name}"
+
+    drive_to = (
+        doc.get("drive_to_override_minutes")
+        or doc.get("drive_time_minutes")
+        or 0
+    )
+    drive_from = (
+        doc.get("drive_from_override_minutes")
+        or doc.get("drive_time_minutes")
+        or 0
+    )
+
     task = asyncio.ensure_future(
-        _enqueue_outlook_event_async(employee, location, class_doc, doc)
+        _create_outlook_events_with_drive_time(
+            schedule_id=schedule_id,
+            employee_id=employee_id,
+            outlook_email=outlook_email,
+            subject=subject,
+            location_name=city_name,
+            date=doc["date"],
+            start_time=doc["start_time"],
+            end_time=doc["end_time"],
+            notes=doc.get("notes") or "",
+            drive_to=drive_to,
+            drive_from=drive_from,
+        )
     )
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
 
-async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
-    try:
-        from core.queue import get_redis_pool
+async def _fetch_outlook_refresh_token(employee_id: str) -> str | None:
+    """Fetch only the Outlook refresh token for an employee."""
+    doc = await db.employees.find_one(
+        {"id": employee_id},
+        {"outlook_refresh_token": 1},
+    )
+    return doc.get("outlook_refresh_token") if doc else None
 
-        pool = await get_redis_pool()
-        if pool:
-            subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-            await pool.enqueue_job(
-                "create_outlook_event",
-                schedule_id=doc["id"],
-                email=employee["email"],
-                subject=subject,
-                location_name=location["city_name"],
-                date=doc["date"],
-                start_time=doc["start_time"],
-                end_time=doc["end_time"],
-                notes=doc.get("notes", ""),
-                employee_id=employee["id"],
-            )
+
+async def _create_outlook_events_with_drive_time(
+    *, schedule_id, employee_id, outlook_email, subject,
+    location_name, date, start_time, end_time, notes,
+    drive_to, drive_from,
+):
+    """Create class event plus drive-time events on Outlook Calendar."""
+    event_ids = []
+
+    # 1. Drive TO event
+    if drive_to > 0:
+        dt_start = _subtract_minutes_from_time(start_time, drive_to)
+        eid = await _try_create_outlook_event(
+            employee_id, outlook_email,
+            f"Drive to {location_name} ({drive_to} min)",
+            location_name, date, dt_start, start_time, None,
+        )
+        if eid:
+            event_ids.append(eid)
+
+    # 2. Main class event
+    main_eid = await _try_create_outlook_event(
+        employee_id, outlook_email, subject,
+        location_name, date, start_time, end_time, notes,
+    )
+    if main_eid:
+        event_ids.append(main_eid)
+
+    # 3. Drive FROM event
+    if drive_from > 0:
+        df_end = _add_minutes_to_time(end_time, drive_from)
+        eid = await _try_create_outlook_event(
+            employee_id, outlook_email,
+            f"Drive from {location_name} ({drive_from} min)",
+            location_name, date, end_time, df_end, None,
+        )
+        if eid:
+            event_ids.append(eid)
+
+    if event_ids:
+        update = {"outlook_event_id": event_ids[0]}
+        if len(event_ids) > 1:
+            update["outlook_event_ids"] = event_ids
+        await db.schedules.update_one(
+            {"id": schedule_id}, {"$set": update},
+        )
+
+
+async def _try_create_outlook_event(
+    employee_id, outlook_email, subject, location_name,
+    date, start_time, end_time, notes,
+):
+    """Fetch credentials and create Outlook event. Isolates sensitive data."""
+    try:
+        from services.outlook import create_outlook_event as _create
+
+        token = await _fetch_outlook_refresh_token(employee_id)
+        creds = {"outlook_refresh_token": token} if token else None
+        return await _create(
+            outlook_email, subject, location_name,
+            date, start_time, end_time,
+            notes or None, employee=creds,
+        )
     except Exception:
-        _outlook_logger.exception("Failed to enqueue Outlook event creation")
+        return None
 
 
 async def _enqueue_outlook_delete(schedule: dict):
-    """Fire-and-forget: enqueue Outlook event deletion if applicable."""
+    """Delete all Outlook Calendar events for a schedule."""
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
 
-    outlook_event_id = schedule.get("outlook_event_id")
-    if not OUTLOOK_CALENDAR_ENABLED or not outlook_event_id:
+    if not OUTLOOK_CALENDAR_ENABLED:
         return
-    employee = await db.employees.find_one(
-        {"id": schedule["employee_id"]}, {"_id": 0}
-    )
-    if not employee or not employee.get("email"):
-        return
-    try:
-        from core.queue import get_redis_pool
 
-        pool = await get_redis_pool()
-        if pool:
-            await pool.enqueue_job(
-                "delete_outlook_event",
-                email=employee["email"],
-                event_id=outlook_event_id,
-                employee_id=employee["id"],
-            )
+    event_ids = list(schedule.get("outlook_event_ids") or [])
+    legacy_id = schedule.get("outlook_event_id")
+    if legacy_id and legacy_id not in event_ids:
+        event_ids.append(legacy_id)
+    if not event_ids:
+        return
+
+    employee_id = schedule["employee_id"]
+    emp = await db.employees.find_one(
+        {"id": employee_id},
+        {"email": 1, "outlook_calendar_email": 1},
+    )
+    if not emp or not emp.get("email"):
+        return
+
+    outlook_email = emp.get("outlook_calendar_email") or emp["email"]
+
+    for eid in event_ids:
+        await _try_delete_outlook_event(employee_id, outlook_email, eid)
+
+
+async def _try_delete_outlook_event(employee_id, outlook_email, event_id):
+    """Fetch credentials and delete Outlook event. Isolates sensitive data."""
+    try:
+        from services.outlook import delete_outlook_event as _del
+
+        token = await _fetch_outlook_refresh_token(employee_id)
+        creds = {"outlook_refresh_token": token} if token else None
+        return await _del(outlook_email, event_id, employee=creds)
     except Exception:
-        _outlook_logger.exception("Failed to enqueue Outlook event deletion")
+        return False
 
 
 # --- Google Calendar helpers ---
