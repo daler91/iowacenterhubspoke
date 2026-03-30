@@ -34,7 +34,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     setForm((prev) => ({ ...prev, class_id: classDoc.id }));
   };
 
-  let submitLabel = 'Schedule Class';
+  const employeeCount = form.employee_ids?.length || 0;
+  let submitLabel = employeeCount > 1 ? `Schedule ${employeeCount} Employees` : 'Schedule Class';
   if (loading) submitLabel = 'Saving...';
   else if (outlookOverride || googleOverride) submitLabel = 'Schedule Anyway';
   else if (editSchedule) submitLabel = 'Update Schedule';
@@ -47,18 +48,19 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}
           </DialogTitle>
           <DialogDescription>
-            {editSchedule ? 'Update the class details below.' : 'Assign an employee to a class at a location. Drive time will be automatically calculated.'}
+            {editSchedule ? 'Update the class details below.' : 'Assign one or more employees to a class at a location. Drive time will be automatically calculated.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <EmployeeClassSelectors 
-            form={form} 
+          <EmployeeClassSelectors
+            form={form}
             setForm={setForm}
             employees={employees}
             classes={classes}
             selectedClass={selectedClass}
             onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
+            isEditMode={!!editSchedule}
           />
 
           <LocationTimeSelectors
