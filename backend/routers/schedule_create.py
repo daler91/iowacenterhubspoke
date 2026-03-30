@@ -17,7 +17,6 @@ from services.schedule_utils import (
 from routers.schedule_helpers import (
     logger,
     _build_schedule_doc,
-    _fetch_schedule_entities,
     _fetch_employee,
     _fetch_location_and_class,
     _check_town_to_town,
