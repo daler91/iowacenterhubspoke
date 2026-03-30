@@ -125,14 +125,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
   // Debounced conflict preview (fires when key fields change)
   const fetchConflictPreview = useCallback(() => {
-    const hasEmployee = editSchedule ? !!form.employee_id : form.employee_ids.length > 0;
-    if (!hasEmployee || !form.location_id || !form.date || !form.start_time || !form.end_time) {
+    if (form.employee_ids.length === 0 || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
       return;
     }
     const payload: Record<string, any> = {
+      employee_ids: form.employee_ids,
       location_id: form.location_id,
       date: form.date,
       start_time: form.start_time,
@@ -142,11 +142,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null,
       schedule_id: editSchedule?.id || null,
     };
-    if (editSchedule) {
-      payload.employee_id = form.employee_id;
-    } else {
-      payload.employee_ids = form.employee_ids;
-    }
     schedulesAPI.checkConflicts(payload)
       .then((res: any) => {
         setPreviewConflicts({
@@ -163,7 +158,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
         setTownToTown(null);
         setTravelChain(null);
       });
-  }, [form.employee_id, form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
+  }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -217,13 +212,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
     const classId = form.class_id || null;
     const payload: Record<string, any> = { ...form, class_id: classId, travel_override_minutes: travelMinutes, drive_to_override_minutes: driveToOverride, drive_from_override_minutes: driveFromOverride };
-    // For create mode, send employee_ids; for edit mode, send employee_id
-    if (editSchedule) {
-      delete payload.employee_ids;
-    } else {
-      payload.employee_ids = form.employee_ids;
-      delete payload.employee_id;
-    }
+    // Always send employee_ids for multi-employee support
+    payload.employee_ids = form.employee_ids;
+    delete payload.employee_id;
 
     if (isNone) {
       return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
@@ -298,8 +289,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const hasEmployee = editSchedule ? !!form.employee_id : form.employee_ids.length > 0;
-    if (!hasEmployee || !form.location_id || !form.date || !form.start_time || !form.end_time) {
+    if (form.employee_ids.length === 0 || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -314,8 +304,35 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       if (outlookOverride) payload.force_outlook = true;
       if (googleOverride) payload.force_google = true;
       if (editSchedule) {
-        await schedulesAPI.update(editSchedule.id, payload);
-        toast.success('Schedule updated');
+        // Update the existing schedule with the original employee
+        const updatePayload = { ...payload, employee_id: editSchedule.employee_id };
+        delete updatePayload.employee_ids;
+        await schedulesAPI.update(editSchedule.id, updatePayload);
+
+        // Create new schedules for any additional employees
+        const additionalEmployees = form.employee_ids.filter(id => id !== editSchedule.employee_id);
+        if (additionalEmployees.length > 0) {
+          const createPayload = { ...payload, employee_ids: additionalEmployees };
+          delete createPayload.employee_id;
+          try {
+            const res = await schedulesAPI.create(createPayload);
+            const created = res.data.multi_employee ? res.data.total_created : 1;
+            const failed = res.data.multi_employee ? res.data.total_failed : 0;
+            if (failed > 0) {
+              toast.warning(`Schedule updated. ${created} additional employee(s) added, ${failed} had conflicts.`, { duration: 6000 });
+            } else {
+              toast.success(`Schedule updated and ${created} additional employee(s) added.`);
+            }
+          } catch (addErr: any) {
+            if (addErr.response?.status === 409) {
+              toast.warning('Schedule updated, but additional employee(s) had conflicts.', { duration: 6000 });
+            } else {
+              toast.warning('Schedule updated, but failed to add additional employee(s).', { duration: 6000 });
+            }
+          }
+        } else {
+          toast.success('Schedule updated');
+        }
       } else {
         handleCreateResponse(await schedulesAPI.create(payload));
       }

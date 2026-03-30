@@ -35,10 +35,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   };
 
   const employeeCount = form.employee_ids?.length || 0;
-  let submitLabel = employeeCount > 1 ? `Schedule ${employeeCount} Employees` : 'Schedule Class';
+  const additionalCount = editSchedule ? employeeCount - 1 : 0;
+  let submitLabel = 'Schedule Class';
   if (loading) submitLabel = 'Saving...';
   else if (outlookOverride || googleOverride) submitLabel = 'Schedule Anyway';
+  else if (editSchedule && additionalCount > 0) submitLabel = `Update & Add ${additionalCount} Employee${additionalCount > 1 ? 's' : ''}`;
   else if (editSchedule) submitLabel = 'Update Schedule';
+  else if (employeeCount > 1) submitLabel = `Schedule ${employeeCount} Employees`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,7 +51,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}
           </DialogTitle>
           <DialogDescription>
-            {editSchedule ? 'Update the class details below.' : 'Assign one or more employees to a class at a location. Drive time will be automatically calculated.'}
+            {editSchedule ? 'Update the class details below. Add more employees to schedule them for the same class.' : 'Assign one or more employees to a class at a location. Drive time will be automatically calculated.'}
           </DialogDescription>
         </DialogHeader>
 
