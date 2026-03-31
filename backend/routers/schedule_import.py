@@ -75,6 +75,33 @@ def _validate_import_row(
     }
 
 
+def _build_date_filter(start_date, end_date):
+    """Return a date filter dict for the query, or None."""
+    if start_date and end_date:
+        return {"$gte": start_date, "$lte": end_date}
+    if start_date:
+        return {"$gte": start_date}
+    if end_date:
+        return {"$lte": end_date}
+    return None
+
+
+def _collect_employee_info(schedule, emp_map):
+    """Return (names, emails) lists for a schedule's employees."""
+    names = []
+    emails = []
+    for emp_entry in schedule.get("employees", []):
+        emp = emp_map.get(emp_entry.get("id"), {})
+        names.append(emp.get("name", emp_entry.get("name", "Unknown")))
+        emails.append(emp.get("email", ""))
+    if not names:
+        for eid in schedule.get("employee_ids", []):
+            emp = emp_map.get(eid, {})
+            names.append(emp.get("name", "Unknown"))
+            emails.append(emp.get("email", ""))
+    return names, emails
+
+
 router = APIRouter(tags=["schedules"])
 
 
@@ -91,12 +118,9 @@ async def export_schedules(
 ):
     query = {"deleted_at": None}
 
-    if start_date and end_date:
-        query["date"] = {"$gte": start_date, "$lte": end_date}
-    elif start_date:
-        query["date"] = {"$gte": start_date}
-    elif end_date:
-        query["date"] = {"$lte": end_date}
+    date_filter = _build_date_filter(start_date, end_date)
+    if date_filter:
+        query["date"] = date_filter
 
     if employee_id:
         query["employee_ids"] = employee_id
@@ -142,18 +166,7 @@ async def export_schedules(
         loc = loc_map.get(s.get("location_id"), {})
         cls = class_map.get(s.get("class_id"), {})
 
-        # Get employee names/emails from the employees array or lookup
-        emp_names = []
-        emp_emails = []
-        for emp_entry in s.get("employees", []):
-            emp = emp_map.get(emp_entry.get("id"), {})
-            emp_names.append(emp.get("name", emp_entry.get("name", "Unknown")))
-            emp_emails.append(emp.get("email", ""))
-        if not emp_names:
-            for eid in s.get("employee_ids", []):
-                emp = emp_map.get(eid, {})
-                emp_names.append(emp.get("name", "Unknown"))
-                emp_emails.append(emp.get("email", ""))
+        emp_names, emp_emails = _collect_employee_info(s, emp_map)
 
         row_data = {
             "date": s.get("date", ""),
