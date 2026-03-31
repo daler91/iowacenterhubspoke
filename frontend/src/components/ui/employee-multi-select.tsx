@@ -6,12 +6,12 @@ import { ChevronsUpDown, X } from 'lucide-react';
 import type { Employee } from '../../lib/types';
 
 interface EmployeeMultiSelectProps {
-  employees: Employee[];
-  selectedIds: string[];
-  onSelectionChange: (ids: string[]) => void;
+  readonly employees: Employee[];
+  readonly selectedIds: string[];
+  readonly onSelectionChange: (ids: string[]) => void;
 }
 
-export function EmployeeMultiSelect({ employees, selectedIds, onSelectionChange }: EmployeeMultiSelectProps) {
+export function EmployeeMultiSelect({ employees, selectedIds, onSelectionChange }: Readonly<EmployeeMultiSelectProps>) {
   const [open, setOpen] = useState(false);
 
   const toggle = (id: string) => {

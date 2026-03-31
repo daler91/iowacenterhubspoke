@@ -25,7 +25,14 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/google", tags=["google-oauth"])
 
 
-@router.get("/authorize/{employee_id}", summary="Start Google OAuth flow for an employee")
+@router.get(
+    "/authorize/{employee_id}",
+    summary="Start Google OAuth flow for an employee",
+    responses={
+        400: {"description": "Google OAuth is not configured"},
+        404: {"description": "Employee not found"},
+    },
+)
 async def google_authorize(employee_id: str, user: SchedulerRequired):
     """Generate Google OAuth consent URL and redirect the admin to it."""
     if not GOOGLE_OAUTH_ENABLED:
@@ -60,7 +67,7 @@ async def google_authorize(employee_id: str, user: SchedulerRequired):
 async def google_callback(request: Request, code: str = None, state: str = None, error: str = None):
     """Handle Google OAuth callback, exchange code for tokens, store on employee."""
     if error:
-        logger.warning("Google OAuth error: %s", error)
+        logger.warning("Google OAuth error callback received")
         return _redirect_with_status("error", "error_auth")
 
     if not code or not state:
@@ -119,7 +126,14 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     return _redirect_with_status("success", "success")
 
 
-@router.delete("/{employee_id}/disconnect", summary="Disconnect Google Calendar for an employee")
+@router.delete(
+    "/{employee_id}/disconnect",
+    summary="Disconnect Google Calendar for an employee",
+    responses={
+        400: {"description": "Google OAuth is not configured"},
+        404: {"description": "Employee not found"},
+    },
+)
 async def google_disconnect(employee_id: str, user: SchedulerRequired):
     """Remove stored Google OAuth tokens for an employee."""
     if not GOOGLE_OAUTH_ENABLED:
@@ -140,7 +154,7 @@ async def google_disconnect(employee_id: str, user: SchedulerRequired):
                     timeout=5,
                 )
         except Exception:
-            logger.warning("Failed to revoke Google token for employee %s (non-critical)", employee_id)
+            logger.warning("Failed to revoke Google token for employee (non-critical)")
 
     await db.employees.update_one(
         {"id": employee_id},

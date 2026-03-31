@@ -185,7 +185,7 @@ async def _build_travel_chain(
 
 
 async def _check_conflicts_for_employee(
-    employee_id: str, data: ScheduleCreate, location: dict, drive_time: int
+    employee_id: str, data: ScheduleCreate, drive_time: int
 ):
     """Check all conflict types for a single employee."""
     conflicts = await check_conflicts(
@@ -268,7 +268,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     # Single employee — backward compatible response
     if len(employee_ids) == 1:
         return await _check_conflicts_for_employee(
-            employee_ids[0], data, location, drive_time
+            employee_ids[0], data, drive_time
         )
 
     # Multiple employees — per-employee breakdown
@@ -276,7 +276,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     any_conflicts = False
     for emp_id in employee_ids:
         result = await _check_conflicts_for_employee(
-            emp_id, data, location, drive_time
+            emp_id, data, drive_time
         )
         # Add employee name for frontend display
         emp = await db.employees.find_one({"id": emp_id}, {"_id": 0, "name": 1})

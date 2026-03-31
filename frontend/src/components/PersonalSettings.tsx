@@ -101,7 +101,7 @@ export default function PersonalSettings() {
     if (!employee) return;
     try {
       const res = await employeesAPI.googleAuthorize(employee.id);
-      window.location.href = res.data.auth_url;
+      globalThis.location.href = res.data.auth_url;
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to start Google Calendar authorization');
     }
@@ -122,7 +122,7 @@ export default function PersonalSettings() {
     if (!employee) return;
     try {
       const res = await employeesAPI.outlookAuthorize(employee.id);
-      window.location.href = res.data.auth_url;
+      globalThis.location.href = res.data.auth_url;
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to start Outlook Calendar authorization');
     }
@@ -137,6 +137,119 @@ export default function PersonalSettings() {
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to disconnect Outlook Calendar');
     }
+  };
+
+  const renderCalendarContent = () => {
+    if (employeeLoading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+
+    if (!employee) {
+      return (
+        <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+          <Info className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              No employee record found matching your email (<span className="font-medium">{user?.email}</span>).
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              To connect a calendar, ask an admin to create an employee with this email address.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {googleEnabled && (
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-teal-500" />
+              <div>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Google Calendar</p>
+                {employee.google_calendar_connected ? (
+                  <p className="text-xs text-teal-600 dark:text-teal-400">
+                    Connected{employee.google_calendar_email ? ` — ${employee.google_calendar_email}` : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Not connected</p>
+                )}
+              </div>
+            </div>
+            {employee.google_calendar_connected ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleGoogleDisconnect}
+                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+              >
+                <Unlink className="w-4 h-4 mr-2" />
+                Disconnect
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleGoogleConnect}
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                Connect
+              </Button>
+            )}
+          </div>
+        )}
+
+        {outlookEnabled && (
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Mail className="w-5 h-5 text-blue-500" />
+              <div>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Outlook Calendar</p>
+                {employee.outlook_calendar_connected ? (
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Not connected</p>
+                )}
+              </div>
+            </div>
+            {employee.outlook_calendar_connected ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOutlookDisconnect}
+                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+              >
+                <Unlink className="w-4 h-4 mr-2" />
+                Disconnect
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleOutlookConnect}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Connect
+              </Button>
+            )}
+          </div>
+        )}
+
+        {!googleEnabled && !outlookEnabled && (
+          <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+            <Info className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No calendar integrations are configured. Contact your administrator to enable Google or Outlook calendar connections.
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -225,111 +338,7 @@ export default function PersonalSettings() {
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>Calendar Connections</h3>
         </div>
 
-        {employeeLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : !employee ? (
-          <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
-            <Info className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                No employee record found matching your email (<span className="font-medium">{user?.email}</span>).
-              </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                To connect a calendar, ask an admin to create an employee with this email address.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Google Calendar */}
-            {googleEnabled && (
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-teal-500" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Google Calendar</p>
-                    {employee.google_calendar_connected ? (
-                      <p className="text-xs text-teal-600 dark:text-teal-400">
-                        Connected{employee.google_calendar_email ? ` — ${employee.google_calendar_email}` : ''}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Not connected</p>
-                    )}
-                  </div>
-                </div>
-                {employee.google_calendar_connected ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleGoogleDisconnect}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
-                  >
-                    <Unlink className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={handleGoogleConnect}
-                    className="bg-teal-600 hover:bg-teal-700 text-white"
-                  >
-                    Connect
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Outlook Calendar */}
-            {outlookEnabled && (
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-blue-500" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Outlook Calendar</p>
-                    {employee.outlook_calendar_connected ? (
-                      <p className="text-xs text-blue-600 dark:text-blue-400">
-                        Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Not connected</p>
-                    )}
-                  </div>
-                </div>
-                {employee.outlook_calendar_connected ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleOutlookDisconnect}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
-                  >
-                    <Unlink className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={handleOutlookConnect}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    Connect
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* No integrations configured */}
-            {!googleEnabled && !outlookEnabled && (
-              <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
-                <Info className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No calendar integrations are configured. Contact your administrator to enable Google or Outlook calendar connections.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {renderCalendarContent()}
       </div>
     </div>
   );

@@ -180,6 +180,42 @@ async def export_schedules(
     )
 
 
+def _parse_csv_content(content: bytes) -> csv.DictReader:
+    """Decode CSV content and return a DictReader, validating required columns."""
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    required_cols = {"date", "start_time", "end_time", "employee_email", "location_name"}
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="Empty CSV file or missing headers")
+
+    actual_cols = {c.lower().strip() for c in reader.fieldnames if c}
+    missing = required_cols - actual_cols
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required columns. File must have headers: "
+                   "date, start_time, end_time, employee_email, location_name",
+        )
+    return reader
+
+
+async def _build_lookup_maps():
+    """Fetch all employees, locations, and classes and build lookup dicts."""
+    all_employees = await db.employees.find({"deleted_at": None}).to_list(length=MAX_QUERY_LIMIT)
+    all_locations = await db.locations.find({"deleted_at": None}).to_list(length=MAX_QUERY_LIMIT)
+    all_classes = await db.classes.find({"deleted_at": None}).to_list(length=MAX_QUERY_LIMIT)
+    return (
+        {e.get("email", "").lower(): e for e in all_employees if e.get("email")},
+        {loc.get("city_name", "").lower(): loc for loc in all_locations if loc.get("city_name")},
+        {c.get("name", "").lower(): c for c in all_classes if c.get("name")},
+    )
+
+
 @router.post(
     "/import/preview",
     summary="Preview CSV import (dry run)",
@@ -189,67 +225,14 @@ async def import_schedules_preview(
     current_user: AdminRequired, file: Annotated[UploadFile, File()]
 ):
     if not file.filename.endswith(".csv"):
-        raise HTTPException(
-            status_code=400, detail="Only CSV files are supported"
-        )
+        raise HTTPException(status_code=400, detail="Only CSV files are supported")
 
     content = await file.read()
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        text = content.decode("latin-1")
-
-    reader = csv.DictReader(io.StringIO(text))
-
-    required_cols = {
-        "date",
-        "start_time",
-        "end_time",
-        "employee_email",
-        "location_name",
-    }
-
-    if not reader.fieldnames:
-        raise HTTPException(
-            status_code=400, detail="Empty CSV file or missing headers"
-        )
-
-    actual_cols = {c.lower().strip() for c in reader.fieldnames if c}
-    missing = required_cols - actual_cols
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Missing required columns. File must have headers: "
-                "date, start_time, end_time, employee_email, location_name"
-            ),
-        )
-
-    all_employees = await db.employees.find({"deleted_at": None}).to_list(
-        length=MAX_QUERY_LIMIT
-    )
-    all_locations = await db.locations.find({"deleted_at": None}).to_list(
-        length=MAX_QUERY_LIMIT
-    )
-    all_classes = await db.classes.find({"deleted_at": None}).to_list(
-        length=MAX_QUERY_LIMIT
-    )
-
-    emp_by_email = {
-        e.get("email", "").lower(): e for e in all_employees if e.get("email")
-    }
-    loc_by_name = {
-        loc.get("city_name", "").lower(): loc
-        for loc in all_locations
-        if loc.get("city_name")
-    }
-    class_by_name = {
-        c.get("name", "").lower(): c for c in all_classes if c.get("name")
-    }
+    reader = _parse_csv_content(content)
+    emp_by_email, loc_by_name, class_by_name = await _build_lookup_maps()
 
     valid_rows = []
     errors = []
-
     date_regex = python_re.compile(r"^\d{4}-\d{2}-\d{2}$")
     time_regex = python_re.compile(r"^\d{2}:\d{2}$")
 
@@ -263,18 +246,11 @@ async def import_schedules_preview(
             continue
 
         result = _validate_import_row(
-            row_clean,
-            date_regex,
-            time_regex,
-            emp_by_email,
-            loc_by_name,
-            class_by_name,
+            row_clean, date_regex, time_regex, emp_by_email, loc_by_name, class_by_name,
         )
 
         if "errors" in result:
-            errors.append(
-                {"row": row_idx, "errors": result["errors"], "data": row_clean}
-            )
+            errors.append({"row": row_idx, "errors": result["errors"], "data": row_clean})
         else:
             valid_data = result["valid_data"]
             valid_data["row_idx"] = row_idx

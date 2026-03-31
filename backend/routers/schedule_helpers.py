@@ -54,33 +54,35 @@ def _enqueue_calendar_events_for_all(
         _enqueue_google_event(employee, location, class_doc, doc)
 
 
+async def _delete_employee_calendar_events(emp_id: str, events: dict):
+    """Delete all calendar events (Outlook + Google) for a single employee."""
+    emp = await db.employees.find_one(
+        {"id": emp_id},
+        {"_id": 0, "email": 1, "google_calendar_email": 1},
+    )
+    if not emp:
+        return
+    outlook_eid = events.get("outlook_event_id")
+    if outlook_eid:
+        await _enqueue_outlook_delete_single(emp, outlook_eid)
+    google_eids = list(events.get("google_calendar_event_ids") or [])
+    legacy_gid = events.get("google_calendar_event_id")
+    if legacy_gid and legacy_gid not in google_eids:
+        google_eids.append(legacy_gid)
+    google_email = emp.get("google_calendar_email") or emp.get("email")
+    for geid in google_eids:
+        await _try_delete_event(emp_id, google_email, geid)
+
+
 async def _delete_calendar_events_for_all(schedule: dict):
     """Delete calendar events for ALL employees on a schedule."""
     calendar_events = schedule.get("calendar_events") or {}
     employee_ids = schedule.get("employee_ids") or []
 
     if calendar_events:
-        # New format: per-employee calendar event IDs
         for emp_id, events in calendar_events.items():
-            emp = await db.employees.find_one(
-                {"id": emp_id},
-                {"_id": 0, "email": 1, "google_calendar_email": 1},
-            )
-            if not emp:
-                continue
-            # Delete Outlook events
-            outlook_eid = events.get("outlook_event_id")
-            if outlook_eid:
-                await _enqueue_outlook_delete_single(emp, outlook_eid)
-            # Delete Google events
-            google_eids = list(events.get("google_calendar_event_ids") or [])
-            legacy_gid = events.get("google_calendar_event_id")
-            if legacy_gid and legacy_gid not in google_eids:
-                google_eids.append(legacy_gid)
-            for geid in google_eids:
-                await _try_delete_event(emp_id, emp.get("google_calendar_email") or emp["email"], geid)
+            await _delete_employee_calendar_events(emp_id, events)
     else:
-        # Legacy format: top-level event IDs for single employee
         await _enqueue_outlook_delete_legacy(schedule)
         await _enqueue_google_delete_legacy(schedule, employee_ids)
 

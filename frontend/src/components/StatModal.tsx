@@ -14,7 +14,6 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
   if (!isOpen) return null;
 
   const getClassById = (id) => classes?.find(c => c.id === id) || { name: 'Unknown Class', color: '#ccc' };
-  const getEmployeeById = (id) => employees?.find(e => e.id === id) || { name: 'Unknown Employee' };
   const getLocationById = (id) => locations?.find(l => l.id === id) || { city_name: 'Unknown Location' };
 
   return (
@@ -36,9 +35,11 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               data.map((schedule) => {
                 const classLookup = getClassById(schedule.class_id);
+                const hasKnownName = classLookup.name === 'Unknown Class';
+                const hasKnownColor = classLookup.color === '#ccc';
                 const displayClass = {
-                  name: classLookup.name !== 'Unknown Class' ? classLookup.name : (schedule.class_name || 'Unknown Class'),
-                  color: classLookup.color !== '#ccc' ? classLookup.color : (schedule.class_color || '#ccc'),
+                  name: hasKnownName ? (schedule.class_name || 'Unknown Class') : classLookup.name,
+                  color: hasKnownColor ? (schedule.class_color || '#ccc') : classLookup.color,
                 };
                 const location = getLocationById(schedule.location_id);
                 const isToday = type === 'today';
