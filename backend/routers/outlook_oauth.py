@@ -26,7 +26,14 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/outlook", tags=["outlook-oauth"])
 
 
-@router.get("/authorize/{employee_id}", summary="Start Microsoft OAuth flow for an employee")
+@router.get(
+    "/authorize/{employee_id}",
+    summary="Start Microsoft OAuth flow for an employee",
+    responses={
+        400: {"description": "Outlook OAuth is not configured"},
+        404: {"description": "Employee not found"},
+    },
+)
 async def outlook_authorize(employee_id: str, user: SchedulerRequired):
     """Generate Microsoft OAuth consent URL and redirect the admin to it."""
     if not OUTLOOK_OAUTH_ENABLED:
@@ -61,7 +68,7 @@ async def outlook_authorize(employee_id: str, user: SchedulerRequired):
 async def outlook_callback(request: Request, code: str = None, state: str = None, error: str = None):
     """Handle Microsoft OAuth callback, exchange code for tokens, store on employee."""
     if error:
-        logger.warning("Microsoft OAuth error: %s", error)
+        logger.warning("Microsoft OAuth error callback received")
         return _redirect_with_status("error", "error_auth")
 
     if not code or not state:
@@ -122,7 +129,14 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
     return _redirect_with_status("success", "success")
 
 
-@router.delete("/{employee_id}/disconnect", summary="Disconnect Outlook Calendar for an employee")
+@router.delete(
+    "/{employee_id}/disconnect",
+    summary="Disconnect Outlook Calendar for an employee",
+    responses={
+        400: {"description": "Outlook OAuth is not configured"},
+        404: {"description": "Employee not found"},
+    },
+)
 async def outlook_disconnect(employee_id: str, user: SchedulerRequired):
     """Remove stored Microsoft OAuth tokens for an employee."""
     if not OUTLOOK_OAUTH_ENABLED:
