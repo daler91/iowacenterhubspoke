@@ -77,7 +77,7 @@ class ScheduleCreate(BaseModel):
     end_time: str
     force: Optional[bool] = False
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides below
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
     drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
@@ -111,7 +111,7 @@ class ScheduleUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     notes: Optional[str] = None
-    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
+    travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides below
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
     drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     status: Optional[str] = None

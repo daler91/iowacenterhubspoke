@@ -11,6 +11,17 @@ from database import db
 
 logger = get_logger(__name__)
 
+# Reusable async HTTP client for Google API calls (connection pooling)
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=10)
+    return _http_client
+
+
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 HUB_LAT = 41.5868
 HUB_LNG = -93.654
@@ -61,8 +72,14 @@ def _estimate_drive_minutes(lat1, lng1, lat2, lng2):
     return max(1, round(road_miles / 55 * 60))
 
 
+_MAX_API_RETRIES = 2
+
+
 async def _fetch_distance_matrix(origin_lat, origin_lng, dest_lat, dest_lng):
-    """Call Google Distance Matrix API and return duration in minutes."""
+    """Call Google Distance Matrix API and return duration in minutes.
+
+    Retries transient failures up to _MAX_API_RETRIES times.
+    """
     if not GOOGLE_MAPS_API_KEY:
         return None
 
@@ -75,25 +92,36 @@ async def _fetch_distance_matrix(origin_lat, origin_lng, dest_lat, dest_lng):
         "key": GOOGLE_MAPS_API_KEY,
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
+    client = _get_http_client()
+    last_error = None
+    for attempt in range(_MAX_API_RETRIES + 1):
+        try:
             resp = await client.get(url, params=params)
             data = resp.json()
 
-        if data.get("status") != "OK":
-            logger.warning(f"Distance Matrix API error: {data.get('status')}")
+            if data.get("status") != "OK":
+                logger.warning("Distance Matrix API error: %s", data.get("status"))
+                return None
+
+            element = data["rows"][0]["elements"][0]
+            if element.get("status") != "OK":
+                logger.warning("Distance Matrix element error: %s", element.get("status"))
+                return None
+
+            duration_seconds = element["duration"]["value"]
+            return max(1, round(duration_seconds / 60))
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            last_error = e
+            if attempt < _MAX_API_RETRIES:
+                import asyncio
+                await asyncio.sleep(0.5 * (attempt + 1))
+                continue
+        except Exception as e:
+            logger.error("Distance Matrix API call failed: %s", e)
             return None
 
-        element = data["rows"][0]["elements"][0]
-        if element.get("status") != "OK":
-            logger.warning(f"Distance Matrix element error: {element.get('status')}")
-            return None
-
-        duration_seconds = element["duration"]["value"]
-        return max(1, round(duration_seconds / 60))
-    except Exception as e:
-        logger.error(f"Distance Matrix API call failed: {e}")
-        return None
+    logger.error("Distance Matrix API failed after %d retries: %s", _MAX_API_RETRIES + 1, last_error)
+    return None
 
 
 def _cache_key(id_a, id_b):

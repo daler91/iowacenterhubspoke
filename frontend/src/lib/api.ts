@@ -27,7 +27,11 @@ api.interceptors.request.use((config) => {
 
 let isRedirectingTo401 = false;
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Reset the redirect guard on any successful response (user is authenticated)
+    isRedirectingTo401 = false;
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401 && !isRedirectingTo401) {
       if (globalThis.location.pathname === '/login') {

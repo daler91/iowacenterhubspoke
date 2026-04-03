@@ -3,6 +3,7 @@ from arq.connections import RedisSettings
 from dotenv import load_dotenv
 
 from core.logger import setup_logging, get_logger
+from core.constants import QUERY_LIMIT
 
 load_dotenv()
 # Set up JSON structured logging
@@ -67,7 +68,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
             "deleted_at": None,
         },
         {"_id": 0},
-    ).to_list(10000)
+    ).to_list(QUERY_LIMIT)
 
     schedules_by_date = {}
     for s in existing_schedules:
@@ -83,7 +84,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     if location_ids:
         other_locations = await db.locations.find(
             {"id": {"$in": list(location_ids)}}, {"_id": 0}
-        ).to_list(10000)
+        ).to_list(QUERY_LIMIT)
     loc_map = {loc["id"]: loc for loc in other_locations}
 
     return schedules_by_date, loc_map

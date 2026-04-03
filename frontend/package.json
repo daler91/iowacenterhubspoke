@@ -64,7 +64,8 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "jest --passWithNoTests"
   },
   "browserslist": {
     "production": [
