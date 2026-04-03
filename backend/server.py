@@ -219,17 +219,16 @@ async def csrf_middleware(request: Request, call_next):
 
     response = await call_next(request)
 
-    # Set/refresh CSRF cookie on every response if not present
-    if not request.cookies.get("csrf_token"):
-        csrf_token = generate_csrf_token()
-        response.set_cookie(
-            key="csrf_token",
-            value=csrf_token,
-            httponly=False,  # Must be readable by JavaScript
-            secure=True,
-            samesite="lax",
-            max_age=86400 * 7,
-        )
+    # Rotate CSRF token on every response for stronger protection
+    csrf_token = generate_csrf_token()
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        httponly=False,  # Must be readable by JavaScript
+        secure=True,
+        samesite="lax",
+        max_age=86400 * 7,
+    )
 
     return response
 
@@ -310,7 +309,17 @@ async def request_id_middleware(request: Request, call_next):
         request_id_var.reset(token)
 
 cors_origins_str = os.getenv("CORS_ORIGINS", "")
-origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
+origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+if not origins:
+    _env = os.getenv("ENVIRONMENT", "development")
+    if _env == "production" or os.getenv("RAILWAY_ENVIRONMENT"):
+        logger.warning(
+            "CORS_ORIGINS is not set in production. Defaulting to reject cross-origin requests. "
+            "Set CORS_ORIGINS to a comma-separated list of allowed origins."
+        )
+        origins = []  # No cross-origin requests allowed
+    else:
+        origins = ["*"]  # Allow all in development
 
 app.add_middleware(
     CORSMiddleware,
@@ -345,10 +354,11 @@ async def health_check():
         checks["status"] = "degraded"
 
     try:
-        import redis as _redis
+        import redis.asyncio as _async_redis
         redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
-        r = _redis.from_url(redis_url, socket_connect_timeout=2)
-        r.ping()
+        r = _async_redis.from_url(redis_url, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
     except Exception:
         checks["redis"] = "unavailable"
         checks["status"] = "degraded"
@@ -361,6 +371,8 @@ async def health_check():
 app.include_router(api_router)
 
 # Backward-compatible: mount same routes under /api/ for existing clients
+# DEPRECATED: These legacy routes will be removed in a future release.
+# Migrate all clients to /api/v1/ endpoints.
 legacy_router = APIRouter(prefix="/api")
 for sub_router in [auth.router, locations.router, employees.router, classes.router,
                    schedules.router, reports.router, system.router, analytics.router, users.router]:

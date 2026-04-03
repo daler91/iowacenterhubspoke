@@ -30,7 +30,7 @@ describe('useScheduleForm Error Handling', () => {
   });
 
   const validFormState = {
-    employee_id: 'emp-1',
+    employee_ids: ['emp-1'],
     location_id: 'loc-1',
     date: '2025-01-01',
     start_time: '09:00',
@@ -67,7 +67,7 @@ describe('useScheduleForm Error Handling', () => {
 
     expect(result.current.outlookOverride).toBe(true);
     expect(toast.warning).toHaveBeenCalledWith(
-      'Employee has Outlook calendar conflicts. Click "Schedule anyway" to override.',
+      'Employee has Outlook conflicts. Click "Schedule anyway" to override.',
       { duration: 6000 }
     );
     expect(result.current.loading).toBe(false);

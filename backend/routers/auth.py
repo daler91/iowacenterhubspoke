@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Response
@@ -13,7 +14,8 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-ADMIN_EMAILS = ["russell.dale1@gmail.com"]
+_admin_email_str = os.getenv("ADMIN_EMAILS", os.getenv("ADMIN_EMAIL", ""))
+ADMIN_EMAILS = [e.strip().lower() for e in _admin_email_str.split(",") if e.strip()]
 
 
 @router.get(
@@ -56,7 +58,7 @@ async def register(request: Request, data: UserRegister, response: Response):
             raise HTTPException(status_code=400, detail="Email does not match invitation")
 
     user_id = str(uuid.uuid4())
-    is_admin_email = data.email in ADMIN_EMAILS
+    is_admin_email = data.email.lower() in ADMIN_EMAILS
     if invitation:
         role = invitation["role"]
         status = USER_STATUS_APPROVED

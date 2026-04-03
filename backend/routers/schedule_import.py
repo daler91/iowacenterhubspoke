@@ -60,12 +60,12 @@ def _validate_import_row(
 
     return {
         "valid_data": {
-            "employee_ids": [employee["_id"]],
+            "employee_ids": [employee["id"]],
             "employee_name": employee["name"],
             "employee_email": employee["email"],
-            "location_id": location["_id"],
+            "location_id": location["id"],
             "location_name": location["city_name"],
-            "class_id": class_obj["_id"] if class_obj else None,
+            "class_id": class_obj["id"] if class_obj else None,
             "class_name": class_obj["name"] if class_obj else "",
             "date": date,
             "start_time": start_time,
@@ -137,16 +137,16 @@ async def export_schedules(
     employees = await db.employees.find({"id": {"$in": emp_ids}}).to_list(
         length=MAX_QUERY_LIMIT
     )
-    locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
+    locations = await db.locations.find({"id": {"$in": loc_ids}}).to_list(
         length=MAX_QUERY_LIMIT
     )
-    classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(
+    classes = await db.classes.find({"id": {"$in": class_ids}}).to_list(
         length=MAX_QUERY_LIMIT
     )
 
     emp_map = {e["id"]: e for e in employees}
-    loc_map = {loc["_id"]: loc for loc in locations}
-    class_map = {c["_id"]: c for c in classes}
+    loc_map = {loc["id"]: loc for loc in locations}
+    class_map = {c["id"]: c for c in classes}
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
     if not field_list:
@@ -293,7 +293,7 @@ async def import_schedules_commit(
                 {"id": {"$in": item.employee_ids}, "deleted_at": None}
             ).to_list(len(item.employee_ids))
             location = await db.locations.find_one(
-                {"_id": item.location_id, "deleted_at": None}
+                {"id": item.location_id, "deleted_at": None}
             )
 
             if not employees_list or len(employees_list) != len(item.employee_ids) or not location:
@@ -339,7 +339,7 @@ async def import_schedules_commit(
             ]
 
             new_schedule = {
-                "_id": str(uuid.uuid4()),
+                "id": str(uuid.uuid4()),
                 "employee_ids": item.employee_ids,
                 "employees": emp_snapshots,
                 "location_id": item.location_id,

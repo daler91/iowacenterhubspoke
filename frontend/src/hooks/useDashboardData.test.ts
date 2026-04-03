@@ -78,7 +78,7 @@ describe('useDashboardData', () => {
     expect(result.current.employees).toEqual([]);
     expect(result.current.classes).toEqual([]);
     expect(result.current.schedules).toEqual([]);
-    expect(result.current.stats).toEqual({ total_employees: 0, total_locations: 0, total_schedules: 0, today_schedules: 0 });
+    expect(result.current.stats).toEqual({ total_employees: 0, total_locations: 0, total_schedules: 0, total_classes: 0, today_schedules: 0 });
     expect(result.current.activities).toEqual([]);
     expect(result.current.workloadData).toEqual([]);
   });
@@ -94,9 +94,9 @@ describe('useDashboardData', () => {
     expect(mockMutate.mutateSchedules).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
+    expect(mockMutate.mutateStats).toHaveBeenCalled();
     expect(mockMutate.mutateLocations).not.toHaveBeenCalled();
     expect(mockMutate.mutateEmployees).not.toHaveBeenCalled();
-    expect(mockMutate.mutateStats).not.toHaveBeenCalled();
   });
 
   it('should call the correct mutate functions in handleScheduleSaved', () => {
