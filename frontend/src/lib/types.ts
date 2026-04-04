@@ -54,7 +54,6 @@ export interface Schedule {
   drive_time_minutes: number;
   drive_to_override_minutes?: number | null;
   drive_from_override_minutes?: number | null;
-  travel_override_minutes?: number | null;
   town_to_town?: boolean;
   town_to_town_warning?: string | null;
   town_to_town_drive_minutes?: number | null;
@@ -63,10 +62,6 @@ export interface Schedule {
   calendar_events?: Record<string, Record<string, unknown>> | null;
   created_at: string;
   deleted_at?: string | null;
-  // Legacy fields (for backward compat with old data)
-  employee_id?: string;
-  employee_name?: string;
-  employee_color?: string;
 }
 
 export interface DashboardStats {

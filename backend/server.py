@@ -126,6 +126,16 @@ async def lifespan(app: FastAPI):
     yield
 
     # ---- Shutdown ----
+    # Await any pending background calendar tasks before closing connections
+    from services.calendar_sync import background_tasks as _background_tasks
+    if _background_tasks:
+        logger.info("Waiting for %d pending calendar tasks to complete...", len(_background_tasks))
+        import asyncio
+        done, pending = await asyncio.wait(_background_tasks, timeout=10)
+        if pending:
+            logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
+            for task in pending:
+                task.cancel()
     client.close()
 
 
@@ -277,22 +287,33 @@ async def cache_control_middleware(request: Request, call_next):
     return response
 
 
+_IS_PRODUCTION = (
+    os.getenv("ENVIRONMENT", "development") == "production"
+    or bool(os.getenv("RAILWAY_ENVIRONMENT"))
+)
+
+# In production, remove 'unsafe-inline' from script-src.
+# style-src keeps 'unsafe-inline' because Tailwind/React use inline styles.
+_script_src = "script-src 'self' https:;" if _IS_PRODUCTION else "script-src 'self' 'unsafe-inline' https:;"
+_CSP = (
+    "default-src 'self'; "
+    + _script_src + " "
+    "style-src 'self' 'unsafe-inline' https:; "
+    "img-src 'self' data: https: blob:; "
+    "font-src 'self' https: data:; "
+    "connect-src 'self' https:; "
+    "worker-src 'self' blob:; "
+    "frame-ancestors 'none'"
+)
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https:; "
-        "style-src 'self' 'unsafe-inline' https:; "
-        "img-src 'self' data: https: blob:; "
-        "font-src 'self' https: data:; "
-        "connect-src 'self' https:; "
-        "worker-src 'self' blob:; "
-        "frame-ancestors 'none'"
-    )
+    response.headers["Content-Security-Policy"] = _CSP
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 

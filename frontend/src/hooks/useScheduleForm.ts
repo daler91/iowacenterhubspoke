@@ -83,7 +83,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   useEffect(() => {
     if (editSchedule) {
       setForm({
-        employee_ids: editSchedule.employee_ids || (editSchedule.employee_id ? [editSchedule.employee_id] : []),
+        employee_ids: editSchedule.employee_ids || [],
         class_id: editSchedule.class_id || '',
         location_id: editSchedule.location_id,
         date: editSchedule.date,
@@ -91,7 +91,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
-        drive_to_override_minutes: editSchedule.drive_to_override_minutes || editSchedule.travel_override_minutes || null,
+        drive_to_override_minutes: editSchedule.drive_to_override_minutes || null,
         drive_from_override_minutes: editSchedule.drive_from_override_minutes || null,
         recurrence: 'none',
         recurrence_end_mode: 'never',

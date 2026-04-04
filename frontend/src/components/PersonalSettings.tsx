@@ -86,8 +86,8 @@ export default function PersonalSettings() {
       toast.error('New passwords do not match');
       return;
     }
-    if (passwordForm.new_password.length < 6) {
-      toast.error('New password must be at least 6 characters');
+    if (passwordForm.new_password.length < 8) {
+      toast.error('New password must be at least 8 characters');
       return;
     }
     setPasswordLoading(true);
