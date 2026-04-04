@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
 import type { Schedule } from '../lib/types';
+import { extractErrorMessage } from '../lib/types';
 
 const getDayValue = (dateStr: string) => new Date(`${dateStr}T00:00:00`).getDay();
 
@@ -82,7 +83,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   useEffect(() => {
     if (editSchedule) {
       setForm({
-        employee_ids: editSchedule.employee_ids || (editSchedule.employee_id ? [editSchedule.employee_id] : []),
+        employee_ids: editSchedule.employee_ids || [],
         class_id: editSchedule.class_id || '',
         location_id: editSchedule.location_id,
         date: editSchedule.date,
@@ -90,7 +91,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
         travel_override_minutes: editSchedule.travel_override_minutes || null,
-        drive_to_override_minutes: editSchedule.drive_to_override_minutes || editSchedule.travel_override_minutes || null,
+        drive_to_override_minutes: editSchedule.drive_to_override_minutes || null,
         drive_from_override_minutes: editSchedule.drive_from_override_minutes || null,
         recurrence: 'none',
         recurrence_end_mode: 'never',
@@ -120,14 +121,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   }, [editSchedule, open]);
 
   // Debounced conflict preview (fires when key fields change)
-  const fetchConflictPreview = useCallback(() => {
+  const fetchConflictPreview = useCallback(async () => {
     if (form.employee_ids.length === 0 || !form.location_id || !form.date || !form.start_time || !form.end_time) {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
       return;
     }
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       employee_ids: form.employee_ids,
       location_id: form.location_id,
       date: form.date,
@@ -138,22 +139,21 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null,
       schedule_id: editSchedule?.id || null,
     };
-    schedulesAPI.checkConflicts(payload)
-      .then((res: any) => {
-        setPreviewConflicts({
-          conflicts: res.data.conflicts || [],
-          outlook_conflicts: res.data.outlook_conflicts || [],
-          google_conflicts: res.data.google_conflicts || [],
-          per_employee: res.data.per_employee || null,
-        });
-        setTownToTown(res.data.town_to_town || null);
-        setTravelChain(res.data.travel_chain || null);
-      })
-      .catch(() => {
-        setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
-        setTownToTown(null);
-        setTravelChain(null);
+    try {
+      const res = await schedulesAPI.checkConflicts(payload);
+      setPreviewConflicts({
+        conflicts: res.data.conflicts || [],
+        outlook_conflicts: res.data.outlook_conflicts || [],
+        google_conflicts: res.data.google_conflicts || [],
+        per_employee: res.data.per_employee || null,
       });
+      setTownToTown(res.data.town_to_town || null);
+      setTravelChain(res.data.travel_chain || null);
+    } catch {
+      setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
+      setTownToTown(null);
+      setTravelChain(null);
+    }
   }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null;
     const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
     const classId = form.class_id || null;
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       ...form,
       class_id: classId,
       travel_override_minutes: travelMinutes,
@@ -238,7 +238,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     };
   };
 
-  const handleCreateResponse = (res: any) => {
+  const handleCreateResponse = (res: { data: Record<string, unknown> }) => {
     if (res.data.background) {
       toast.info(res.data.message);
     } else if (res.data.town_to_town_warning) {
@@ -246,17 +246,18 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     } else if (res.data.total_created === undefined) {
       toast.success('Class scheduled successfully');
     } else {
-      const skipped = res.data.conflicts_skipped?.length || 0;
+      const skipped = (res.data.conflicts_skipped as unknown[] | undefined)?.length || 0;
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
-      toast.success(`${res.data.total_created} classes created${skippedMsg}`);
+      toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
     }
   };
 
-  const handleConflictError = (err: any) => {
-    const detail = err.response.data?.detail || {};
-    const outlookConflicts = detail?.outlook_conflicts || [];
-    const googleConflicts = detail?.google_conflicts || [];
-    const internalConflicts = detail?.conflicts || [];
+  const handleConflictError = (err: unknown) => {
+    const axiosErr = err as { response?: { data?: { detail?: Record<string, unknown> } } };
+    const detail = axiosErr.response?.data?.detail || {};
+    const outlookConflicts = (detail.outlook_conflicts as Array<Record<string, unknown>>) || [];
+    const googleConflicts = (detail.google_conflicts as Array<Record<string, unknown>>) || [];
+    const internalConflicts = (detail.conflicts as Array<Record<string, unknown>>) || [];
     if (internalConflicts.length === 0 && (outlookConflicts.length > 0 || googleConflicts.length > 0)) {
       if (outlookConflicts.length > 0) setOutlookOverride(true);
       if (googleConflicts.length > 0) setGoogleOverride(true);
@@ -266,8 +267,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       ].filter(Boolean).join(' and ');
       toast.warning(`Employee has ${sources} conflicts. Click "Schedule anyway" to override.`, { duration: 6000 });
     } else {
-      const msg = detail?.message || 'Schedule conflict detected';
-      const conflictList = internalConflicts.map((c: any) => `${c.location} (${c.time})`).join(', ');
+      const msg = (detail.message as string) || 'Schedule conflict detected';
+      const conflictList = internalConflicts.map((c) => `${c.location} (${c.time})`).join(', ');
       toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
     }
   };
@@ -297,11 +298,12 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       }
       onSaved?.();
       onOpenChange(false);
-    } catch (err: any) {
-      if (err.response?.status === 409) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr.response?.status === 409) {
         handleConflictError(err);
       } else {
-        toast.error(err.response?.data?.detail || 'Failed to save schedule');
+        toast.error(extractErrorMessage(err, 'Failed to save schedule'));
       }
     } finally {
       setLoading(false);
@@ -316,8 +318,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       toast.success('Schedule deleted');
       onSaved?.();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to delete schedule');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to delete schedule'));
     } finally {
       setLoading(false);
     }

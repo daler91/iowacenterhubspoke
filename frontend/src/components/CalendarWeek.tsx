@@ -4,7 +4,7 @@ import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useAuth } from '../lib/auth';
-import { COLORS } from '../lib/constants';
+import { COLORS, CALENDAR } from '../lib/constants';
 import {
   DndContext,
   DragOverlay,
@@ -15,10 +15,10 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 7 PM
-const PX_PER_HOUR = 60;
-const SNAP_MINUTES = 30;
-const START_HOUR = 6;
+const HOURS = Array.from({ length: CALENDAR.DISPLAY_HOURS }, (_, i) => i + CALENDAR.START_HOUR);
+const PX_PER_HOUR = CALENDAR.PX_PER_HOUR_WEEK;
+const SNAP_MINUTES = CALENDAR.SNAP_MINUTES;
+const START_HOUR = CALENDAR.START_HOUR;
 
 function formatHourLabel(hour) {
   if (hour === 0) return '12 AM';

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, memo } from 'react';
 import { format } from 'date-fns';
 import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
-import { COLORS } from '../lib/constants';
+import { COLORS, CALENDAR } from '../lib/constants';
 import { useAuth } from '../lib/auth';
 import {
   DndContext,
@@ -14,10 +14,10 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 6);
-const PX_PER_HOUR = 80;
-const SNAP_MINUTES = 30;
-const START_HOUR = 6;
+const HOURS = Array.from({ length: CALENDAR.DISPLAY_HOURS }, (_, i) => i + CALENDAR.START_HOUR);
+const PX_PER_HOUR = CALENDAR.PX_PER_HOUR_DAY;
+const SNAP_MINUTES = CALENDAR.SNAP_MINUTES;
+const START_HOUR = CALENDAR.START_HOUR;
 
 function formatHourLabel(hour) {
   if (hour === 0) return '12 AM';

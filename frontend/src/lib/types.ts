@@ -54,7 +54,6 @@ export interface Schedule {
   drive_time_minutes: number;
   drive_to_override_minutes?: number | null;
   drive_from_override_minutes?: number | null;
-  travel_override_minutes?: number | null;
   town_to_town?: boolean;
   town_to_town_warning?: string | null;
   town_to_town_drive_minutes?: number | null;
@@ -63,10 +62,6 @@ export interface Schedule {
   calendar_events?: Record<string, Record<string, unknown>> | null;
   created_at: string;
   deleted_at?: string | null;
-  // Legacy fields (for backward compat with old data)
-  employee_id?: string;
-  employee_name?: string;
-  employee_color?: string;
 }
 
 export interface DashboardStats {
@@ -92,4 +87,82 @@ export interface ActivityLog {
   entity_id: string;
   user_name: string;
   timestamp: string;
+}
+
+export interface CalendarOutletContext {
+  locations: Location[];
+  classes: ClassType[];
+  employees: Employee[];
+  schedules: Schedule[];
+  stats: DashboardStats | null;
+  fetchSchedules: (optimisticData?: unknown, options?: { revalidate?: boolean }) => void;
+  fetchActivities: () => void;
+  onEditSchedule: (schedule: Schedule) => void;
+  onStatClick?: (stat: string) => void;
+  fetchErrors?: { schedules?: string };
+}
+
+export interface AnalyticsOutletContext {
+  employees: Employee[];
+  locations: Location[];
+  classes: ClassType[];
+}
+
+export interface LinkedEmployee extends Employee {
+  google_calendar_connected?: boolean;
+  google_calendar_email?: string;
+  outlook_calendar_connected?: boolean;
+  outlook_calendar_email?: string;
+}
+
+export interface ForecastDataPoint {
+  period: string;
+  classes: number;
+  class_hours: number;
+  drive_hours: number;
+  is_forecast?: boolean;
+}
+
+export interface TrendDataPoint {
+  period: string;
+  classes: number;
+  class_hours: number;
+  drive_hours: number;
+}
+
+export interface SummaryCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  value: string | number;
+}
+
+export interface FilterSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * Extract an error message from an Axios error response.
+ * Centralizes the `err.response?.data?.detail || fallback` pattern.
+ */
+export function extractErrorMessage(err: unknown, fallback: string): string {
+  if (
+    typeof err === 'object' && err !== null &&
+    'response' in err
+  ) {
+    const response = (err as { response?: { data?: { detail?: string } } }).response;
+    if (typeof response?.data?.detail === 'string') {
+      return response.data.detail;
+    }
+  }
+  return fallback;
 }

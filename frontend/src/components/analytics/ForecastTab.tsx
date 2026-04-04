@@ -8,8 +8,14 @@ import { TrendingUp, TrendingDown, Clock, Car, BookOpen } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { analyticsAPI } from '../../lib/api';
 import { SummaryCard, FilterSelect, LoadingChart, EmptyState, fetcher } from './shared';
+import type { Employee, ClassType, ForecastDataPoint } from '../../lib/types';
 
-export default function ForecastTab({ employees, classes }: any) {
+interface ForecastTabProps {
+  employees: Employee[];
+  classes: ClassType[];
+}
+
+export default function ForecastTab({ employees, classes }: Readonly<ForecastTabProps>) {
   const [weeksAhead, setWeeksAhead] = useState('8');
   const [employeeId, setEmployeeId] = useState('all');
   const [classId, setClassId] = useState('all');
@@ -35,9 +41,9 @@ export default function ForecastTab({ employees, classes }: any) {
     if (!forecast.length) return { classes: 0, classHours: 0, driveHours: 0 };
     const next4 = forecast.slice(0, 4);
     return {
-      classes: next4.reduce((s: number, f: any) => s + f.classes, 0).toFixed(0),
-      classHours: next4.reduce((s: number, f: any) => s + f.class_hours, 0).toFixed(1),
-      driveHours: next4.reduce((s: number, f: any) => s + f.drive_hours, 0).toFixed(1),
+      classes: next4.reduce((s: number, f: ForecastDataPoint) => s + f.classes, 0).toFixed(0),
+      classHours: next4.reduce((s: number, f: ForecastDataPoint) => s + f.class_hours, 0).toFixed(1),
+      driveHours: next4.reduce((s: number, f: ForecastDataPoint) => s + f.drive_hours, 0).toFixed(1),
     };
   }, [forecast]);
 
@@ -57,11 +63,11 @@ export default function ForecastTab({ employees, classes }: any) {
         ]} />
         <FilterSelect label="Employee" value={employeeId} onChange={setEmployeeId} options={[
           { value: 'all', label: 'All Employees' },
-          ...(employees || []).map((e: any) => ({ value: e.id, label: e.name })),
+          ...(employees || []).map((e: Employee) => ({ value: e.id, label: e.name })),
         ]} />
         <FilterSelect label="Class" value={classId} onChange={setClassId} options={[
           { value: 'all', label: 'All Classes' },
-          ...(classes || []).map((c: any) => ({ value: c.id, label: c.name })),
+          ...(classes || []).map((c: ClassType) => ({ value: c.id, label: c.name })),
         ]} />
       </div>
 
@@ -112,14 +118,14 @@ export default function ForecastTab({ employees, classes }: any) {
               <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
               <Tooltip
                 contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                labelFormatter={(label: string, payload: any) => {
+                labelFormatter={(label: string, payload: Array<{ payload?: ForecastDataPoint }>) => {
                   const isForecast = payload?.[0]?.payload?.is_forecast;
                   return `${label}${isForecast ? ' (Forecast)' : ''}`;
                 }}
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
               <Area type="monotone" dataKey="classes" stroke="#4F46E5" fill="url(#classGrad)" strokeWidth={2}
-                strokeDasharray={(d: any) => d?.is_forecast ? '5 5' : '0'} name="Classes" />
+                strokeDasharray="0" name="Classes" />
               <Area type="monotone" dataKey="class_hours" stroke="#0D9488" fill="transparent" strokeWidth={2} name="Class Hours" />
               <Area type="monotone" dataKey="drive_hours" stroke="#D97706" fill="url(#driveGrad)" strokeWidth={2} name="Drive Hours" />
             </AreaChart>

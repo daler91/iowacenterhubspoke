@@ -7,13 +7,15 @@ import { User, Lock, Calendar, Mail, Unlink, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { authAPI, employeesAPI, systemAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { extractErrorMessage } from '../lib/types';
+import type { LinkedEmployee } from '../lib/types';
 
 export default function PersonalSettings() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Employee linked to current user
-  const [employee, setEmployee] = useState<any>(null);
+  const [employee, setEmployee] = useState<LinkedEmployee | null>(null);
   const [employeeLoading, setEmployeeLoading] = useState(true);
 
   // System config flags
@@ -37,10 +39,16 @@ export default function PersonalSettings() {
 
   useEffect(() => {
     fetchMyEmployee();
-    systemAPI.getConfig().then((res) => {
-      setGoogleEnabled(res.data.google_oauth_enabled);
-      setOutlookEnabled(res.data.outlook_oauth_enabled || res.data.outlook_enabled);
-    }).catch(() => {});
+    const loadConfig = async () => {
+      try {
+        const res = await systemAPI.getConfig();
+        setGoogleEnabled(res.data.google_oauth_enabled);
+        setOutlookEnabled(res.data.outlook_oauth_enabled || res.data.outlook_enabled);
+      } catch {
+        console.warn('Failed to load system config for calendar integrations');
+      }
+    };
+    loadConfig();
   }, []);
 
   // Handle OAuth callback query params
@@ -78,8 +86,8 @@ export default function PersonalSettings() {
       toast.error('New passwords do not match');
       return;
     }
-    if (passwordForm.new_password.length < 6) {
-      toast.error('New password must be at least 6 characters');
+    if (passwordForm.new_password.length < 8) {
+      toast.error('New password must be at least 8 characters');
       return;
     }
     setPasswordLoading(true);
@@ -90,8 +98,8 @@ export default function PersonalSettings() {
       });
       toast.success('Password changed successfully');
       setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to change password');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to change password'));
     } finally {
       setPasswordLoading(false);
     }
@@ -102,8 +110,8 @@ export default function PersonalSettings() {
     try {
       const res = await employeesAPI.googleAuthorize(employee.id);
       globalThis.location.href = res.data.auth_url;
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to start Google Calendar authorization');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to start Google Calendar authorization'));
     }
   };
 
@@ -113,8 +121,8 @@ export default function PersonalSettings() {
       await employeesAPI.googleDisconnect(employee.id);
       toast.success('Google Calendar disconnected');
       fetchMyEmployee();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to disconnect Google Calendar');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to disconnect Google Calendar'));
     }
   };
 
@@ -123,8 +131,8 @@ export default function PersonalSettings() {
     try {
       const res = await employeesAPI.outlookAuthorize(employee.id);
       globalThis.location.href = res.data.auth_url;
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to start Outlook Calendar authorization');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to start Outlook Calendar authorization'));
     }
   };
 
@@ -134,8 +142,8 @@ export default function PersonalSettings() {
       await employeesAPI.outlookDisconnect(employee.id);
       toast.success('Outlook Calendar disconnected');
       fetchMyEmployee();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to disconnect Outlook Calendar');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to disconnect Outlook Calendar'));
     }
   };
 

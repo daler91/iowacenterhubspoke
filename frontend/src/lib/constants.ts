@@ -45,3 +45,13 @@ export const END_MODES = {
   ON_DATE: 'on_date',
   AFTER_OCCURRENCES: 'after_occurrences',
 } as const;
+
+export const CALENDAR = {
+  START_HOUR: 6,
+  DISPLAY_HOURS: 14,
+  SNAP_MINUTES: 30,
+  PX_PER_HOUR_WEEK: 60,
+  PX_PER_HOUR_DAY: 80,
+} as const;
+
+export const PASSWORD_MIN_LENGTH = 8;
