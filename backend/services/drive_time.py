@@ -116,8 +116,8 @@ async def _fetch_distance_matrix(origin_lat, origin_lng, dest_lat, dest_lng):
                 import asyncio
                 await asyncio.sleep(0.5 * (attempt + 1))
                 continue
-        except Exception as e:
-            logger.error("Distance Matrix API call failed: %s", e)
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error("Distance Matrix API response parsing failed: %s", e)
             return None
 
     logger.error("Distance Matrix API failed after %d retries: %s", _MAX_API_RETRIES + 1, last_error)

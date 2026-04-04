@@ -8,6 +8,7 @@ import { Users, CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mai
 import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { extractErrorMessage } from '../lib/types';
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },
@@ -68,8 +69,8 @@ export default function UserManager() {
       await usersAPI.approve(userId);
       toast.success('User approved');
       fetchUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to approve user');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to approve user'));
     }
   };
 
@@ -78,8 +79,8 @@ export default function UserManager() {
       await usersAPI.reject(userId);
       toast.success('User rejected');
       fetchUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to reject user');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to reject user'));
     }
   };
 
@@ -88,8 +89,8 @@ export default function UserManager() {
       await usersAPI.updateRole(userId, role);
       toast.success(`Role updated to ${role}`);
       fetchUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update role');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to update role'));
     }
   };
 
@@ -98,8 +99,8 @@ export default function UserManager() {
       await usersAPI.delete(userId);
       toast.success('User deleted');
       fetchUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete user');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to delete user'));
     }
   };
 
@@ -120,8 +121,8 @@ export default function UserManager() {
       setGeneratedLink(link);
       toast.success('Invitation created');
       fetchInvitations();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to create invitation');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to create invitation'));
     } finally {
       setInviteLoading(false);
     }
@@ -141,8 +142,8 @@ export default function UserManager() {
       await usersAPI.revokeInvitation(inviteId);
       toast.success('Invitation revoked');
       fetchInvitations();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to revoke invitation');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to revoke invitation'));
     }
   };
 

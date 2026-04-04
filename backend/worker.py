@@ -115,8 +115,8 @@ async def _enqueue_outlook_events(ctx, created, employees, class_doc, location):
                     notes=doc.get('notes', ''),
                     employee_id=employee['id'],
                 )
-            except Exception:
-                logger.exception("Failed to enqueue Outlook event for schedule %s", doc['id'])
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.exception("Failed to enqueue Outlook event for schedule %s: %s", doc['id'], exc)
 
 
 def _add_minutes(time_str: str, minutes: int) -> str:

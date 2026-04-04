@@ -21,11 +21,18 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
 
   useEffect(() => {
     if (!employeeId) return;
-    setLoading(true);
-    api.get(`/employees/${employeeId}/stats`)
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    const loadStats = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get(`/employees/${employeeId}/stats`);
+        setData(res.data);
+      } catch {
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStats();
   }, [employeeId]);
 
   if (loading) {

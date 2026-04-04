@@ -4,9 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import TrendsTab from './analytics/TrendsTab';
 import ForecastTab from './analytics/ForecastTab';
 import DriveOptimizationTab from './analytics/DriveOptimizationTab';
+import type { AnalyticsOutletContext } from '../lib/types';
 
 export default function AdvancedAnalytics() {
-  const { employees, locations, classes } = useOutletContext<any>();
+  const { employees, locations, classes } = useOutletContext<AnalyticsOutletContext>();
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="advanced-analytics">

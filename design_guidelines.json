@@ -132,7 +132,7 @@
     "calendar_logic": "Implement a custom Weekly view where 'Drive Time' blocks are automatically inserted before and after 'Class Time' blocks based on distance from Hub (2210 Grand Ave). Visualize these blocks with a distinct gray/striped pattern.",
     "map_integration": "Use @vis.gl/react-google-maps or a similar library. If API key is missing, fallback to a static map image with CSS markers overlaid.",
     "pdf_export": "Use jspdf and html2canvas to capture the Calendar view as a report.",
-    "auth": "Simple JWT implementation. Store token in localStorage.",
+    "auth": "JWT implementation with httpOnly cookies and CSRF double-submit protection.",
     "responsive": "On mobile, switch Calendar to 'Daily' view or 'List' view. Hide the Sidebar behind a hamburger menu."
   },
   "universal_guidelines": [

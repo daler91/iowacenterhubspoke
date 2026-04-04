@@ -1,9 +1,11 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
+import type { SummaryCardProps, FilterSelectProps, SelectOption } from '../../lib/types';
 
-export const fetcher = (url: any, params: any) => url(params).then((r: any) => r.data);
+export const fetcher = <T,>(apiFn: (params: T) => Promise<{ data: unknown }>, params: T) =>
+  apiFn(params).then((r) => r.data);
 
-export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: any) {
+export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: SummaryCardProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-2">
@@ -19,7 +21,7 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: any
   );
 }
 
-export function FilterSelect({ label, value, onChange, options }: any) {
+export function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
   return (
     <div className="min-w-[160px] space-y-2">
       <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>
@@ -28,7 +30,7 @@ export function FilterSelect({ label, value, onChange, options }: any) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {options.map((opt: any) => (
+          {options.map((opt: SelectOption) => (
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>

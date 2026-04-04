@@ -18,6 +18,7 @@ import BulkActionBar from './BulkActionBar';
 import ExportCsvDialog from './ExportCsvDialog';
 import ImportCsvDialog from './ImportCsvDialog';
 import useSelectionMode from '../hooks/useSelectionMode';
+import type { CalendarOutletContext, Schedule } from '../lib/types';
 
 export default function CalendarView() {
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -32,7 +33,7 @@ export default function CalendarView() {
     onEditSchedule,
     onStatClick,
     fetchErrors,
-  } = useOutletContext<any>();
+  } = useOutletContext<CalendarOutletContext>();
 
   const stats = rawStats ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,7 +43,13 @@ export default function CalendarView() {
   const isAdmin = user?.role === 'admin';
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [relocateConflictData, setRelocateConflictData] = useState<any>(null);
+  const [relocateConflictData, setRelocateConflictData] = useState<{
+    scheduleId: string;
+    newDate: string;
+    newStart: string;
+    newEnd: string;
+    conflicts: Array<Record<string, unknown>>;
+  } | null>(null);
 
   const {
     selectionMode,
@@ -87,7 +94,7 @@ export default function CalendarView() {
   const setFilterLocation = (id: string) => updateParams({ location: id });
 
   const filteredSchedules = useMemo(() =>
-    (schedules || []).filter((s: any) => {
+    (schedules || []).filter((s: Schedule) => {
       if (filterEmployee !== 'all' && !s.employee_ids?.includes(filterEmployee)) return false;
       if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
       return true;
@@ -123,8 +130,7 @@ export default function CalendarView() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`schedule-${format(currentDate, 'yyyy-MM-dd')}.pdf`);
       toast.success('PDF exported successfully');
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to export PDF');
     }
   };
@@ -135,7 +141,7 @@ export default function CalendarView() {
 
   const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false) => {
     fetchSchedules(
-      (current: any) => (current || []).map((s: any) =>
+      (current: Schedule[] | null) => (current || []).map((s: Schedule) =>
         s.id === scheduleId
           ? { ...s, date: newDate, start_time: newStart, end_time: newEnd }
           : s
@@ -149,15 +155,16 @@ export default function CalendarView() {
       fetchSchedules();
       fetchActivities();
       setRelocateConflictData(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       fetchSchedules();
-      if (err.response?.status === 409) {
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: { conflicts?: Array<Record<string, unknown>> } } } };
+      if (axiosErr.response?.status === 409) {
         setRelocateConflictData({
           scheduleId,
           newDate,
           newStart,
           newEnd,
-          conflicts: err.response.data.detail?.conflicts || []
+          conflicts: axiosErr.response?.data?.detail?.conflicts || []
         });
       } else {
         toast.error('Failed to move schedule');

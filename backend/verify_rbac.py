@@ -19,15 +19,13 @@ def test_token_role():
     token = create_token(user_id, email, name, role)
     payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
 
-    print(f"Payload: {payload}")
     assert payload["role"] == role
     assert payload["email"] == email
-    print("Token verification successful!")
 
 
 if __name__ == "__main__":
     try:
         test_token_role()
     except Exception as e:
-        print(f"Error: {e}")
+        sys.stderr.write(f"Error: {e}\n")
         sys.exit(1)

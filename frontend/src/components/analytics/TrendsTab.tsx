@@ -7,8 +7,15 @@ import {
 import { TrendingUp, TrendingDown, Clock, BookOpen, Zap } from 'lucide-react';
 import { analyticsAPI } from '../../lib/api';
 import { SummaryCard, FilterSelect, LoadingChart, EmptyState, fetcher } from './shared';
+import type { Employee, Location, ClassType, TrendDataPoint } from '../../lib/types';
 
-export default function TrendsTab({ employees, locations, classes }: any) {
+interface TrendsTabProps {
+  employees: Employee[];
+  locations: Location[];
+  classes: ClassType[];
+}
+
+export default function TrendsTab({ employees, locations, classes }: TrendsTabProps) {
   const [period, setPeriod] = useState('weekly');
   const [weeksBack, setWeeksBack] = useState('12');
   const [employeeId, setEmployeeId] = useState('all');
@@ -33,13 +40,13 @@ export default function TrendsTab({ employees, locations, classes }: any) {
 
   const summary = useMemo(() => {
     if (!trends.length) return { avgClasses: 0, totalHours: 0, trend: 'flat', busiest: 'N/A' };
-    const avgClasses = (trends.reduce((s: number, t: any) => s + t.classes, 0) / trends.length).toFixed(1);
-    const totalHours = trends.reduce((s: number, t: any) => s + t.class_hours, 0).toFixed(1);
-    const busiest = trends.reduce((best: any, t: any) => t.classes > best.classes ? t : best, trends[0]);
+    const avgClasses = (trends.reduce((s: number, t: TrendDataPoint) => s + t.classes, 0) / trends.length).toFixed(1);
+    const totalHours = trends.reduce((s: number, t: TrendDataPoint) => s + t.class_hours, 0).toFixed(1);
+    const busiest = trends.reduce((best: TrendDataPoint, t: TrendDataPoint) => t.classes > best.classes ? t : best, trends[0]);
 
     const mid = Math.floor(trends.length / 2);
-    const firstHalf = trends.slice(0, mid).reduce((s: number, t: any) => s + t.classes, 0) / (mid || 1);
-    const secondHalf = trends.slice(mid).reduce((s: number, t: any) => s + t.classes, 0) / (trends.length - mid || 1);
+    const firstHalf = trends.slice(0, mid).reduce((s: number, t: TrendDataPoint) => s + t.classes, 0) / (mid || 1);
+    const secondHalf = trends.slice(mid).reduce((s: number, t: TrendDataPoint) => s + t.classes, 0) / (trends.length - mid || 1);
     let trend = 'flat';
     if (secondHalf > firstHalf * 1.05) trend = 'up';
     else if (secondHalf < firstHalf * 0.95) trend = 'down';
@@ -47,7 +54,7 @@ export default function TrendsTab({ employees, locations, classes }: any) {
     return { avgClasses, totalHours, trend, busiest: busiest.period };
   }, [trends]);
 
-  const trendConfig: Record<string, any> = {
+  const trendConfig: Record<string, { icon: typeof TrendingUp; bg: string; color: string; label: string }> = {
     up: { icon: TrendingUp, bg: 'bg-green-50', color: 'text-green-600', label: 'Growing' },
     down: { icon: TrendingDown, bg: 'bg-red-50', color: 'text-red-600', label: 'Declining' },
     flat: { icon: TrendingUp, bg: 'bg-slate-50', color: 'text-slate-600', label: 'Stable' },
@@ -65,15 +72,15 @@ export default function TrendsTab({ employees, locations, classes }: any) {
         ]} />
         <FilterSelect label="Employee" value={employeeId} onChange={setEmployeeId} options={[
           { value: 'all', label: 'All Employees' },
-          ...(employees || []).map((e: any) => ({ value: e.id, label: e.name })),
+          ...(employees || []).map((e: Employee) => ({ value: e.id, label: e.name })),
         ]} />
         <FilterSelect label="Location" value={locationId} onChange={setLocationId} options={[
           { value: 'all', label: 'All Locations' },
-          ...(locations || []).map((l: any) => ({ value: l.id, label: l.city_name })),
+          ...(locations || []).map((l: Location) => ({ value: l.id, label: l.city_name })),
         ]} />
         <FilterSelect label="Class" value={classId} onChange={setClassId} options={[
           { value: 'all', label: 'All Classes' },
-          ...(classes || []).map((c: any) => ({ value: c.id, label: c.name })),
+          ...(classes || []).map((c: ClassType) => ({ value: c.id, label: c.name })),
         ]} />
       </div>
 
