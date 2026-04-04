@@ -71,7 +71,7 @@ async def _enqueue_outlook_event_async(employee, location, class_doc, doc):
                 notes=doc.get("notes", ""),
                 employee_id=employee["id"],
             )
-    except (ConnectionError, OSError, RuntimeError):
+    except (OSError, RuntimeError):
         _outlook_logger.exception("Failed to enqueue Outlook event creation")
 
 
@@ -90,7 +90,7 @@ async def enqueue_outlook_delete_single(emp: dict, event_id: str):
                 event_id=event_id,
                 employee_id=emp.get("id", ""),
             )
-    except (ConnectionError, OSError, RuntimeError):
+    except (OSError, RuntimeError):
         _outlook_logger.exception("Failed to enqueue Outlook event deletion")
 
 

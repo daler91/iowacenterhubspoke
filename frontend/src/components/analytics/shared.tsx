@@ -5,7 +5,7 @@ import type { SummaryCardProps, FilterSelectProps, SelectOption } from '../../li
 export const fetcher = <T,>(apiFn: (params: T) => Promise<{ data: unknown }>, params: T) =>
   apiFn(params).then((r) => r.data);
 
-export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: SummaryCardProps) {
+export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Readonly<SummaryCardProps>) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-2">
@@ -21,7 +21,7 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Sum
   );
 }
 
-export function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
+export function FilterSelect({ label, value, onChange, options }: Readonly<FilterSelectProps>) {
   return (
     <div className="min-w-[160px] space-y-2">
       <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>

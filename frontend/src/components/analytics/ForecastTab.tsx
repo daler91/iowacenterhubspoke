@@ -15,7 +15,7 @@ interface ForecastTabProps {
   classes: ClassType[];
 }
 
-export default function ForecastTab({ employees, classes }: ForecastTabProps) {
+export default function ForecastTab({ employees, classes }: Readonly<ForecastTabProps>) {
   const [weeksAhead, setWeeksAhead] = useState('8');
   const [employeeId, setEmployeeId] = useState('all');
   const [classId, setClassId] = useState('all');

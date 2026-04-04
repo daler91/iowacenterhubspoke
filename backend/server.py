@@ -38,17 +38,8 @@ from routers import (  # noqa: E402
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # ---- Startup ----
-    try:
-        await client.admin.command('ping')
-        logger.info("Connected to MongoDB")
-    except Exception as e:
-        logger.error("Failed to connect to MongoDB", exc_info=e)
-        raise
-
-    # Migrate existing users: set status to approved if missing
+async def _run_startup_migrations():
+    """Migrate existing users and promote admin if configured."""
     try:
         result = await db.users.update_many(
             {"status": {"$exists": False}},
@@ -59,21 +50,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to migrate user statuses: {e}")
 
-    # Auto-promote admin email (configurable via env var)
     admin_email = os.getenv("ADMIN_EMAIL")
-    if admin_email:
-        try:
-            existing_admin = await db.users.find_one({"email": admin_email})
-            if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
-                await db.users.update_one(
-                    {"email": admin_email},
-                    {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
-                )
-                logger.info("Promoted configured admin user")
-        except Exception as e:
-            logger.warning(f"Failed to check/promote admin user: {e}")
+    if not admin_email:
+        return
+    try:
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
+            await db.users.update_one(
+                {"email": admin_email},
+                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
+            )
+            logger.info("Promoted configured admin user")
+    except Exception as e:
+        logger.warning(f"Failed to check/promote admin user: {e}")
 
-    # Create required indexes
+
+async def _ensure_indexes():
+    """Create required database indexes."""
     try:
         await db.schedules.create_index([("employee_ids", 1), ("date", 1)])
         await db.schedules.create_index([("employee_ids", 1), ("date", 1), ("deleted_at", 1)])
@@ -86,10 +79,7 @@ async def lifespan(app: FastAPI):
         await db.activity_logs.create_index([("timestamp", -1)])
         await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
         await db.drive_time_cache.create_index("key", unique=True)
-        # TTL index: auto-delete cache entries after 30 days
-        await db.drive_time_cache.create_index(
-            "expires_at", expireAfterSeconds=0
-        )
+        await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
@@ -98,6 +88,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
 
+
+async def _seed_default_locations():
+    """Seed default locations if the collection is empty."""
     try:
         count = await db.locations.count_documents({})
         if count == 0:
@@ -123,15 +116,29 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ---- Startup ----
+    try:
+        await client.admin.command('ping')
+        logger.info("Connected to MongoDB")
+    except Exception as e:
+        logger.error("Failed to connect to MongoDB", exc_info=e)
+        raise
+
+    await _run_startup_migrations()
+    await _ensure_indexes()
+    await _seed_default_locations()
+
     yield
 
     # ---- Shutdown ----
-    # Await any pending background calendar tasks before closing connections
     from services.calendar_sync import background_tasks as _background_tasks
     if _background_tasks:
         logger.info("Waiting for %d pending calendar tasks to complete...", len(_background_tasks))
         import asyncio
-        done, pending = await asyncio.wait(_background_tasks, timeout=10)
+        _, pending = await asyncio.wait(_background_tasks, timeout=10)
         if pending:
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:

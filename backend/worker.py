@@ -115,7 +115,7 @@ async def _enqueue_outlook_events(ctx, created, employees, class_doc, location):
                     notes=doc.get('notes', ''),
                     employee_id=employee['id'],
                 )
-            except (ConnectionError, OSError, RuntimeError) as exc:
+            except (OSError, RuntimeError) as exc:
                 logger.exception("Failed to enqueue Outlook event for schedule %s: %s", doc['id'], exc)
 
 

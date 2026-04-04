@@ -25,7 +25,7 @@ from services.drive_time import (  # noqa: E402
 def test_haversine_same_point():
     """Distance from a point to itself should be 0."""
     dist = _haversine_miles(41.5868, -93.654, 41.5868, -93.654)
-    assert dist == 0.0
+    assert abs(dist) < 1e-10
 
 
 def test_haversine_known_distance():

@@ -15,7 +15,7 @@ interface TrendsTabProps {
   classes: ClassType[];
 }
 
-export default function TrendsTab({ employees, locations, classes }: TrendsTabProps) {
+export default function TrendsTab({ employees, locations, classes }: Readonly<TrendsTabProps>) {
   const [period, setPeriod] = useState('weekly');
   const [weeksBack, setWeeksBack] = useState('12');
   const [employeeId, setEmployeeId] = useState('all');

@@ -248,7 +248,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
     } else {
       const skipped = (res.data.conflicts_skipped as unknown[] | undefined)?.length || 0;
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
-      toast.success(`${res.data.total_created} classes created${skippedMsg}`);
+      toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
     }
   };
 
