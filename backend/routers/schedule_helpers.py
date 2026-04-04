@@ -28,7 +28,7 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 HUB_LABEL = "Hub (Des Moines)"
 
 # Re-export background_tasks for graceful shutdown in server.py
-from services.calendar_sync import background_tasks as _background_tasks  # noqa: E402
+from services.calendar_sync import background_tasks as _background_tasks  # noqa: E402, F401
 
 # Re-export calendar and town-to-town functions for existing consumers.
 # These are the public API that other schedule routers import.
