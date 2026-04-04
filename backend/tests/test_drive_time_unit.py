@@ -1,7 +1,25 @@
 """Unit tests for drive time calculation utilities."""
 
-import math
-from services.drive_time import _haversine_miles, _estimate_drive_minutes, _mem_get, _mem_set, _mem_cache, _mem_lock
+import os
+import sys
+from unittest.mock import MagicMock
+
+# Mock external dependencies before importing the module under test
+for _mod in ["motor", "motor.motor_asyncio", "dotenv", "httpx", "sentry_sdk"]:
+    sys.modules.setdefault(_mod, MagicMock())
+
+os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
+os.environ.setdefault("DB_NAME", "test_db")
+os.environ.setdefault("JWT_SECRET", "test_secret")
+
+from services.drive_time import (  # noqa: E402
+    _haversine_miles,
+    _estimate_drive_minutes,
+    _mem_get,
+    _mem_set,
+    _mem_cache,
+    _mem_lock,
+)
 
 
 def test_haversine_same_point():
@@ -11,9 +29,9 @@ def test_haversine_same_point():
 
 
 def test_haversine_known_distance():
-    """Des Moines to Grinnell is approximately 55 miles."""
+    """Des Moines to Grinnell is approximately 49 miles as the crow flies."""
     dist = _haversine_miles(41.5868, -93.654, 41.7431, -92.7224)
-    assert 50 < dist < 65  # approximate range
+    assert 45 < dist < 55
 
 
 def test_haversine_symmetry():
@@ -32,7 +50,7 @@ def test_estimate_drive_minutes_minimum():
 def test_estimate_drive_minutes_reasonable():
     """Estimated drive time to Grinnell (~55 mi) should be roughly 1 hour."""
     minutes = _estimate_drive_minutes(41.5868, -93.654, 41.7431, -92.7224)
-    assert 50 < minutes < 120  # ~1 hr with road factor
+    assert 50 < minutes < 120
 
 
 def test_mem_cache_set_and_get():

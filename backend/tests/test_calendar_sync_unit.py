@@ -1,6 +1,21 @@
 """Unit tests for calendar sync time helpers."""
 
-from services.calendar_sync import add_minutes_to_time, subtract_minutes_from_time
+import os
+import sys
+from unittest.mock import MagicMock
+
+# Mock external dependencies before importing the module under test
+for _mod in ["motor", "motor.motor_asyncio", "dotenv", "httpx", "sentry_sdk"]:
+    sys.modules.setdefault(_mod, MagicMock())
+
+os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
+os.environ.setdefault("DB_NAME", "test_db")
+os.environ.setdefault("JWT_SECRET", "test_secret")
+
+from services.calendar_sync import (  # noqa: E402
+    add_minutes_to_time,
+    subtract_minutes_from_time,
+)
 
 
 def test_add_minutes_basic():
