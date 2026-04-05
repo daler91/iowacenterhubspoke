@@ -4,13 +4,14 @@ import json
 import os
 from datetime import datetime, timedelta
 
+_TEST_PASSWORD = os.environ['TEST_PASSWORD']
+
 class HubSpokeAPITester:
     def __init__(self, base_url="http://localhost:8001"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0
         self.tests_passed = 0
-        self.test_password = os.environ['TEST_PASSWORD']
         self.user_id = None
         self.created_location_id = None
         self.created_employee_id = None
@@ -73,7 +74,7 @@ class HubSpokeAPITester:
                 return False, {}
 
         except requests.exceptions.RequestException as e:
-            print(f"   Failed - Error: {str(e)}")
+            print(f"   Failed - Request error ({type(e).__name__}); details omitted to avoid logging sensitive data")
             return False, {}
 
     def test_auth_register(self):
@@ -87,7 +88,7 @@ class HubSpokeAPITester:
             data={
                 "name": "Test User",
                 "email": test_email,
-                "password": self.test_password
+                "password": _TEST_PASSWORD
             }
         )
         if success and 'token' in response:
@@ -106,7 +107,7 @@ class HubSpokeAPITester:
             200,
             data={
                 "email": "test@test.com",
-                "password": self.test_password
+                "password": _TEST_PASSWORD
             }
         )
         if success and 'token' in response:
@@ -725,8 +726,10 @@ def main():
             result = test_func()
             if not result:
                 print(f"⚠️  {test_name} had issues but continuing...")
-        except Exception:
-            print(f"❌ {test_name} failed with an exception.")
+        except Exception:  # noqa: BLE001 - broad catch is intentional for test runner
+            # Intentionally do not log the exception object; it may contain
+            # request bodies or responses with credentials / tokens.
+            print(f"❌ {test_name} failed with an exception (details omitted to avoid logging sensitive data).")
     
     # Print results
     print("\n" + "=" * 50)
