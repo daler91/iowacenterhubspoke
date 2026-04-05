@@ -35,11 +35,6 @@ export const COLORS = {
   }
 } as const;
 
-export const FREQUENCIES = {
-  WEEK: 'week',
-  MONTH: 'month',
-} as const;
-
 export const END_MODES = {
   NEVER: 'never',
   ON_DATE: 'on_date',
