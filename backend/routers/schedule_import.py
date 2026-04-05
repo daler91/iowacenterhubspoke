@@ -15,7 +15,7 @@ from models.schemas import ScheduleImportItem, ErrorResponse
 from core.auth import AdminRequired
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
-from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT
+from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT, MAX_IMPORT_FILE_SIZE
 from routers.schedule_helpers import logger
 
 
@@ -239,6 +239,20 @@ async def import_schedules_preview(
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+    # Enforce file size limit to prevent DoS
+    size = getattr(file, "size", None)
+    if size is None:
+        # Fallback if size attribute is not available
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)
+
+    if size > MAX_IMPORT_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size allowed is {MAX_IMPORT_FILE_SIZE / (1024 * 1024):.1f}MB",
+        )
 
     content = await file.read()
     reader = _parse_csv_content(content)

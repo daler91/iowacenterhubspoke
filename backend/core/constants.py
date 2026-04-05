@@ -28,6 +28,9 @@ DEFAULT_REDIS_URL = "redis://localhost:6379"
 # Query limits
 MAX_QUERY_LIMIT = 10000
 
+# File import limits
+MAX_IMPORT_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
 # Recurrence end modes
 END_MODE_NEVER = "never"
 END_MODE_ON_DATE = "on_date"
