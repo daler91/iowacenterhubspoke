@@ -44,6 +44,12 @@ const EmployeeProfile = lazy(() => import("./components/EmployeeProfile"));
 const LocationProfile = lazy(() => import("./components/LocationProfile"));
 const ClassProfile = lazy(() => import("./components/ClassProfile"));
 const PersonalSettings = lazy(() => import("./components/PersonalSettings"));
+const CommunityDashboard = lazy(() => import("./pages/CommunityDashboard"));
+const ProjectBoard = lazy(() => import("./components/coordination/ProjectBoard"));
+const ProjectDetail = lazy(() => import("./components/coordination/ProjectDetail"));
+const PartnerManager = lazy(() => import("./components/coordination/PartnerManager"));
+const PartnerProfile = lazy(() => import("./components/coordination/PartnerProfile"));
+const PortalDashboard = lazy(() => import("./components/portal/PortalDashboard"));
 
 function AppRoutes() {
   return (
@@ -80,7 +86,13 @@ function AppRoutes() {
             <Route path="classes/:id" element={<ClassProfile />} />
             <Route path="users" element={<UserManager />} />
             <Route path="settings" element={<PersonalSettings />} />
+            <Route path="coordination" element={<CommunityDashboard />} />
+            <Route path="coordination/board" element={<ProjectBoard />} />
+            <Route path="coordination/projects/:id" element={<ProjectDetail />} />
+            <Route path="coordination/partners" element={<PartnerManager />} />
+            <Route path="coordination/partners/:id" element={<PartnerProfile />} />
           </Route>
+          <Route path="/portal/:token" element={<PortalDashboard />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

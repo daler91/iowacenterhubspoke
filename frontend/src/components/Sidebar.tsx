@@ -6,7 +6,7 @@ import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
   Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp,
-  Moon, Sun, Settings
+  Moon, Sun, Settings, LayoutDashboard, Handshake,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -28,6 +28,15 @@ const NAV_SECTIONS = [
       { id: 'report', path: '/report', label: 'Weekly Report', icon: FileText },
       { id: 'analytics', path: '/analytics', label: 'Analytics', icon: TrendingUp },
       { id: 'activity', path: '/activity', label: 'Activity', icon: Activity },
+    ],
+  },
+  {
+    id: 'coordination',
+    label: 'Coordination',
+    items: [
+      { id: 'coord-dashboard', path: '/coordination', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'coord-board', path: '/coordination/board', label: 'Projects', icon: Kanban },
+      { id: 'coord-partners', path: '/coordination/partners', label: 'Partners', icon: Handshake },
     ],
   },
   {

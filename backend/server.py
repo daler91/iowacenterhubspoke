@@ -34,6 +34,8 @@ from database import client, db, ROOT_DIR  # noqa: E402
 from routers import (  # noqa: E402
     auth, locations, employees, classes, schedules, reports,
     system, analytics, users, google_oauth, outlook_oauth,
+    partner_orgs, projects, project_tasks, project_docs,
+    project_messages, partner_portal,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
@@ -84,6 +86,22 @@ async def _ensure_indexes():
         await db.invitations.create_index("email")
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
         await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=600)
+        # Coordination module indexes
+        await db.projects.create_index([("partner_org_id", 1)])
+        await db.projects.create_index([("phase", 1)])
+        await db.projects.create_index([("community", 1)])
+        await db.projects.create_index([("deleted_at", 1)])
+        await db.tasks.create_index([("project_id", 1)])
+        await db.tasks.create_index([("project_id", 1), ("phase", 1)])
+        await db.tasks.create_index([("project_id", 1), ("completed", 1)])
+        await db.partner_orgs.create_index([("community", 1)])
+        await db.partner_orgs.create_index([("status", 1)])
+        await db.partner_orgs.create_index([("deleted_at", 1)])
+        await db.partner_contacts.create_index([("partner_org_id", 1)])
+        await db.documents.create_index([("project_id", 1)])
+        await db.messages.create_index([("project_id", 1), ("created_at", -1)])
+        await db.portal_tokens.create_index("token", unique=True)
+        await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
@@ -131,6 +149,9 @@ async def lifespan(app: FastAPI):
     await _ensure_indexes()
     await _seed_default_locations()
 
+    from services.seed_templates import seed_project_templates
+    await seed_project_templates()
+
     yield
 
     # ---- Shutdown ----
@@ -167,6 +188,12 @@ app = FastAPI(
         {"name": "reports", "description": "Dashboard statistics, workload analysis, and weekly summaries"},
         {"name": "analytics", "description": "Trend analysis, forecasting, and drive optimization"},
         {"name": "system", "description": "System configuration, activity logs, and notifications"},
+        {"name": "projects", "description": "Coordination projects — class engagements with partner organizations"},
+        {"name": "project-tasks", "description": "Task management within coordination projects"},
+        {"name": "partner-orgs", "description": "Partner organization and contact management"},
+        {"name": "project-docs", "description": "Document sharing and management for projects"},
+        {"name": "project-messages", "description": "Messaging within coordination projects"},
+        {"name": "portal", "description": "Partner-facing portal with magic link authentication"},
     ],
 )
 
@@ -369,6 +396,13 @@ api_router.include_router(analytics.router)
 api_router.include_router(users.router)
 api_router.include_router(google_oauth.router)
 api_router.include_router(outlook_oauth.router)
+api_router.include_router(partner_orgs.router)
+api_router.include_router(projects.router)
+api_router.include_router(project_tasks.router)
+api_router.include_router(project_docs.router)
+api_router.include_router(project_messages.router)
+api_router.include_router(partner_portal.router)
+api_router.include_router(projects.templates_router)
 
 
 @api_router.get("/health", tags=["system"])
