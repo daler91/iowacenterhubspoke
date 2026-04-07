@@ -32,3 +32,11 @@ MAX_QUERY_LIMIT = 10000
 END_MODE_NEVER = "never"
 END_MODE_ON_DATE = "on_date"
 END_MODE_AFTER_OCCURRENCES = "after_occurrences"
+
+# Coordination module constants
+PROJECT_PHASES = ["planning", "promotion", "delivery", "follow_up", "complete"]
+PROJECT_PHASE_ORDER = {phase: i for i, phase in enumerate(PROJECT_PHASES)}
+CLASS_TYPES = ["workshop", "series", "office_hours", "onboarding"]
+TASK_OWNERS = ["internal", "partner", "both"]
+PARTNER_STATUSES = ["prospect", "onboarding", "active", "inactive"]
+DOC_VISIBILITY = ["internal", "shared"]

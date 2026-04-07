@@ -1,0 +1,290 @@
+import { useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  DndContext, closestCenter, DragEndEvent,
+  PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core';
+import { useDraggable } from '@dnd-kit/core';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { ArrowLeft, Plus, Check, X } from 'lucide-react';
+import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
+import { projectTasksAPI } from '../../lib/coordination-api';
+import {
+  PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
+  OWNER_COLORS, OWNER_LABELS, type Task, type TaskPhase,
+} from '../../lib/coordination-types';
+import { cn } from '../../lib/utils';
+import { toast } from 'sonner';
+
+function PhaseDroppable({ phase, children }: { phase: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: phase });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex-1 min-w-[260px] rounded-xl p-3 transition-colors',
+        isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-gray-50 dark:bg-gray-900/50',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TaskCard({
+  task, projectId, onRefresh,
+}: {
+  task: Task; projectId: string; onRefresh: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: { task },
+  });
+  const style = transform
+    ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
+    : undefined;
+
+  const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+
+  const handleToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await projectTasksAPI.toggleComplete(projectId, task.id);
+      onRefresh();
+    } catch {
+      toast.error('Failed to update task');
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={cn('touch-none', isDragging && 'opacity-50')}
+    >
+      <Card
+        className={cn(
+          'p-3 mb-2 border transition-shadow hover:shadow-sm',
+          task.completed && 'opacity-45',
+        )}
+      >
+        <div className="flex items-start gap-2">
+          <button
+            onClick={handleToggle}
+            className={cn(
+              'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
+              task.completed
+                ? 'bg-green-500 border-green-500 text-white'
+                : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400',
+            )}
+          >
+            {task.completed && <Check className="w-3 h-3" />}
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className={cn(
+              'text-sm font-medium text-slate-800 dark:text-slate-100',
+              task.completed && 'line-through text-slate-400',
+            )}>
+              {task.title}
+            </p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <Badge className={cn('text-[10px] px-1.5 py-0', OWNER_COLORS[task.owner])}>
+                {OWNER_LABELS[task.owner]}
+              </Badge>
+              <span className={cn(
+                'text-[10px]',
+                isOverdue ? 'text-red-500 font-semibold' : 'text-slate-400',
+              )}>
+                {new Date(task.due_date).toLocaleDateString()}
+              </span>
+            </div>
+            {task.details && (
+              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{task.details}</p>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function AddTaskInline({
+  projectId, phase, onCreated,
+}: {
+  projectId: string; phase: TaskPhase; onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAdd = async () => {
+    if (!title.trim()) return;
+    setLoading(true);
+    try {
+      await projectTasksAPI.create(projectId, {
+        title: title.trim(),
+        phase,
+        owner: 'internal',
+        due_date: new Date().toISOString(),
+      });
+      setTitle('');
+      setOpen(false);
+      onCreated();
+      toast.success('Task added');
+    } catch {
+      toast.error('Failed to add task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full text-xs text-slate-400 hover:text-indigo-500 py-2 flex items-center justify-center gap-1 transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Add task
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <Input
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="Task title"
+        className="text-sm h-8"
+        onKeyDown={e => e.key === 'Enter' && handleAdd()}
+        autoFocus
+      />
+      <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
+        <Check className="w-3.5 h-3.5" />
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="h-8 px-2">
+        <X className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+export default function ProjectDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { project, isLoading: projectLoading } = useProject(id);
+  const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const tasksByPhase = useMemo(() => {
+    const grouped: Record<string, Task[]> = {};
+    for (const phase of PROJECT_PHASES) {
+      grouped[phase] = tasks
+        .filter(t => t.phase === phase)
+        .sort((a, b) => a.sort_order - b.sort_order);
+    }
+    return grouped;
+  }, [tasks]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !active.data.current?.task) return;
+    const task = active.data.current.task as Task;
+    const newPhase = over.id as string;
+    if (task.phase === newPhase) return;
+
+    try {
+      await projectTasksAPI.update(id!, task.id, { phase: newPhase });
+      mutateTasks();
+    } catch {
+      toast.error('Failed to move task');
+    }
+  };
+
+  if (projectLoading || tasksLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!project) {
+    return <div className="p-6 text-slate-500">Project not found</div>;
+  }
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <button
+          onClick={() => navigate('/coordination/board')}
+          className="flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to board
+        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            {project.title}
+          </h1>
+          <Badge className={cn('text-xs', PHASE_COLORS[project.phase], 'text-white')}>
+            {PHASE_LABELS[project.phase]}
+          </Badge>
+        </div>
+        <p className="text-sm text-slate-500 mt-1">
+          {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name} &middot; {project.community}
+          {project.partner_org_name && <> &middot; {project.partner_org_name}</>}
+        </p>
+      </div>
+
+      {/* Task Kanban */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {PROJECT_PHASES.map(phase => {
+            const phaseTasks = tasksByPhase[phase] ?? [];
+            const completed = phaseTasks.filter(t => t.completed).length;
+            return (
+              <PhaseDroppable key={phase} phase={phase}>
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <div className={cn('w-2.5 h-2.5 rounded-full', PHASE_DOT_COLORS[phase])} />
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {PHASE_LABELS[phase]}
+                  </h3>
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {completed}/{phaseTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-0">
+                  {phaseTasks.map(task => (
+                    <TaskCard key={task.id} task={task} projectId={id!} onRefresh={mutateTasks} />
+                  ))}
+                </div>
+                <AddTaskInline projectId={id!} phase={phase as TaskPhase} onCreated={mutateTasks} />
+              </PhaseDroppable>
+            );
+          })}
+        </div>
+      </DndContext>
+
+      {/* Legend */}
+      <div className="mt-4 flex items-center gap-4 text-xs text-slate-400">
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded bg-blue-100" /> You (Internal)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded bg-purple-100" /> Partner
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded bg-orange-100" /> Both
+        </span>
+      </div>
+    </div>
+  );
+}

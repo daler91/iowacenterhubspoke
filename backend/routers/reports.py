@@ -286,3 +286,79 @@ async def get_weekly_summary(
         "class_totals": finalized_class_totals,
         "employees": sorted(result, key=lambda x: x["classes"], reverse=True),
     }
+
+
+# ── Coordination Reports ──────────────────────────────────────────────
+
+
+@router.get("/coordination/summary", summary="Coordination top-level metrics")
+async def coordination_summary(user: CurrentUser):
+    all_projects = await db.projects.find({"deleted_at": None}, {"_id": 0}).to_list(2000)
+    completed = [p for p in all_projects if p.get("phase") == "complete"]
+    active_partners = await db.partner_orgs.count_documents(
+        {"deleted_at": None, "status": "active"}
+    )
+    return {
+        "classes_delivered": len(completed),
+        "total_attendance": sum(p.get("attendance_count") or 0 for p in completed),
+        "warm_leads": sum(p.get("warm_leads") or 0 for p in completed),
+        "active_partners": active_partners,
+        "total_projects": len(all_projects),
+    }
+
+
+@router.get("/coordination/by-community", summary="Per-community coordination breakdown")
+async def coordination_by_community(user: CurrentUser):
+    all_projects = await db.projects.find({"deleted_at": None}, {"_id": 0}).to_list(2000)
+    communities = {}
+    for p in all_projects:
+        c = p.get("community", "Unknown")
+        if c not in communities:
+            communities[c] = {
+                "community": c, "delivered": 0, "upcoming": 0,
+                "attendance": 0, "warm_leads": 0,
+            }
+        if p.get("phase") == "complete":
+            communities[c]["delivered"] += 1
+            communities[c]["attendance"] += p.get("attendance_count") or 0
+            communities[c]["warm_leads"] += p.get("warm_leads") or 0
+        else:
+            communities[c]["upcoming"] += 1
+    return {"communities": list(communities.values())}
+
+
+@router.get("/coordination/partner-health", summary="Partner health table")
+async def coordination_partner_health(user: CurrentUser):
+    orgs = await db.partner_orgs.find({"deleted_at": None}, {"_id": 0}).to_list(500)
+    results = []
+    for org in orgs:
+        projects = await db.projects.find(
+            {"partner_org_id": org["id"], "deleted_at": None}, {"_id": 0, "id": 1, "phase": 1, "updated_at": 1}
+        ).to_list(500)
+        project_ids = [p["id"] for p in projects]
+        total_tasks = 0
+        completed_tasks = 0
+        if project_ids:
+            tasks = await db.tasks.find(
+                {"project_id": {"$in": project_ids}},
+                {"_id": 0, "completed": 1, "completed_at": 1},
+            ).to_list(5000)
+            total_tasks = len(tasks)
+            completed_tasks = sum(1 for t in tasks if t.get("completed"))
+
+        completion_rate = round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
+        classes_hosted = sum(1 for p in projects if p.get("phase") == "complete")
+        last_active = max(
+            (p.get("updated_at") for p in projects if p.get("updated_at")),
+            default=None,
+        )
+        results.append({
+            "partner_org_id": org["id"],
+            "name": org["name"],
+            "community": org.get("community", ""),
+            "status": org.get("status", ""),
+            "classes_hosted": classes_hosted,
+            "completion_rate": completion_rate,
+            "last_active": last_active,
+        })
+    return {"partners": results}
