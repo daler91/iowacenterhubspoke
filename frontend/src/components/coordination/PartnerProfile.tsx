@@ -31,7 +31,7 @@ export default function PartnerProfile() {
     }
     setAddingContact(true);
     try {
-      await partnerOrgsAPI.createContact(id!, contactForm);
+      await partnerOrgsAPI.createContact(orgId, contactForm);
       toast.success('Contact added');
       setShowAddContact(false);
       setContactForm({ name: '', email: '', phone: '', role: '', is_primary: false });
@@ -51,9 +51,11 @@ export default function PartnerProfile() {
     );
   }
 
-  if (!partnerOrg) {
+  if (!partnerOrg || !id) {
     return <div className="p-6 text-slate-500">Partner organization not found</div>;
   }
+
+  const orgId = id;
 
   return (
     <div className="p-6 max-w-4xl">

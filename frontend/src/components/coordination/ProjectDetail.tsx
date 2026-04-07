@@ -200,7 +200,7 @@ export default function ProjectDetail() {
     if (task.phase === newPhase) return;
 
     try {
-      await projectTasksAPI.update(id!, task.id, { phase: newPhase });
+      await projectTasksAPI.update(projectId, task.id, { phase: newPhase });
       mutateTasks();
     } catch {
       toast.error('Failed to move task');
@@ -215,9 +215,11 @@ export default function ProjectDetail() {
     );
   }
 
-  if (!project) {
+  if (!project || !id) {
     return <div className="p-6 text-slate-500">Project not found</div>;
   }
+
+  const projectId = id;
 
   return (
     <div className="p-6">
@@ -262,10 +264,10 @@ export default function ProjectDetail() {
                 </div>
                 <div className="space-y-0">
                   {phaseTasks.map(task => (
-                    <TaskCard key={task.id} task={task} projectId={id!} onRefresh={mutateTasks} />
+                    <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} />
                   ))}
                 </div>
-                <AddTaskInline projectId={id!} phase={phase as TaskPhase} onCreated={mutateTasks} />
+                <AddTaskInline projectId={projectId} phase={phase} onCreated={mutateTasks} />
               </PhaseDroppable>
             );
           })}

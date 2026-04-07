@@ -130,7 +130,8 @@ async def toggle_task_completion(project_id: str, task_id: str, user: CurrentUse
     return task
 
 
-@router.patch("/reorder", summary="Bulk reorder tasks")
+@router.patch("/reorder", summary="Bulk reorder tasks",
+              responses={404: {"description": PROJECT_NOT_FOUND}})
 async def reorder_tasks(project_id: str, data: TaskReorder, user: CurrentUser):
     await _verify_project(project_id)
     for idx, task_id in enumerate(data.task_ids):

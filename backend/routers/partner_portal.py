@@ -109,7 +109,8 @@ async def verify_token(token: str):
 
 # ── Partner Dashboard ─────────────────────────────────────────────────
 
-@router.get("/dashboard", summary="Partner portal dashboard overview")
+@router.get("/dashboard", summary="Partner portal dashboard overview",
+            responses={401: {"description": INVALID_TOKEN}})
 async def portal_dashboard(token: str):
     ctx = await get_portal_context(token)
     org_id = ctx["partner_org_id"]
@@ -150,7 +151,8 @@ async def portal_dashboard(token: str):
 
 # ── Partner Projects & Tasks ──────────────────────────────────────────
 
-@router.get("/projects", summary="List projects for this partner org")
+@router.get("/projects", summary="List projects for this partner org",
+            responses={401: {"description": INVALID_TOKEN}})
 async def portal_list_projects(token: str):
     ctx = await get_portal_context(token)
     projects = await db.projects.find(
@@ -162,7 +164,7 @@ async def portal_list_projects(token: str):
 @router.get(
     "/projects/{project_id}/tasks",
     summary="Partner's tasks for a project",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_project_tasks(project_id: str, token: str):
     ctx = await get_portal_context(token)
@@ -182,9 +184,7 @@ async def portal_project_tasks(project_id: str, token: str):
 @router.patch(
     "/projects/{project_id}/tasks/{task_id}/complete",
     summary="Partner completes a task",
-    responses={
-        404: {"description": PROJECT_NOT_FOUND},
-    },
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_complete_task(project_id: str, task_id: str, token: str):
     ctx = await get_portal_context(token)
@@ -218,7 +218,7 @@ async def portal_complete_task(project_id: str, task_id: str, token: str):
 @router.get(
     "/projects/{project_id}/documents",
     summary="Shared documents for a project",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_project_documents(project_id: str, token: str):
     ctx = await get_portal_context(token)
@@ -237,7 +237,7 @@ async def portal_project_documents(project_id: str, token: str):
 @router.post(
     "/projects/{project_id}/documents",
     summary="Partner uploads a document",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_upload_document(
     project_id: str,
@@ -284,7 +284,7 @@ async def portal_upload_document(
 @router.get(
     "/projects/{project_id}/messages",
     summary="Messages for a project",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_project_messages(
     project_id: str, token: str,
@@ -308,7 +308,7 @@ async def portal_project_messages(
 @router.post(
     "/projects/{project_id}/messages",
     summary="Partner sends a message",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_send_message(project_id: str, token: str, data: MessageCreate):
     ctx = await get_portal_context(token)
@@ -338,7 +338,8 @@ async def portal_send_message(project_id: str, token: str, data: MessageCreate):
 
 # ── Org-Level Documents ───────────────────────────────────────────────
 
-@router.get("/org-documents", summary="Org-level shared documents")
+@router.get("/org-documents", summary="Org-level shared documents",
+            responses={401: {"description": INVALID_TOKEN}})
 async def portal_org_documents(token: str):
     ctx = await get_portal_context(token)
     docs = await db.documents.find(
