@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Upload,
+  FileText, Send,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {

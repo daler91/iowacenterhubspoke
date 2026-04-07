@@ -10,8 +10,8 @@ import type { ProjectTemplate } from '../../lib/coordination-types';
 import { toast } from 'sonner';
 
 interface Props {
-  onClose: () => void;
-  onCreated: () => void;
+  readonly onClose: () => void;
+  readonly onCreated: () => void;
 }
 
 export default function ProjectCreateDialog({ onClose, onCreated }: Props) {

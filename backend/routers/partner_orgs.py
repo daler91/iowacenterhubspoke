@@ -65,7 +65,11 @@ async def create_partner_org(data: PartnerOrgCreate, user: CurrentUser):
     return doc
 
 
-@router.get("/{org_id}", summary="Get partner organization with contacts and history")
+@router.get(
+    "/{org_id}",
+    summary="Get partner organization with contacts and history",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def get_partner_org(org_id: str, user: CurrentUser):
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
     if not org:
@@ -81,15 +85,16 @@ async def get_partner_org(org_id: str, user: CurrentUser):
     return org
 
 
-@router.put("/{org_id}", summary="Update partner organization")
+@router.put(
+    "/{org_id}",
+    summary="Update partner organization",
+    responses={
+        400: {"description": NO_FIELDS_TO_UPDATE},
+        404: {"description": ORG_NOT_FOUND},
+    },
+)
 async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentUser):
-    update_data = {}
-    for k, v in data.model_dump().items():
-        if v is not None:
-            if k == "venue_details":
-                update_data[k] = v
-            else:
-                update_data[k] = v
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -100,7 +105,11 @@ async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentU
     return updated
 
 
-@router.delete("/{org_id}", summary="Soft-delete partner organization")
+@router.delete(
+    "/{org_id}",
+    summary="Soft-delete partner organization",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def delete_partner_org(org_id: str, user: AdminRequired):
     result = await db.partner_orgs.update_one(
         {"id": org_id, "deleted_at": None},
@@ -118,7 +127,11 @@ async def delete_partner_org(org_id: str, user: AdminRequired):
 # ── Contacts ──────────────────────────────────────────────────────────
 
 
-@router.get("/{org_id}/contacts", summary="List contacts for a partner org")
+@router.get(
+    "/{org_id}/contacts",
+    summary="List contacts for a partner org",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def list_contacts(org_id: str, user: CurrentUser):
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
     if not org:
@@ -129,7 +142,11 @@ async def list_contacts(org_id: str, user: CurrentUser):
     return {"items": contacts, "total": len(contacts)}
 
 
-@router.post("/{org_id}/contacts", summary="Add a contact to a partner org")
+@router.post(
+    "/{org_id}/contacts",
+    summary="Add a contact to a partner org",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def create_contact(org_id: str, data: PartnerContactCreate, user: CurrentUser):
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
     if not org:
@@ -156,7 +173,14 @@ async def create_contact(org_id: str, data: PartnerContactCreate, user: CurrentU
     return doc
 
 
-@router.put("/{org_id}/contacts/{contact_id}", summary="Update a contact")
+@router.put(
+    "/{org_id}/contacts/{contact_id}",
+    summary="Update a contact",
+    responses={
+        400: {"description": NO_FIELDS_TO_UPDATE},
+        404: {"description": CONTACT_NOT_FOUND},
+    },
+)
 async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -174,7 +198,11 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
 # ── Health Score ──────────────────────────────────────────────────────
 
 
-@router.get("/{org_id}/health", summary="Partner health score")
+@router.get(
+    "/{org_id}/health",
+    summary="Partner health score",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def get_partner_health(org_id: str, user: CurrentUser):
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
     if not org:

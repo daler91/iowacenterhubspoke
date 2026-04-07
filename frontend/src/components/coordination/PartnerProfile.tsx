@@ -100,7 +100,7 @@ export default function PartnerProfile() {
           </div>
 
           {/* Venue Details */}
-          {partnerOrg.venue_details && Object.values(partnerOrg.venue_details).some(v => v) && (
+          {partnerOrg.venue_details && Object.values(partnerOrg.venue_details).some(Boolean) && (
             <div className="mt-4 pt-4 border-t">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Venue Details</h3>
               <div className="space-y-1 text-sm">

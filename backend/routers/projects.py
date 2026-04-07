@@ -27,6 +27,38 @@ async def list_templates(user: CurrentUser):
     return {"items": templates, "total": len(templates)}
 
 
+# ── Helpers ───────────────────────────────────────────────────────────
+
+_EMPTY_STATS = {"total": 0, "completed": 0, "partner_overdue": 0}
+
+
+def _accumulate_task_stat(stats: dict, task: dict, now: str) -> None:
+    """Accumulate a single task into the stats dict for its project."""
+    pid = task["project_id"]
+    if pid not in stats:
+        stats[pid] = {"total": 0, "completed": 0, "partner_overdue": 0}
+    stats[pid]["total"] += 1
+    if task.get("completed"):
+        stats[pid]["completed"] += 1
+    elif task.get("owner") in ("partner", "both") and task.get("due_date", "") < now:
+        stats[pid]["partner_overdue"] += 1
+
+
+async def _build_task_stats(project_ids: list[str]) -> dict:
+    """Fetch tasks for the given project IDs and return per-project stats."""
+    if not project_ids:
+        return {}
+    tasks = await db.tasks.find(
+        {"project_id": {"$in": project_ids}},
+        {"_id": 0, "project_id": 1, "completed": 1, "owner": 1, "due_date": 1},
+    ).to_list(10000)
+    now = datetime.now(timezone.utc).isoformat()
+    stats: dict = {}
+    for t in tasks:
+        _accumulate_task_stat(stats, t, now)
+    return stats
+
+
 # ── Projects ──────────────────────────────────────────────────────────
 
 
@@ -36,43 +68,22 @@ async def get_project_board(
     community: Optional[str] = None,
     class_type: Optional[str] = None,
 ):
-    query = {"deleted_at": None, "phase": {"$ne": "complete"}}
+    query: dict = {"deleted_at": None, "phase": {"$ne": "complete"}}
     if community:
         query["community"] = community
     if class_type:
         query["class_type"] = class_type
 
     projects = await db.projects.find(query, {"_id": 0}).to_list(500)
-    project_ids = [p["id"] for p in projects]
+    task_stats = await _build_task_stats([p["id"] for p in projects])
 
-    # Fetch task counts per project
-    task_stats = {}
-    if project_ids:
-        tasks = await db.tasks.find(
-            {"project_id": {"$in": project_ids}},
-            {"_id": 0, "project_id": 1, "completed": 1, "owner": 1, "due_date": 1},
-        ).to_list(10000)
-        now = datetime.now(timezone.utc).isoformat()
-        for t in tasks:
-            pid = t["project_id"]
-            if pid not in task_stats:
-                task_stats[pid] = {"total": 0, "completed": 0, "partner_overdue": 0}
-            task_stats[pid]["total"] += 1
-            if t.get("completed"):
-                task_stats[pid]["completed"] += 1
-            elif t.get("owner") in ("partner", "both") and t.get("due_date", "") < now:
-                task_stats[pid]["partner_overdue"] += 1
-
-    # Group by phase
-    columns = {}
-    for phase in PROJECT_PHASES:
-        if phase == "complete":
-            continue
-        columns[phase] = []
+    columns: dict[str, list] = {
+        phase: [] for phase in PROJECT_PHASES if phase != "complete"
+    }
 
     for p in projects:
         phase = p.get("phase", "planning")
-        stats = task_stats.get(p["id"], {"total": 0, "completed": 0, "partner_overdue": 0})
+        stats = task_stats.get(p["id"], _EMPTY_STATS)
         p["task_total"] = stats["total"]
         p["task_completed"] = stats["completed"]
         p["partner_overdue"] = stats["partner_overdue"]
@@ -231,7 +242,11 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
     return doc
 
 
-@router.get("/{project_id}", summary="Get a single project with task counts")
+@router.get(
+    "/{project_id}",
+    summary="Get a single project with task counts",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def get_project(project_id: str, user: CurrentUser):
     project = await db.projects.find_one(
         {"id": project_id, "deleted_at": None}, {"_id": 0}
@@ -265,7 +280,14 @@ async def get_project(project_id: str, user: CurrentUser):
     return project
 
 
-@router.put("/{project_id}", summary="Update a project")
+@router.put(
+    "/{project_id}",
+    summary="Update a project",
+    responses={
+        400: {"description": NO_FIELDS_TO_UPDATE},
+        404: {"description": PROJECT_NOT_FOUND},
+    },
+)
 async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -280,7 +302,11 @@ async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser
     return updated
 
 
-@router.delete("/{project_id}", summary="Delete a project and associated tasks")
+@router.delete(
+    "/{project_id}",
+    summary="Delete a project and associated tasks",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def delete_project(project_id: str, user: CurrentUser):
     now = datetime.now(timezone.utc).isoformat()
     result = await db.projects.update_one(
@@ -300,7 +326,14 @@ async def delete_project(project_id: str, user: CurrentUser):
     return {"message": "Project deleted"}
 
 
-@router.post("/{project_id}/advance-phase", summary="Advance project to next phase")
+@router.post(
+    "/{project_id}/advance-phase",
+    summary="Advance project to next phase",
+    responses={
+        400: {"description": "Project is already complete"},
+        404: {"description": PROJECT_NOT_FOUND},
+    },
+)
 async def advance_phase(project_id: str, user: CurrentUser):
     project = await db.projects.find_one(
         {"id": project_id, "deleted_at": None}, {"_id": 0}

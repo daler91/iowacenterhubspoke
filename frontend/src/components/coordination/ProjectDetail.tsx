@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  DndContext, closestCenter, DragEndEvent,
+  DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
+  useDroppable, useDraggable,
 } from '@dnd-kit/core';
-import { useDroppable } from '@dnd-kit/core';
-import { useDraggable } from '@dnd-kit/core';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -20,7 +19,7 @@ import {
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 
-function PhaseDroppable({ phase, children }: { phase: string; children: React.ReactNode }) {
+function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
   return (
     <div
@@ -37,9 +36,9 @@ function PhaseDroppable({ phase, children }: { phase: string; children: React.Re
 
 function TaskCard({
   task, projectId, onRefresh,
-}: {
+}: Readonly<{
   task: Task; projectId: string; onRefresh: () => void;
-}) {
+}>) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -116,9 +115,9 @@ function TaskCard({
 
 function AddTaskInline({
   projectId, phase, onCreated,
-}: {
+}: Readonly<{
   projectId: string; phase: TaskPhase; onCreated: () => void;
-}) {
+}>) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);

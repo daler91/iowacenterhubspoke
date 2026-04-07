@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Plus, Search } from 'lucide-react';
 import { usePartnerOrgs } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
-import { STATUS_BADGE_COLORS, CLASS_TYPE_LABELS } from '../../lib/coordination-types';
+import { STATUS_BADGE_COLORS } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 

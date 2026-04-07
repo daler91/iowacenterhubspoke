@@ -1,10 +1,11 @@
 import uuid
 import secrets
 import os
+import re
+import aiofiles
 from datetime import datetime, timezone, timedelta
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from typing import Annotated, Optional
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from database import db, ROOT_DIR
 from models.coordination_schemas import PortalAuthRequest, MessageCreate
 from core.logger import get_logger
@@ -16,6 +17,19 @@ router = APIRouter(prefix="/portal", tags=["portal"])
 UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
 TOKEN_EXPIRY_DAYS = 7
 
+PROJECT_NOT_FOUND = "Project not found"
+TASK_NOT_FOUND = "Task not found"
+INVALID_TOKEN = "Invalid or expired portal link"
+
+_SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
+
+
+def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
+    ext = os.path.splitext(original_filename or "")[1]
+    if not ext or not _SAFE_EXT_RE.match(ext):
+        ext = ""
+    return f"{doc_id}{ext}"
+
 
 # ── Portal Token Auth ─────────────────────────────────────────────────
 
@@ -23,7 +37,7 @@ async def get_portal_context(token: str):
     """Validate a portal token and return the contact + org context."""
     token_doc = await db.portal_tokens.find_one({"token": token}, {"_id": 0})
     if not token_doc:
-        raise HTTPException(status_code=401, detail="Invalid or expired portal link")
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN)
     if token_doc.get("expires_at", "") < datetime.now(timezone.utc).isoformat():
         raise HTTPException(status_code=401, detail="Portal link has expired")
 
@@ -46,6 +60,9 @@ async def get_portal_context(token: str):
     )
 
     return {"contact": contact, "org": org, "partner_org_id": org["id"]}
+
+
+PortalContext = Annotated[dict, Depends(get_portal_context)]
 
 
 # ── Auth Endpoints ────────────────────────────────────────────────────
@@ -72,12 +89,15 @@ async def request_magic_link(data: PortalAuthRequest):
         "last_used_at": None,
     }
     await db.portal_tokens.insert_one(doc)
-    # In Phase 2, send email here. For now, return the token directly.
     logger.info("Portal token created for contact %s", contact["id"])
     return {"message": "If that email is registered, a link has been sent.", "token": token}
 
 
-@router.get("/auth/verify/{token}", summary="Verify a portal token")
+@router.get(
+    "/auth/verify/{token}",
+    summary="Verify a portal token",
+    responses={401: {"description": INVALID_TOKEN}},
+)
 async def verify_token(token: str):
     ctx = await get_portal_context(token)
     return {
@@ -102,7 +122,6 @@ async def portal_dashboard(token: str):
     upcoming = [p for p in projects if p.get("phase") != "complete"]
     completed_count = sum(1 for p in projects if p.get("phase") == "complete")
 
-    # Get partner tasks
     open_tasks = 0
     overdue_tasks = 0
     now = datetime.now(timezone.utc).isoformat()
@@ -140,15 +159,18 @@ async def portal_list_projects(token: str):
     return {"items": projects, "total": len(projects)}
 
 
-@router.get("/projects/{project_id}/tasks", summary="Partner's tasks for a project")
+@router.get(
+    "/projects/{project_id}/tasks",
+    summary="Partner's tasks for a project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def portal_project_tasks(project_id: str, token: str):
     ctx = await get_portal_context(token)
-    # Verify project belongs to this org
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     tasks = await db.tasks.find(
         {"project_id": project_id, "owner": {"$in": ["partner", "both"]}},
@@ -157,21 +179,27 @@ async def portal_project_tasks(project_id: str, token: str):
     return {"items": tasks, "total": len(tasks)}
 
 
-@router.patch("/projects/{project_id}/tasks/{task_id}/complete", summary="Partner completes a task")
+@router.patch(
+    "/projects/{project_id}/tasks/{task_id}/complete",
+    summary="Partner completes a task",
+    responses={
+        404: {"description": PROJECT_NOT_FOUND},
+    },
+)
 async def portal_complete_task(project_id: str, task_id: str, token: str):
     ctx = await get_portal_context(token)
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     task = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
         {"_id": 0},
     )
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
 
     now = datetime.now(timezone.utc).isoformat()
     new_completed = not task.get("completed", False)
@@ -187,14 +215,18 @@ async def portal_complete_task(project_id: str, task_id: str, token: str):
 
 # ── Partner Documents ─────────────────────────────────────────────────
 
-@router.get("/projects/{project_id}/documents", summary="Shared documents for a project")
+@router.get(
+    "/projects/{project_id}/documents",
+    summary="Shared documents for a project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def portal_project_documents(project_id: str, token: str):
     ctx = await get_portal_context(token)
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     docs = await db.documents.find(
         {"project_id": project_id, "visibility": "shared"}, {"_id": 0}
@@ -202,29 +234,33 @@ async def portal_project_documents(project_id: str, token: str):
     return {"items": docs, "total": len(docs)}
 
 
-@router.post("/projects/{project_id}/documents", summary="Partner uploads a document")
+@router.post(
+    "/projects/{project_id}/documents",
+    summary="Partner uploads a document",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def portal_upload_document(
     project_id: str,
     token: str,
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File(...)],
 ):
     ctx = await get_portal_context(token)
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     doc_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename or "")[1]
-    stored_name = f"{doc_id}{ext}"
+    stored_name = _safe_stored_name(doc_id, file.filename)
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
     content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
+    ext = os.path.splitext(stored_name)[1]
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": doc_id,
@@ -245,7 +281,11 @@ async def portal_upload_document(
 
 # ── Partner Messages ──────────────────────────────────────────────────
 
-@router.get("/projects/{project_id}/messages", summary="Messages for a project")
+@router.get(
+    "/projects/{project_id}/messages",
+    summary="Messages for a project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def portal_project_messages(
     project_id: str, token: str,
     channel: Optional[str] = None, skip: int = 0, limit: int = 50,
@@ -255,7 +295,7 @@ async def portal_project_messages(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     query = {"project_id": project_id}
     if channel:
@@ -265,14 +305,18 @@ async def portal_project_messages(
     return {"items": messages, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("/projects/{project_id}/messages", summary="Partner sends a message")
+@router.post(
+    "/projects/{project_id}/messages",
+    summary="Partner sends a message",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def portal_send_message(project_id: str, token: str, data: MessageCreate):
     ctx = await get_portal_context(token)
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
     )
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()

@@ -1,21 +1,20 @@
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import {
-  GraduationCap, Users, Flame, Handshake, CalendarDays, AlertTriangle,
+  GraduationCap, Users, Flame, Handshake, CalendarDays,
 } from 'lucide-react';
 import { useCommunityDashboard } from '../hooks/useCoordinationData';
 import {
-  PHASE_LABELS, PHASE_COLORS, CLASS_TYPE_LABELS,
+  PHASE_LABELS, PHASE_COLORS,
 } from '../lib/coordination-types';
 import { cn } from '../lib/utils';
 
 function MetricCard({
   icon: Icon, label, value, alert, color,
-}: {
+}: Readonly<{
   icon: React.ElementType; label: string; value: number | string; alert?: number; color: string;
-}) {
+}>) {
   return (
     <Card className="p-4 flex items-center gap-4">
       <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', color)}>

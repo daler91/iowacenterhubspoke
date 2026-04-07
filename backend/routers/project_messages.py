@@ -11,15 +11,19 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/messages", tags=["project-messages"])
 
+PROJECT_NOT_FOUND = "Project not found"
 
-@router.get("/channels", summary="List available channels for a project")
+
+@router.get(
+    "/channels",
+    summary="List available channels for a project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def list_channels(project_id: str, user: CurrentUser):
     project = await db.projects.find_one({"id": project_id, "deleted_at": None}, {"_id": 0, "title": 1})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    # Always include project title as default channel plus "general"
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     channels = [project.get("title", "General"), "general"]
-    # Check for any other channels in existing messages
     existing = await db.messages.distinct("channel", {"project_id": project_id})
     for ch in existing:
         if ch not in channels:
@@ -35,7 +39,7 @@ async def list_messages(
     skip: int = 0,
     limit: int = 50,
 ):
-    query = {"project_id": project_id}
+    query: dict = {"project_id": project_id}
     if channel:
         query["channel"] = channel
     total = await db.messages.count_documents(query)
@@ -43,11 +47,15 @@ async def list_messages(
     return {"items": messages, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("", summary="Send a message")
+@router.post(
+    "",
+    summary="Send a message",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def send_message(project_id: str, data: MessageCreate, user: CurrentUser):
     project = await db.projects.find_one({"id": project_id, "deleted_at": None})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()

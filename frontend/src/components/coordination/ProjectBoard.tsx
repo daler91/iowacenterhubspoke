@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  DndContext, closestCenter, DragEndEvent,
+  DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
+  useDroppable, useDraggable,
 } from '@dnd-kit/core';
-import { useDroppable } from '@dnd-kit/core';
-import { useDraggable } from '@dnd-kit/core';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -20,7 +19,7 @@ import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import ProjectCreateDialog from './ProjectCreateDialog';
 
-function DroppableColumn({ phase, children }: { phase: string; children: React.ReactNode }) {
+function DroppableColumn({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
   return (
     <div
@@ -35,7 +34,7 @@ function DroppableColumn({ phase, children }: { phase: string; children: React.R
   );
 }
 
-function DraggableProjectCard({ project }: { project: Project }) {
+function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: project.id,
@@ -117,7 +116,7 @@ export default function ProjectBoard() {
     if (!board?.columns) return [];
     const set = new Set<string>();
     Object.values(board.columns).flat().forEach(p => set.add(p.community));
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [board]);
 
   const handleDragEnd = async (event: DragEndEvent) => {

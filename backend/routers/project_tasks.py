@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import TaskCreate, TaskUpdate, TaskReorder
@@ -24,7 +24,11 @@ async def _verify_project(project_id: str):
     return project
 
 
-@router.get("", summary="List tasks for a project")
+@router.get(
+    "",
+    summary="List tasks for a project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def list_tasks(
     project_id: str,
     user: CurrentUser,
@@ -33,7 +37,7 @@ async def list_tasks(
     completed: Optional[bool] = None,
 ):
     await _verify_project(project_id)
-    query = {"project_id": project_id}
+    query: dict = {"project_id": project_id}
     if phase:
         query["phase"] = phase
     if owner:
@@ -44,10 +48,13 @@ async def list_tasks(
     return {"items": tasks, "total": len(tasks)}
 
 
-@router.post("", summary="Create a custom task")
+@router.post(
+    "",
+    summary="Create a custom task",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def create_task(project_id: str, data: TaskCreate, user: CurrentUser):
     await _verify_project(project_id)
-    # Get max sort_order for this project
     last_task = await db.tasks.find(
         {"project_id": project_id}, {"sort_order": 1}
     ).sort("sort_order", -1).limit(1).to_list(1)
@@ -79,7 +86,14 @@ async def create_task(project_id: str, data: TaskCreate, user: CurrentUser):
     return doc
 
 
-@router.put("/{task_id}", summary="Update a task")
+@router.put(
+    "/{task_id}",
+    summary="Update a task",
+    responses={
+        400: {"description": NO_FIELDS_TO_UPDATE},
+        404: {"description": TASK_NOT_FOUND},
+    },
+)
 async def update_task(project_id: str, task_id: str, data: TaskUpdate, user: CurrentUser):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -94,7 +108,11 @@ async def update_task(project_id: str, task_id: str, data: TaskUpdate, user: Cur
     return updated
 
 
-@router.patch("/{task_id}/complete", summary="Toggle task completion")
+@router.patch(
+    "/{task_id}/complete",
+    summary="Toggle task completion",
+    responses={404: {"description": TASK_NOT_FOUND}},
+)
 async def toggle_task_completion(project_id: str, task_id: str, user: CurrentUser):
     task = await db.tasks.find_one({"id": task_id, "project_id": project_id}, {"_id": 0})
     if not task:
@@ -123,7 +141,11 @@ async def reorder_tasks(project_id: str, data: TaskReorder, user: CurrentUser):
     return {"message": "Tasks reordered", "count": len(data.task_ids)}
 
 
-@router.delete("/{task_id}", summary="Delete a task")
+@router.delete(
+    "/{task_id}",
+    summary="Delete a task",
+    responses={404: {"description": TASK_NOT_FOUND}},
+)
 async def delete_task(project_id: str, task_id: str, user: CurrentUser):
     result = await db.tasks.delete_one({"id": task_id, "project_id": project_id})
     if result.deleted_count == 0:

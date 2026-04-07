@@ -3,11 +3,11 @@ import type { PartnerOrg, PartnerContact } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 
 interface Props {
-  org: PartnerOrg;
-  contact: PartnerContact;
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-  children: ReactNode;
+  readonly org: PartnerOrg;
+  readonly contact: PartnerContact;
+  readonly activeTab: string;
+  readonly onTabChange: (tab: string) => void;
+  readonly children: ReactNode;
 }
 
 const TABS = [
