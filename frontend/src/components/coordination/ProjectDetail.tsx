@@ -9,7 +9,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ArrowLeft, Plus, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare } from 'lucide-react';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import {
@@ -18,6 +18,10 @@ import {
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import TaskDetailDrawer from './TaskDetailDrawer';
+import OutcomeTracker from './OutcomeTracker';
+import PromotionChecklist from './PromotionChecklist';
+import ExportButton from './ExportButton';
 
 function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
@@ -35,9 +39,9 @@ function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children:
 }
 
 function TaskCard({
-  task, projectId, onRefresh,
+  task, projectId, onRefresh, onOpen,
 }: Readonly<{
-  task: Task; projectId: string; onRefresh: () => void;
+  task: Task; projectId: string; onRefresh: () => void; onOpen: () => void;
 }>) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
@@ -69,13 +73,14 @@ function TaskCard({
     >
       <Card
         className={cn(
-          'p-3 mb-2 border transition-shadow hover:shadow-sm',
+          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer',
           task.completed && 'opacity-45',
         )}
+        onClick={onOpen}
       >
         <div className="flex items-start gap-2">
           <button
-            onClick={handleToggle}
+            onClick={(e) => { e.stopPropagation(); handleToggle(); }}
             className={cn(
               'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
               task.completed
@@ -102,6 +107,16 @@ function TaskCard({
               )}>
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
+              {(task.attachment_count ?? 0) > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
+                  <Paperclip className="w-3 h-3" /> {task.attachment_count}
+                </span>
+              )}
+              {(task.comment_count ?? 0) > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
+                  <MessageSquare className="w-3 h-3" /> {task.comment_count}
+                </span>
+              )}
             </div>
             {task.details && (
               <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{task.details}</p>
@@ -179,6 +194,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const { project, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -264,7 +280,7 @@ export default function ProjectDetail() {
                 </div>
                 <div className="space-y-0">
                   {phaseTasks.map(task => (
-                    <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} />
+                    <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} onOpen={() => setSelectedTaskId(task.id)} />
                   ))}
                 </div>
                 <AddTaskInline projectId={projectId} phase={phase} onCreated={mutateTasks} />
@@ -273,6 +289,29 @@ export default function ProjectDetail() {
           })}
         </div>
       </DndContext>
+
+      {/* Promotion Checklist (shown during promotion phase) */}
+      {project.phase === 'promotion' && (
+        <div className="mt-6">
+          <PromotionChecklist projectId={projectId} />
+        </div>
+      )}
+
+      {/* Outcome Tracker (shown during follow_up/complete phases) */}
+      {(project.phase === 'follow_up' || project.phase === 'complete') && (
+        <div className="mt-6">
+          <OutcomeTracker projectId={projectId} />
+        </div>
+      )}
+
+      {/* Export */}
+      <div className="mt-4 flex justify-end">
+        <ExportButton
+          endpoint="/exports/tasks"
+          params={{ project_id: projectId }}
+          label="Export Tasks"
+        />
+      </div>
 
       {/* Legend */}
       <div className="mt-4 flex items-center gap-4 text-xs text-slate-400">
@@ -286,6 +325,17 @@ export default function ProjectDetail() {
           <span className="w-2.5 h-2.5 rounded bg-orange-100" /> Both
         </span>
       </div>
+
+      {/* Task Detail Drawer */}
+      {selectedTaskId && (
+        <TaskDetailDrawer
+          projectId={projectId}
+          taskId={selectedTaskId}
+          open={!!selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdated={mutateTasks}
+        />
+      )}
     </div>
   );
 }

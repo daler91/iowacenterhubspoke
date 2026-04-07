@@ -24,6 +24,8 @@ export const templatesAPI = {
 export const projectTasksAPI = {
   getAll: (projectId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks`, { params }),
+  getOne: (projectId: string, taskId: string) =>
+    api.get(`/projects/${projectId}/tasks/${taskId}`),
   create: (projectId: string, data: Record<string, unknown>) =>
     api.post(`/projects/${projectId}/tasks`, data),
   update: (projectId: string, taskId: string, data: Record<string, unknown>) =>
@@ -34,6 +36,25 @@ export const projectTasksAPI = {
     api.patch(`/projects/${projectId}/tasks/reorder`, { task_ids: taskIds }),
   delete: (projectId: string, taskId: string) =>
     api.delete(`/projects/${projectId}/tasks/${taskId}`),
+  // Attachments
+  listAttachments: (projectId: string, taskId: string) =>
+    api.get(`/projects/${projectId}/tasks/${taskId}/attachments`),
+  uploadAttachment: (projectId: string, taskId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteAttachment: (projectId: string, taskId: string, attId: string) =>
+    api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attId}`),
+  downloadAttachmentUrl: (projectId: string, taskId: string, attId: string) =>
+    `/api/v1/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download`,
+  // Comments
+  listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
+    api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
+  postComment: (projectId: string, taskId: string, body: string) =>
+    api.post(`/projects/${projectId}/tasks/${taskId}/comments`, { body }),
 };
 
 // ── Partner Organizations ────────────────────────────────────────────
@@ -102,6 +123,22 @@ export const portalAPI = {
     api.get(`/portal/projects/${projectId}/tasks`, { params: { token } }),
   completeTask: (projectId: string, taskId: string, token: string) =>
     api.patch(`/portal/projects/${projectId}/tasks/${taskId}/complete`, null, { params: { token } }),
+  taskDetail: (projectId: string, taskId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}`, { params: { token } }),
+  taskAttachments: (projectId: string, taskId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, { params: { token } }),
+  uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { token },
+    });
+  },
+  taskComments: (projectId: string, taskId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { params: { token } }),
+  postTaskComment: (projectId: string, taskId: string, token: string, body: string) =>
+    api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, { params: { token } }),
   projectDocuments: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/documents`, { params: { token } }),
   uploadDocument: (projectId: string, token: string, file: File) => {

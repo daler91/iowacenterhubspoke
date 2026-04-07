@@ -327,13 +327,54 @@ async def coordination_by_community(user: CurrentUser):
     return {"communities": list(communities.values())}
 
 
+def _compute_health(completion_rate, last_active, classes_hosted):
+    """Compute composite health score and tier."""
+    recency_score = 0
+    if last_active:
+        days_since = (
+            datetime.now(timezone.utc)
+            - datetime.fromisoformat(last_active)
+        ).days
+        if days_since <= 7:
+            recency_score = 100
+        elif days_since <= 30:
+            recency_score = 70
+        elif days_since <= 60:
+            recency_score = 40
+        else:
+            recency_score = 10
+
+    hosted_score = min(classes_hosted * 20, 100)
+    health_score = round(
+        completion_rate * 0.4
+        + recency_score * 0.3
+        + hosted_score * 0.3,
+        1,
+    )
+    if health_score >= 80:
+        tier = "excellent"
+    elif health_score >= 60:
+        tier = "good"
+    elif health_score >= 40:
+        tier = "needs_attention"
+    else:
+        tier = "at_risk"
+    return health_score, tier
+
+
 @router.get("/coordination/partner-health", summary="Partner health table")
 async def coordination_partner_health(user: CurrentUser):
-    orgs = await db.partner_orgs.find({"deleted_at": None}, {"_id": 0}).to_list(500)
+    orgs = await db.partner_orgs.find(
+        {"deleted_at": None}, {"_id": 0},
+    ).to_list(500)
     results = []
     for org in orgs:
         projects = await db.projects.find(
-            {"partner_org_id": org["id"], "deleted_at": None}, {"_id": 0, "id": 1, "phase": 1, "updated_at": 1}
+            {
+                "partner_org_id": org["id"],
+                "deleted_at": None,
+            },
+            {"_id": 0, "id": 1, "phase": 1, "updated_at": 1},
         ).to_list(500)
         project_ids = [p["id"] for p in projects]
         total_tasks = 0
@@ -352,6 +393,10 @@ async def coordination_partner_health(user: CurrentUser):
             (p.get("updated_at") for p in projects if p.get("updated_at")),
             default=None,
         )
+        health_score, health_tier = _compute_health(
+            completion_rate, last_active, classes_hosted,
+        )
+
         results.append({
             "partner_org_id": org["id"],
             "name": org["name"],
@@ -360,5 +405,31 @@ async def coordination_partner_health(user: CurrentUser):
             "classes_hosted": classes_hosted,
             "completion_rate": completion_rate,
             "last_active": last_active,
+            "health_score": health_score,
+            "health_tier": health_tier,
         })
     return {"partners": results}
+
+
+@router.get(
+    "/coordination/conversion-funnel",
+    summary="Aggregate conversion funnel across projects",
+)
+async def coordination_conversion_funnel(user: CurrentUser):
+    outcomes = await db.event_outcomes.find(
+        {}, {"_id": 0, "status": 1},
+    ).to_list(50000)
+    total = len(outcomes)
+    counts = {
+        "attended": 0, "contacted": 0, "consultation": 0,
+        "converted": 0, "lost": 0,
+    }
+    for o in outcomes:
+        s = o.get("status", "attended")
+        if s in counts:
+            counts[s] += 1
+    conversion_rate = (
+        round(counts["converted"] / total * 100, 1)
+        if total > 0 else 0
+    )
+    return {"total": total, **counts, "conversion_rate": conversion_rate}

@@ -50,6 +50,7 @@ const ProjectDetail = lazy(() => import("./components/coordination/ProjectDetail
 const PartnerManager = lazy(() => import("./components/coordination/PartnerManager"));
 const PartnerProfile = lazy(() => import("./components/coordination/PartnerProfile"));
 const PortalDashboard = lazy(() => import("./components/portal/PortalDashboard"));
+const WebhookManager = lazy(() => import("./components/coordination/WebhookManager"));
 
 function AppRoutes() {
   return (
@@ -91,6 +92,7 @@ function AppRoutes() {
             <Route path="coordination/projects/:id" element={<ProjectDetail />} />
             <Route path="coordination/partners" element={<PartnerManager />} />
             <Route path="coordination/partners/:id" element={<PartnerProfile />} />
+            <Route path="coordination/webhooks" element={<WebhookManager />} />
           </Route>
           <Route path="/portal/:token" element={<PortalDashboard />} />
         </Routes>

@@ -40,3 +40,25 @@ CLASS_TYPES = ["workshop", "series", "office_hours", "onboarding"]
 TASK_OWNERS = ["internal", "partner", "both"]
 PARTNER_STATUSES = ["prospect", "onboarding", "active", "inactive"]
 DOC_VISIBILITY = ["internal", "shared"]
+
+# Default promotion channels for co-marketing checklist
+DEFAULT_PROMOTION_CHANNELS = [
+    {"channel": "social_media", "label": "Social media posts", "owner": "both"},
+    {"channel": "newsletter", "label": "Newsletter mention", "owner": "both"},
+    {"channel": "website", "label": "Website listing", "owner": "both"},
+    {"channel": "lobby_flyer", "label": "Lobby flyer/signage", "owner": "partner"},
+    {"channel": "email_blast", "label": "Email blast to list", "owner": "both"},
+    {"channel": "local_media", "label": "Local media outreach", "owner": "internal"},
+    {"channel": "community_boards", "label": "Community bulletin boards", "owner": "partner"},
+]
+
+# Webhook event types
+WEBHOOK_EVENTS = [
+    "project.created", "project.updated", "project.deleted",
+    "project.phase_advanced",
+    "task.created", "task.completed", "task.overdue",
+    "partner.created", "partner.status_changed",
+    "outcome.created", "outcome.status_changed",
+    "document.uploaded",
+    "test.ping",
+]
