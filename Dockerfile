@@ -4,6 +4,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci
 COPY frontend/ ./
+# Client-side API key embedded in the public JS bundle at build time.
+# Restrict via Google Cloud Console (HTTP referrer restrictions), not by hiding it.
 ARG VITE_GOOGLE_MAPS_API_KEY
 RUN npm run build
 
@@ -12,7 +14,13 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY backend/ ./
-COPY --from=frontend-build /app/frontend/build ./static
+
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
+
+COPY --chown=appuser:appgroup backend/ ./
+COPY --chown=appuser:appgroup --from=frontend-build /app/frontend/build ./static
+
+USER appuser
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
