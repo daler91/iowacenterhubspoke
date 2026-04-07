@@ -12,7 +12,7 @@ import {
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { useProject } from '../../hooks/useCoordinationData';
 import {
-  OWNER_COLORS, OWNER_LABELS, PHASE_LABELS, PHASE_DOT_COLORS,
+  PHASE_LABELS, PHASE_DOT_COLORS,
   type Task, type TaskOwner,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
@@ -30,7 +30,7 @@ function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: 
       currentDate = d;
       groups.push({ date: d, items: [] });
     }
-    groups[groups.length - 1].items.push(c);
+    groups.at(-1)!.items.push(c);
   }
   return groups;
 }
@@ -348,7 +348,7 @@ export default function TaskDetailPage() {
                         {att.file_type.toUpperCase()}
                       </Badge>
                       <a
-                        href={projectTasksAPI.downloadAttachmentUrl(projectId!, taskId!, att.id)}
+                        href={projectTasksAPI.downloadAttachmentUrl(projectId ?? '', taskId ?? '', att.id)}
                         className="text-slate-400 hover:text-indigo-600"
                       >
                         <Download className="w-4 h-4" />
