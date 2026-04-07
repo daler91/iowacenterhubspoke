@@ -44,7 +44,7 @@ async def fire_webhook_event(event: str, payload: dict):
 
 
 async def deliver_webhook(
-    ctx, subscription_id: str, event: str, payload: dict,
+    _ctx, subscription_id: str, event: str, payload: dict,
 ):
     """Deliver a webhook to the subscriber's URL."""
     import httpx
@@ -142,5 +142,6 @@ async def deliver_webhook(
             {"$inc": {"failure_count": 1}},
         )
         logger.error(
-            "Webhook delivery to %s failed: %s", url, e,
+            "Webhook delivery to subscription %s failed: %s",
+            subscription_id, type(e).__name__,
         )

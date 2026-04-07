@@ -31,6 +31,12 @@ const TIER_LABELS: Record<string, string> = {
   at_risk: 'At Risk',
 };
 
+function completionColor(rate: number): string {
+  if (rate >= 80) return 'text-green-600';
+  if (rate >= 50) return 'text-amber-600';
+  return 'text-red-500';
+}
+
 export default function PartnerHealthTable() {
   const navigate = useNavigate();
   const [partners, setPartners] = useState<PartnerHealthRow[]>([]);
@@ -65,10 +71,9 @@ export default function PartnerHealthTable() {
     }
   };
 
-  const SortHeader = ({
-    col, label,
-  }: Readonly<{ col: string; label: string }>) => (
+  const renderSortHeader = (col: string, label: string) => (
     <th
+      key={col}
       className="px-4 py-3 font-medium cursor-pointer hover:text-slate-700"
       onClick={() => toggleSort(col)}
     >
@@ -85,11 +90,11 @@ export default function PartnerHealthTable() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-500">
-              <SortHeader col="name" label="Partner" />
-              <SortHeader col="community" label="Community" />
-              <SortHeader col="health_score" label="Health" />
-              <SortHeader col="classes_hosted" label="Classes" />
-              <SortHeader col="completion_rate" label="Completion" />
+              {renderSortHeader("name", "Partner")}
+              {renderSortHeader("community", "Community")}
+              {renderSortHeader("health_score", "Health")}
+              {renderSortHeader("classes_hosted", "Classes")}
+              {renderSortHeader("completion_rate", "Completion")}
               <th className="px-4 py-3 font-medium">Last Active</th>
             </tr>
           </thead>
@@ -111,8 +116,7 @@ export default function PartnerHealthTable() {
                 <td className="px-4 py-3">
                   <span className={cn(
                     'text-sm font-medium',
-                    p.completion_rate >= 80 ? 'text-green-600' :
-                    p.completion_rate >= 50 ? 'text-amber-600' : 'text-red-500',
+                    completionColor(p.completion_rate),
                   )}>
                     {p.completion_rate}%
                   </span>

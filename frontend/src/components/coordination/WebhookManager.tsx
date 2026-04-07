@@ -7,7 +7,6 @@ import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Plus, Trash2, Play, Copy } from 'lucide-react';
 import api from '../../lib/api';
-import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 
 interface WebhookSub {

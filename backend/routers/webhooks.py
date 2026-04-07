@@ -28,7 +28,11 @@ async def list_webhooks(user: AdminRequired):
     return {"items": items, "total": len(items)}
 
 
-@router.post("", summary="Create a webhook subscription")
+@router.post(
+    "",
+    summary="Create a webhook subscription",
+    responses={400: {"description": "Invalid events"}},
+)
 async def create_webhook(data: WebhookCreate, user: AdminRequired):
     # Validate events
     invalid = [e for e in data.events if e not in WEBHOOK_EVENTS]
@@ -61,7 +65,10 @@ async def create_webhook(data: WebhookCreate, user: AdminRequired):
 @router.put(
     "/{webhook_id}",
     summary="Update a webhook subscription",
-    responses={404: {"description": WEBHOOK_NOT_FOUND}},
+    responses={
+        400: {"description": "No fields to update"},
+        404: {"description": WEBHOOK_NOT_FOUND},
+    },
 )
 async def update_webhook(
     webhook_id: str, data: WebhookUpdate, user: AdminRequired,
@@ -70,7 +77,9 @@ async def update_webhook(
         k: v for k, v in data.model_dump().items() if v is not None
     }
     if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(
+            status_code=400, detail="No fields to update",
+        )
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.webhook_subscriptions.update_one(
         {"id": webhook_id, "deleted_at": None},

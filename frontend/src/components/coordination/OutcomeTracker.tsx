@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Plus, Users } from 'lucide-react';
-import { projectTasksAPI } from '../../lib/coordination-api';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import api from '../../lib/api';

@@ -36,9 +36,11 @@ export default function ExportButton({
       </Button>
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-40"
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
+            aria-label="Close export menu"
           />
           <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
             <button

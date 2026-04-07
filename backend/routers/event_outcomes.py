@@ -18,6 +18,7 @@ router = APIRouter(
 
 PROJECT_NOT_FOUND = "Project not found"
 OUTCOME_NOT_FOUND = "Outcome not found"
+NO_FIELDS_TO_UPDATE = "No fields to update"
 
 
 async def _verify_project(project_id: str):
@@ -124,7 +125,10 @@ async def bulk_create_outcomes(
 @router.put(
     "/{outcome_id}",
     summary="Update an outcome",
-    responses={404: {"description": OUTCOME_NOT_FOUND}},
+    responses={
+        400: {"description": NO_FIELDS_TO_UPDATE},
+        404: {"description": OUTCOME_NOT_FOUND},
+    },
 )
 async def update_outcome(
     project_id: str,
@@ -136,19 +140,18 @@ async def update_outcome(
         k: v for k, v in data.model_dump().items() if v is not None
     }
     if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     # Auto-set timestamps on status transitions
     new_status = update_data.get("status")
-    if new_status == "contacted" and "contacted_at" not in update_data:
-        update_data["contacted_at"] = update_data["updated_at"]
-    elif new_status == "consultation":
-        if "consultation_at" not in update_data:
-            update_data["consultation_at"] = update_data["updated_at"]
-    elif new_status == "converted":
-        if "converted_at" not in update_data:
-            update_data["converted_at"] = update_data["updated_at"]
+    ts_field = {
+        "contacted": "contacted_at",
+        "consultation": "consultation_at",
+        "converted": "converted_at",
+    }.get(new_status or "")
+    if ts_field and ts_field not in update_data:
+        update_data[ts_field] = update_data["updated_at"]
 
     result = await db.event_outcomes.update_one(
         {"id": outcome_id, "project_id": project_id},

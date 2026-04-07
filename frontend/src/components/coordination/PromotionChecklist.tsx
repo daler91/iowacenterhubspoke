@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
 import {
   Megaphone, Mail, Globe, Newspaper, Plus, Check,
 } from 'lucide-react';

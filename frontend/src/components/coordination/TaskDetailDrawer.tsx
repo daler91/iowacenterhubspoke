@@ -13,7 +13,7 @@ import {
 import { projectTasksAPI } from '../../lib/coordination-api';
 import {
   OWNER_COLORS, OWNER_LABELS, PHASE_LABELS, PHASE_DOT_COLORS,
-  type Task, type TaskAttachment, type TaskComment, type TaskOwner,
+  type Task, type TaskOwner,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
