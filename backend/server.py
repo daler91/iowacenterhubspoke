@@ -36,6 +36,7 @@ from routers import (  # noqa: E402
     system, analytics, users, google_oauth, outlook_oauth,
     partner_orgs, projects, project_tasks, project_docs,
     project_messages, partner_portal,
+    exports, event_outcomes, promotion_checklist, webhooks,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
@@ -98,6 +99,18 @@ async def _ensure_indexes():
         await db.partner_orgs.create_index([("status", 1)])
         await db.partner_orgs.create_index([("deleted_at", 1)])
         await db.partner_contacts.create_index([("partner_org_id", 1)])
+        await db.task_attachments.create_index([("task_id", 1)])
+        await db.task_comments.create_index([("task_id", 1), ("created_at", 1)])
+        # Phase 2 collections
+        await db.email_reminders.create_index(
+            [("task_id", 1), ("threshold_key", 1)], unique=True)
+        await db.email_reminders.create_index([("sent_at", -1)])
+        await db.event_outcomes.create_index([("project_id", 1)])
+        await db.event_outcomes.create_index([("project_id", 1), ("status", 1)])
+        await db.promotion_checklists.create_index("project_id", unique=True)
+        await db.webhook_subscriptions.create_index([("active", 1), ("events", 1)])
+        await db.webhook_subscriptions.create_index([("deleted_at", 1)])
+        await db.webhook_logs.create_index([("subscription_id", 1), ("sent_at", -1)])
         await db.documents.create_index([("project_id", 1)])
         await db.messages.create_index([("project_id", 1), ("created_at", -1)])
         await db.portal_tokens.create_index("token", unique=True)
@@ -403,6 +416,10 @@ api_router.include_router(project_docs.router)
 api_router.include_router(project_messages.router)
 api_router.include_router(partner_portal.router)
 api_router.include_router(projects.templates_router)
+api_router.include_router(exports.router)
+api_router.include_router(event_outcomes.router)
+api_router.include_router(promotion_checklist.router)
+api_router.include_router(webhooks.router)
 
 
 @api_router.get("/health", tags=["system"])

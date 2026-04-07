@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -8,6 +9,9 @@ import { useCommunityDashboard } from '../hooks/useCoordinationData';
 import {
   PHASE_LABELS, PHASE_COLORS,
 } from '../lib/coordination-types';
+import ExportButton from '../components/coordination/ExportButton';
+import DashboardTrendChart from '../components/coordination/DashboardTrendChart';
+import PartnerHealthTable from '../components/coordination/PartnerHealthTable';
 import { cn } from '../lib/utils';
 
 function MetricCard({
@@ -49,9 +53,12 @@ export default function CommunityDashboard() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>
-        Coordination Dashboard
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          Coordination Dashboard
+        </h1>
+        <ExportButton endpoint="/exports/projects" label="Export" />
+      </div>
 
       {/* Top Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
@@ -152,6 +159,26 @@ export default function CommunityDashboard() {
           </table>
         </div>
       </Card>
+
+      {/* Trend Chart */}
+      {dashboard.trends && (
+        <>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
+            Delivery Trends
+          </h2>
+          <Card className="p-4 mb-8">
+            <DashboardTrendChart trends={dashboard.trends} />
+          </Card>
+        </>
+      )}
+
+      {/* Partner Health */}
+      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
+        Partner Health
+      </h2>
+      <div className="mb-8">
+        <PartnerHealthTable />
+      </div>
     </div>
   );
 }

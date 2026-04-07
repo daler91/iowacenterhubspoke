@@ -107,6 +107,34 @@ export interface Task {
   completed_by?: string;
   sort_order: number;
   details: string;
+  description?: string;
+  created_at: string;
+  attachment_count?: number;
+  comment_count?: number;
+  attachments?: TaskAttachment[];
+  comments?: TaskComment[];
+}
+
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  project_id: string;
+  filename: string;
+  file_type: string;
+  file_path: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  version: number;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  project_id: string;
+  sender_type: 'internal' | 'partner';
+  sender_name: string;
+  sender_id: string;
+  body: string;
   created_at: string;
 }
 
@@ -203,6 +231,11 @@ export interface CommunityStats {
   phases?: Record<string, number>;
 }
 
+export interface TrendData {
+  months: string[];
+  by_month: Record<string, Record<string, { delivered: number; attendance: number }>>;
+}
+
 export interface DashboardMetrics {
   classes_delivered: number;
   total_attendance: number;
@@ -212,6 +245,7 @@ export interface DashboardMetrics {
   overdue_alert_count: number;
   communities: CommunityStats[];
   upcoming_projects: Project[];
+  trends?: TrendData;
 }
 
 export interface BoardData {

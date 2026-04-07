@@ -94,7 +94,9 @@ async def get_project_board(
 
 
 @router.get("/dashboard", summary="Multi-community dashboard metrics")
-async def get_dashboard(user: CurrentUser):
+async def get_dashboard(
+    user: CurrentUser, period: int = 90,
+):
     all_projects = await db.projects.find({"deleted_at": None}, {"_id": 0}).to_list(2000)
     partner_orgs = await db.partner_orgs.find(
         {"deleted_at": None, "status": "active"}, {"_id": 0}
@@ -143,6 +145,39 @@ async def get_dashboard(user: CurrentUser):
         "overdue_alert_count": overdue_count,
         "communities": list(communities.values()),
         "upcoming_projects": sorted(upcoming, key=lambda x: x.get("event_date", ""))[:20],
+        "trends": _build_trends(all_projects, period),
+    }
+
+
+def _build_trends(projects: list, period_days: int) -> dict:
+    """Build monthly trend buckets for delivered classes and attendance."""
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=period_days)
+    ).isoformat()
+    recent = [
+        p for p in projects
+        if p.get("phase") == "complete"
+        and (p.get("event_date") or "") >= cutoff
+    ]
+    months: dict = {}
+    for p in recent:
+        month = (p.get("event_date") or "")[:7]  # YYYY-MM
+        community = p.get("community", "Unknown")
+        if month not in months:
+            months[month] = {}
+        if community not in months[month]:
+            months[month][community] = {
+                "delivered": 0, "attendance": 0,
+            }
+        months[month][community]["delivered"] += 1
+        months[month][community]["attendance"] += (
+            p.get("attendance_count") or 0
+        )
+    return {
+        "months": sorted(months.keys()),
+        "by_month": {
+            m: months[m] for m in sorted(months.keys())
+        },
     }
 
 
@@ -226,6 +261,7 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
                     "completed_by": None,
                     "sort_order": idx,
                     "details": t.get("details", ""),
+                    "description": "",
                     "created_at": now,
                 })
             if task_docs:

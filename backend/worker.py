@@ -1,4 +1,5 @@
 import os
+import arq
 from arq.connections import RedisSettings
 from dotenv import load_dotenv
 
@@ -426,10 +427,26 @@ from core.constants import DEFAULT_REDIS_URL  # noqa: E402
 redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 
+async def process_task_reminders(ctx):
+    """Cron job: check for tasks approaching/past due and send reminders."""
+    from services.task_reminders import check_and_send_reminders
+    return await check_and_send_reminders()
+
+
+async def deliver_webhook_job(ctx, subscription_id, event, payload):
+    """Background job: deliver a webhook to a subscriber."""
+    from services.webhooks import deliver_webhook
+    return await deliver_webhook(ctx, subscription_id, event, payload)
+
+
 class WorkerSettings:
     functions = [
         generate_bulk_schedules, sync_schedules_denormalized,
         create_outlook_event, delete_outlook_event,
         create_google_event, delete_google_event,
+        deliver_webhook_job,
+    ]
+    cron_jobs = [
+        arq.cron(process_task_reminders, hour=None, minute=0),
     ]
     redis_settings = RedisSettings.from_dsn(redis_url)

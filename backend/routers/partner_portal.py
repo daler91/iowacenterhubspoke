@@ -7,7 +7,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from database import db, ROOT_DIR
-from models.coordination_schemas import PortalAuthRequest, MessageCreate
+from models.coordination_schemas import (
+    PortalAuthRequest, MessageCreate, TaskCommentCreate,
+)
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -211,6 +213,160 @@ async def portal_complete_task(project_id: str, task_id: str, token: str):
     await db.tasks.update_one({"id": task_id}, {"$set": update})
     task.update(update)
     return task
+
+
+@router.get(
+    "/projects/{project_id}/tasks/{task_id}",
+    summary="Partner gets full task detail",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+)
+async def portal_task_detail(project_id: str, task_id: str, token: str):
+    ctx = await get_portal_context(token)
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    task = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
+        {"_id": 0},
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+    task["attachments"] = await db.task_attachments.find(
+        {"task_id": task_id}, {"_id": 0},
+    ).sort("uploaded_at", -1).to_list(200)
+    task["comments"] = await db.task_comments.find(
+        {"task_id": task_id}, {"_id": 0},
+    ).sort("created_at", 1).to_list(500)
+    task["attachment_count"] = len(task["attachments"])
+    task["comment_count"] = len(task["comments"])
+    return task
+
+
+@router.get(
+    "/projects/{project_id}/tasks/{task_id}/attachments",
+    summary="Partner lists task attachments",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+)
+async def portal_task_attachments(project_id: str, task_id: str, token: str):
+    ctx = await get_portal_context(token)
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    atts = await db.task_attachments.find(
+        {"task_id": task_id}, {"_id": 0},
+    ).sort("uploaded_at", -1).to_list(200)
+    return {"items": atts, "total": len(atts)}
+
+
+@router.post(
+    "/projects/{project_id}/tasks/{task_id}/attachments",
+    summary="Partner uploads a task attachment",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+)
+async def portal_upload_task_attachment(
+    project_id: str, task_id: str, token: str,
+    file: Annotated[UploadFile, File(...)],
+):
+    ctx = await get_portal_context(token)
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    task = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    att_id = str(uuid.uuid4())
+    stored_name = _safe_stored_name(att_id, file.filename)
+    file_path = os.path.join(UPLOAD_DIR, stored_name)
+    content = await file.read()
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
+
+    ext = os.path.splitext(stored_name)[1]
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": att_id,
+        "task_id": task_id,
+        "project_id": project_id,
+        "filename": file.filename,
+        "file_type": ext.lstrip(".") if ext else "unknown",
+        "file_path": stored_name,
+        "uploaded_by": ctx["contact"]["name"],
+        "uploaded_at": now,
+        "version": 1,
+    }
+    await db.task_attachments.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.get(
+    "/projects/{project_id}/tasks/{task_id}/comments",
+    summary="Partner lists task comments",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+)
+async def portal_task_comments(
+    project_id: str, task_id: str, token: str,
+    skip: int = 0, limit: int = 50,
+):
+    ctx = await get_portal_context(token)
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    total = await db.task_comments.count_documents({"task_id": task_id})
+    comments = await db.task_comments.find(
+        {"task_id": task_id}, {"_id": 0},
+    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    return {"items": comments, "total": total, "skip": skip, "limit": limit}
+
+
+@router.post(
+    "/projects/{project_id}/tasks/{task_id}/comments",
+    summary="Partner posts a task comment",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+)
+async def portal_post_task_comment(
+    project_id: str, task_id: str, token: str,
+    data: TaskCommentCreate,
+):
+    ctx = await get_portal_context(token)
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    task = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+
+    comment_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": comment_id,
+        "task_id": task_id,
+        "project_id": project_id,
+        "sender_type": "partner",
+        "sender_name": ctx["contact"]["name"],
+        "sender_id": ctx["contact"]["id"],
+        "body": data.body,
+        "created_at": now,
+    }
+    await db.task_comments.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
 
 
 # ── Partner Documents ─────────────────────────────────────────────────

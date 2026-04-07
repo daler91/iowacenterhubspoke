@@ -352,6 +352,39 @@ async def coordination_partner_health(user: CurrentUser):
             (p.get("updated_at") for p in projects if p.get("updated_at")),
             default=None,
         )
+        # Compute composite health score (0-100)
+        # 40% completion rate + 30% recency + 30% classes hosted
+        recency_score = 0
+        if last_active:
+            days_since = (
+                datetime.now(timezone.utc)
+                - datetime.fromisoformat(last_active)
+            ).days
+            if days_since <= 7:
+                recency_score = 100
+            elif days_since <= 30:
+                recency_score = 70
+            elif days_since <= 60:
+                recency_score = 40
+            else:
+                recency_score = 10
+
+        hosted_score = min(classes_hosted * 20, 100)
+        health_score = round(
+            completion_rate * 0.4
+            + recency_score * 0.3
+            + hosted_score * 0.3,
+            1,
+        )
+        if health_score >= 80:
+            health_tier = "excellent"
+        elif health_score >= 60:
+            health_tier = "good"
+        elif health_score >= 40:
+            health_tier = "needs_attention"
+        else:
+            health_tier = "at_risk"
+
         results.append({
             "partner_org_id": org["id"],
             "name": org["name"],
@@ -360,5 +393,31 @@ async def coordination_partner_health(user: CurrentUser):
             "classes_hosted": classes_hosted,
             "completion_rate": completion_rate,
             "last_active": last_active,
+            "health_score": health_score,
+            "health_tier": health_tier,
         })
     return {"partners": results}
+
+
+@router.get(
+    "/coordination/conversion-funnel",
+    summary="Aggregate conversion funnel across projects",
+)
+async def coordination_conversion_funnel(user: CurrentUser):
+    outcomes = await db.event_outcomes.find(
+        {}, {"_id": 0, "status": 1},
+    ).to_list(50000)
+    total = len(outcomes)
+    counts = {
+        "attended": 0, "contacted": 0, "consultation": 0,
+        "converted": 0, "lost": 0,
+    }
+    for o in outcomes:
+        s = o.get("status", "attended")
+        if s in counts:
+            counts[s] += 1
+    conversion_rate = (
+        round(counts["converted"] / total * 100, 1)
+        if total > 0 else 0
+    )
+    return {"total": total, **counts, "conversion_rate": conversion_rate}
