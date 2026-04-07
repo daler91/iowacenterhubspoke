@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Literal
-from datetime import datetime
 
 
 # ── Projects ──────────────────────────────────────────────────────────
