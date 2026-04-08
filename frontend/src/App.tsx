@@ -30,15 +30,12 @@ function PublicRoute({ children }: { children: ReactNode }) {
 }
 
 const MapView = lazy(() => import("./components/MapView"));
-const WorkloadDashboard = lazy(() => import("./components/WorkloadDashboard"));
 const KanbanBoard = lazy(() => import("./components/KanbanBoard"));
-const WeeklyReport = lazy(() => import("./components/WeeklyReport"));
 const CalendarView = lazy(() => import("./components/CalendarView"));
 const LocationManager = lazy(() => import("./components/LocationManager"));
 const EmployeeManager = lazy(() => import("./components/EmployeeManager"));
 const ClassManager = lazy(() => import("./components/ClassManager"));
-const ActivityFeed = lazy(() => import("./components/ActivityFeed"));
-const AdvancedAnalytics = lazy(() => import("./components/AdvancedAnalytics"));
+const InsightsPage = lazy(() => import("./components/InsightsPage"));
 const UserManager = lazy(() => import("./components/UserManager"));
 const EmployeeProfile = lazy(() => import("./components/EmployeeProfile"));
 const LocationProfile = lazy(() => import("./components/LocationProfile"));
@@ -74,10 +71,11 @@ function AppRoutes() {
             <Route index element={<Navigate to="/calendar" replace />} />
             <Route path="calendar" element={<CalendarView />} />
             <Route path="kanban" element={<KanbanBoard />} />
-            <Route path="workload" element={<WorkloadDashboard />} />
-            <Route path="report" element={<WeeklyReport />} />
-            <Route path="analytics" element={<AdvancedAnalytics />} />
-            <Route path="activity" element={<ActivityFeed />} />
+            <Route path="insights" element={<InsightsPage />} />
+            <Route path="workload" element={<Navigate to="/insights?tab=workload" replace />} />
+            <Route path="report" element={<Navigate to="/insights?tab=summary" replace />} />
+            <Route path="analytics" element={<Navigate to="/insights?tab=analytics" replace />} />
+            <Route path="activity" element={<Navigate to="/insights?tab=activity" replace />} />
             <Route path="map" element={<MapView />} />
             <Route path="locations" element={<LocationManager />} />
             <Route path="classes" element={<ClassManager />} />

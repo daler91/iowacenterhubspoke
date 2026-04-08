@@ -11,7 +11,7 @@ import { usePartnerOrg } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
 import {
   STATUS_BADGE_COLORS, PHASE_LABELS, PHASE_COLORS,
-  CLASS_TYPE_LABELS,
+  EVENT_FORMAT_LABELS,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -183,7 +183,7 @@ export default function PartnerProfile() {
                   >
                     <td className="py-2.5 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
                     <td className="py-2.5 text-slate-500">
-                      {CLASS_TYPE_LABELS[project.class_type] || project.class_type}
+                      {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
                     </td>
                     <td className="py-2.5 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
                     <td className="py-2.5">

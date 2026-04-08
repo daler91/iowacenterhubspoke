@@ -6,8 +6,17 @@ import ForecastTab from './analytics/ForecastTab';
 import DriveOptimizationTab from './analytics/DriveOptimizationTab';
 import type { AnalyticsOutletContext } from '../lib/types';
 
-export default function AdvancedAnalytics() {
-  const { employees, locations, classes } = useOutletContext<AnalyticsOutletContext>();
+interface AdvancedAnalyticsProps {
+  employees?: unknown[];
+  locations?: unknown[];
+  classes?: unknown[];
+}
+
+export default function AdvancedAnalytics(props: Readonly<AdvancedAnalyticsProps>) {
+  const outlet = useOutletContext<AnalyticsOutletContext>() ?? {};
+  const employees = props.employees ?? outlet.employees;
+  const locations = props.locations ?? outlet.locations;
+  const classes = props.classes ?? outlet.classes;
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="advanced-analytics">

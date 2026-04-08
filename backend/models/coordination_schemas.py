@@ -6,7 +6,7 @@ from typing import Optional, List, Literal
 
 class ProjectCreate(BaseModel):
     title: str
-    class_type: Literal["workshop", "series", "office_hours", "onboarding"]
+    event_format: Literal["workshop", "series", "office_hours", "onboarding"]
     partner_org_id: str
     event_date: str  # ISO datetime string
     community: str

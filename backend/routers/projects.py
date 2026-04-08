@@ -66,13 +66,13 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
 async def get_project_board(
     user: CurrentUser,
     community: Optional[str] = None,
-    class_type: Optional[str] = None,
+    event_format: Optional[str] = None,
 ):
     query: dict = {"deleted_at": None, "phase": {"$ne": "complete"}}
     if community:
         query["community"] = community
-    if class_type:
-        query["class_type"] = class_type
+    if event_format:
+        query["event_format"] = event_format
 
     projects = await db.projects.find(query, {"_id": 0}).to_list(500)
     task_stats = await _build_task_stats([p["id"] for p in projects])
@@ -186,7 +186,7 @@ async def list_projects(
     user: CurrentUser,
     community: Optional[str] = None,
     phase: Optional[str] = None,
-    class_type: Optional[str] = None,
+    event_format: Optional[str] = None,
     partner_org_id: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
@@ -196,8 +196,8 @@ async def list_projects(
         query["community"] = community
     if phase:
         query["phase"] = phase
-    if class_type:
-        query["class_type"] = class_type
+    if event_format:
+        query["event_format"] = event_format
     if partner_org_id:
         query["partner_org_id"] = partner_org_id
     total = await db.projects.count_documents(query)
@@ -205,15 +205,65 @@ async def list_projects(
     return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
-@router.post("", summary="Create a project")
+async def _clone_template_tasks(
+    template_id: str, project_id: str, event_date: str, now: str,
+) -> int:
+    """Clone tasks from a project template. Returns number of tasks created."""
+    template = await db.project_templates.find_one(
+        {"id": template_id}, {"_id": 0}
+    )
+    if not template or not template.get("default_tasks"):
+        return 0
+    try:
+        event_dt = datetime.fromisoformat(event_date)
+    except (ValueError, TypeError):
+        event_dt = datetime.now(timezone.utc)
+    task_docs = []
+    for idx, t in enumerate(template["default_tasks"]):
+        due_date = event_dt + timedelta(days=t.get("offset_days", 0))
+        task_docs.append({
+            "id": str(uuid.uuid4()),
+            "project_id": project_id,
+            "title": t["title"],
+            "phase": t["phase"],
+            "owner": t["owner"],
+            "assigned_to": None,
+            "due_date": due_date.isoformat(),
+            "completed": False,
+            "completed_at": None,
+            "completed_by": None,
+            "sort_order": idx,
+            "details": t.get("details", ""),
+            "description": "",
+            "created_at": now,
+        })
+    if task_docs:
+        await db.tasks.insert_many(task_docs)
+    return len(task_docs)
+
+
+@router.post(
+    "",
+    summary="Create a project",
+    responses={400: {"description": "Linked schedule not found"}},
+)
 async def create_project(data: ProjectCreate, user: CurrentUser):
+    # Validate linked schedule exists if provided
+    if data.schedule_id:
+        schedule = await db.schedules.find_one(
+            {"id": data.schedule_id, "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if not schedule:
+            raise HTTPException(status_code=400, detail="Linked schedule not found")
+
     project_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
     doc = {
         "id": project_id,
         "title": data.title,
-        "class_type": data.class_type,
+        "event_format": data.event_format,
         "partner_org_id": data.partner_org_id,
         "template_id": data.template_id,
         "schedule_id": data.schedule_id,
@@ -236,37 +286,9 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
     # Clone tasks from template
     tasks_created = 0
     if data.template_id:
-        template = await db.project_templates.find_one(
-            {"id": data.template_id}, {"_id": 0}
+        tasks_created = await _clone_template_tasks(
+            data.template_id, project_id, data.event_date, now,
         )
-        if template and template.get("default_tasks"):
-            try:
-                event_dt = datetime.fromisoformat(data.event_date)
-            except (ValueError, TypeError):
-                event_dt = datetime.now(timezone.utc)
-
-            task_docs = []
-            for idx, t in enumerate(template["default_tasks"]):
-                due_date = event_dt + timedelta(days=t.get("offset_days", 0))
-                task_docs.append({
-                    "id": str(uuid.uuid4()),
-                    "project_id": project_id,
-                    "title": t["title"],
-                    "phase": t["phase"],
-                    "owner": t["owner"],
-                    "assigned_to": None,
-                    "due_date": due_date.isoformat(),
-                    "completed": False,
-                    "completed_at": None,
-                    "completed_by": None,
-                    "sort_order": idx,
-                    "details": t.get("details", ""),
-                    "description": "",
-                    "created_at": now,
-                })
-            if task_docs:
-                await db.tasks.insert_many(task_docs)
-                tasks_created = len(task_docs)
 
     logger.info("Project created", extra={"entity": {"project_id": project_id}})
     await log_activity(

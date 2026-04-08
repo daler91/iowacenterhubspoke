@@ -13,7 +13,7 @@ import { useProjectBoard } from '../../hooks/useCoordinationData';
 import { projectsAPI } from '../../lib/coordination-api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS,
-  CLASS_TYPE_LABELS, type Project,
+  EVENT_FORMAT_LABELS, type Project,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -78,7 +78,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">{project.community}</p>
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {CLASS_TYPE_LABELS[project.class_type] || project.class_type}
+            {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
           </Badge>
         </div>
         {project.task_total ? (
@@ -102,12 +102,12 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
 
 export default function ProjectBoard() {
   const [communityFilter, setCommunityFilter] = useState('');
-  const [classTypeFilter, setClassTypeFilter] = useState('');
+  const [eventFormatFilter, setEventFormatFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   const { board, mutateBoard, isLoading } = useProjectBoard({
     ...(communityFilter && { community: communityFilter }),
-    ...(classTypeFilter && { class_type: classTypeFilter }),
+    ...(eventFormatFilter && { event_format: eventFormatFilter }),
   });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -160,12 +160,12 @@ export default function ProjectBoard() {
             {communities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select
-            value={classTypeFilter}
-            onChange={e => setClassTypeFilter(e.target.value)}
+            value={eventFormatFilter}
+            onChange={e => setEventFormatFilter(e.target.value)}
             className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700"
           >
-            <option value="">All Types</option>
-            {Object.entries(CLASS_TYPE_LABELS).map(([k, v]) => (
+            <option value="">All Formats</option>
+            {Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>

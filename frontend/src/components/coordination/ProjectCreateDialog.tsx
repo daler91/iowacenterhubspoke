@@ -4,10 +4,18 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { projectsAPI, templatesAPI } from '../../lib/coordination-api';
+import { schedulesAPI } from '../../lib/api';
 import { usePartnerOrgs } from '../../hooks/useCoordinationData';
-import { CLASS_TYPE_LABELS } from '../../lib/coordination-types';
+import { EVENT_FORMAT_LABELS } from '../../lib/coordination-types';
 import type { ProjectTemplate } from '../../lib/coordination-types';
 import { toast } from 'sonner';
+
+interface ScheduleOption {
+  id: string;
+  date: string;
+  class_name?: string;
+  location_name?: string;
+}
 
 interface Props {
   readonly onClose: () => void;
@@ -17,20 +25,28 @@ interface Props {
 export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
   const { partnerOrgs } = usePartnerOrgs();
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [title, setTitle] = useState('');
-  const [classType, setClassType] = useState('workshop');
+  const [eventFormat, setEventFormat] = useState('workshop');
   const [partnerOrgId, setPartnerOrgId] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [community, setCommunity] = useState('');
   const [venueName, setVenueName] = useState('');
   const [templateId, setTemplateId] = useState('');
+  const [scheduleId, setScheduleId] = useState('');
 
   useEffect(() => {
     templatesAPI.getAll().then(res => {
       const items = res.data?.items ?? res.data;
       if (Array.isArray(items)) setTemplates(items);
+    }).catch(() => {});
+
+    // Fetch upcoming schedules for linking
+    schedulesAPI.getAll({ status: 'upcoming', limit: 200 }).then(res => {
+      const items = res.data?.items ?? res.data;
+      if (Array.isArray(items)) setSchedules(items);
     }).catch(() => {});
   }, []);
 
@@ -45,6 +61,17 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
     }
   }, [partnerOrgId, partnerOrgs]);
 
+  // Auto-fill event date when schedule is linked
+  const handleScheduleSelect = (id: string) => {
+    setScheduleId(id);
+    if (id) {
+      const schedule = schedules.find(s => s.id === id);
+      if (schedule?.date) {
+        setEventDate(schedule.date);
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!title || !partnerOrgId || !eventDate || !community || !venueName) {
       toast.error('Please fill in all required fields');
@@ -54,12 +81,13 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
     try {
       await projectsAPI.create({
         title,
-        class_type: classType,
+        event_format: eventFormat,
         partner_org_id: partnerOrgId,
         event_date: new Date(eventDate).toISOString(),
         community,
         venue_name: venueName,
         template_id: templateId || undefined,
+        schedule_id: scheduleId || undefined,
       });
       toast.success('Project created');
       onCreated();
@@ -82,13 +110,13 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. AI for Small Business Workshop" />
           </div>
           <div>
-            <Label>Class Type *</Label>
+            <Label>Event Format *</Label>
             <select
-              value={classType}
-              onChange={e => setClassType(e.target.value)}
+              value={eventFormat}
+              onChange={e => setEventFormat(e.target.value)}
               className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
             >
-              {Object.entries(CLASS_TYPE_LABELS).map(([k, v]) => (
+              {Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
             </select>
@@ -103,6 +131,21 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
               <option value="">Select partner...</option>
               {partnerOrgs.map(org => (
                 <option key={org.id} value={org.id}>{org.name} ({org.community})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Link to Schedule (optional)</Label>
+            <select
+              value={scheduleId}
+              onChange={e => handleScheduleSelect(e.target.value)}
+              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
+            >
+              <option value="">No linked schedule</option>
+              {schedules.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.date} — {s.class_name || 'Unclassified'} at {s.location_name || 'Unknown'}
+                </option>
               ))}
             </select>
           </div>

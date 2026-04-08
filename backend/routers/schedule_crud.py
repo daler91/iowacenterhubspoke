@@ -20,6 +20,8 @@ from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
     STATUS_COMPLETED,
+    SCHEDULE_STATUS_TO_PROJECT_PHASE,
+    PROJECT_PHASE_ORDER,
 )
 from routers.schedule_helpers import (
     logger,
@@ -357,6 +359,29 @@ async def update_schedule_status(
         entity_id=schedule_id,
         user_name=user.get("name", "System"),
     )
+    # Auto-advance linked project phase when schedule status changes
+    target_phase = SCHEDULE_STATUS_TO_PROJECT_PHASE.get(data.status)
+    if target_phase:
+        linked_project = await db.projects.find_one(
+            {"schedule_id": schedule_id, "deleted_at": None},
+            {"_id": 0, "id": 1, "phase": 1},
+        )
+        if linked_project:
+            current_idx = PROJECT_PHASE_ORDER.get(linked_project["phase"], 0)
+            target_idx = PROJECT_PHASE_ORDER.get(target_phase, 0)
+            if target_idx > current_idx:
+                now = datetime.now(timezone.utc).isoformat()
+                await db.projects.update_one(
+                    {"id": linked_project["id"]},
+                    {"$set": {"phase": target_phase, "updated_at": now}},
+                )
+                await log_activity(
+                    "project_phase_auto_advanced",
+                    f"Project auto-advanced to {target_phase} (schedule {data.status})",
+                    "project",
+                    linked_project["id"],
+                    user.get("name", "System"),
+                )
     return updated
 
 

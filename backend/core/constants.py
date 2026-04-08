@@ -36,8 +36,14 @@ END_MODE_AFTER_OCCURRENCES = "after_occurrences"
 # Coordination module constants
 PROJECT_PHASES = ["planning", "promotion", "delivery", "follow_up", "complete"]
 PROJECT_PHASE_ORDER = {phase: i for i, phase in enumerate(PROJECT_PHASES)}
-CLASS_TYPES = ["workshop", "series", "office_hours", "onboarding"]
+EVENT_FORMATS = ["workshop", "series", "office_hours", "onboarding"]
 TASK_OWNERS = ["internal", "partner", "both"]
+
+# Map schedule status changes to target project phases for auto-sync
+SCHEDULE_STATUS_TO_PROJECT_PHASE = {
+    STATUS_IN_PROGRESS: "delivery",
+    STATUS_COMPLETED: "follow_up",
+}
 PARTNER_STATUSES = ["prospect", "onboarding", "active", "inactive"]
 DOC_VISIBILITY = ["internal", "shared"]
 
