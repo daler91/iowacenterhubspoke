@@ -6,7 +6,7 @@ from database import db
 from models.coordination_schemas import WebhookCreate, WebhookUpdate
 from core.auth import AdminRequired
 from core.constants import WEBHOOK_EVENTS
-from services.webhooks import deliver_webhook
+from services.webhooks import deliver_webhook, validate_webhook_url
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,6 +34,7 @@ async def list_webhooks(user: AdminRequired):
     responses={400: {"description": "Invalid events"}},
 )
 async def create_webhook(data: WebhookCreate, user: AdminRequired):
+    validate_webhook_url(data.url)
     # Validate events
     invalid = [e for e in data.events if e not in WEBHOOK_EVENTS]
     if invalid:
@@ -76,6 +77,8 @@ async def update_webhook(
     update_data = {
         k: v for k, v in data.model_dump().items() if v is not None
     }
+    if "url" in update_data:
+        validate_webhook_url(update_data["url"])
     if not update_data:
         raise HTTPException(
             status_code=400, detail="No fields to update",

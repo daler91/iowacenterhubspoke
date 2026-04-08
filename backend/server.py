@@ -321,7 +321,7 @@ async def cache_control_middleware(request: Request, call_next):
     response.headers["Cache-Control"] = f"private, max-age={max_age}, must-revalidate"
 
     # Generate ETag from response body for small responses
-    if hasattr(response, "body"):
+    if getattr(response, "body", None) is not None and len(response.body) < 256_000:
         etag = '"' + _hashlib.md5(response.body).hexdigest()[:16] + '"'
         response.headers["ETag"] = etag
 
@@ -387,14 +387,14 @@ if not origins:
         )
         origins = []  # No cross-origin requests allowed
     else:
-        origins = ["*"]  # Allow all in development
+        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
 )
 
 api_router = APIRouter(prefix="/api/v1")

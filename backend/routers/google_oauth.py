@@ -112,9 +112,10 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     except Exception:
         logger.warning("Failed to fetch Google user info for employee %s", employee_id)
 
-    # Store tokens on employee document
+    # Store tokens on employee document (encrypted at rest)
+    from core.token_vault import encrypt_token
     update = {
-        "google_refresh_token": refresh_token,
+        "google_refresh_token": encrypt_token(refresh_token),
         "google_calendar_connected": True,
     }
     if google_email:
@@ -144,7 +145,9 @@ async def google_disconnect(employee_id: str, user: SchedulerRequired):
         raise HTTPException(status_code=404, detail="Employee not found")
 
     # Revoke the token with Google if possible
-    refresh_token = employee.get("google_refresh_token")
+    from core.token_vault import decrypt_token
+    raw_token = employee.get("google_refresh_token")
+    refresh_token = decrypt_token(raw_token) if raw_token else None
     if refresh_token:
         try:
             async with httpx.AsyncClient() as client:

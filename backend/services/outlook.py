@@ -109,8 +109,9 @@ async def _get_access_token(email: str = "", employee: dict | None = None) -> tu
 
     # 1. Try OAuth refresh token (works for individual Microsoft accounts)
     if employee and employee.get("outlook_refresh_token") and OUTLOOK_OAUTH_ENABLED:
+        from core.token_vault import decrypt_token
         token = await _get_access_token_oauth(
-            employee["outlook_refresh_token"], email
+            decrypt_token(employee["outlook_refresh_token"]), email
         )
         if token:
             return token, True
