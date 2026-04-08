@@ -5,8 +5,8 @@ export const ALL_PHASES = [...PROJECT_PHASES, 'complete'] as const;
 export type ProjectPhase = typeof ALL_PHASES[number];
 export type TaskPhase = typeof PROJECT_PHASES[number];
 
-export const CLASS_TYPES = ['workshop', 'series', 'office_hours', 'onboarding'] as const;
-export type ClassType = typeof CLASS_TYPES[number];
+export const EVENT_FORMATS = ['workshop', 'series', 'office_hours', 'onboarding'] as const;
+export type EventFormat = typeof EVENT_FORMATS[number];
 
 export const TASK_OWNERS = ['internal', 'partner', 'both'] as const;
 export type TaskOwner = typeof TASK_OWNERS[number];
@@ -40,7 +40,7 @@ export const PHASE_DOT_COLORS: Record<string, string> = {
   complete: 'bg-slate-300',
 };
 
-export const CLASS_TYPE_LABELS: Record<string, string> = {
+export const EVENT_FORMAT_LABELS: Record<string, string> = {
   workshop: 'Workshop',
   series: 'Series',
   office_hours: 'Office Hours',
@@ -71,7 +71,7 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
 export interface Project {
   id: string;
   title: string;
-  class_type: ClassType;
+  event_format: EventFormat;
   partner_org_id: string;
   partner_org_name?: string;
   template_id?: string;
@@ -201,7 +201,7 @@ export interface Message {
 export interface ProjectTemplate {
   id: string;
   name: string;
-  class_type: ClassType;
+  event_format: EventFormat;
   default_tasks: {
     title: string;
     phase: TaskPhase;

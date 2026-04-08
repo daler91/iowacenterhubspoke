@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
@@ -9,9 +9,10 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays } from 'lucide-react';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
+import { schedulesAPI } from '../../lib/api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
   OWNER_COLORS, OWNER_LABELS, type Task, type TaskPhase,
@@ -195,6 +196,16 @@ export default function ProjectDetail() {
   const { project, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [linkedSchedule, setLinkedSchedule] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (project?.schedule_id) {
+      schedulesAPI.getAll({ ids: project.schedule_id }).then(res => {
+        const items = res.data?.items ?? res.data;
+        if (Array.isArray(items) && items.length > 0) setLinkedSchedule(items[0]);
+      }).catch(() => {});
+    }
+  }, [project?.schedule_id]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -260,6 +271,26 @@ export default function ProjectDetail() {
           {project.partner_org_name && <> &middot; {project.partner_org_name}</>}
         </p>
       </div>
+
+      {/* Linked Schedule */}
+      {linkedSchedule && (
+        <Card className="p-4 mb-6 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20">
+          <div className="flex items-center gap-3">
+            <CalendarDays className="w-5 h-5 text-indigo-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Linked Schedule</p>
+              <p className="text-xs text-slate-500">
+                {linkedSchedule.date as string} &middot; {(linkedSchedule.start_time as string) || ''} – {(linkedSchedule.end_time as string) || ''}
+                {linkedSchedule.class_name && <> &middot; {linkedSchedule.class_name as string}</>}
+                {linkedSchedule.location_name && <> &middot; {linkedSchedule.location_name as string}</>}
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-[10px]">
+              {(linkedSchedule.status as string) || 'upcoming'}
+            </Badge>
+          </div>
+        </Card>
+      )}
 
       {/* Task Kanban */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

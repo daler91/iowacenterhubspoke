@@ -20,7 +20,7 @@ def _t(title, phase, owner, offset, details=""):
 TEMPLATES = [
     {
         "name": "Single-session workshop",
-        "class_type": "workshop",
+        "event_format": "workshop",
         "default_tasks": [
             _t(
                 "Confirm date and time with partner",
@@ -142,7 +142,7 @@ TEMPLATES = [
     },
     {
         "name": "New partner onboarding",
-        "class_type": "onboarding",
+        "event_format": "onboarding",
         "default_tasks": [
             _t("Intro meeting or call", "planning", "internal", -42),
             _t(
@@ -187,7 +187,7 @@ TEMPLATES = [
     },
     {
         "name": "Partner-hosted office hours",
-        "class_type": "office_hours",
+        "event_format": "office_hours",
         "default_tasks": [
             _t("Confirm date with partner", "planning", "internal", -14),
             _t(
@@ -222,7 +222,7 @@ async def seed_project_templates():
             docs.append({
                 "id": str(uuid.uuid4()),
                 "name": tmpl["name"],
-                "class_type": tmpl["class_type"],
+                "event_format": tmpl["event_format"],
                 "default_tasks": tmpl["default_tasks"],
                 "collateral_kit": [],
                 "created_at": now,

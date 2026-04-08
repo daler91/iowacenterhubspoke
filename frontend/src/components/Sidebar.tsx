@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, Activity, FileText, BookOpen, TrendingUp,
+  Kanban, BarChart3, BookOpen,
   Moon, Sun, Settings, LayoutDashboard, Handshake, Webhook,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -24,10 +24,7 @@ const NAV_SECTIONS = [
     id: 'insights',
     label: 'Insights',
     items: [
-      { id: 'workload', path: '/workload', label: 'Workload', icon: BarChart3 },
-      { id: 'report', path: '/report', label: 'Weekly Report', icon: FileText },
-      { id: 'analytics', path: '/analytics', label: 'Analytics', icon: TrendingUp },
-      { id: 'activity', path: '/activity', label: 'Activity', icon: Activity },
+      { id: 'insights', path: '/insights', label: 'Insights', icon: BarChart3 },
     ],
   },
   {

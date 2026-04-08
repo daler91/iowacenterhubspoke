@@ -23,7 +23,7 @@ projects
 ├── partner_org_id       → references partner_orgs._id
 ├── template_id          → references project_templates._id (null if created blank)
 ├── title                → string
-├── class_type            → "workshop" | "series" | "office_hours" | "onboarding"
+├── event_format            → "workshop" | "series" | "office_hours" | "onboarding"
 ├── event_date           → datetime
 ├── phase                → "planning" | "promotion" | "delivery" | "follow_up" | "complete"
 ├── community            → string (e.g. "Carroll", "Fort Dodge")
@@ -39,7 +39,7 @@ projects
 project_templates
 ├── _id
 ├── name                 → string (e.g. "Single-Session Workshop")
-├── class_type           → "workshop" | "series" | "office_hours" | "onboarding"
+├── event_format           → "workshop" | "series" | "office_hours" | "onboarding"
 ├── default_tasks[]
 │   ├── title
 │   ├── phase            → "planning" | "promotion" | "delivery" | "follow_up"
@@ -132,7 +132,7 @@ Add these files to `backend/routers/` following the existing pattern (FastAPI ro
 ### `routers/projects.py` — `/api/v1/projects`
 
 ```
-GET    /                         → list projects (filterable by community, phase, class_type, partner_org_id)
+GET    /                         → list projects (filterable by community, phase, event_format, partner_org_id)
 POST   /                         → create project (blank or from template_id)
 GET    /{id}                     → get project with task counts per phase
 PUT    /{id}                     → update project fields
@@ -229,7 +229,7 @@ from bson import ObjectId
 
 class ProjectCreate(BaseModel):
     title: str
-    class_type: Literal["workshop", "series", "office_hours", "onboarding"]
+    event_format: Literal["workshop", "series", "office_hours", "onboarding"]
     partner_org_id: str
     event_date: datetime
     community: str
@@ -406,7 +406,7 @@ Seed these into `project_templates` on first deploy. `offset_days` is relative t
 ```json
 {
   "name": "Single-session workshop",
-  "class_type": "workshop",
+  "event_format": "workshop",
   "default_tasks": [
     {"title": "Confirm date and time with partner", "phase": "planning", "owner": "internal", "offset_days": -42, "details": "Check against partner calendar and local conflicts"},
     {"title": "Confirm room and AV details", "phase": "planning", "owner": "partner", "offset_days": -38, "details": "Capacity, AV setup, Wi-Fi, parking, signage"},
@@ -444,7 +444,7 @@ Seed these into `project_templates` on first deploy. `offset_days` is relative t
 ```json
 {
   "name": "New partner onboarding",
-  "class_type": "onboarding",
+  "event_format": "onboarding",
   "default_tasks": [
     {"title": "Intro meeting or call", "phase": "planning", "owner": "internal", "offset_days": -42, "details": ""},
     {"title": "Identify partner goals and audience needs", "phase": "planning", "owner": "internal", "offset_days": -38, "details": ""},
@@ -467,7 +467,7 @@ Seed these into `project_templates` on first deploy. `offset_days` is relative t
 ```json
 {
   "name": "Partner-hosted office hours",
-  "class_type": "office_hours",
+  "event_format": "office_hours",
   "default_tasks": [
     {"title": "Confirm date with partner", "phase": "planning", "owner": "internal", "offset_days": -14, "details": ""},
     {"title": "Notify partner of visit", "phase": "promotion", "owner": "internal", "offset_days": -7, "details": ""},

@@ -18,9 +18,13 @@ const ACTION_CONFIG = {
 
 import { useOutletContext } from 'react-router-dom';
 
-/** @param {{ activities: Array<Object> }} props */
-export default function ActivityFeed() {
-  const { activities } = useOutletContext();
+interface ActivityFeedProps {
+  activities?: unknown[];
+}
+
+export default function ActivityFeed(props: ActivityFeedProps) {
+  const outlet = useOutletContext<Record<string, unknown>>() ?? {};
+  const activities = (props.activities ?? outlet.activities) as Array<Record<string, unknown>> | undefined;
   if (!activities || activities.length === 0) {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="activity-feed">

@@ -66,13 +66,13 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
 async def get_project_board(
     user: CurrentUser,
     community: Optional[str] = None,
-    class_type: Optional[str] = None,
+    event_format: Optional[str] = None,
 ):
     query: dict = {"deleted_at": None, "phase": {"$ne": "complete"}}
     if community:
         query["community"] = community
-    if class_type:
-        query["class_type"] = class_type
+    if event_format:
+        query["event_format"] = event_format
 
     projects = await db.projects.find(query, {"_id": 0}).to_list(500)
     task_stats = await _build_task_stats([p["id"] for p in projects])
@@ -186,7 +186,7 @@ async def list_projects(
     user: CurrentUser,
     community: Optional[str] = None,
     phase: Optional[str] = None,
-    class_type: Optional[str] = None,
+    event_format: Optional[str] = None,
     partner_org_id: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
@@ -196,8 +196,8 @@ async def list_projects(
         query["community"] = community
     if phase:
         query["phase"] = phase
-    if class_type:
-        query["class_type"] = class_type
+    if event_format:
+        query["event_format"] = event_format
     if partner_org_id:
         query["partner_org_id"] = partner_org_id
     total = await db.projects.count_documents(query)
@@ -207,13 +207,22 @@ async def list_projects(
 
 @router.post("", summary="Create a project")
 async def create_project(data: ProjectCreate, user: CurrentUser):
+    # Validate linked schedule exists if provided
+    if data.schedule_id:
+        schedule = await db.schedules.find_one(
+            {"id": data.schedule_id, "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if not schedule:
+            raise HTTPException(status_code=400, detail="Linked schedule not found")
+
     project_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
     doc = {
         "id": project_id,
         "title": data.title,
-        "class_type": data.class_type,
+        "event_format": data.event_format,
         "partner_org_id": data.partner_org_id,
         "template_id": data.template_id,
         "schedule_id": data.schedule_id,

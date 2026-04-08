@@ -62,7 +62,7 @@ async def export_projects(
         query["phase"] = phase
     items = await db.projects.find(query, {"_id": 0}).to_list(5000)
     cols = [
-        "id", "title", "class_type", "community", "venue_name",
+        "id", "title", "event_format", "community", "venue_name",
         "event_date", "phase", "registration_count",
         "attendance_count", "warm_leads",
     ]

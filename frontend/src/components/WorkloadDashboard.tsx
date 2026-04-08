@@ -10,8 +10,15 @@ const ALL_CLASSES_VALUE = 'all';
 
 import { useOutletContext } from 'react-router-dom';
 
-export default function WorkloadDashboard() {
-  const { workloadData, classes } = useOutletContext();
+interface WorkloadDashboardProps {
+  workloadData?: unknown[];
+  classes?: unknown[];
+}
+
+export default function WorkloadDashboard(props: WorkloadDashboardProps) {
+  const outlet = useOutletContext<Record<string, unknown>>() ?? {};
+  const workloadData = props.workloadData ?? outlet.workloadData;
+  const classes = props.classes ?? outlet.classes;
   const [selectedClassId, setSelectedClassId] = useState(ALL_CLASSES_VALUE);
 
   const classOptions = useMemo(() => {
