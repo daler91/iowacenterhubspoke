@@ -20,7 +20,7 @@ interface WeeklyReportProps {
   classes?: unknown[];
 }
 
-export default function WeeklyReport(props: WeeklyReportProps) {
+export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
   const outlet = useOutletContext<Record<string, unknown>>() ?? {};
   const classes = props.classes ?? outlet.classes;
   const [weekDate, setWeekDate] = useState(new Date());

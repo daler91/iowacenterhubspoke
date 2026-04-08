@@ -22,7 +22,7 @@ interface ActivityFeedProps {
   activities?: unknown[];
 }
 
-export default function ActivityFeed(props: ActivityFeedProps) {
+export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
   const outlet = useOutletContext<Record<string, unknown>>() ?? {};
   const activities = (props.activities ?? outlet.activities) as Array<Record<string, unknown>> | undefined;
   if (!activities || activities.length === 0) {

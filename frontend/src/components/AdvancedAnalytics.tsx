@@ -12,7 +12,7 @@ interface AdvancedAnalyticsProps {
   classes?: unknown[];
 }
 
-export default function AdvancedAnalytics(props: AdvancedAnalyticsProps) {
+export default function AdvancedAnalytics(props: Readonly<AdvancedAnalyticsProps>) {
   const outlet = useOutletContext<AnalyticsOutletContext>() ?? {};
   const employees = props.employees ?? outlet.employees;
   const locations = props.locations ?? outlet.locations;

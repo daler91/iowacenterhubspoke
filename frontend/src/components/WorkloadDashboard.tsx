@@ -15,7 +15,7 @@ interface WorkloadDashboardProps {
   classes?: unknown[];
 }
 
-export default function WorkloadDashboard(props: WorkloadDashboardProps) {
+export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps>) {
   const outlet = useOutletContext<Record<string, unknown>>() ?? {};
   const workloadData = props.workloadData ?? outlet.workloadData;
   const classes = props.classes ?? outlet.classes;
