@@ -85,6 +85,13 @@ export interface Project {
   attendance_count?: number;
   warm_leads?: number;
   notes: string;
+  venue_details?: VenueDetails;
+  location_id?: string;
+  location_name?: string;
+  partner_org_name?: string;
+  partner_org_status?: string;
+  partner_org_venue_details?: VenueDetails;
+  schedule_warning?: string;
   created_at: string;
   updated_at: string;
   created_by: string;

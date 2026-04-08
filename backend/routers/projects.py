@@ -14,6 +14,22 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 PROJECT_NOT_FOUND = "Project not found"
+PARTNER_ORG_NOT_FOUND = "Partner organization not found"
+
+
+async def _resolve_partner_data(partner_org_id: str):
+    """Fetch partner org and its linked location. Returns (org, location_or_None)."""
+    org = await db.partner_orgs.find_one(
+        {"id": partner_org_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not org:
+        raise HTTPException(status_code=400, detail=PARTNER_ORG_NOT_FOUND)
+    location = None
+    if org.get("location_id"):
+        location = await db.locations.find_one(
+            {"id": org["location_id"], "deleted_at": None}, {"_id": 0}
+        )
+    return org, location
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
 # ── Templates ─────────────────────────────────────────────────────────
@@ -304,17 +320,101 @@ async def _clone_template_tasks(
     return len(task_docs)
 
 
+async def _auto_create_schedule(
+    project_doc: dict, data: ProjectCreate,
+    location: dict | None, class_id: str, user: CurrentUser,
+) -> str | None:
+    """Auto-create a schedule linked to the project. Returns warning string or None."""
+    if not location:
+        return "Partner organization has no linked location; schedule not created."
+    try:
+        from routers.schedule_helpers import (
+            _build_schedule_doc, _fetch_employees,
+        )
+
+        employees = await _fetch_employees(data.employee_ids)
+        class_doc = None
+        if class_id:
+            class_doc = await db.classes.find_one(
+                {"id": class_id, "deleted_at": None}, {"_id": 0}
+            )
+
+        sched_date = data.event_date[:10]  # extract YYYY-MM-DD
+        drive_time = location.get("drive_time_minutes", 0)
+
+        # Build a lightweight adapter with the fields _build_schedule_doc reads
+        class _ScheduleData:
+            location_id = location["id"]
+            start_time = data.start_time
+            end_time = data.end_time
+            travel_override_minutes = None
+            drive_to_override_minutes = None
+            drive_from_override_minutes = None
+            notes = None
+            recurrence = "none"
+            recurrence_end_mode = None
+            recurrence_end_date = None
+            recurrence_occurrences = None
+
+        sched_doc = _build_schedule_doc(
+            _ScheduleData(), sched_date, drive_time,
+            False, None,  # town_to_town, warning
+            None,  # recurrence_rule
+            location, employees, class_doc,
+        )
+        await db.schedules.insert_one(sched_doc)
+        sched_doc.pop("_id", None)
+
+        # Link schedule back to the project
+        await db.projects.update_one(
+            {"id": project_doc["id"]},
+            {"$set": {"schedule_id": sched_doc["id"]}},
+        )
+        project_doc["schedule_id"] = sched_doc["id"]
+        logger.info(
+            "Auto-created schedule for project",
+            extra={"entity": {
+                "project_id": project_doc["id"],
+                "schedule_id": sched_doc["id"],
+            }},
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            "Failed to auto-create schedule for project",
+            extra={"entity": {"project_id": project_doc["id"], "error": str(e)}},
+        )
+        return f"Schedule could not be created: {e}"
+
+
 @router.post(
     "",
     summary="Create a project",
-    responses={400: {"description": "Linked schedule not found"}},
+    responses={
+        400: {"description": "Linked schedule or partner org not found"},
+    },
 )
 async def create_project(data: ProjectCreate, user: CurrentUser):
+    # Validate and resolve partner org + location
+    partner_org, location = await _resolve_partner_data(data.partner_org_id)
+
+    # Derive community from partner org's location, falling back to org.community
+    community = data.community
+    if not community:
+        if location:
+            community = location["city_name"]
+        else:
+            community = partner_org.get("community", "")
+
+    # Derive venue_name from partner org name
+    venue_name = data.venue_name or partner_org["name"]
+
     # Validate linked schedule and auto-fill class_id if not provided
     class_id = data.class_id
-    if data.schedule_id:
+    schedule_id = data.schedule_id
+    if schedule_id:
         schedule = await db.schedules.find_one(
-            {"id": data.schedule_id, "deleted_at": None},
+            {"id": schedule_id, "deleted_at": None},
             {"_id": 0, "id": 1, "class_id": 1},
         )
         if not schedule:
@@ -330,13 +430,16 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
         "title": data.title,
         "event_format": data.event_format,
         "partner_org_id": data.partner_org_id,
+        "partner_org_name": partner_org["name"],
         "template_id": data.template_id,
-        "schedule_id": data.schedule_id,
+        "schedule_id": schedule_id,
         "class_id": class_id,
         "event_date": data.event_date,
         "phase": "planning",
-        "community": data.community,
-        "venue_name": data.venue_name,
+        "community": community,
+        "venue_name": venue_name,
+        "venue_details": partner_org.get("venue_details", {}),
+        "location_id": partner_org.get("location_id"),
         "registration_count": 0,
         "attendance_count": None,
         "warm_leads": None,
@@ -349,6 +452,19 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
     await db.projects.insert_one(doc)
     doc.pop("_id", None)
 
+    # Auto-create schedule if requested
+    schedule_warning = None
+    if (
+        data.auto_create_schedule
+        and class_id
+        and data.employee_ids
+        and data.start_time
+        and data.end_time
+    ):
+        schedule_warning = await _auto_create_schedule(
+            doc, data, location, class_id, user,
+        )
+
     # Clone tasks from template
     tasks_created = 0
     if data.template_id:
@@ -359,10 +475,12 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
     logger.info("Project created", extra={"entity": {"project_id": project_id}})
     await log_activity(
         "project_created",
-        f"Project '{data.title}' created in {data.community}",
+        f"Project '{data.title}' created in {community}",
         "project", project_id, user.get("name", "System"),
     )
     doc["tasks_created"] = tasks_created
+    if schedule_warning:
+        doc["schedule_warning"] = schedule_warning
     return doc
 
 
@@ -395,11 +513,24 @@ async def get_project(project_id: str, user: CurrentUser):
     project["task_total"] = len(tasks)
     project["task_completed"] = sum(1 for t in tasks if t.get("completed"))
 
-    # Fetch partner org name
+    # Enrich with partner org and location data
     org = await db.partner_orgs.find_one(
-        {"id": project.get("partner_org_id")}, {"_id": 0, "name": 1}
+        {"id": project.get("partner_org_id"), "deleted_at": None},
+        {"_id": 0, "name": 1, "community": 1, "location_id": 1,
+         "venue_details": 1, "status": 1},
     )
-    project["partner_org_name"] = org["name"] if org else None
+    if org:
+        project["partner_org_name"] = org["name"]
+        project["partner_org_status"] = org.get("status")
+        project["partner_org_venue_details"] = org.get("venue_details", {})
+        if org.get("location_id"):
+            loc = await db.locations.find_one(
+                {"id": org["location_id"], "deleted_at": None},
+                {"_id": 0, "city_name": 1, "latitude": 1, "longitude": 1},
+            )
+            if loc:
+                project["location_name"] = loc["city_name"]
+                project["location_id"] = org["location_id"]
 
     return project
 

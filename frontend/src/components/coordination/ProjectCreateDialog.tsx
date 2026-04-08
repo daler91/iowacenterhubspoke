@@ -8,7 +8,9 @@ import { schedulesAPI } from '../../lib/api';
 import { usePartnerOrgs } from '../../hooks/useCoordinationData';
 import { EVENT_FORMAT_LABELS } from '../../lib/coordination-types';
 import type { ProjectTemplate } from '../../lib/coordination-types';
+import type { ClassType, Employee } from '../../lib/types';
 import { toast } from 'sonner';
+import { CalendarPlus } from 'lucide-react';
 
 interface ScheduleOption {
   id: string;
@@ -20,9 +22,11 @@ interface ScheduleOption {
 interface Props {
   readonly onClose: () => void;
   readonly onCreated: () => void;
+  readonly classes?: ClassType[];
+  readonly employees?: Employee[];
 }
 
-export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
+export default function ProjectCreateDialog({ onClose, onCreated, classes = [], employees = [] }: Props) {
   const { partnerOrgs } = usePartnerOrgs();
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [schedules, setSchedules] = useState<ScheduleOption[]>([]);
@@ -36,6 +40,13 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
   const [venueName, setVenueName] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [scheduleId, setScheduleId] = useState('');
+  const [classId, setClassId] = useState('');
+
+  // Auto-schedule creation state
+  const [autoCreateSchedule, setAutoCreateSchedule] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('12:00');
 
   useEffect(() => {
     templatesAPI.getAll().then(res => {
@@ -50,13 +61,14 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
     }).catch(() => {});
   }, []);
 
-  // Auto-fill community when partner org selected
+  // Auto-fill community and venue when partner org selected
   useEffect(() => {
     if (partnerOrgId) {
       const org = partnerOrgs.find(o => o.id === partnerOrgId);
       if (org) {
-        setCommunity(org.community);
         setVenueName(org.name);
+        // Use community from org (backend will resolve from location if available)
+        setCommunity(org.community);
       }
     }
   }, [partnerOrgId, partnerOrgs]);
@@ -69,26 +81,42 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
       if (schedule?.date) {
         setEventDate(schedule.date);
       }
+      // Disable auto-create when linking to an existing schedule
+      setAutoCreateSchedule(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!title || !partnerOrgId || !eventDate || !community || !venueName) {
-      toast.error('Please fill in all required fields');
+    if (!title || !partnerOrgId || !eventDate) {
+      toast.error('Please fill in title, partner organization, and event date');
+      return;
+    }
+    if (autoCreateSchedule && (!classId || selectedEmployeeIds.length === 0)) {
+      toast.error('Select a class and at least one employee to auto-create a schedule');
       return;
     }
     setLoading(true);
     try {
-      await projectsAPI.create({
+      const res = await projectsAPI.create({
         title,
         event_format: eventFormat,
         partner_org_id: partnerOrgId,
         event_date: new Date(eventDate).toISOString(),
-        community,
-        venue_name: venueName,
+        // community/venue_name sent if user typed them, otherwise backend derives
+        community: community || undefined,
+        venue_name: venueName || undefined,
         template_id: templateId || undefined,
         schedule_id: scheduleId || undefined,
+        class_id: classId || undefined,
+        // Auto-schedule fields
+        auto_create_schedule: autoCreateSchedule && !scheduleId,
+        employee_ids: autoCreateSchedule ? selectedEmployeeIds : undefined,
+        start_time: autoCreateSchedule ? startTime : undefined,
+        end_time: autoCreateSchedule ? endTime : undefined,
       });
+      if (res.data?.schedule_warning) {
+        toast.warning(res.data.schedule_warning);
+      }
       toast.success('Project created');
       onCreated();
     } catch {
@@ -98,9 +126,11 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
     }
   };
 
+  const showAutoScheduleSection = classId && !scheduleId;
+
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Coordination Project</DialogTitle>
         </DialogHeader>
@@ -135,7 +165,20 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
             </select>
           </div>
           <div>
-            <Label>Link to Schedule (optional)</Label>
+            <Label>Class</Label>
+            <select
+              value={classId}
+              onChange={e => setClassId(e.target.value)}
+              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
+            >
+              <option value="">No class selected</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Link to Existing Schedule (optional)</Label>
             <select
               value={scheduleId}
               onChange={e => handleScheduleSelect(e.target.value)}
@@ -155,14 +198,76 @@ export default function ProjectCreateDialog({ onClose, onCreated }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Community *</Label>
-              <Input value={community} onChange={e => setCommunity(e.target.value)} />
+              <Label>Community</Label>
+              <Input
+                value={community}
+                disabled
+                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                placeholder="Auto-filled from partner"
+              />
             </div>
             <div>
-              <Label>Venue Name *</Label>
-              <Input value={venueName} onChange={e => setVenueName(e.target.value)} />
+              <Label>Venue</Label>
+              <Input
+                value={venueName}
+                disabled
+                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                placeholder="Auto-filled from partner"
+              />
             </div>
           </div>
+
+          {/* Auto-create schedule section */}
+          {showAutoScheduleSection && (
+            <div className="border rounded-lg p-3 space-y-3 bg-indigo-50/50 dark:bg-indigo-950/20">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoCreateSchedule}
+                  onChange={e => setAutoCreateSchedule(e.target.checked)}
+                  className="accent-indigo-600"
+                />
+                <CalendarPlus className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-medium">Also create a class schedule</span>
+              </label>
+
+              {autoCreateSchedule && (
+                <div className="space-y-3 pl-6">
+                  <p className="text-xs text-slate-500">
+                    A schedule will be created at the partner&apos;s location.
+                  </p>
+                  <div>
+                    <Label className="text-xs">Employees *</Label>
+                    <select
+                      multiple
+                      value={selectedEmployeeIds}
+                      onChange={e => {
+                        const opts = Array.from(e.target.selectedOptions, o => o.value);
+                        setSelectedEmployeeIds(opts);
+                      }}
+                      className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700 h-24"
+                    >
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-0.5">Hold Ctrl/Cmd to select multiple</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Start Time</Label>
+                      <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">End Time</Label>
+                      <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <Label>Template (optional)</Label>
             <select

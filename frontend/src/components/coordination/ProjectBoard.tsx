@@ -104,6 +104,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
 export default function ProjectBoard() {
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const classes = (context.classes || []) as Array<{ id: string; name: string; color?: string }>;
+  const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const [communityFilter, setCommunityFilter] = useState('');
   const [eventFormatFilter, setEventFormatFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -273,6 +274,8 @@ export default function ProjectBoard() {
 
       {showCreate && (
         <ProjectCreateDialog
+          classes={classes}
+          employees={employees}
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); mutateBoard(); }}
         />
