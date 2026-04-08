@@ -51,7 +51,6 @@ const PartnerManager = lazy(() => import("./components/coordination/PartnerManag
 const PartnerProfile = lazy(() => import("./components/coordination/PartnerProfile"));
 const PortalDashboard = lazy(() => import("./components/portal/PortalDashboard"));
 const WebhookManager = lazy(() => import("./components/coordination/WebhookManager"));
-const TaskDetailPage = lazy(() => import("./components/coordination/TaskDetailPage"));
 
 function AppRoutes() {
   return (
@@ -91,7 +90,6 @@ function AppRoutes() {
             <Route path="coordination" element={<CommunityDashboard />} />
             <Route path="coordination/board" element={<ProjectBoard />} />
             <Route path="coordination/projects/:id" element={<ProjectDetail />} />
-            <Route path="coordination/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="coordination/partners" element={<PartnerManager />} />
             <Route path="coordination/partners/:id" element={<PartnerProfile />} />
             <Route path="coordination/webhooks" element={<WebhookManager />} />
