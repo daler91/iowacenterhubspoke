@@ -13,6 +13,7 @@ class ProjectCreate(BaseModel):
     venue_name: str
     template_id: Optional[str] = None
     schedule_id: Optional[str] = None
+    class_id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):

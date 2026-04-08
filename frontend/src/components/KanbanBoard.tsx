@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
@@ -112,6 +113,15 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           <Car className="w-3 h-3" />
           <span>{schedule.drive_time_minutes}m drive each way</span>
         </div>
+        {schedule.linked_project && (
+          <div className="flex items-center gap-1.5 text-xs text-indigo-600">
+            <Handshake className="w-3 h-3" />
+            <span className="truncate font-medium">{schedule.linked_project.title}</span>
+            <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-auto shrink-0">
+              {schedule.linked_project.phase?.replace('_', ' ')}
+            </Badge>
+          </div>
+        )}
         {schedule.notes && (
           <p className="text-[11px] text-slate-400 italic truncate">{schedule.notes}</p>
         )}
@@ -147,9 +157,10 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   );
 }
 
-import { useOutletContext } from 'react-router-dom';
+
 
 export default function KanbanBoard() {
+  const navigate = useNavigate();
   const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
 
   const {
@@ -177,9 +188,22 @@ export default function KanbanBoard() {
     }, { revalidate: false });
 
     try {
-      await schedulesAPI.updateStatus(scheduleId, newStatus);
+      const res = await schedulesAPI.updateStatus(scheduleId, newStatus);
+      const updated = res.data;
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
       onRefresh();
+
+      // Post-completion prompt: navigate to project for outcome entry
+      if (newStatus === SCHEDULE_STATUS.COMPLETED && updated?.linked_project) {
+        toast('Enter attendance for this event?', {
+          description: updated.linked_project.title,
+          action: {
+            label: 'Enter Outcomes',
+            onClick: () => navigate(`/coordination/projects/${updated.linked_project.id}`),
+          },
+          duration: 8000,
+        });
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');

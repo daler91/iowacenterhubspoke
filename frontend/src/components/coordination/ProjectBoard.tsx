@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
@@ -101,13 +101,17 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
 }
 
 export default function ProjectBoard() {
+  const context = useOutletContext<Record<string, unknown>>() ?? {};
+  const classes = (context.classes || []) as Array<{ id: string; name: string; color?: string }>;
   const [communityFilter, setCommunityFilter] = useState('');
   const [eventFormatFilter, setEventFormatFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   const { board, mutateBoard, isLoading } = useProjectBoard({
     ...(communityFilter && { community: communityFilter }),
     ...(eventFormatFilter && { event_format: eventFormatFilter }),
+    ...(classFilter && { class_id: classFilter }),
   });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -169,8 +173,18 @@ export default function ProjectBoard() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          <select
+            value={classFilter}
+            onChange={e => setClassFilter(e.target.value)}
+            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700"
+          >
+            <option value="">All Classes</option>
+            {classes.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
           <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-            <Plus className="w-4 h-4 mr-1" /> New Class
+            <Plus className="w-4 h-4 mr-1" /> New Project
           </Button>
         </div>
       </div>
