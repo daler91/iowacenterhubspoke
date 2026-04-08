@@ -5,26 +5,23 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
 import {
-  Check, Paperclip, Upload, Download,
-  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock,
+  Paperclip, Upload, Download,
+  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock, Star,
 } from 'lucide-react';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '../ui/alert-dialog';
 import { projectTasksAPI } from '../../lib/coordination-api';
+import DeleteTaskDialog from './DeleteTaskDialog';
 import {
   PHASE_LABELS, PHASE_DOT_COLORS,
-  type Task, type TaskOwner,
+  TASK_STATUSES, TASK_STATUS_LABELS,
+  type Task, type TaskOwner, type TaskComment,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 
 
-function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: unknown }>) {
-  const groups: Array<{ date: string; items: typeof comments }> = [];
+function groupCommentsByDate(comments: TaskComment[]) {
+  const groups: Array<{ date: string; items: TaskComment[] }> = [];
   let currentDate = '';
   for (const c of comments) {
     const d = new Date(c.created_at).toLocaleDateString('en-US', {
@@ -37,6 +34,137 @@ function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: 
     groups.at(-1)!.items.push(c);
   }
   return groups;
+}
+
+function TaskFlagControls({ task, onToggle }: Readonly<{
+  task: Task;
+  onToggle: (field: 'spotlight' | 'at_risk') => void;
+}>) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      {task.spotlight && (
+        <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+          <Star className="w-2.5 h-2.5 mr-0.5 fill-amber-500" /> Spotlighted
+        </Badge>
+      )}
+      {task.at_risk && (
+        <Badge className="bg-red-100 text-red-700 text-[10px]">
+          <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> At Risk
+        </Badge>
+      )}
+      <button
+        onClick={() => onToggle('spotlight')}
+        className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+          task.spotlight
+            ? 'border-amber-300 text-amber-600 bg-amber-50'
+            : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
+        )}
+      >
+        <Star className="w-2.5 h-2.5 inline mr-0.5" />
+        {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
+      </button>
+      <button
+        onClick={() => onToggle('at_risk')}
+        className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+          task.at_risk
+            ? 'border-red-300 text-red-600 bg-red-50'
+            : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
+        )}
+      >
+        <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
+        {task.at_risk ? 'Remove At Risk' : 'At Risk'}
+      </button>
+    </div>
+  );
+}
+
+function ConversationsPanel({ comments, onPostComment }: Readonly<{
+  comments: TaskComment[];
+  onPostComment: (body: string) => Promise<void>;
+}>) {
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const groups = groupCommentsByDate(comments);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments.length]);
+
+  const handleSend = async () => {
+    if (!body.trim()) return;
+    setSending(true);
+    try {
+      await onPostComment(body.trim());
+      setBody('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="w-[340px] shrink-0 border-l bg-gray-50/50 dark:bg-gray-900/30 flex flex-col">
+      <div className="px-4 py-3 border-b">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Conversations</h2>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {groups.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-6">No messages yet</p>
+        )}
+        {groups.map(group => (
+          <div key={group.date}>
+            <div className="flex items-center gap-2 my-3">
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+              <span className="text-[10px] text-slate-400 font-medium">{group.date}</span>
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+            </div>
+            {group.items.map((cmt) => (
+              <div key={cmt.id} className="flex gap-2 mb-3">
+                <div className={cn(
+                  'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
+                  cmt.sender_type === 'partner' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700',
+                )}>
+                  {(cmt.sender_name || '?').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{cmt.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <div className="border-t p-3">
+        <div className="flex gap-1.5">
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Type a message..."
+            rows={1}
+            className="flex-1 text-xs border rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700 resize-none"
+          />
+          <Button
+            size="sm"
+            onClick={handleSend}
+            disabled={sending || !body.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white h-auto self-end px-2.5 py-1.5"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -63,10 +191,7 @@ export default function TaskDetailModal({
   const [owner, setOwner] = useState<TaskOwner>('internal');
   const [assignedTo, setAssignedTo] = useState('');
 
-  const [commentBody, setCommentBody] = useState('');
-  const [sending, setSending] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadTask = useCallback(async () => {
@@ -96,10 +221,6 @@ export default function TaskDetailModal({
     }
   }, [open, taskId, loadTask]);
 
-  useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [task?.comments?.length]);
-
   const saveField = async (field: string, value: string) => {
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
@@ -109,9 +230,20 @@ export default function TaskDetailModal({
     }
   };
 
-  const handleToggleComplete = async () => {
+  const handleStatusChange = async (newStatus: string) => {
     try {
-      await projectTasksAPI.toggleComplete(projectId, taskId);
+      await projectTasksAPI.update(projectId, taskId, { status: newStatus });
+      await loadTask();
+      onUpdated();
+    } catch {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleToggleFlag = async (field: 'spotlight' | 'at_risk') => {
+    if (!task) return;
+    try {
+      await projectTasksAPI.update(projectId, taskId, { [field]: !task[field] });
       await loadTask();
       onUpdated();
     } catch {
@@ -142,20 +274,6 @@ export default function TaskDetailModal({
     }
   };
 
-  const handlePostComment = async () => {
-    if (!commentBody.trim()) return;
-    setSending(true);
-    try {
-      await projectTasksAPI.postComment(projectId, taskId, commentBody.trim());
-      setCommentBody('');
-      await loadTask();
-    } catch {
-      toast.error('Failed to send');
-    } finally {
-      setSending(false);
-    }
-  };
-
   const handleDelete = async () => {
     try {
       await projectTasksAPI.delete(projectId, taskId);
@@ -168,8 +286,6 @@ export default function TaskDetailModal({
   };
 
   if (!open) return null;
-
-  const commentGroups = task ? groupCommentsByDate(task.comments ?? []) : [];
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -191,17 +307,6 @@ export default function TaskDetailModal({
 
               {/* Title */}
               <div className="flex items-start gap-2.5 mb-3">
-                <button
-                  onClick={handleToggleComplete}
-                  className={cn(
-                    'w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-                    task.completed
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-slate-300 hover:border-indigo-400',
-                  )}
-                >
-                  {task.completed && <Check className="w-3.5 h-3.5" />}
-                </button>
                 <Input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
@@ -215,6 +320,8 @@ export default function TaskDetailModal({
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 />
               </div>
+
+              <TaskFlagControls task={task} onToggle={handleToggleFlag} />
 
               {/* Metadata row */}
               <div className="flex items-center gap-4 mb-5 flex-wrap text-xs">
@@ -268,13 +375,18 @@ export default function TaskDetailModal({
                   />
                 </div>
 
-                {task.completed ? (
-                  <Badge className="bg-green-100 text-green-700 text-[10px]">
-                    <Check className="w-2.5 h-2.5 mr-0.5" /> Completed
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="text-[10px]">In progress</Badge>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 uppercase tracking-wide">Status</span>
+                  <select
+                    value={task.status || (task.completed ? 'completed' : 'to_do')}
+                    onChange={e => handleStatusChange(e.target.value)}
+                    className="text-[10px] border rounded px-1.5 py-0.5 bg-white dark:bg-gray-900 dark:border-gray-700"
+                  >
+                    {TASK_STATUSES.map(s => (
+                      <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <Badge className={cn('text-[10px]', PHASE_DOT_COLORS[task.phase])}>
                   {PHASE_LABELS[task.phase]}
@@ -410,109 +522,23 @@ export default function TaskDetailModal({
                 </Button>
               </div>
 
-              {/* Delete confirmation */}
-              <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-red-500" />
-                      Delete Task
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete &quot;{task.title}&quot;? This action cannot be undone. All comments and attachments will be permanently removed.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DeleteTaskDialog
+                open={showDeleteConfirm}
+                onOpenChange={setShowDeleteConfirm}
+                onConfirm={handleDelete}
+                taskTitle={task.title}
+                detailed
+              />
             </div>
 
             {/* ── Right: Conversations ──────────────────────────── */}
-            <div className="w-[340px] shrink-0 border-l bg-gray-50/50 dark:bg-gray-900/30 flex flex-col">
-              <div className="px-4 py-3 border-b">
-                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  Conversations
-                </h2>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 py-3">
-                {commentGroups.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-6">No messages yet</p>
-                )}
-                {commentGroups.map(group => (
-                  <div key={group.date}>
-                    <div className="flex items-center gap-2 my-3">
-                      <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-                      <span className="text-[10px] text-slate-400 font-medium">{group.date}</span>
-                      <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-                    </div>
-
-                    {group.items.map((cmt: Record<string, unknown>) => (
-                      <div key={cmt.id as string} className="flex gap-2 mb-3">
-                        <div className={cn(
-                          'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
-                          cmt.sender_type === 'partner'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-blue-100 text-blue-700',
-                        )}>
-                          {((cmt.sender_name as string) || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-xs font-medium text-slate-800 dark:text-slate-100">
-                              {cmt.sender_name as string}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {new Date(cmt.created_at as string).toLocaleTimeString([], {
-                                hour: '2-digit', minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
-                            {cmt.body as string}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-                <div ref={commentsEndRef} />
-              </div>
-
-              <div className="border-t p-3">
-                <div className="flex gap-1.5">
-                  <textarea
-                    value={commentBody}
-                    onChange={e => setCommentBody(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handlePostComment();
-                      }
-                    }}
-                    placeholder="Type a message..."
-                    rows={1}
-                    className="flex-1 text-xs border rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700 resize-none"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handlePostComment}
-                    disabled={sending || !commentBody.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-auto self-end px-2.5 py-1.5"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <ConversationsPanel
+              comments={task.comments ?? []}
+              onPostComment={async (body) => {
+                await projectTasksAPI.postComment(projectId, taskId, body);
+                await loadTask();
+              }}
+            />
           </div>
         )}
       </DialogContent>

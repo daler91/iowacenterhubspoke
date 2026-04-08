@@ -134,6 +134,8 @@ async def create_task(
 
     task_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    status = data.status or "to_do"
+    is_completed = status == "completed"
     doc = {
         "id": task_id,
         "project_id": project_id,
@@ -142,12 +144,15 @@ async def create_task(
         "owner": data.owner,
         "assigned_to": data.assigned_to,
         "due_date": data.due_date,
-        "completed": False,
-        "completed_at": None,
-        "completed_by": None,
+        "status": status,
+        "completed": is_completed,
+        "completed_at": now if is_completed else None,
+        "completed_by": user.get("name", "System") if is_completed else None,
         "sort_order": next_order,
         "details": data.details or "",
         "description": data.description or "",
+        "spotlight": False,
+        "at_risk": False,
         "created_at": now,
     }
     await db.tasks.insert_one(doc)
@@ -203,6 +208,17 @@ async def update_task(
     }
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+    # Sync completed fields when status changes
+    if "status" in update_data:
+        now = datetime.now(timezone.utc).isoformat()
+        if update_data["status"] == "completed":
+            update_data["completed"] = True
+            update_data["completed_at"] = now
+            update_data["completed_by"] = user.get("name", "System")
+        else:
+            update_data["completed"] = False
+            update_data["completed_at"] = None
+            update_data["completed_by"] = None
     result = await db.tasks.update_one(
         {"id": task_id, "project_id": project_id},
         {"$set": update_data},
@@ -235,6 +251,7 @@ async def toggle_task_completion(
         "completed_by": (
             user.get("name", "System") if new_completed else None
         ),
+        "status": "completed" if new_completed else "to_do",
     }
     await db.tasks.update_one({"id": task_id}, {"$set": update})
     task.update(update)
