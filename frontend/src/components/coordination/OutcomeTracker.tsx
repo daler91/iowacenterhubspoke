@@ -12,6 +12,7 @@ interface EventOutcome {
   project_id: string;
   attendee_name: string;
   attendee_email?: string;
+  attendee_phone?: string;
   status: string;
   notes?: string;
 }
@@ -42,8 +43,13 @@ export default function OutcomeTracker({ projectId }: Props) {
   const [outcomes, setOutcomes] = useState<EventOutcome[]>([]);
   const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
-  const [bulkNames, setBulkNames] = useState('');
+  const [bulkText, setBulkText] = useState('');
+  const [parsedAttendees, setParsedAttendees] = useState<{ attendee_name: string; attendee_email?: string; attendee_phone?: string }[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [transitionWarning, setTransitionWarning] = useState<{
+    outcomeId: string; currentStatus: string; requestedStatus: string; attendeeName: string;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -60,25 +66,65 @@ export default function OutcomeTracker({ projectId }: Props) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleStatusChange = async (outcomeId: string, newStatus: string) => {
+  const handleStatusChange = async (outcomeId: string, newStatus: string, force?: boolean) => {
+    const outcome = outcomes.find(o => o.id === outcomeId);
     try {
-      await api.put(`/projects/${projectId}/outcomes/${outcomeId}`, { status: newStatus });
+      const res = await api.put(`/projects/${projectId}/outcomes/${outcomeId}`, {
+        status: newStatus,
+        ...(force ? { force: true } : {}),
+      });
+      if (res.data.warning && res.data.requires_confirmation) {
+        setTransitionWarning({
+          outcomeId,
+          currentStatus: res.data.current_status,
+          requestedStatus: res.data.requested_status,
+          attendeeName: outcome?.attendee_name || 'Attendee',
+        });
+        return;
+      }
       loadData();
     } catch {
       toast.error('Failed to update');
     }
   };
 
+  const handleForceTransition = async () => {
+    if (!transitionWarning) return;
+    await handleStatusChange(transitionWarning.outcomeId, transitionWarning.requestedStatus, true);
+    setTransitionWarning(null);
+    loadData();
+  };
+
+  const handleParsePreview = () => {
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
+    const parsed = lines.map(line => {
+      const parts = line.split(',').map(p => p.trim());
+      return {
+        attendee_name: parts[0] || '',
+        attendee_email: parts[1] || undefined,
+        attendee_phone: parts[2] || undefined,
+      };
+    }).filter(a => a.attendee_name);
+    setParsedAttendees(parsed);
+    setShowPreview(true);
+  };
+
   const handleBulkAdd = async () => {
-    const names = bulkNames.split('\n').map(n => n.trim()).filter(Boolean);
-    if (names.length === 0) return;
+    if (parsedAttendees.length === 0) return;
     setAdding(true);
     try {
       await api.post(`/projects/${projectId}/outcomes/bulk`, {
-        attendees: names.map(name => ({ attendee_name: name, status: 'attended' })),
+        attendees: parsedAttendees.map(a => ({
+          attendee_name: a.attendee_name,
+          attendee_email: a.attendee_email || null,
+          attendee_phone: a.attendee_phone || null,
+          status: 'attended',
+        })),
       });
-      toast.success(`${names.length} attendees added`);
-      setBulkNames('');
+      toast.success(`${parsedAttendees.length} attendees added`);
+      setBulkText('');
+      setParsedAttendees([]);
+      setShowPreview(false);
       setShowBulkAdd(false);
       loadData();
     } catch {
@@ -152,23 +198,81 @@ export default function OutcomeTracker({ projectId }: Props) {
       </div>
 
       {/* Bulk Add Dialog */}
-      <Dialog open={showBulkAdd} onOpenChange={setShowBulkAdd}>
-        <DialogContent className="max-w-md">
+      <Dialog open={showBulkAdd} onOpenChange={(open) => { setShowBulkAdd(open); if (!open) { setShowPreview(false); setParsedAttendees([]); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Attendees</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-500 mb-2">Enter one name per line:</p>
-          <textarea
-            value={bulkNames}
-            onChange={e => setBulkNames(e.target.value)}
-            rows={8}
-            className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            placeholder="John Smith&#10;Jane Doe&#10;..."
-          />
+          {!showPreview ? (
+            <>
+              <p className="text-sm text-slate-500 mb-2">
+                Enter one attendee per line (Name, Email, Phone):
+              </p>
+              <textarea
+                value={bulkText}
+                onChange={e => setBulkText(e.target.value)}
+                rows={8}
+                className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
+                placeholder="John Smith, john@example.com, 515-555-0100&#10;Jane Doe, jane@example.com&#10;Bob Jones"
+              />
+              <div className="flex justify-end gap-2 mt-2">
+                <Button variant="outline" onClick={() => setShowBulkAdd(false)}>Cancel</Button>
+                <Button onClick={handleParsePreview} disabled={!bulkText.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Preview
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-500 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
+              <div className="max-h-60 overflow-y-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-1.5 font-medium">Name</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Email</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedAttendees.map((a, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-3 py-1.5">{a.attendee_name}</td>
+                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_email || '-'}</td>
+                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_phone || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <Button variant="outline" onClick={() => setShowPreview(false)}>Back</Button>
+                <Button onClick={handleBulkAdd} disabled={adding} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {adding ? 'Adding...' : `Add ${parsedAttendees.length} Attendees`}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Backward Transition Warning Dialog */}
+      <Dialog open={!!transitionWarning} onOpenChange={() => setTransitionWarning(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Status Change</DialogTitle>
+          </DialogHeader>
+          {transitionWarning && (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Move <strong>{transitionWarning.attendeeName}</strong> from{' '}
+              <strong>{transitionWarning.currentStatus}</strong> back to{' '}
+              <strong>{transitionWarning.requestedStatus}</strong>?
+            </p>
+          )}
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="outline" onClick={() => setShowBulkAdd(false)}>Cancel</Button>
-            <Button onClick={handleBulkAdd} disabled={adding} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-              {adding ? 'Adding...' : 'Add All'}
+            <Button variant="outline" onClick={() => setTransitionWarning(null)}>Cancel</Button>
+            <Button onClick={handleForceTransition} className="bg-amber-600 hover:bg-amber-700 text-white">
+              Confirm
             </Button>
           </div>
         </DialogContent>

@@ -59,6 +59,7 @@ export interface Schedule {
   town_to_town_drive_minutes?: number | null;
   recurrence?: string;
   recurrence_rule?: Record<string, unknown> | null;
+  series_id?: string | null;
   calendar_events?: Record<string, Record<string, unknown>> | null;
   created_at: string;
   deleted_at?: string | null;

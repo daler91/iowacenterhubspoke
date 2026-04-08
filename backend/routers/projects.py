@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
-from models.coordination_schemas import ProjectCreate, ProjectUpdate
+from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
 from core.auth import CurrentUser
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
 from services.activity import log_activity
@@ -465,7 +465,13 @@ async def delete_project(project_id: str, user: CurrentUser):
         404: {"description": PROJECT_NOT_FOUND},
     },
 )
-async def advance_phase(project_id: str, user: CurrentUser):
+async def advance_phase(
+    project_id: str,
+    user: CurrentUser,
+    body: Optional[PhaseAdvanceRequest] = None,
+):
+    force = body.force if body else False
+
     project = await db.projects.find_one(
         {"id": project_id, "deleted_at": None}, {"_id": 0}
     )
@@ -478,6 +484,30 @@ async def advance_phase(project_id: str, user: CurrentUser):
         raise HTTPException(status_code=400, detail="Project is already complete")
 
     next_phase = PROJECT_PHASES[current_idx + 1]
+
+    # Phase gate: check task completion in current phase
+    tasks = await db.tasks.find(
+        {"project_id": project_id, "phase": current},
+        {"_id": 0, "id": 1, "title": 1, "completed": 1},
+    ).to_list(1000)
+    incomplete_tasks = [t for t in tasks if not t.get("completed")]
+    total = len(tasks)
+    completed_count = total - len(incomplete_tasks)
+    completion_pct = round((completed_count / total * 100) if total else 100, 1)
+
+    if incomplete_tasks and not force:
+        return {
+            "warning": True,
+            "incomplete_tasks": [
+                {"id": t["id"], "title": t["title"]} for t in incomplete_tasks
+            ],
+            "completion_percentage": completion_pct,
+            "completed_count": completed_count,
+            "total_count": total,
+            "current_phase": current,
+            "next_phase": next_phase,
+        }
+
     now = datetime.now(timezone.utc).isoformat()
     await db.projects.update_one(
         {"id": project_id},
@@ -488,4 +518,4 @@ async def advance_phase(project_id: str, user: CurrentUser):
         f"Project advanced from {current} to {next_phase}",
         "project", project_id, user.get("name", "System"),
     )
-    return {"phase": next_phase, "previous_phase": current}
+    return {"warning": False, "phase": next_phase, "previous_phase": current}

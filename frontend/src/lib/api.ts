@@ -112,9 +112,14 @@ export const schedulesAPI = {
   checkConflicts: (data: Record<string, unknown>) => api.post('/schedules/check-conflicts', data),
   bulkDelete: (ids: string[]) => api.post('/schedules/bulk-delete', { ids }),
   bulkUpdateStatus: (ids: string[], status: string) => api.put('/schedules/bulk-status', { ids, status }),
-  bulkReassign: (ids: string[], employee_id: string) => api.put('/schedules/bulk-reassign', { ids, employee_id }),
-  bulkUpdateLocation: (ids: string[], location_id: string) => api.put('/schedules/bulk-location', { ids, location_id }),
+  bulkReassign: (ids: string[], employee_ids: string[], force?: boolean) =>
+    api.put('/schedules/bulk-reassign', { ids, employee_ids, force: force ?? false }),
+  bulkUpdateLocation: (ids: string[], location_id: string, force?: boolean) =>
+    api.put('/schedules/bulk-location', { ids, location_id, force: force ?? false }),
   bulkUpdateClass: (ids: string[], class_id: string) => api.put('/schedules/bulk-class', { ids, class_id }),
+  deleteSeries: (seriesId: string) => api.delete(`/schedules/series/${seriesId}`),
+  updateSeries: (seriesId: string, data: Record<string, unknown>) =>
+    api.put(`/schedules/series/${seriesId}`, data),
 };
 
 // System Config

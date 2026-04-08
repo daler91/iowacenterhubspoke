@@ -431,6 +431,67 @@ async def update_schedule_status(
     return updated
 
 
+# --- Series operations ---
+
+@router.delete(
+    "/series/{series_id}",
+    summary="Soft-delete all future schedules in a recurrence series",
+)
+async def delete_series(series_id: str, user: SchedulerRequired):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.schedules.update_many(
+        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    deleted_count = result.modified_count
+    if deleted_count > 0:
+        logger.info(f"Series {series_id}: soft-deleted {deleted_count} future schedules")
+        await log_activity(
+            "schedule_series_deleted",
+            f"Deleted {deleted_count} future schedule(s) in series",
+            "schedule_series", series_id, user.get("name", "System"),
+        )
+    return {"deleted_count": deleted_count, "series_id": series_id}
+
+
+@router.put(
+    "/series/{series_id}",
+    summary="Update all future schedules in a recurrence series",
+)
+async def update_series(
+    series_id: str, data: ScheduleUpdate, user: SchedulerRequired
+):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+
+    # Resolve relations (location name, employee snapshots, class snapshot)
+    # Use a representative schedule to resolve drive overrides
+    sample = await db.schedules.find_one(
+        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+        {"_id": 0, "id": 1},
+    )
+    if sample:
+        from routers.schedule_crud import _resolve_update_relations
+        await _resolve_update_relations(sample["id"], update_data)
+
+    result = await db.schedules.update_many(
+        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+        {"$set": update_data},
+    )
+    updated_count = result.modified_count
+    if updated_count > 0:
+        logger.info(f"Series {series_id}: updated {updated_count} future schedules")
+        await log_activity(
+            "schedule_series_updated",
+            f"Updated {updated_count} future schedule(s) in series",
+            "schedule_series", series_id, user.get("name", "System"),
+        )
+    return {"updated_count": updated_count, "series_id": series_id}
+
+
 async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
     """Check conflicts for the first employee when relocating."""
     drive_time = schedule.get("drive_time_minutes", 0)

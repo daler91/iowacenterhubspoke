@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send,
+  FileText, Send, Download,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
@@ -274,6 +274,27 @@ export default function PortalDashboard() {
                         </p>
                       </div>
                       <Badge variant="secondary" className="text-[10px]">{doc.file_type.toUpperCase()}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          try {
+                            const res = await portalAPI.downloadDocument(project.id, doc.id, token!);
+                            const blob = new Blob([res.data]);
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = doc.filename;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            // silent fail — toast not available in portal
+                          }
+                        }}
+                        className="shrink-0"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
                     </Card>
                   ))}
                 </div>

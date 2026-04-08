@@ -86,16 +86,20 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="employee", entity_id=employee_id)
     else:
         # Fallback: sync inline when Redis/worker isn't available
-        # Update the matching entry in the employees array using arrayFilters
+        # Only update future schedules to preserve historical accuracy
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         await db.schedules.update_many(
-            {"employee_ids": employee_id},
+            {"employee_ids": employee_id, "date": {"$gte": today_str}},
             {"$set": {
                 "employees.$[elem].name": updated["name"],
                 "employees.$[elem].color": updated.get("color", "#4F46E5"),
             }},
             array_filters=[{"elem.id": employee_id}],
         )
-        logger.info("Inline sync completed for employee", extra={"entity": {"employee_id": employee_id}})
+        logger.info(
+            "Inline sync completed for employee (future only)",
+            extra={"entity": {"employee_id": employee_id}},
+        )
 
     return updated
 

@@ -67,6 +67,7 @@ async def send_message(project_id: str, data: MessageCreate, user: CurrentUser):
         "sender_name": user.get("name", "Unknown"),
         "sender_id": user.get("id", ""),
         "body": data.body,
+        "visibility": data.visibility,
         "created_at": now,
         "read_by": [user.get("id", "")],
     }

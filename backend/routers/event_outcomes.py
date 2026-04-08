@@ -143,8 +143,29 @@ async def update_outcome(
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Auto-set timestamps on status transitions
+    # Check for backward funnel transitions
     new_status = update_data.get("status")
+    force = update_data.pop("force", None)
+
+    if new_status:
+        from core.constants import OUTCOME_FUNNEL_ORDER
+        current_outcome = await db.event_outcomes.find_one(
+            {"id": outcome_id, "project_id": project_id}, {"_id": 0, "status": 1}
+        )
+        if current_outcome:
+            current_order = OUTCOME_FUNNEL_ORDER.get(current_outcome.get("status"), 0)
+            new_order = OUTCOME_FUNNEL_ORDER.get(new_status, 0)
+            # Warn on backward transitions (except moves to/from "lost" which has order -1)
+            if new_order >= 0 and current_order >= 0 and new_order < current_order and not force:
+                return {
+                    "warning": True,
+                    "requires_confirmation": True,
+                    "current_status": current_outcome.get("status"),
+                    "requested_status": new_status,
+                    "message": f"Moving from {current_outcome.get('status')} back to {new_status}",
+                }
+
+    # Auto-set timestamps on status transitions
     ts_field = {
         "contacted": "contacted_at",
         "consultation": "consultation_at",
