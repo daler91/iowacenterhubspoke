@@ -183,11 +183,10 @@ function TaskCard({
           </DropdownMenu>
 
           <div className="flex-1 min-w-0 pr-5">
-            {/* Spotlight banner */}
+            {/* Spotlight icon */}
             {task.spotlight && (
-              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">
-                <Star className="w-3.5 h-3.5 fill-amber-500" />
-                SPOTLIGHTED
+              <div className="mb-1.5">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
               </div>
             )}
             <p className={cn(
