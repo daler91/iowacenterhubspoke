@@ -41,41 +41,47 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
   onToggle: (field: 'spotlight' | 'at_risk') => void;
 }>) {
   return (
-    <div className="flex items-center gap-2 mb-3">
+    <div className="space-y-2 mb-3">
+      {/* Active flag banners */}
       {task.spotlight && (
-        <Badge className="bg-amber-100 text-amber-700 text-[10px]">
-          <Star className="w-2.5 h-2.5 mr-0.5 fill-amber-500" /> Spotlighted
-        </Badge>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800">
+          <Star className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
+          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Spotlighted</span>
+        </div>
       )}
       {task.at_risk && (
-        <Badge className="bg-red-100 text-red-700 text-[10px]">
-          <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> At Risk
-        </Badge>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800">
+          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+          <span className="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">At Risk</span>
+        </div>
       )}
-      <button
-        onClick={() => onToggle('spotlight')}
-        className={cn(
-          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
-          task.spotlight
-            ? 'border-amber-300 text-amber-600 bg-amber-50'
-            : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
-        )}
-      >
-        <Star className="w-2.5 h-2.5 inline mr-0.5" />
-        {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
-      </button>
-      <button
-        onClick={() => onToggle('at_risk')}
-        className={cn(
-          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
-          task.at_risk
-            ? 'border-red-300 text-red-600 bg-red-50'
-            : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
-        )}
-      >
-        <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
-        {task.at_risk ? 'Remove At Risk' : 'At Risk'}
-      </button>
+      {/* Toggle buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onToggle('spotlight')}
+          className={cn(
+            'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
+            task.spotlight
+              ? 'border-amber-400 text-amber-700 bg-amber-100 font-semibold'
+              : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
+          )}
+        >
+          <Star className="w-3 h-3 inline mr-0.5" />
+          {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
+        </button>
+        <button
+          onClick={() => onToggle('at_risk')}
+          className={cn(
+            'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
+            task.at_risk
+              ? 'border-red-400 text-red-700 bg-red-100 font-semibold'
+              : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
+          )}
+        >
+          <AlertTriangle className="w-3 h-3 inline mr-0.5" />
+          {task.at_risk ? 'Remove At Risk' : 'At Risk'}
+        </button>
+      </div>
     </div>
   );
 }

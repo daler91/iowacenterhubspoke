@@ -109,11 +109,18 @@ function TaskCard({
         className={cn(
           'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group',
           task.completed && 'opacity-45',
-          task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20',
-          task.at_risk && !task.spotlight && 'border-l-4 border-l-red-400 bg-red-50/40 dark:bg-red-950/20',
+          task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-950/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
+          task.at_risk && !task.spotlight && 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
         )}
         onClick={onOpen}
       >
+        {/* At-risk banner */}
+        {task.at_risk && (
+          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-[10px] font-semibold">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            AT RISK
+          </div>
+        )}
         {/* Three-dots context menu */}
         <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
@@ -176,20 +183,19 @@ function TaskCard({
           </DropdownMenu>
 
           <div className="flex-1 min-w-0 pr-5">
-            <div className="flex items-center gap-1.5">
-              {task.at_risk && (
-                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-              )}
-              {task.spotlight && (
-                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
-              )}
-              <p className={cn(
-                'text-sm font-medium text-slate-800 dark:text-slate-100',
-                task.completed && 'line-through text-slate-400',
-              )}>
-                {task.title}
-              </p>
-            </div>
+            {/* Spotlight banner */}
+            {task.spotlight && (
+              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">
+                <Star className="w-3.5 h-3.5 fill-amber-500" />
+                SPOTLIGHTED
+              </div>
+            )}
+            <p className={cn(
+              'text-sm font-medium text-slate-800 dark:text-slate-100',
+              task.completed && 'line-through text-slate-400',
+            )}>
+              {task.title}
+            </p>
             <div className="flex items-center gap-2 mt-1.5">
               <Badge className={cn('text-[10px] px-1.5 py-0', OWNER_COLORS[task.owner])}>
                 {OWNER_LABELS[task.owner]}
