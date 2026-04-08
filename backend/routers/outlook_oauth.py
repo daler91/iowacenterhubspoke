@@ -115,9 +115,10 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
     except Exception:
         logger.warning("Failed to fetch Microsoft user info for employee %s", employee_id)
 
-    # Store tokens on employee document
+    # Store tokens on employee document (encrypted at rest)
+    from core.token_vault import encrypt_token
     update = {
-        "outlook_refresh_token": refresh_token,
+        "outlook_refresh_token": encrypt_token(refresh_token),
         "outlook_calendar_connected": True,
     }
     if outlook_email:

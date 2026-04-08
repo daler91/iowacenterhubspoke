@@ -1,7 +1,6 @@
 import uuid
 import os
 import re
-import aiofiles
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -11,6 +10,7 @@ from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
 from core.auth import CurrentUser
+from core.upload import stream_upload_to_disk
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -319,9 +319,7 @@ async def upload_task_attachment(
     stored_name = _safe_stored_name(att_id, file.filename)
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
-    content = await file.read()
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
+    await stream_upload_to_disk(file, file_path)
 
     ext = os.path.splitext(stored_name)[1]
     now = datetime.now(timezone.utc).isoformat()

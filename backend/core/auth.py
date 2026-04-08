@@ -3,6 +3,7 @@ import secrets
 import logging
 import hashlib
 import hmac
+import time as _time
 import bcrypt
 import jwt
 from datetime import datetime, timezone
@@ -83,19 +84,34 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     # Session invalidation: reject tokens issued before a password change
     token_iat = payload.get('iat', 0)
     if token_iat:
-        from database import db
-        user_doc = await db.users.find_one(
-            {"id": payload['user_id']}, {"password_changed_at": 1}
-        )
-        if user_doc and user_doc.get('password_changed_at'):
-            changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
-            if token_iat < changed_ts:
-                raise HTTPException(
-                    status_code=401,
-                    detail='Session invalidated by password change. Please log in again.'
-                )
+        changed_ts = await _get_pwd_changed_ts(payload['user_id'])
+        if changed_ts and token_iat < changed_ts:
+            raise HTTPException(
+                status_code=401,
+                detail='Session invalidated by password change. Please log in again.'
+            )
 
     return payload
+
+
+# ── Password-change timestamp cache ──────────────────────────────────
+_pwd_change_cache: dict[str, tuple[float, float | None]] = {}  # user_id -> (cached_at, changed_ts)
+_PWD_CACHE_TTL = 300  # 5 minutes
+
+
+async def _get_pwd_changed_ts(user_id: str) -> float | None:
+    """Get cached password_changed_at timestamp, refreshing from DB if stale."""
+    now = _time.monotonic()
+    cached = _pwd_change_cache.get(user_id)
+    if cached and (now - cached[0]) < _PWD_CACHE_TTL:
+        return cached[1]
+    from database import db
+    user_doc = await db.users.find_one({"id": user_id}, {"password_changed_at": 1})
+    changed_ts = None
+    if user_doc and user_doc.get('password_changed_at'):
+        changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
+    _pwd_change_cache[user_id] = (now, changed_ts)
+    return changed_ts
 
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]

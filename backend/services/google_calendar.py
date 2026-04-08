@@ -138,8 +138,9 @@ async def _get_access_token(email: str, employee: dict | None = None) -> str | N
 
     # 1. Try OAuth refresh token (works for regular Gmail)
     if employee and employee.get("google_refresh_token") and GOOGLE_OAUTH_ENABLED:
+        from core.token_vault import decrypt_token
         token = await _get_access_token_oauth(
-            employee["google_refresh_token"], email
+            decrypt_token(employee["google_refresh_token"]), email
         )
         if token:
             return token

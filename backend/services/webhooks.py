@@ -1,14 +1,33 @@
 import uuid
 import hashlib
 import hmac
+import ipaddress
 import json
+import socket
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+from fastapi import HTTPException
 from database import db
 from core.queue import get_redis_pool
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def validate_webhook_url(url: str) -> None:
+    """Validate that a webhook URL is HTTPS and does not target private networks."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
+    if not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Invalid webhook URL")
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
+    except (socket.gaierror, ValueError):
+        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname")
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        raise HTTPException(status_code=400, detail="Webhook URL must not target private/internal networks")
 
 
 async def fire_webhook_event(event: str, payload: dict):
@@ -32,15 +51,16 @@ async def fire_webhook_event(event: str, payload: dict):
                 "deliver_webhook", sub["id"], event, payload,
             )
         else:
-            # Inline fallback (not recommended for production)
-            try:
-                await deliver_webhook(
-                    None, sub["id"], event, payload,
-                )
-            except Exception as e:
-                logger.error(
-                    "Inline webhook delivery failed: %s", e,
-                )
+            # Persist to outbox for async processing (Redis unavailable)
+            await db.webhook_outbox.insert_one({
+                "id": str(uuid.uuid4()),
+                "subscription_id": sub["id"],
+                "event": event,
+                "payload": payload,
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info("Webhook queued to outbox (Redis unavailable)")
 
 
 async def deliver_webhook(
@@ -57,6 +77,12 @@ async def deliver_webhook(
         return
 
     url = sub["url"]
+    # SSRF check at delivery time (defense in depth)
+    try:
+        validate_webhook_url(url)
+    except HTTPException:
+        logger.warning("Webhook %s has invalid URL %s — skipping delivery", subscription_id, url)
+        return
     secret = sub.get("secret", "")
     body = json.dumps({"event": event, "data": payload})
 

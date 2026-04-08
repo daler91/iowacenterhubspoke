@@ -42,6 +42,9 @@ router = APIRouter(tags=["schedules"])
 
 # --- List / Get ---
 
+MAX_SCHEDULE_LIMIT = 200
+
+
 @router.get("/", summary="List schedules")
 async def get_schedules(
     user: CurrentUser,
@@ -49,8 +52,10 @@ async def get_schedules(
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
     skip: int = 0,
-    limit: int = 1000,
+    limit: int = 100,
 ):
+    limit = max(1, min(limit, MAX_SCHEDULE_LIMIT))
+    skip = max(0, skip)
     query = {"deleted_at": None}
     if date_from and date_to:
         query["date"] = {"$gte": date_from, "$lte": date_to}

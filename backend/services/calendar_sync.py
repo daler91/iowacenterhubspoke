@@ -117,7 +117,11 @@ async def _fetch_refresh_token(employee_id: str) -> str | None:
         {"id": employee_id},
         {"google_refresh_token": 1},
     )
-    return doc.get("google_refresh_token") if doc else None
+    raw = doc.get("google_refresh_token") if doc else None
+    if raw:
+        from core.token_vault import decrypt_token
+        return decrypt_token(raw)
+    return None
 
 
 def enqueue_google_event(
