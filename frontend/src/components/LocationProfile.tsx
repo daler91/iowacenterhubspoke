@@ -24,6 +24,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
+import { PageBreadcrumb } from './ui/page-breadcrumb';
 
 const PIE_COLORS = ['#4F46E5', '#0D9488', '#F97316', '#DC2626', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
@@ -80,11 +81,19 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="location-profile">
-      {/* Back button */}
-      <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="location-profile-back-btn">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Locations
-      </Button>
+      {/* Breadcrumb / Back */}
+      {propOnBack ? (
+        <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="location-profile-back-btn">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Locations
+        </Button>
+      ) : (
+        <PageBreadcrumb segments={[
+          { label: 'Manage' },
+          { label: 'Locations', path: '/locations' },
+          { label: location?.city_name || 'Location' },
+        ]} />
+      )}
 
       {/* Profile header */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">

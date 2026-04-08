@@ -6,7 +6,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { ArrowLeft, Plus, User, MapPin, Calendar } from 'lucide-react';
+import { Plus, User, MapPin, Calendar } from 'lucide-react';
+import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { usePartnerOrg } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
 import {
@@ -59,12 +60,11 @@ export default function PartnerProfile() {
 
   return (
     <div className="p-6 max-w-4xl">
-      <button
-        onClick={() => navigate('/coordination/partners')}
-        className="flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 mb-4 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to partners
-      </button>
+      <PageBreadcrumb segments={[
+        { label: 'Coordination', path: '/coordination' },
+        { label: 'Partners', path: '/coordination/partners' },
+        { label: partnerOrg.name },
+      ]} />
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">

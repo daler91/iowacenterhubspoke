@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
@@ -11,6 +11,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2, ChevronDown, ChevronRight, Megaphone, Users } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
@@ -221,6 +222,8 @@ function AddTaskInline({
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const context = useOutletContext<Record<string, unknown>>() ?? {};
+  const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const { project, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -280,12 +283,11 @@ export default function ProjectDetail() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/coordination/board')}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to board
-        </button>
+        <PageBreadcrumb segments={[
+          { label: 'Coordination', path: '/coordination' },
+          { label: 'Projects', path: '/coordination/board' },
+          { label: project.title },
+        ]} />
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
             {project.title}
@@ -442,6 +444,7 @@ export default function ProjectDetail() {
           onClose={() => setSelectedTaskId(null)}
           onUpdated={mutateTasks}
           projectTitle={project?.title}
+          employees={employees}
         />
       )}
     </div>

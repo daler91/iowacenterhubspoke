@@ -21,6 +21,7 @@ import {
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { SearchableSelect } from '../ui/searchable-select';
 
 
 function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: unknown }>) {
@@ -47,10 +48,11 @@ interface Props {
   readonly onClose: () => void;
   readonly onUpdated: () => void;
   readonly projectTitle?: string;
+  readonly employees?: Array<{ id: string; name: string; color?: string }>;
 }
 
 export default function TaskDetailModal({
-  projectId, taskId, open, onClose, onUpdated, projectTitle,
+  projectId, taskId, open, onClose, onUpdated, projectTitle, employees = [],
 }: Props) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -224,13 +226,36 @@ export default function TaskDetailModal({
                   <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[9px] font-semibold">
                     {(assignedTo || '?').charAt(0).toUpperCase()}
                   </div>
-                  <Input
-                    value={assignedTo}
-                    onChange={e => setAssignedTo(e.target.value)}
-                    onBlur={() => saveField('assigned_to', assignedTo)}
-                    placeholder="Unassigned"
-                    className="text-xs border-0 p-0 h-auto w-24 shadow-none focus-visible:ring-0"
-                  />
+                  {employees.length > 0 ? (
+                    <div className="w-36">
+                      <SearchableSelect
+                        options={[
+                          ...employees.map(e => ({ value: e.name, label: e.name })),
+                          { value: '__custom__', label: 'Custom name...' },
+                        ]}
+                        value={employees.some(e => e.name === assignedTo) ? assignedTo : ''}
+                        onValueChange={(v) => {
+                          if (v === '__custom__') {
+                            const name = prompt('Enter assignee name:');
+                            if (name) { setAssignedTo(name); saveField('assigned_to', name); }
+                          } else {
+                            setAssignedTo(v); saveField('assigned_to', v);
+                          }
+                        }}
+                        placeholder="Unassigned"
+                        searchPlaceholder="Search team..."
+                        className="text-xs h-7 border-0 shadow-none"
+                      />
+                    </div>
+                  ) : (
+                    <Input
+                      value={assignedTo}
+                      onChange={e => setAssignedTo(e.target.value)}
+                      onBlur={() => saveField('assigned_to', assignedTo)}
+                      placeholder="Unassigned"
+                      className="text-xs border-0 p-0 h-auto w-24 shadow-none focus-visible:ring-0"
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5">
