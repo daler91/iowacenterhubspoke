@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
@@ -49,8 +49,73 @@ function snapYToMinutes(y) {
   return Math.max(0, START_HOUR * 60 + snappedMinutes);
 }
 
+// ─── Overlap layout algorithm ─────────────────────────────────────────────
+interface OverlapInfo {
+  column: number;
+  totalColumns: number;
+}
+
+/** Assign each schedule to a column, return per-schedule column and total overlap count */
+function assignColumns(sorted: Array<{ id: string; start_time: string; end_time: string }>) {
+  const columns: Array<{ id: string; endMin: number }[]> = [];
+  const assignment: Record<string, number> = {};
+
+  for (const s of sorted) {
+    const startMin = timeToMinutes(s.start_time);
+    const col = columns.findIndex(c => (c.at(-1)?.endMin ?? Infinity) <= startMin);
+    if (col >= 0) {
+      columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
+      assignment[s.id] = col;
+    } else {
+      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
+      assignment[s.id] = columns.length - 1;
+    }
+  }
+  return { columns, assignment };
+}
+
+/** Count how many columns have items overlapping with the given time range */
+function countOverlapping(columns: Array<{ id: string; endMin: number }[]>, sStart: number, sEnd: number, sorted: Array<{ id: string; start_time: string }>) {
+  let count = 0;
+  for (const col of columns) {
+    const hasOverlap = col.some(item => {
+      const match = sorted.find(x => x.id === item.id);
+      if (!match) return false;
+      const iStart = timeToMinutes(match.start_time);
+      return iStart < sEnd && item.endMin > sStart;
+    });
+    if (hasOverlap) count++;
+  }
+  return count;
+}
+
+function computeOverlapLayout(schedules: Array<{ id: string; start_time: string; end_time: string }>): Record<string, OverlapInfo> {
+  if (schedules.length <= 1) {
+    const result: Record<string, OverlapInfo> = {};
+    for (const s of schedules) result[s.id] = { column: 0, totalColumns: 1 };
+    return result;
+  }
+
+  const sorted = [...schedules].sort((a, b) => {
+    const diff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
+    return diff === 0 ? timeToMinutes(b.end_time) - timeToMinutes(a.end_time) : diff;
+  });
+
+  const { columns, assignment } = assignColumns(sorted);
+  const result: Record<string, OverlapInfo> = {};
+
+  for (const s of sorted) {
+    const sStart = timeToMinutes(s.start_time);
+    const sEnd = timeToMinutes(s.end_time);
+    const maxOverlap = countOverlapping(columns, sStart, sEnd, sorted);
+    result[s.id] = { column: assignment[s.id], totalColumns: Math.max(maxOverlap, 1) };
+  }
+
+  return result;
+}
+
 // ─── Draggable schedule block ─────────────────────────────────────────────
-const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo }) {
+const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo, overlapInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule, dateStr },
@@ -78,6 +143,15 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
   const employeeDisplay = schedule.employees?.map(e => e.name).join(', ') || 'Unassigned';
   const selected = selectionMode && isSelected?.(schedule.id);
 
+  // Overlap layout: compute left/width percentages
+  const ol = overlapInfo || { column: 0, totalColumns: 1 };
+  const colWidthPct = 100 / ol.totalColumns;
+  const leftPct = ol.column * colWidthPct;
+  const hasOverlap = ol.totalColumns > 1;
+  const overlapStyle = hasOverlap
+    ? { left: `${leftPct}%`, width: `${colWidthPct}%`, right: 'auto' }
+    : {};
+
   return (
     <div style={{ opacity: isDragging ? 0.3 : 1, transition: 'opacity 0.15s' }}>
       {/* Drive time BEFORE (hub drive for first class, nothing for others in chain) */}
@@ -87,7 +161,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
             <div
               data-testid={`drive-before-${schedule.id}`}
               className="schedule-block drive-block"
-              style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px` }}
+              style={{ top: `${driveBeforeTop}px`, height: `${Math.max(driveBeforeHeight, 20)}px`, ...overlapStyle }}
             >
               <div className="flex items-center gap-1">
                 <Car className="w-3 h-3" />
@@ -123,6 +197,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                 height: `${Math.max(classHeight, 30)}px`,
                 backgroundColor: classColor,
                 borderLeft: `4px solid ${classColor}`,
+                ...overlapStyle,
               }}
               onClick={() => {
                 if (selectionMode) {
@@ -183,7 +258,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
             <div
               data-testid={`drive-after-${schedule.id}`}
               className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
-              style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px` }}
+              style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px`, ...overlapStyle }}
             >
               <div className="flex items-center gap-1">
                 {isTTAfter ? <ArrowRightLeft className="w-3 h-3" /> : <Car className="w-3 h-3" />}
@@ -202,7 +277,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
 
 
 // ─── Droppable day column ─────────────────────────────────────────────────
-function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
+function DroppableDay({ dateStr, children, dropIndicatorMinutes, isToday, currentTimeMinutes }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
 
   return (
@@ -211,7 +286,8 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
       aria-label={`Schedule drop zone for ${dateStr}`}
       className={cn(
         "border-r border-gray-100 last:border-r-0 relative",
-        isOver && "bg-indigo-50/20"
+        isOver && "bg-indigo-50/20",
+        isToday && "bg-indigo-50/10"
       )}
     >
       {HOURS.map(hour => (
@@ -220,6 +296,19 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
           className="h-[60px] border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
         />
       ))}
+
+      {/* Current time indicator */}
+      {isToday && currentTimeMinutes != null && currentTimeMinutes >= START_HOUR * 60 && (
+        <div
+          className="absolute left-0 right-0 z-20 pointer-events-none"
+          style={{ top: `${minutesToTop(currentTimeMinutes)}px` }}
+        >
+          <div className="flex items-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shrink-0" />
+            <div className="flex-1 h-[2px] bg-red-500" />
+          </div>
+        </div>
+      )}
 
       {/* Drop position indicator */}
       {isOver && dropIndicatorMinutes != null && (
@@ -274,6 +363,14 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
   const [activeSchedule, setActiveSchedule] = useState(null);
   const [dropIndicator, setDropIndicator] = useState({ dateStr: null, minutes: null });
+
+  // Current time indicator (updates every minute)
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -409,8 +506,9 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               const daySchedules = schedulesByDay[dateStr] || [];
               const indicatorMinutes = dropIndicator.dateStr === dateStr ? dropIndicator.minutes : null;
               const driveChain = computeDriveChain(daySchedules);
+              const overlapLayout = computeOverlapLayout(daySchedules);
               return (
-                <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes}>
+                <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes} isToday={isSameDay(day, now)} currentTimeMinutes={currentTimeMinutes}>
                   <TooltipProvider delayDuration={200}>
                     {daySchedules.map(schedule => (
                       <DraggableBlock
@@ -423,6 +521,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
                         toggleItem={toggleItem}
                         onEditSchedule={onEditSchedule}
                         chainInfo={driveChain[schedule.id]}
+                        overlapInfo={overlapLayout[schedule.id]}
                       />
                     ))}
                   </TooltipProvider>

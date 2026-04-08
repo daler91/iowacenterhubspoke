@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Clock, Car, MapPin, BookOpen,
-  CheckCircle2, CalendarDays, Mail, Phone
+  Clock, Car, MapPin, BookOpen,
+  CheckCircle2, CalendarDays, Mail, Phone, ArrowLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
@@ -10,6 +10,7 @@ import { Button } from './ui/button';
 import { EntityLink } from './ui/entity-link';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
+import { PageBreadcrumb } from './ui/page-breadcrumb';
 
 export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack } = {}) {
   const params = useParams();
@@ -60,11 +61,19 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="employee-profile">
-      {/* Back button */}
-      <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="profile-back-btn">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Employees
-      </Button>
+      {/* Breadcrumb / Back */}
+      {propOnBack ? (
+        <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="profile-back-btn">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Employees
+        </Button>
+      ) : (
+        <PageBreadcrumb segments={[
+          { label: 'Manage' },
+          { label: 'Employees', path: '/employees' },
+          { label: employee?.name || 'Employee' },
+        ]} />
+      )}
 
       {/* Profile header */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">

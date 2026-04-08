@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Search, UserPlus } from 'lucide-react';
+import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import api from '../../lib/api';
@@ -47,6 +48,12 @@ export default function OutcomeTracker({ projectId }: Props) {
   const [parsedAttendees, setParsedAttendees] = useState<{ attendee_name: string; attendee_email?: string; attendee_phone?: string }[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickName, setQuickName] = useState('');
+  const [quickEmail, setQuickEmail] = useState('');
+  const [quickPhone, setQuickPhone] = useState('');
+  const [quickAdding, setQuickAdding] = useState(false);
   const [transitionWarning, setTransitionWarning] = useState<{
     outcomeId: string; currentStatus: string; requestedStatus: string; attendeeName: string;
   } | null>(null);
@@ -134,16 +141,74 @@ export default function OutcomeTracker({ projectId }: Props) {
     }
   };
 
+  const handleQuickAdd = async () => {
+    if (!quickName.trim()) return;
+    setQuickAdding(true);
+    try {
+      await api.post(`/projects/${projectId}/outcomes/bulk`, {
+        attendees: [{
+          attendee_name: quickName.trim(),
+          attendee_email: quickEmail.trim() || null,
+          attendee_phone: quickPhone.trim() || null,
+          status: 'attended',
+        }],
+      });
+      toast.success(`Added ${quickName.trim()}`);
+      setQuickName(''); setQuickEmail(''); setQuickPhone('');
+      setShowQuickAdd(false);
+      loadData();
+    } catch {
+      toast.error('Failed to add attendee');
+    } finally {
+      setQuickAdding(false);
+    }
+  };
+
+  const filteredOutcomes = searchQuery
+    ? outcomes.filter(o =>
+        o.attendee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        o.attendee_email?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : outcomes;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
           <Users className="w-4 h-4" /> Outcomes
         </h3>
-        <Button size="sm" variant="outline" onClick={() => setShowBulkAdd(true)}>
-          <Plus className="w-3.5 h-3.5 mr-1" /> Add Attendees
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowQuickAdd(!showQuickAdd)}>
+            <UserPlus className="w-3.5 h-3.5 mr-1" /> Quick Add
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowBulkAdd(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1" /> Bulk Add
+          </Button>
+        </div>
       </div>
+
+      {/* Quick Add Row */}
+      {showQuickAdd && (
+        <Card className="p-3 mb-4 border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/20">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label htmlFor="quick-add-name" className="text-[10px] text-slate-500 uppercase tracking-wide">Name *</label>
+              <Input id="quick-add-name" value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="Attendee name" className="h-8 text-sm" />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="quick-add-email" className="text-[10px] text-slate-500 uppercase tracking-wide">Email</label>
+              <Input id="quick-add-email" value={quickEmail} onChange={e => setQuickEmail(e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
+            </div>
+            <div className="w-32">
+              <label htmlFor="quick-add-phone" className="text-[10px] text-slate-500 uppercase tracking-wide">Phone</label>
+              <Input id="quick-add-phone" value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="515-555-0100" className="h-8 text-sm" />
+            </div>
+            <Button size="sm" onClick={handleQuickAdd} disabled={quickAdding || !quickName.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white h-8">
+              Add
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Funnel */}
       {funnel && funnel.total > 0 && (
@@ -171,29 +236,48 @@ export default function OutcomeTracker({ projectId }: Props) {
         </Card>
       )}
 
+      {/* Search */}
+      {outcomes.length > 5 && (
+        <div className="relative mb-3">
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search attendees..."
+            className="pl-8 h-8 text-sm"
+          />
+        </div>
+      )}
+
       {/* Table */}
       <div className="space-y-2">
-        {outcomes.map(o => (
-          <Card key={o.id} className="p-3 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">{o.attendee_name}</p>
-              {o.attendee_email && (
-                <p className="text-xs text-slate-400">{o.attendee_email}</p>
-              )}
-            </div>
-            <select
-              value={o.status}
-              onChange={e => handleStatusChange(o.id, e.target.value)}
-              className="text-xs border rounded px-2 py-1 bg-white dark:bg-gray-900"
-            >
-              {STATUSES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </Card>
-        ))}
+        {filteredOutcomes.map(o => {
+          const statusDef = STATUSES.find(s => s.value === o.status);
+          return (
+            <Card key={o.id} className="p-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{o.attendee_name}</p>
+                {o.attendee_email && (
+                  <p className="text-xs text-slate-400">{o.attendee_email}</p>
+                )}
+              </div>
+              <select
+                value={o.status}
+                onChange={e => handleStatusChange(o.id, e.target.value)}
+                className={cn('text-xs border rounded px-2 py-1', statusDef?.color || 'bg-white dark:bg-gray-900')}
+              >
+                {STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </Card>
+          );
+        })}
         {outcomes.length === 0 && (
           <p className="text-sm text-slate-400 text-center py-4">No outcomes tracked yet</p>
+        )}
+        {outcomes.length > 0 && filteredOutcomes.length === 0 && (
+          <p className="text-sm text-slate-400 text-center py-4">No matching attendees</p>
         )}
       </div>
 

@@ -3,6 +3,7 @@ import { BookOpen, Pencil, Plus, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -25,6 +26,7 @@ export default function ClassManager() {
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', color: '#0F766E' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const openNew = () => {
     setEditing(null);
@@ -161,7 +163,7 @@ export default function ClassManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-class-${classItem.id}`}
-                    onClick={() => handleDelete(classItem.id)}
+                    onClick={() => setDeleteTarget(classItem)}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -180,6 +182,27 @@ export default function ClassManager() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Class</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone. Any schedules using this class will become unclassified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { handleDelete(deleteTarget?.id); setDeleteTarget(null); }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-form-dialog">
@@ -220,7 +243,7 @@ export default function ClassManager() {
 
             <div className="space-y-2">
               <Label data-testid="class-color-label">Color</Label>
-              <div className="flex flex-wrap gap-2" data-testid="class-color-grid">
+              <div className="flex flex-wrap gap-2 items-center" data-testid="class-color-grid">
                 {CLASS_COLORS.map((color) => (
                   <button
                     key={color}
@@ -232,6 +255,22 @@ export default function ClassManager() {
                     aria-label={`Use ${color} for class`}
                   />
                 ))}
+                <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-slate-300 hover:border-slate-400 cursor-pointer transition-colors flex items-center justify-center group">
+                  <Plus className="w-3 h-3 text-slate-400 group-hover:text-slate-500" />
+                  <input
+                    type="color"
+                    value={form.color}
+                    onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    aria-label="Pick custom color"
+                  />
+                </label>
+                {!CLASS_COLORS.includes(form.color) && (
+                  <div
+                    className="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-slate-900 scale-110"
+                    style={{ backgroundColor: form.color }}
+                  />
+                )}
               </div>
             </div>
 

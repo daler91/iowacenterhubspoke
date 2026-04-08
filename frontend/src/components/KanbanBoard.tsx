@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake } from 'lucide-react';
+import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake, CalendarDays } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
@@ -12,6 +12,11 @@ import { mutate } from 'swr';
 import { SCHEDULE_STATUS, COLORS } from '../lib/constants';
 import BulkActionBar from './BulkActionBar';
 import useSelectionMode from '../hooks/useSelectionMode';
+import {
+  DndContext, closestCenter, type DragEndEvent,
+  PointerSensor, useSensor, useSensors,
+  useDroppable, useDraggable,
+} from '@dnd-kit/core';
 
 const COLUMNS = [
   { id: SCHEDULE_STATUS.UPCOMING, label: 'Upcoming', color: COLORS.STATUS.UPCOMING, lightColor: COLORS.STATUS_LIGHT.UPCOMING, textColor: COLORS.STATUS_TEXT.UPCOMING },
@@ -20,23 +25,28 @@ const COLUMNS = [
 ];
 
 function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelected, toggleItem }) {
-  const [dragging, setDragging] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: schedule.id,
+    data: { schedule },
+    disabled: selectionMode,
+  });
+  const style = transform
+    ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
+    : undefined;
   const classColor = schedule.class_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
   return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...(selectionMode ? {} : { ...listeners, ...attributes })}
+      className={cn('touch-none', isDragging && 'opacity-50')}
+    >
     <button
       type="button"
       data-testid={`kanban-card-${schedule.id}`}
-      draggable={!selectionMode}
-      onDragStart={(e) => {
-        if (selectionMode) { e.preventDefault(); return; }
-        e.dataTransfer.setData('scheduleId', schedule.id);
-        e.dataTransfer.setData('currentStatus', schedule.status || SCHEDULE_STATUS.UPCOMING);
-        setDragging(true);
-      }}
-      onDragEnd={() => setDragging(false)}
       onClick={() => {
         if (selectionMode) {
           toggleItem?.(schedule.id);
@@ -57,7 +67,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
       className={cn(
         "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full",
         selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
-        dragging && "opacity-50 scale-95",
+        isDragging && "opacity-50 scale-95",
         selected && "ring-2 ring-indigo-500 ring-offset-1"
       )}
       style={{ borderLeftColor: classColor }}
@@ -154,10 +164,18 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         </div>
       )}
     </button>
+    </div>
   );
 }
 
-
+function DroppableColumn({ id, children }: Readonly<{ id: string; children: React.ReactNode }>) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={cn('transition-colors rounded-xl', isOver && 'bg-indigo-50/40')}>
+      {children}
+    </div>
+  );
+}
 
 export default function KanbanBoard() {
   const navigate = useNavigate();
@@ -212,14 +230,17 @@ export default function KanbanBoard() {
     }
   };
 
-  const handleDrop = async (e, targetStatus) => {
-    if (selectionMode) return;
-    e.preventDefault();
-    const scheduleId = e.dataTransfer.getData('scheduleId');
-    const currentStatus = e.dataTransfer.getData('currentStatus');
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !active.data.current?.schedule) return;
+    const schedule = active.data.current.schedule;
+    const targetStatus = over.id as string;
+    const currentStatus = schedule.status || SCHEDULE_STATUS.UPCOMING;
     if (currentStatus === targetStatus) return;
-    await handleStatusChange(scheduleId, targetStatus);
-  };
+    await handleStatusChange(schedule.id, targetStatus);
+  }, [handleStatusChange]);
 
   const getColumnSchedules = (status) =>
     (schedules || []).filter(s => (s.status || SCHEDULE_STATUS.UPCOMING) === status)
@@ -274,61 +295,65 @@ export default function KanbanBoard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
           const items = getColumnSchedules(col.id);
           const allSelected = selectionMode && items.length > 0 && items.every(s => selectedIds.has(s.id));
           return (
-            <section
-              key={col.id}
-              aria-label={`${col.label} column`}
-              data-testid={`kanban-column-${col.id}`}
-              onDragOver={(e) => { if (!selectionMode) e.preventDefault(); }}
-              onDrop={(e) => handleDrop(e, col.id)}
-              className="bg-gray-50/80 rounded-xl border border-gray-200 min-h-[400px]"
-            >
-              {/* Column header */}
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {selectionMode && items.length > 0 && (
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={() => handleColumnSelectAll(items)}
-                      className="mr-1"
-                      data-testid={`kanban-select-all-${col.id}`}
-                    />
-                  )}
-                  <div className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
-                  <h3 className="text-sm font-semibold text-slate-700">{col.label}</h3>
-                </div>
-                <Badge className={cn("border-0 text-[10px] px-2", col.lightColor, col.textColor)}>
-                  {items.length}
-                </Badge>
-              </div>
-
-              {/* Cards */}
-              <div className="p-3 space-y-3">
-                {items.map(schedule => (
-                  <KanbanCard
-                    key={schedule.id}
-                    schedule={schedule}
-                    onStatusChange={handleStatusChange}
-                    onEdit={onEditSchedule}
-                    selectionMode={selectionMode}
-                    isSelected={isSelected}
-                    toggleItem={toggleItem}
-                  />
-                ))}
-                {items.length === 0 && (
-                  <div className="text-center py-8 text-slate-300">
-                    <p className="text-sm">No classes</p>
+            <DroppableColumn key={col.id} id={col.id}>
+              <section
+                aria-label={`${col.label} column`}
+                data-testid={`kanban-column-${col.id}`}
+                className="bg-gray-50/80 rounded-xl border border-gray-200 min-h-[400px]"
+              >
+                {/* Column header */}
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {selectionMode && items.length > 0 && (
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={() => handleColumnSelectAll(items)}
+                        className="mr-1"
+                        data-testid={`kanban-select-all-${col.id}`}
+                      />
+                    )}
+                    <div className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
+                    <h3 className="text-sm font-semibold text-slate-700">{col.label}</h3>
                   </div>
-                )}
-              </div>
-            </section>
+                  <Badge className={cn("border-0 text-[10px] px-2", col.lightColor, col.textColor)}>
+                    {items.length}
+                  </Badge>
+                </div>
+
+                {/* Cards */}
+                <div className="p-3 space-y-3">
+                  {items.map(schedule => (
+                    <KanbanCard
+                      key={schedule.id}
+                      schedule={schedule}
+                      onStatusChange={handleStatusChange}
+                      onEdit={onEditSchedule}
+                      selectionMode={selectionMode}
+                      isSelected={isSelected}
+                      toggleItem={toggleItem}
+                    />
+                  ))}
+                  {items.length === 0 && (
+                    <div className="text-center py-8">
+                      <CalendarDays className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                      <p className="text-sm text-slate-400">
+                        {col.id === SCHEDULE_STATUS.UPCOMING ? 'No upcoming classes. Schedule one from the Calendar.' : `No ${col.label.toLowerCase()} classes`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </DroppableColumn>
           );
         })}
-      </div>
+        </div>
+      </DndContext>
 
       {selectedCount > 0 && (
         <BulkActionBar

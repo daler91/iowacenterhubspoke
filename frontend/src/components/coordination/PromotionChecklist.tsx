@@ -168,7 +168,7 @@ export default function PromotionChecklist({ projectId }: Props) {
           <Input
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
-            placeholder="Channel name"
+            placeholder="e.g., Post on Facebook page"
             className="text-sm"
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             autoFocus

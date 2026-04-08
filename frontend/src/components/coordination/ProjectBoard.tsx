@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
@@ -9,7 +9,8 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ChevronDown, ChevronRight, CheckCircle2, FolderOpen } from 'lucide-react';
+import { Input } from '../ui/input';
 import { useProjectBoard } from '../../hooks/useCoordinationData';
 import { projectsAPI } from '../../lib/coordination-api';
 import {
@@ -19,6 +20,7 @@ import {
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import ProjectCreateDialog from './ProjectCreateDialog';
+import { SearchableSelect } from '../ui/searchable-select';
 
 function DroppableColumn({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
@@ -105,10 +107,13 @@ export default function ProjectBoard() {
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const classes = (context.classes || []) as Array<{ id: string; name: string; color?: string }>;
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
-  const [communityFilter, setCommunityFilter] = useState('');
+  const [searchParams] = useSearchParams();
+  const [communityFilter, setCommunityFilter] = useState(searchParams.get('community') || '');
   const [eventFormatFilter, setEventFormatFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const { board, mutateBoard, isLoading } = useProjectBoard({
     ...(communityFilter && { community: communityFilter }),
@@ -209,35 +214,46 @@ export default function ProjectBoard() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
           Project Board
         </h1>
-        <div className="flex items-center gap-3">
-          <select
-            value={communityFilter}
-            onChange={e => setCommunityFilter(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700"
-          >
-            <option value="">All Communities</option>
-            {communities.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select
-            value={eventFormatFilter}
-            onChange={e => setEventFormatFilter(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700"
-          >
-            <option value="">All Formats</option>
-            {Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-          <select
-            value={classFilter}
-            onChange={e => setClassFilter(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700"
-          >
-            <option value="">All Classes</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-48">
+            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search projects..."
+              className="pl-8 h-10 text-sm"
+            />
+          </div>
+          <div className="w-44">
+            <SearchableSelect
+              options={communities.map(c => ({ value: c, label: c }))}
+              value={communityFilter}
+              onValueChange={setCommunityFilter}
+              placeholder="All Communities"
+              searchPlaceholder="Search communities..."
+              emptyMessage="No communities found."
+            />
+          </div>
+          <div className="w-40">
+            <SearchableSelect
+              options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+              value={eventFormatFilter}
+              onValueChange={setEventFormatFilter}
+              placeholder="All Formats"
+              searchPlaceholder="Search formats..."
+              emptyMessage="No formats found."
+            />
+          </div>
+          <div className="w-40">
+            <SearchableSelect
+              options={classes.map(c => ({ value: c.id, label: c.name }))}
+              value={classFilter}
+              onValueChange={setClassFilter}
+              placeholder="All Classes"
+              searchPlaceholder="Search classes..."
+              emptyMessage="No classes found."
+            />
+          </div>
           <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
             <Plus className="w-4 h-4 mr-1" /> New Project
           </Button>
@@ -248,7 +264,14 @@ export default function ProjectBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
-            const projects = board?.columns?.[phase] ?? [];
+            const allProjects = board?.columns?.[phase] ?? [];
+            const projects = searchQuery
+              ? allProjects.filter(p =>
+                  p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  p.venue_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  p.community?.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+              : allProjects;
             return (
               <DroppableColumn key={phase} phase={phase}>
                 <div className="flex items-center gap-2 mb-3 px-1">
@@ -263,7 +286,20 @@ export default function ProjectBoard() {
                     <DraggableProjectCard key={project.id} project={project} />
                   ))}
                   {projects.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-8">No projects</p>
+                    <div className="text-center py-8">
+                      <FolderOpen className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                      <p className="text-xs text-slate-400">
+                        {searchQuery ? 'No matching projects' : `No projects in ${PHASE_LABELS[phase]}`}
+                      </p>
+                      {!searchQuery && phase === 'planning' && (
+                        <button
+                          onClick={() => setShowCreate(true)}
+                          className="text-xs text-indigo-500 hover:text-indigo-600 mt-1"
+                        >
+                          Create your first project
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </DroppableColumn>
@@ -271,6 +307,44 @@ export default function ProjectBoard() {
           })}
         </div>
       </DndContext>
+
+      {/* Completed Projects Section */}
+      {board?.columns?.complete && board.columns.complete.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+          >
+            {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            Completed ({board.columns.complete.length})
+          </button>
+          {showCompleted && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {board.columns.complete.map(project => (
+                <Card
+                  key={project.id}
+                  className="p-3 cursor-pointer hover:shadow-md transition-shadow border opacity-75 hover:opacity-100"
+                  onClick={() => navigate(`/coordination/projects/${project.id}`)}
+                >
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 line-clamp-1">{project.title}</h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {new Date(project.event_date).toLocaleDateString()} &middot; {project.community}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
+                    </Badge>
+                    {project.task_total ? (
+                      <span className="text-[10px] text-green-600">{project.task_completed}/{project.task_total} tasks</span>
+                    ) : null}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showCreate && (
         <ProjectCreateDialog

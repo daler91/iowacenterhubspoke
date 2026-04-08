@@ -12,6 +12,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
+import { PageBreadcrumb } from './ui/page-breadcrumb';
 
 export default function ClassProfile({ classId: propId, onBack: propOnBack } = {}) {
   const params = useParams();
@@ -66,11 +67,19 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="class-profile">
-      {/* Back button */}
-      <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="class-profile-back-btn">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Classes
-      </Button>
+      {/* Breadcrumb / Back */}
+      {propOnBack ? (
+        <Button variant="ghost" onClick={onBack} className="text-slate-500 hover:text-slate-700 -ml-2" data-testid="class-profile-back-btn">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Classes
+        </Button>
+      ) : (
+        <PageBreadcrumb segments={[
+          { label: 'Manage' },
+          { label: 'Classes', path: '/classes' },
+          { label: data?.class_info?.name || 'Class' },
+        ]} />
+      )}
 
       {/* Profile header */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">

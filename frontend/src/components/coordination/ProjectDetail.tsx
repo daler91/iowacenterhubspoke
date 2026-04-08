@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
@@ -9,7 +9,9 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2 } from 'lucide-react';
+import { Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2, ChevronRight, Megaphone, Users } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
@@ -130,12 +132,14 @@ function TaskCard({
 }
 
 function AddTaskInline({
-  projectId, phase, onCreated,
+  projectId, phase, onCreated, defaultDueDate,
 }: Readonly<{
-  projectId: string; phase: TaskPhase; onCreated: () => void;
+  projectId: string; phase: TaskPhase; onCreated: () => void; defaultDueDate?: string;
 }>) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
+  const [owner, setOwner] = useState<'internal' | 'partner' | 'both'>('internal');
+  const [dueDate, setDueDate] = useState(defaultDueDate || new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
   const handleAdd = async () => {
@@ -145,10 +149,11 @@ function AddTaskInline({
       await projectTasksAPI.create(projectId, {
         title: title.trim(),
         phase,
-        owner: 'internal',
-        due_date: new Date().toISOString(),
+        owner,
+        due_date: new Date(dueDate).toISOString(),
       });
       setTitle('');
+      setOwner('internal');
       setOpen(false);
       onCreated();
       toast.success('Task added');
@@ -171,28 +176,57 @@ function AddTaskInline({
   }
 
   return (
-    <div className="flex items-center gap-1 mt-1">
-      <Input
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="Task title"
-        className="text-sm h-8"
-        onKeyDown={e => e.key === 'Enter' && handleAdd()}
-        autoFocus
-      />
-      <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
-        <Check className="w-3.5 h-3.5" />
-      </Button>
-      <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="h-8 px-2">
-        <X className="w-3.5 h-3.5" />
-      </Button>
+    <div className="space-y-1.5 mt-1">
+      <div className="flex items-center gap-1">
+        <Input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Task title"
+          className="text-sm h-8"
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          autoFocus
+        />
+        <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
+          <Check className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="h-8 px-2">
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="text-xs h-7 w-32" />
+        <div className="flex gap-0.5">
+          {(['internal', 'partner', 'both'] as const).map(o => {
+            const ACTIVE_STYLES: Record<string, string> = {
+              internal: 'bg-blue-100 border-blue-300 text-blue-700',
+              partner: 'bg-purple-100 border-purple-300 text-purple-700',
+              both: 'bg-orange-100 border-orange-300 text-orange-700',
+            };
+            const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-slate-200 text-slate-400 hover:border-slate-300';
+            return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setOwner(o)}
+              className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full border transition-colors capitalize',
+                activeStyle,
+              )}
+            >
+              {OWNER_LABELS[o]}
+            </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const context = useOutletContext<Record<string, unknown>>() ?? {};
+  const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const { project, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -252,12 +286,11 @@ export default function ProjectDetail() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/coordination/board')}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to board
-        </button>
+        <PageBreadcrumb segments={[
+          { label: 'Coordination', path: '/coordination' },
+          { label: 'Projects', path: '/coordination/board' },
+          { label: project.title },
+        ]} />
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
             {project.title}
@@ -338,26 +371,50 @@ export default function ProjectDetail() {
                     <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} onOpen={() => setSelectedTaskId(task.id)} />
                   ))}
                 </div>
-                <AddTaskInline projectId={projectId} phase={phase} onCreated={mutateTasks} />
+                <AddTaskInline projectId={projectId} phase={phase} onCreated={mutateTasks} defaultDueDate={project.event_date?.split('T')[0]} />
               </PhaseDroppable>
             );
           })}
         </div>
       </DndContext>
 
-      {/* Promotion Checklist (shown during promotion phase) */}
-      {project.phase === 'promotion' && (
-        <div className="mt-6">
+      {/* Promotion Checklist */}
+      <div className="mt-6">
+        {project.phase === 'promotion' ? (
           <PromotionChecklist projectId={projectId} />
-        </div>
-      )}
+        ) : (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+              <ChevronRight className="w-4 h-4 text-slate-400 transition-transform group-data-[state=open]:rotate-90" />
+              <Megaphone className="w-4 h-4 text-slate-400" />
+              <span className="font-semibold text-slate-500 text-sm">Promotion Checklist</span>
+              <Badge variant="secondary" className="text-[10px] ml-1">Active during Promotion</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <PromotionChecklist projectId={projectId} />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
 
-      {/* Outcome Tracker (shown during follow_up/complete phases) */}
-      {(project.phase === 'follow_up' || project.phase === 'complete') && (
-        <div className="mt-6">
+      {/* Outcome Tracker */}
+      <div className="mt-6">
+        {project.phase === 'follow_up' || project.phase === 'complete' ? (
           <OutcomeTracker projectId={projectId} />
-        </div>
-      )}
+        ) : (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+              <ChevronRight className="w-4 h-4 text-slate-400 transition-transform group-data-[state=open]:rotate-90" />
+              <Users className="w-4 h-4 text-slate-400" />
+              <span className="font-semibold text-slate-500 text-sm">Outcomes</span>
+              <Badge variant="secondary" className="text-[10px] ml-1">Active during Follow-Up</Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <OutcomeTracker projectId={projectId} />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
 
       {/* Export */}
       <div className="mt-4 flex justify-end">
@@ -390,6 +447,7 @@ export default function ProjectDetail() {
           onClose={() => setSelectedTaskId(null)}
           onUpdated={mutateTasks}
           projectTitle={project?.title}
+          employees={employees}
         />
       )}
     </div>
