@@ -19,11 +19,11 @@ def decrypt_token(ciphertext: str) -> str:
     """Decrypt a stored token. Returns input unchanged if no key configured."""
     if not _KEY:
         return ciphertext
-    from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet, InvalidToken
     try:
         f = Fernet(_KEY.encode())
         return f.decrypt(ciphertext.encode()).decode()
-    except Exception:
+    except (ValueError, InvalidToken):
         # Graceful fallback: may be a plaintext token from before encryption was enabled
         logger.warning("Failed to decrypt token — returning as-is (may be pre-encryption plaintext)")
         return ciphertext

@@ -24,8 +24,8 @@ def validate_webhook_url(url: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid webhook URL")
     try:
         ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
-    except (socket.gaierror, ValueError):
-        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname")
+    except (socket.gaierror, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname") from exc
     if ip.is_private or ip.is_loopback or ip.is_link_local:
         raise HTTPException(status_code=400, detail="Webhook URL must not target private/internal networks")
 
