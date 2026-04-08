@@ -46,7 +46,7 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
       {task.spotlight && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800">
           <Star className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
-          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Spotlighted</span>
+          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Spotlight</span>
         </div>
       )}
       {task.at_risk && (
