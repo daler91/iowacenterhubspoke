@@ -10,7 +10,11 @@ import { EVENT_FORMAT_LABELS } from '../../lib/coordination-types';
 import type { ProjectTemplate } from '../../lib/coordination-types';
 import type { ClassType, Employee } from '../../lib/types';
 import { toast } from 'sonner';
-import { CalendarPlus } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { CalendarPlus, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { EmployeeMultiSelect } from '../ui/employee-multi-select';
+import { SearchableSelect } from '../ui/searchable-select';
 
 interface ScheduleOption {
   id: string;
@@ -41,6 +45,11 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
   const [templateId, setTemplateId] = useState('');
   const [scheduleId, setScheduleId] = useState('');
   const [classId, setClassId] = useState('');
+
+  // Validation state
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const markTouched = (field: string) => setTouched(prev => ({ ...prev, [field]: true }));
+  const showError = (field: string, value: string) => touched[field] && !value;
 
   // Auto-schedule creation state
   const [autoCreateSchedule, setAutoCreateSchedule] = useState(false);
@@ -87,6 +96,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
   };
 
   const handleSubmit = async () => {
+    setTouched({ title: true, partnerOrgId: true, eventDate: true });
     if (!title || !partnerOrgId || !eventDate) {
       toast.error('Please fill in title, partner organization, and event date');
       return;
@@ -137,85 +147,120 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
         <div className="space-y-4 mt-2">
           <div>
             <Label>Title *</Label>
-            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. AI for Small Business Workshop" />
+            <Input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onBlur={() => markTouched('title')}
+              placeholder="e.g. AI for Small Business Workshop"
+              className={cn(showError('title', title) && 'border-red-500 focus:ring-red-500')}
+            />
+            {showError('title', title) && <p className="text-xs text-red-500 mt-1">Title is required</p>}
+          </div>
+          <div>
+            <Label>Template</Label>
+            <p className="text-xs text-slate-400 mb-1">Templates pre-fill tasks for your project. You can customize them afterward.</p>
+            <SearchableSelect
+              options={templates.map(t => ({ value: t.id, label: `${t.name} (${t.default_tasks.length} tasks)` }))}
+              value={templateId}
+              onValueChange={setTemplateId}
+              placeholder="No template (blank project)"
+              searchPlaceholder="Search templates..."
+            />
           </div>
           <div>
             <Label>Event Format *</Label>
-            <select
+            <SearchableSelect
+              options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
               value={eventFormat}
-              onChange={e => setEventFormat(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            >
-              {Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+              onValueChange={setEventFormat}
+              placeholder="Select format..."
+              searchPlaceholder="Search formats..."
+            />
           </div>
           <div>
             <Label>Partner Organization *</Label>
-            <select
+            <SearchableSelect
+              options={partnerOrgs.map(org => ({ value: org.id, label: org.name, sublabel: org.community }))}
               value={partnerOrgId}
-              onChange={e => setPartnerOrgId(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            >
-              <option value="">Select partner...</option>
-              {partnerOrgs.map(org => (
-                <option key={org.id} value={org.id}>{org.name} ({org.community})</option>
-              ))}
-            </select>
+              onValueChange={(v) => { setPartnerOrgId(v); markTouched('partnerOrgId'); }}
+              placeholder="Select partner..."
+              searchPlaceholder="Search partners..."
+            />
+            {showError('partnerOrgId', partnerOrgId) && <p className="text-xs text-red-500 mt-1">Partner organization is required</p>}
           </div>
           <div>
             <Label>Class</Label>
-            <select
+            <SearchableSelect
+              options={classes.map(c => ({ value: c.id, label: c.name }))}
               value={classId}
-              onChange={e => setClassId(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            >
-              <option value="">No class selected</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onValueChange={setClassId}
+              placeholder="No class selected"
+              searchPlaceholder="Search classes..."
+            />
           </div>
           <div>
             <Label>Link to Existing Schedule (optional)</Label>
-            <select
+            <SearchableSelect
+              options={schedules.map(s => ({ value: s.id, label: `${s.date} — ${s.class_name || 'Unclassified'}`, sublabel: s.location_name || '' }))}
               value={scheduleId}
-              onChange={e => handleScheduleSelect(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            >
-              <option value="">No linked schedule</option>
-              {schedules.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.date} — {s.class_name || 'Unclassified'} at {s.location_name || 'Unknown'}
-                </option>
-              ))}
-            </select>
+              onValueChange={handleScheduleSelect}
+              placeholder="No linked schedule"
+              searchPlaceholder="Search schedules..."
+            />
           </div>
           <div>
             <Label>Event Date *</Label>
-            <Input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+            <Input
+              type="date"
+              value={eventDate}
+              onChange={e => setEventDate(e.target.value)}
+              onBlur={() => markTouched('eventDate')}
+              className={cn(showError('eventDate', eventDate) && 'border-red-500 focus:ring-red-500')}
+            />
+            {showError('eventDate', eventDate) && <p className="text-xs text-red-500 mt-1">Event date is required</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Community</Label>
-              <Input
-                value={community}
-                disabled
-                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
-                placeholder="Auto-filled from partner"
-              />
+          <TooltipProvider>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="flex items-center gap-1">
+                  Community
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Auto-populated from the selected Partner Organization. Change the partner above to update.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+                <Input
+                  value={community}
+                  disabled
+                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                  placeholder="Auto-filled from partner"
+                />
+              </div>
+              <div>
+                <Label className="flex items-center gap-1">
+                  Venue
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Auto-populated from the selected Partner Organization. Change the partner above to update.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+                <Input
+                  value={venueName}
+                  disabled
+                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                  placeholder="Auto-filled from partner"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Venue</Label>
-              <Input
-                value={venueName}
-                disabled
-                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
-                placeholder="Auto-filled from partner"
-              />
-            </div>
-          </div>
+          </TooltipProvider>
 
           {/* Auto-create schedule section */}
           {showAutoScheduleSection && (
@@ -238,20 +283,11 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   </p>
                   <div>
                     <Label className="text-xs">Employees *</Label>
-                    <select
-                      multiple
-                      value={selectedEmployeeIds}
-                      onChange={e => {
-                        const opts = Array.from(e.target.selectedOptions, o => o.value);
-                        setSelectedEmployeeIds(opts);
-                      }}
-                      className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700 h-24"
-                    >
-                      {employees.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.name}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-slate-400 mt-0.5">Hold Ctrl/Cmd to select multiple</p>
+                    <EmployeeMultiSelect
+                      employees={employees}
+                      selectedIds={selectedEmployeeIds}
+                      onSelectionChange={setSelectedEmployeeIds}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -268,21 +304,6 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
             </div>
           )}
 
-          <div>
-            <Label>Template (optional)</Label>
-            <select
-              value={templateId}
-              onChange={e => setTemplateId(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
-            >
-              <option value="">No template (blank project)</option>
-              {templates.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.default_tasks.length} tasks)
-                </option>
-              ))}
-            </select>
-          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white">

@@ -1,15 +1,18 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 
-export default function ScheduleFilters({ 
-  filterEmployee, 
-  setFilterEmployee, 
-  filterLocation, 
-  setFilterLocation, 
-  employees, 
-  locations 
+export default function ScheduleFilters({
+  filterEmployee,
+  setFilterEmployee,
+  filterLocation,
+  setFilterLocation,
+  filterClass,
+  setFilterClass,
+  employees,
+  locations,
+  classes,
 }) {
-  const hasFilters = filterEmployee !== 'all' || filterLocation !== 'all';
+  const hasFilters = filterEmployee !== 'all' || filterLocation !== 'all' || filterClass !== 'all';
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
@@ -41,12 +44,30 @@ export default function ScheduleFilters({
           ))}
         </SelectContent>
       </Select>
+      {classes && (
+        <Select value={filterClass} onValueChange={setFilterClass}>
+          <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-class">
+            <SelectValue placeholder="All classes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Classes</SelectItem>
+            {(classes || []).map(cls => (
+              <SelectItem key={cls.id} value={cls.id}>
+                <div className="flex items-center gap-2">
+                  {cls.color && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cls.color }} />}
+                  {cls.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       {hasFilters && (
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => { setFilterEmployee('all'); setFilterLocation('all'); }} 
-          className="text-xs text-slate-400" 
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setFilterEmployee('all'); setFilterLocation('all'); setFilterClass?.('all'); }}
+          className="text-xs text-slate-400"
           data-testid="clear-filters"
         >
           Clear filters

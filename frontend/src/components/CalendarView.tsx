@@ -69,6 +69,7 @@ export default function CalendarView() {
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
   const filterLocation = searchParams.get('location') || 'all';
+  const filterClass = searchParams.get('class') || 'all';
 
   useEffect(() => {
     clearSelection();
@@ -92,14 +93,16 @@ export default function CalendarView() {
   const setCurrentDate = (date: Date) => updateParams({ date: format(date, 'yyyy-MM-dd') });
   const setFilterEmployee = (id: string) => updateParams({ employee: id });
   const setFilterLocation = (id: string) => updateParams({ location: id });
+  const setFilterClass = (id: string) => updateParams({ class: id });
 
   const filteredSchedules = useMemo(() =>
     (schedules || []).filter((s: Schedule) => {
       if (filterEmployee !== 'all' && !s.employee_ids?.includes(filterEmployee)) return false;
       if (filterLocation !== 'all' && s.location_id !== filterLocation) return false;
+      if (filterClass !== 'all' && s.class_id !== filterClass) return false;
       return true;
     }),
-    [schedules, filterEmployee, filterLocation]
+    [schedules, filterEmployee, filterLocation, filterClass]
   );
 
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -226,8 +229,11 @@ export default function CalendarView() {
         setFilterEmployee={setFilterEmployee}
         filterLocation={filterLocation}
         setFilterLocation={setFilterLocation}
+        filterClass={filterClass}
+        setFilterClass={setFilterClass}
         employees={employees}
         locations={locations}
+        classes={classes}
       />
 
       {fetchErrors?.schedules && (

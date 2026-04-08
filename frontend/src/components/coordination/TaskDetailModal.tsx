@@ -7,8 +7,13 @@ import { Label } from '../ui/label';
 import { Card } from '../ui/card';
 import {
   Check, Paperclip, Upload, Download,
-  FileText, Send, X, Trash2, CalendarDays,
+  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock,
 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import {
   PHASE_LABELS, PHASE_DOT_COLORS,
@@ -60,6 +65,7 @@ export default function TaskDetailModal({
 
   const [commentBody, setCommentBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -266,148 +272,145 @@ export default function TaskDetailModal({
                 </select>
               </div>
 
-              {/* Tabs */}
-              <div className="border-b mb-4">
-                <div className="flex gap-5">
+              <div className="space-y-5">
+                {/* Description */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <FileText className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Description</span>
+                  </div>
+                  <textarea
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    onBlur={() => {
+                      if (description !== (task.description || '')) {
+                        saveField('description', description);
+                      }
+                    }}
+                    rows={4}
+                    className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700 resize-y leading-relaxed"
+                    placeholder="Add a detailed description..."
+                  />
+                </div>
+
+                {/* Internal Notes */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Internal Notes</span>
+                    <span className="text-[9px] text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">Private</span>
+                  </div>
+                  <textarea
+                    value={details}
+                    onChange={e => setDetails(e.target.value)}
+                    onBlur={() => {
+                      if (details !== (task.details || '')) {
+                        saveField('details', details);
+                      }
+                    }}
+                    rows={3}
+                    className="w-full text-sm border rounded-lg px-3 py-2 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/30 border-amber-200 resize-y leading-relaxed"
+                    placeholder="Private notes (not shared with partners)..."
+                  />
+                </div>
+
+                {/* Attachments */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                      Attachments ({task.attachments?.length ?? 0})
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 mb-2">
+                    {(task.attachments ?? []).map(att => (
+                      <Card key={att.id} className="p-2 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{att.filename}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {att.uploaded_by} &middot; {new Date(att.uploaded_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] shrink-0">
+                          {att.file_type.toUpperCase()}
+                        </Badge>
+                        <a
+                          href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
+                          className="text-slate-400 hover:text-indigo-600"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteAttachment(att.id)}
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </Card>
+                    ))}
+                  </div>
+
                   <button
-                    onClick={() => setActiveTab('info')}
-                    className={cn(
-                      'pb-1.5 text-xs font-medium border-b-2 transition-colors',
-                      activeTab === 'info'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-slate-400 hover:text-slate-600',
-                    )}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                   >
-                    Task Info
+                    <Upload className="w-3 h-3" /> Add attachment
                   </button>
-                  <button
-                    onClick={() => setActiveTab('additional')}
-                    className={cn(
-                      'pb-1.5 text-xs font-medium border-b-2 transition-colors',
-                      activeTab === 'additional'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-slate-400 hover:text-slate-600',
-                    )}
-                  >
-                    Additional Info
-                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleUpload}
+                  />
+                </div>
+
+                {/* Timestamps */}
+                <div className="text-[10px] text-slate-400 pt-2 border-t">
+                  Created {new Date(task.created_at).toLocaleString()}
+                  {task.completed_at && (
+                    <> &middot; Completed {new Date(task.completed_at).toLocaleString()}
+                      {task.completed_by && <> by {task.completed_by}</>}
+                    </>
+                  )}
                 </div>
               </div>
-
-              {activeTab === 'info' ? (
-                <div className="space-y-5">
-                  {/* Description */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <FileText className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Description</span>
-                    </div>
-                    <textarea
-                      value={description}
-                      onChange={e => setDescription(e.target.value)}
-                      onBlur={() => {
-                        if (description !== (task.description || '')) {
-                          saveField('description', description);
-                        }
-                      }}
-                      rows={5}
-                      className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700 resize-y leading-relaxed"
-                      placeholder="Add a detailed description..."
-                    />
-                  </div>
-
-                  {/* Attachments */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                        Attachments ({task.attachments?.length ?? 0})
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 mb-2">
-                      {(task.attachments ?? []).map(att => (
-                        <Card key={att.id} className="p-2 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{att.filename}</p>
-                            <p className="text-[10px] text-slate-400">
-                              {att.uploaded_by} &middot; {new Date(att.uploaded_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <Badge variant="secondary" className="text-[9px] shrink-0">
-                            {att.file_type.toUpperCase()}
-                          </Badge>
-                          <a
-                            href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
-                            className="text-slate-400 hover:text-indigo-600"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </a>
-                          <button
-                            onClick={() => handleDeleteAttachment(att.id)}
-                            className="text-slate-400 hover:text-red-500"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </Card>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                    >
-                      <Upload className="w-3 h-3" /> Add attachment
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleUpload}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-medium text-slate-700 dark:text-slate-200 mb-1.5 block">
-                      Notes / Details
-                    </Label>
-                    <textarea
-                      value={details}
-                      onChange={e => setDetails(e.target.value)}
-                      onBlur={() => {
-                        if (details !== (task.details || '')) {
-                          saveField('details', details);
-                        }
-                      }}
-                      rows={4}
-                      className="w-full text-sm border rounded-lg px-3 py-2 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/30 border-amber-200 resize-y leading-relaxed"
-                      placeholder="Private notes..."
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    Created {new Date(task.created_at).toLocaleString()}
-                    {task.completed_at && (
-                      <> &middot; Completed {new Date(task.completed_at).toLocaleString()}
-                        {task.completed_by && <> by {task.completed_by}</>}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Delete */}
               <div className="mt-6 pt-3 border-t">
                 <Button
                   variant="ghost"
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs h-7"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Task
                 </Button>
               </div>
+
+              {/* Delete confirmation */}
+              <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-500" />
+                      Delete Task
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete &quot;{task.title}&quot;? This action cannot be undone. All comments and attachments will be permanently removed.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
 
             {/* ── Right: Conversations ──────────────────────────── */}

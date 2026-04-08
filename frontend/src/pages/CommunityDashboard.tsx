@@ -111,7 +111,11 @@ export default function CommunityDashboard() {
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Communities</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         {dashboard.communities.map(community => (
-          <Card key={community.community} className="p-4">
+          <Card
+            key={community.community}
+            className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate(`/coordination/board?community=${encodeURIComponent(community.community)}`)}
+          >
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{community.community}</h3>
             <div className="flex gap-4 text-sm mb-3">
               <div>

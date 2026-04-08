@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { Car, GripVertical, Check, ArrowRightLeft } from 'lucide-react';
 import { cn, computeDriveChain } from '../lib/utils';
@@ -202,7 +202,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
 
 
 // ─── Droppable day column ─────────────────────────────────────────────────
-function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
+function DroppableDay({ dateStr, children, dropIndicatorMinutes, isToday, currentTimeMinutes }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
 
   return (
@@ -211,7 +211,8 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
       aria-label={`Schedule drop zone for ${dateStr}`}
       className={cn(
         "border-r border-gray-100 last:border-r-0 relative",
-        isOver && "bg-indigo-50/20"
+        isOver && "bg-indigo-50/20",
+        isToday && "bg-indigo-50/10"
       )}
     >
       {HOURS.map(hour => (
@@ -220,6 +221,19 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes }) {
           className="h-[60px] border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
         />
       ))}
+
+      {/* Current time indicator */}
+      {isToday && currentTimeMinutes != null && currentTimeMinutes >= START_HOUR * 60 && (
+        <div
+          className="absolute left-0 right-0 z-20 pointer-events-none"
+          style={{ top: `${minutesToTop(currentTimeMinutes)}px` }}
+        >
+          <div className="flex items-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shrink-0" />
+            <div className="flex-1 h-[2px] bg-red-500" />
+          </div>
+        </div>
+      )}
 
       {/* Drop position indicator */}
       {isOver && dropIndicatorMinutes != null && (
@@ -274,6 +288,14 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
   const [activeSchedule, setActiveSchedule] = useState(null);
   const [dropIndicator, setDropIndicator] = useState({ dateStr: null, minutes: null });
+
+  // Current time indicator (updates every minute)
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -410,7 +432,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               const indicatorMinutes = dropIndicator.dateStr === dateStr ? dropIndicator.minutes : null;
               const driveChain = computeDriveChain(daySchedules);
               return (
-                <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes}>
+                <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes} isToday={isSameDay(day, now)} currentTimeMinutes={currentTimeMinutes}>
                   <TooltipProvider delayDuration={200}>
                     {daySchedules.map(schedule => (
                       <DraggableBlock
