@@ -13,15 +13,15 @@ import DeleteTaskDialog from './DeleteTaskDialog';
 import {
   PHASE_LABELS, PHASE_DOT_COLORS,
   TASK_STATUSES, TASK_STATUS_LABELS,
-  type Task, type TaskOwner,
+  type Task, type TaskOwner, type TaskComment,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 
 
-function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: unknown }>) {
-  const groups: Array<{ date: string; items: typeof comments }> = [];
+function groupCommentsByDate(comments: TaskComment[]) {
+  const groups: Array<{ date: string; items: TaskComment[] }> = [];
   let currentDate = '';
   for (const c of comments) {
     const d = new Date(c.created_at).toLocaleDateString('en-US', {
@@ -36,14 +36,58 @@ function groupCommentsByDate(comments: Array<{ created_at: string; [k: string]: 
   return groups;
 }
 
+function TaskFlagControls({ task, onToggle }: Readonly<{
+  task: Task;
+  onToggle: (field: 'spotlight' | 'at_risk') => void;
+}>) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      {task.spotlight && (
+        <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+          <Star className="w-2.5 h-2.5 mr-0.5 fill-amber-500" /> Spotlighted
+        </Badge>
+      )}
+      {task.at_risk && (
+        <Badge className="bg-red-100 text-red-700 text-[10px]">
+          <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> At Risk
+        </Badge>
+      )}
+      <button
+        onClick={() => onToggle('spotlight')}
+        className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+          task.spotlight
+            ? 'border-amber-300 text-amber-600 bg-amber-50'
+            : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
+        )}
+      >
+        <Star className="w-2.5 h-2.5 inline mr-0.5" />
+        {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
+      </button>
+      <button
+        onClick={() => onToggle('at_risk')}
+        className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+          task.at_risk
+            ? 'border-red-300 text-red-600 bg-red-50'
+            : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
+        )}
+      >
+        <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
+        {task.at_risk ? 'Remove At Risk' : 'At Risk'}
+      </button>
+    </div>
+  );
+}
+
 function ConversationsPanel({ comments, onPostComment }: Readonly<{
-  comments: Array<Record<string, unknown>>;
+  comments: TaskComment[];
   onPostComment: (body: string) => Promise<void>;
 }>) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-  const groups = groupCommentsByDate(comments as Array<{ created_at: string; [k: string]: unknown }>);
+  const groups = groupCommentsByDate(comments);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -77,21 +121,21 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
               <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
             </div>
             {group.items.map((cmt) => (
-              <div key={cmt.id as string} className="flex gap-2 mb-3">
+              <div key={cmt.id} className="flex gap-2 mb-3">
                 <div className={cn(
                   'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
                   cmt.sender_type === 'partner' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700',
                 )}>
-                  {((cmt.sender_name as string) || '?').charAt(0).toUpperCase()}
+                  {(cmt.sender_name || '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{cmt.sender_name as string}</span>
+                    <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
                     <span className="text-[10px] text-slate-400">
-                      {new Date(cmt.created_at as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{cmt.body as string}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{cmt.body}</p>
                 </div>
               </div>
             ))}
@@ -277,43 +321,7 @@ export default function TaskDetailModal({
                 />
               </div>
 
-              {/* Spotlight / At Risk flags */}
-              <div className="flex items-center gap-2 mb-3">
-                {task.spotlight && (
-                  <Badge className="bg-amber-100 text-amber-700 text-[10px]">
-                    <Star className="w-2.5 h-2.5 mr-0.5 fill-amber-500" /> Spotlighted
-                  </Badge>
-                )}
-                {task.at_risk && (
-                  <Badge className="bg-red-100 text-red-700 text-[10px]">
-                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> At Risk
-                  </Badge>
-                )}
-                <button
-                  onClick={() => handleToggleFlag('spotlight')}
-                  className={cn(
-                    'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
-                    task.spotlight
-                      ? 'border-amber-300 text-amber-600 bg-amber-50'
-                      : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
-                  )}
-                >
-                  <Star className="w-2.5 h-2.5 inline mr-0.5" />
-                  {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
-                </button>
-                <button
-                  onClick={() => handleToggleFlag('at_risk')}
-                  className={cn(
-                    'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
-                    task.at_risk
-                      ? 'border-red-300 text-red-600 bg-red-50'
-                      : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
-                  )}
-                >
-                  <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
-                  {task.at_risk ? 'Remove At Risk' : 'At Risk'}
-                </button>
-              </div>
+              <TaskFlagControls task={task} onToggle={handleToggleFlag} />
 
               {/* Metadata row */}
               <div className="flex items-center gap-4 mb-5 flex-wrap text-xs">
@@ -525,7 +533,7 @@ export default function TaskDetailModal({
 
             {/* ── Right: Conversations ──────────────────────────── */}
             <ConversationsPanel
-              comments={(task.comments ?? []) as Array<Record<string, unknown>>}
+              comments={task.comments ?? []}
               onPostComment={async (body) => {
                 await projectTasksAPI.postComment(projectId, taskId, body);
                 await loadTask();
