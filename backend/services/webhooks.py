@@ -81,7 +81,7 @@ async def deliver_webhook(
     try:
         validate_webhook_url(url)
     except HTTPException:
-        logger.warning("Webhook %s has invalid URL %s — skipping delivery", subscription_id, url)
+        logger.warning("Webhook %s has invalid URL — skipping delivery", subscription_id)
         return
     secret = sub.get("secret", "")
     body = json.dumps({"event": event, "data": payload})

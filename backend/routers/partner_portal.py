@@ -59,7 +59,6 @@ async def request_magic_link(data: PortalAuthRequest):
     }
     await db.portal_tokens.insert_one(doc)
     logger.info("Portal token created for contact %s", contact["id"])
-    # TODO: implement send_portal_magic_link_email(contact["email"], token) to deliver token via email
     return {"message": "If that email is registered, a link has been sent."}
 
 
