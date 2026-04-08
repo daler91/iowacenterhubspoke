@@ -18,12 +18,8 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '../ui/alert-dialog';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
+import DeleteTaskDialog from './DeleteTaskDialog';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
@@ -70,7 +66,7 @@ function TaskCard({
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
-  const status = (task.status || (task.completed ? 'completed' : 'to_do')) as TaskStatus;
+  const status: TaskStatus = task.status || (task.completed ? 'completed' : 'to_do');
   const isOverdue = !task.completed && task.due_date < new Date().toISOString();
 
   const handleStatusChange = async (newStatus: string) => {
@@ -222,29 +218,12 @@ function TaskCard({
         </div>
       </Card>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              Delete Task
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{task.title}&quot;? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteTaskDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDelete}
+        taskTitle={task.title}
+      />
     </div>
   );
 }
