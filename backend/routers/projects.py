@@ -96,6 +96,72 @@ async def get_project_board(
     return {"columns": columns}
 
 
+def _build_community_breakdown(all_projects: list) -> list:
+    """Group projects by community with delivery and phase stats."""
+    communities: dict = {}
+    for p in all_projects:
+        c = p.get("community", "Unknown")
+        if c not in communities:
+            communities[c] = {
+                "community": c, "delivered": 0, "upcoming": 0,
+                "attendance": 0, "warm_leads": 0, "phases": {},
+            }
+        if p.get("phase") == "complete":
+            communities[c]["delivered"] += 1
+            communities[c]["attendance"] += p.get("attendance_count") or 0
+            communities[c]["warm_leads"] += p.get("warm_leads") or 0
+        else:
+            communities[c]["upcoming"] += 1
+            phase = p.get("phase", "planning")
+            communities[c]["phases"][phase] = communities[c]["phases"].get(phase, 0) + 1
+    return list(communities.values())
+
+
+def _build_class_breakdown(completed: list) -> tuple[dict, list[str]]:
+    """Group completed projects by class_id. Returns (breakdown_dict, class_ids_to_enrich)."""
+    breakdown: dict = {}
+    for p in completed:
+        cid = p.get("class_id") or "unlinked"
+        if cid not in breakdown:
+            breakdown[cid] = {
+                "class_id": cid if cid != "unlinked" else None,
+                "delivered": 0, "attendance": 0, "warm_leads": 0,
+            }
+        breakdown[cid]["delivered"] += 1
+        breakdown[cid]["attendance"] += p.get("attendance_count") or 0
+        breakdown[cid]["warm_leads"] += p.get("warm_leads") or 0
+    class_ids = [k for k in breakdown if k != "unlinked"]
+    return breakdown, class_ids
+
+
+async def _enrich_class_breakdown(breakdown: dict, class_ids: list[str]) -> None:
+    """Add class_name and class_color from the classes collection."""
+    if not class_ids:
+        if "unlinked" in breakdown:
+            breakdown["unlinked"]["class_name"] = "No class linked"
+        return
+    class_docs = await db.classes.find(
+        {"id": {"$in": class_ids}}, {"_id": 0, "id": 1, "name": 1, "color": 1}
+    ).to_list(100)
+    class_map = {c["id"]: c for c in class_docs}
+    for cid, info in breakdown.items():
+        doc = class_map.get(cid)
+        if doc:
+            info["class_name"] = doc.get("name", "Unknown")
+            info["class_color"] = doc.get("color")
+        elif cid == "unlinked":
+            info["class_name"] = "No class linked"
+
+
+async def _count_orphan_schedules(all_projects: list) -> int:
+    """Count completed schedules that have no linked project."""
+    linked_ids = [p["schedule_id"] for p in all_projects if p.get("schedule_id")]
+    query: dict = {"status": "completed", "deleted_at": None}
+    if linked_ids:
+        query["id"] = {"$nin": linked_ids}
+    return await db.schedules.count_documents(query)
+
+
 @router.get("/dashboard", summary="Multi-community dashboard metrics")
 async def get_dashboard(
     user: CurrentUser, period: int = 90,
@@ -113,66 +179,16 @@ async def get_dashboard(
     # Count overdue tasks across upcoming projects
     upcoming_ids = [p["id"] for p in upcoming]
     overdue_count = 0
-    now = datetime.now(timezone.utc).isoformat()
     if upcoming_ids:
-        overdue_tasks = await db.tasks.find(
+        now = datetime.now(timezone.utc).isoformat()
+        overdue_count = await db.tasks.count_documents(
             {"project_id": {"$in": upcoming_ids}, "completed": False, "due_date": {"$lt": now}},
-            {"_id": 0},
-        ).to_list(5000)
-        overdue_count = len(overdue_tasks)
+        )
 
-    # Per-community breakdown
-    communities = {}
-    for p in all_projects:
-        c = p.get("community", "Unknown")
-        if c not in communities:
-            communities[c] = {
-                "community": c, "delivered": 0, "upcoming": 0,
-                "attendance": 0, "warm_leads": 0, "phases": {},
-            }
-        if p.get("phase") == "complete":
-            communities[c]["delivered"] += 1
-            communities[c]["attendance"] += p.get("attendance_count") or 0
-            communities[c]["warm_leads"] += p.get("warm_leads") or 0
-        else:
-            communities[c]["upcoming"] += 1
-            phase = p.get("phase", "planning")
-            communities[c]["phases"][phase] = communities[c]["phases"].get(phase, 0) + 1
-
-    # Per-class breakdown for completed projects
-    class_breakdown = {}
-    for p in completed:
-        cid = p.get("class_id") or "unlinked"
-        if cid not in class_breakdown:
-            class_breakdown[cid] = {
-                "class_id": cid if cid != "unlinked" else None,
-                "delivered": 0, "attendance": 0, "warm_leads": 0,
-            }
-        class_breakdown[cid]["delivered"] += 1
-        class_breakdown[cid]["attendance"] += p.get("attendance_count") or 0
-        class_breakdown[cid]["warm_leads"] += p.get("warm_leads") or 0
-    # Enrich with class names
-    class_ids = [k for k in class_breakdown if k != "unlinked"]
-    if class_ids:
-        class_docs = await db.classes.find(
-            {"id": {"$in": class_ids}}, {"_id": 0, "id": 1, "name": 1, "color": 1}
-        ).to_list(100)
-        class_map = {c["id"]: c for c in class_docs}
-        for cid, info in class_breakdown.items():
-            if cid in class_map:
-                info["class_name"] = class_map[cid].get("name", "Unknown")
-                info["class_color"] = class_map[cid].get("color")
-            elif cid == "unlinked":
-                info["class_name"] = "No class linked"
-
-    # Count completed schedules without linked projects (orphans)
-    all_project_schedule_ids = [
-        p["schedule_id"] for p in all_projects if p.get("schedule_id")
-    ]
-    orphan_query = {"status": "completed", "deleted_at": None}
-    if all_project_schedule_ids:
-        orphan_query["id"] = {"$nin": all_project_schedule_ids}
-    orphan_completed = await db.schedules.count_documents(orphan_query)
+    communities = _build_community_breakdown(all_projects)
+    class_breakdown, class_ids = _build_class_breakdown(completed)
+    await _enrich_class_breakdown(class_breakdown, class_ids)
+    orphan_completed = await _count_orphan_schedules(all_projects)
 
     return {
         "classes_delivered": len(completed),
@@ -183,7 +199,7 @@ async def get_dashboard(
         "overdue_alert_count": overdue_count,
         "orphan_completed_schedules": orphan_completed,
         "class_breakdown": list(class_breakdown.values()),
-        "communities": list(communities.values()),
+        "communities": communities,
         "upcoming_projects": sorted(upcoming, key=lambda x: x.get("event_date", ""))[:20],
         "trends": _build_trends(all_projects, period),
     }
