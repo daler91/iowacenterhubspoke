@@ -11,6 +11,9 @@ export type EventFormat = typeof EVENT_FORMATS[number];
 export const TASK_OWNERS = ['internal', 'partner', 'both'] as const;
 export type TaskOwner = typeof TASK_OWNERS[number];
 
+export const TASK_STATUSES = ['to_do', 'in_progress', 'completed', 'on_hold'] as const;
+export type TaskStatus = typeof TASK_STATUSES[number];
+
 export const PARTNER_STATUSES = ['prospect', 'onboarding', 'active', 'inactive'] as const;
 export type PartnerStatus = typeof PARTNER_STATUSES[number];
 
@@ -66,6 +69,27 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
   inactive: 'bg-red-100 text-red-600',
 };
 
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  to_do: 'To Do',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  on_hold: 'On Hold',
+};
+
+export const TASK_STATUS_COLORS: Record<string, string> = {
+  to_do: 'bg-slate-400',
+  in_progress: 'bg-blue-500',
+  completed: 'bg-green-500',
+  on_hold: 'bg-amber-500',
+};
+
+export const TASK_STATUS_RING_COLORS: Record<string, string> = {
+  to_do: 'ring-slate-400',
+  in_progress: 'ring-blue-500',
+  completed: 'ring-green-500',
+  on_hold: 'ring-amber-500',
+};
+
 // ── Data Types ───────────────────────────────────────────────────────
 
 export interface Project {
@@ -110,12 +134,15 @@ export interface Task {
   owner: TaskOwner;
   assigned_to?: string;
   due_date: string;
+  status?: TaskStatus;
   completed: boolean;
   completed_at?: string;
   completed_by?: string;
   sort_order: number;
   details: string;
   description?: string;
+  spotlight?: boolean;
+  at_risk?: boolean;
   created_at: string;
   attachment_count?: number;
   comment_count?: number;

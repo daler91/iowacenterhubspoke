@@ -27,6 +27,11 @@ class PhaseAdvanceRequest(BaseModel):
 
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
+    event_format: Optional[Literal[
+        "workshop", "series", "office_hours", "onboarding"
+    ]] = None
+    partner_org_id: Optional[str] = None
+    class_id: Optional[str] = None
     event_date: Optional[str] = None
     phase: Optional[Literal[
         "planning", "promotion", "delivery", "follow_up", "complete"
@@ -41,6 +46,9 @@ class ProjectUpdate(BaseModel):
 
 # ── Tasks ─────────────────────────────────────────────────────────────
 
+TASK_STATUSES = ("to_do", "in_progress", "completed", "on_hold")
+
+
 class TaskCreate(BaseModel):
     title: str
     phase: Literal["planning", "promotion", "delivery", "follow_up"]
@@ -49,6 +57,7 @@ class TaskCreate(BaseModel):
     details: Optional[str] = ""
     description: Optional[str] = ""
     assigned_to: Optional[str] = None
+    status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = "to_do"
 
 
 class TaskUpdate(BaseModel):
@@ -62,6 +71,9 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     assigned_to: Optional[str] = None
     sort_order: Optional[int] = None
+    status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = None
+    spotlight: Optional[bool] = None
+    at_risk: Optional[bool] = None
 
 
 class TaskReorder(BaseModel):

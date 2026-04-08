@@ -9,15 +9,28 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2, ChevronRight, Megaphone, Users } from 'lucide-react';
+import {
+  Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2,
+  ChevronRight, Megaphone, Users, MoreVertical, Star, AlertTriangle, Trash2, Pencil,
+} from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
-  OWNER_COLORS, OWNER_LABELS, type Task, type TaskPhase,
+  OWNER_COLORS, OWNER_LABELS, TASK_STATUSES, TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS, type Task, type TaskPhase, type TaskStatus,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -25,6 +38,7 @@ import OutcomeTracker from './OutcomeTracker';
 import PromotionChecklist from './PromotionChecklist';
 import ExportButton from './ExportButton';
 import TaskDetailModal from './TaskDetailModal';
+import ProjectEditDialog from './ProjectEditDialog';
 
 function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
@@ -46,6 +60,7 @@ function TaskCard({
 }: Readonly<{
   task: Task; projectId: string; onRefresh: () => void; onOpen: () => void;
 }>) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -54,15 +69,34 @@ function TaskCard({
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
+  const status = (task.status || (task.completed ? 'completed' : 'to_do')) as TaskStatus;
   const isOverdue = !task.completed && task.due_date < new Date().toISOString();
 
-  const handleToggle = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleStatusChange = async (newStatus: string) => {
     try {
-      await projectTasksAPI.toggleComplete(projectId, task.id);
+      await projectTasksAPI.update(projectId, task.id, { status: newStatus });
+      onRefresh();
+    } catch {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleToggleFlag = async (field: 'spotlight' | 'at_risk') => {
+    try {
+      await projectTasksAPI.update(projectId, task.id, { [field]: !task[field] });
       onRefresh();
     } catch {
       toast.error('Failed to update task');
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await projectTasksAPI.delete(projectId, task.id);
+      toast.success('Task deleted');
+      onRefresh();
+    } catch {
+      toast.error('Failed to delete task');
     }
   };
 
@@ -76,30 +110,92 @@ function TaskCard({
     >
       <Card
         className={cn(
-          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer',
+          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group',
           task.completed && 'opacity-45',
+          task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20',
+          task.at_risk && !task.spotlight && 'border-l-4 border-l-red-400 bg-red-50/40 dark:bg-red-950/20',
         )}
         onClick={onOpen}
       >
+        {/* Three-dots context menu */}
+        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={e => e.stopPropagation()}
+                className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <MoreVertical className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => handleToggleFlag('spotlight')}>
+                <Star className={cn('w-3.5 h-3.5 mr-2', task.spotlight && 'text-amber-500 fill-amber-500')} />
+                {task.spotlight ? 'Remove Spotlight' : 'Spotlight Task'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleToggleFlag('at_risk')}>
+                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-red-500')} />
+                {task.at_risk ? 'Remove At Risk' : 'Mark at Risk'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Delete Task
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <div className="flex items-start gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleToggle(); }}
-            className={cn(
-              'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-              task.completed
-                ? 'bg-green-500 border-green-500 text-white'
-                : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400',
-            )}
-          >
-            {task.completed && <Check className="w-3 h-3" />}
-          </button>
-          <div className="flex-1 min-w-0">
-            <p className={cn(
-              'text-sm font-medium text-slate-800 dark:text-slate-100',
-              task.completed && 'line-through text-slate-400',
-            )}>
-              {task.title}
-            </p>
+          {/* Status circle dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={e => e.stopPropagation()}
+                className={cn(
+                  'w-4 h-4 rounded-full shrink-0 mt-1 ring-2 ring-offset-1 transition-colors',
+                  TASK_STATUS_COLORS[status],
+                  status === 'to_do' ? 'ring-slate-300' : '',
+                  status === 'in_progress' ? 'ring-blue-400' : '',
+                  status === 'completed' ? 'ring-green-400' : '',
+                  status === 'on_hold' ? 'ring-amber-400' : '',
+                )}
+                title={TASK_STATUS_LABELS[status]}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-40" onClick={e => e.stopPropagation()}>
+              {TASK_STATUSES.map(s => (
+                <DropdownMenuItem
+                  key={s}
+                  onClick={() => handleStatusChange(s)}
+                  className={cn(status === s && 'font-semibold')}
+                >
+                  <span className={cn('w-2.5 h-2.5 rounded-full mr-2 shrink-0', TASK_STATUS_COLORS[s])} />
+                  {TASK_STATUS_LABELS[s]}
+                  {status === s && <Check className="w-3 h-3 ml-auto text-green-600" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex-1 min-w-0 pr-5">
+            <div className="flex items-center gap-1.5">
+              {task.at_risk && (
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              )}
+              {task.spotlight && (
+                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+              )}
+              <p className={cn(
+                'text-sm font-medium text-slate-800 dark:text-slate-100',
+                task.completed && 'line-through text-slate-400',
+              )}>
+                {task.title}
+              </p>
+            </div>
             <div className="flex items-center gap-2 mt-1.5">
               <Badge className={cn('text-[10px] px-1.5 py-0', OWNER_COLORS[task.owner])}>
                 {OWNER_LABELS[task.owner]}
@@ -127,6 +223,30 @@ function TaskCard({
           </div>
         </div>
       </Card>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Delete Task
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{task.title}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -227,10 +347,11 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
-  const { project, isLoading: projectLoading } = useProject(id);
+  const { project, mutateProject, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [linkedSchedule, setLinkedSchedule] = useState<Record<string, unknown> | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   useEffect(() => {
     if (project?.schedule_id) {
@@ -298,6 +419,14 @@ export default function ProjectDetail() {
           <Badge className={cn('text-xs', PHASE_COLORS[project.phase], 'text-white')}>
             {PHASE_LABELS[project.phase]}
           </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowEditDialog(true)}
+            className="h-7 px-2 text-slate-400 hover:text-indigo-600"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
         </div>
         <p className="text-sm text-slate-500 mt-1">
           {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
@@ -426,7 +555,8 @@ export default function ProjectDetail() {
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex items-center gap-4 text-xs text-slate-400">
+      <div className="mt-4 flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+        <span className="font-medium text-slate-500 mr-1">Owner:</span>
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-blue-100" /> You (Internal)
         </span>
@@ -436,6 +566,13 @@ export default function ProjectDetail() {
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-orange-100" /> Both
         </span>
+        <span className="mx-2 text-slate-200">|</span>
+        <span className="font-medium text-slate-500 mr-1">Status:</span>
+        {TASK_STATUSES.map(s => (
+          <span key={s} className="flex items-center gap-1">
+            <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[s])} /> {TASK_STATUS_LABELS[s]}
+          </span>
+        ))}
       </div>
 
       {/* Task Detail Modal */}
@@ -448,6 +585,16 @@ export default function ProjectDetail() {
           onUpdated={mutateTasks}
           projectTitle={project?.title}
           employees={employees}
+        />
+      )}
+
+      {/* Edit Project Dialog */}
+      {showEditDialog && (
+        <ProjectEditDialog
+          project={project}
+          onClose={() => setShowEditDialog(false)}
+          onUpdated={() => { mutateProject(); setShowEditDialog(false); }}
+          classes={(context.classes || []) as Array<{ id: string; name: string }>}
         />
       )}
     </div>

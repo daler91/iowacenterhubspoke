@@ -548,6 +548,27 @@ async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Re-derive partner-linked fields when partner_org_id changes
+    if "partner_org_id" in update_data:
+        org = await db.partner_orgs.find_one(
+            {"id": update_data["partner_org_id"]}, {"_id": 0}
+        )
+        if not org:
+            raise HTTPException(status_code=400, detail="Partner organization not found")
+        update_data["partner_org_name"] = org.get("name", "")
+        update_data["venue_name"] = org.get("name", "")
+        update_data["community"] = org.get("community", "")
+        # Resolve location if partner org has one
+        if org.get("location_id"):
+            loc = await db.locations.find_one(
+                {"id": org["location_id"]}, {"_id": 0}
+            )
+            if loc:
+                update_data["location_id"] = org["location_id"]
+                update_data["location_name"] = loc.get("city_name", "")
+                update_data["community"] = loc.get("city_name") or org.get("community", "")
+
     result = await db.projects.update_one(
         {"id": project_id, "deleted_at": None}, {"$set": update_data}
     )

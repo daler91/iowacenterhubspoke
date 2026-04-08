@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
 import {
   Check, Paperclip, Upload, Download,
-  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock,
+  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock, Star,
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -16,7 +16,8 @@ import {
 import { projectTasksAPI } from '../../lib/coordination-api';
 import {
   PHASE_LABELS, PHASE_DOT_COLORS,
-  type Task, type TaskOwner,
+  TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
+  type Task, type TaskOwner, type TaskStatus,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -109,9 +110,20 @@ export default function TaskDetailModal({
     }
   };
 
-  const handleToggleComplete = async () => {
+  const handleStatusChange = async (newStatus: string) => {
     try {
-      await projectTasksAPI.toggleComplete(projectId, taskId);
+      await projectTasksAPI.update(projectId, taskId, { status: newStatus });
+      await loadTask();
+      onUpdated();
+    } catch {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleToggleFlag = async (field: 'spotlight' | 'at_risk') => {
+    if (!task) return;
+    try {
+      await projectTasksAPI.update(projectId, taskId, { [field]: !task[field] });
       await loadTask();
       onUpdated();
     } catch {
@@ -191,17 +203,6 @@ export default function TaskDetailModal({
 
               {/* Title */}
               <div className="flex items-start gap-2.5 mb-3">
-                <button
-                  onClick={handleToggleComplete}
-                  className={cn(
-                    'w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-                    task.completed
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-slate-300 hover:border-indigo-400',
-                  )}
-                >
-                  {task.completed && <Check className="w-3.5 h-3.5" />}
-                </button>
                 <Input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
@@ -214,6 +215,44 @@ export default function TaskDetailModal({
                   )}
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 />
+              </div>
+
+              {/* Spotlight / At Risk flags */}
+              <div className="flex items-center gap-2 mb-3">
+                {task.spotlight && (
+                  <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+                    <Star className="w-2.5 h-2.5 mr-0.5 fill-amber-500" /> Spotlighted
+                  </Badge>
+                )}
+                {task.at_risk && (
+                  <Badge className="bg-red-100 text-red-700 text-[10px]">
+                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> At Risk
+                  </Badge>
+                )}
+                <button
+                  onClick={() => handleToggleFlag('spotlight')}
+                  className={cn(
+                    'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                    task.spotlight
+                      ? 'border-amber-300 text-amber-600 bg-amber-50'
+                      : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
+                  )}
+                >
+                  <Star className="w-2.5 h-2.5 inline mr-0.5" />
+                  {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
+                </button>
+                <button
+                  onClick={() => handleToggleFlag('at_risk')}
+                  className={cn(
+                    'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                    task.at_risk
+                      ? 'border-red-300 text-red-600 bg-red-50'
+                      : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
+                  )}
+                >
+                  <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
+                  {task.at_risk ? 'Remove At Risk' : 'At Risk'}
+                </button>
               </div>
 
               {/* Metadata row */}
@@ -268,13 +307,18 @@ export default function TaskDetailModal({
                   />
                 </div>
 
-                {task.completed ? (
-                  <Badge className="bg-green-100 text-green-700 text-[10px]">
-                    <Check className="w-2.5 h-2.5 mr-0.5" /> Completed
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="text-[10px]">In progress</Badge>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 uppercase tracking-wide">Status</span>
+                  <select
+                    value={task.status || (task.completed ? 'completed' : 'to_do')}
+                    onChange={e => handleStatusChange(e.target.value)}
+                    className="text-[10px] border rounded px-1.5 py-0.5 bg-white dark:bg-gray-900 dark:border-gray-700"
+                  >
+                    {TASK_STATUSES.map(s => (
+                      <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <Badge className={cn('text-[10px]', PHASE_DOT_COLORS[task.phase])}>
                   {PHASE_LABELS[task.phase]}
