@@ -112,46 +112,48 @@ export const coordinationReportsAPI = {
   partnerHealth: () => api.get('/coordination/partner-health'),
 };
 
-// ── Partner Portal (token-based, no JWT) ─────────────────────────────
+// ── Partner Portal (Bearer token auth) ──────────────────────────────
+
+function portalHeaders(token: string) {
+  return { headers: { Authorization: `Bearer ${token}` } };
+}
 
 export const portalAPI = {
   requestLink: (email: string) => api.post('/portal/auth/request-link', { email }),
   verify: (token: string) => api.get(`/portal/auth/verify/${token}`),
-  dashboard: (token: string) => api.get('/portal/dashboard', { params: { token } }),
-  projects: (token: string) => api.get('/portal/projects', { params: { token } }),
+  dashboard: (token: string) => api.get('/portal/dashboard', portalHeaders(token)),
+  projects: (token: string) => api.get('/portal/projects', portalHeaders(token)),
   projectTasks: (projectId: string, token: string) =>
-    api.get(`/portal/projects/${projectId}/tasks`, { params: { token } }),
+    api.get(`/portal/projects/${projectId}/tasks`, portalHeaders(token)),
   completeTask: (projectId: string, taskId: string, token: string) =>
-    api.patch(`/portal/projects/${projectId}/tasks/${taskId}/complete`, null, { params: { token } }),
+    api.patch(`/portal/projects/${projectId}/tasks/${taskId}/complete`, null, portalHeaders(token)),
   taskDetail: (projectId: string, taskId: string, token: string) =>
-    api.get(`/portal/projects/${projectId}/tasks/${taskId}`, { params: { token } }),
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}`, portalHeaders(token)),
   taskAttachments: (projectId: string, taskId: string, token: string) =>
-    api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, { params: { token } }),
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, portalHeaders(token)),
   uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      params: { token },
+      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
     });
   },
   taskComments: (projectId: string, taskId: string, token: string) =>
-    api.get(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { params: { token } }),
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/comments`, portalHeaders(token)),
   postTaskComment: (projectId: string, taskId: string, token: string, body: string) =>
-    api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, { params: { token } }),
+    api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, portalHeaders(token)),
   projectDocuments: (projectId: string, token: string) =>
-    api.get(`/portal/projects/${projectId}/documents`, { params: { token } }),
+    api.get(`/portal/projects/${projectId}/documents`, portalHeaders(token)),
   uploadDocument: (projectId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post(`/portal/projects/${projectId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      params: { token },
+      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
     });
   },
   projectMessages: (projectId: string, token: string, params?: Record<string, unknown>) =>
-    api.get(`/portal/projects/${projectId}/messages`, { params: { token, ...params } }),
+    api.get(`/portal/projects/${projectId}/messages`, { ...portalHeaders(token), params }),
   sendMessage: (projectId: string, token: string, data: { channel: string; body: string }) =>
-    api.post(`/portal/projects/${projectId}/messages`, data, { params: { token } }),
-  orgDocuments: (token: string) => api.get('/portal/org-documents', { params: { token } }),
+    api.post(`/portal/projects/${projectId}/messages`, data, portalHeaders(token)),
+  orgDocuments: (token: string) => api.get('/portal/org-documents', portalHeaders(token)),
 };
