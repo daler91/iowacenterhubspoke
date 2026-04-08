@@ -322,7 +322,7 @@ async def _clone_template_tasks(
 
 async def _auto_create_schedule(
     project_doc: dict, data: ProjectCreate,
-    location: dict | None, class_id: str, user: CurrentUser,
+    location: dict | None, class_id: str,
 ) -> str | None:
     """Auto-create a schedule linked to the project. Returns warning string or None."""
     if not location:
@@ -462,7 +462,7 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
         and data.end_time
     ):
         schedule_warning = await _auto_create_schedule(
-            doc, data, location, class_id, user,
+            doc, data, location, class_id,
         )
 
     # Clone tasks from template
