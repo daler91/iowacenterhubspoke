@@ -81,6 +81,7 @@ class ScheduleCreate(BaseModel):
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
     drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
+    series_id: Optional[str] = None  # ID of recurrence series (set automatically for recurring schedules)
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
     recurrence_end_mode: Optional[str] = None
@@ -120,6 +121,7 @@ class ScheduleUpdate(BaseModel):
     recurrence_end_mode: Optional[str] = None
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
+    series_id: Optional[str] = None
     deleted_at: Optional[str] = None
 
 
@@ -146,11 +148,13 @@ class BulkStatusUpdateRequest(BaseModel):
 class BulkReassignRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     employee_ids: List[str]  # set these employees on all selected schedules
+    force: bool = False  # bypass conflict check preview
 
 
 class BulkLocationUpdateRequest(BaseModel):
     ids: List[str] = Field(..., min_length=1, max_length=200)
     location_id: str
+    force: bool = False  # bypass conflict check preview
 
 
 class BulkClassUpdateRequest(BaseModel):

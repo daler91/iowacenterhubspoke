@@ -110,6 +110,9 @@ async def _ensure_indexes():
         await db.promotion_checklists.create_index("project_id", unique=True)
         await db.webhook_subscriptions.create_index([("active", 1), ("events", 1)])
         await db.webhook_subscriptions.create_index([("deleted_at", 1)])
+        # Series and message visibility indexes
+        await db.schedules.create_index([("series_id", 1), ("date", 1)])
+        await db.messages.create_index([("project_id", 1), ("visibility", 1)])
         await db.webhook_logs.create_index([("subscription_id", 1), ("sent_at", -1)])
         await db.documents.create_index([("project_id", 1)])
         await db.messages.create_index([("project_id", 1), ("created_at", -1)])

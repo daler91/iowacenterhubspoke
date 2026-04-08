@@ -110,14 +110,19 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
         await pool.enqueue_job("sync_schedules_denormalized", entity_type="location", entity_id=location_id)
     else:
         # Fallback: sync inline when Redis/worker isn't available
+        # Only update future schedules to preserve historical accuracy
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         await db.schedules.update_many(
-            {"location_id": location_id},
+            {"location_id": location_id, "date": {"$gte": today_str}},
             {"$set": {
                 "location_name": updated["city_name"],
                 "drive_time_minutes": updated["drive_time_minutes"],
             }},
         )
-        logger.info("Inline sync completed for location", extra={"entity": {"location_id": location_id}})
+        logger.info(
+            "Inline sync completed for location (future only)",
+            extra={"entity": {"location_id": location_id}},
+        )
 
     return updated
 

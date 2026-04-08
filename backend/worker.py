@@ -228,6 +228,7 @@ async def generate_bulk_schedules(
     employees: list,
     class_doc: dict,
     user_name: str,
+    series_id: str = None,
 ):
     from models.schemas import ScheduleCreate, RecurrenceRule
     from database import db
@@ -262,6 +263,7 @@ async def generate_bulk_schedules(
         doc = _build_schedule_doc(
             data, sched_date, drive_time, town_to_town, town_to_town_warning,
             recurrence_rule, location, employees, class_doc,
+            series_id=series_id,
         )
         docs_to_insert.append(doc)
 
@@ -294,15 +296,18 @@ async def generate_bulk_schedules(
 
 async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     from database import db
+    from datetime import datetime as _dt, timezone as _tz
     from routers.classes import get_class_snapshot
 
     logger.info("Syncing denormalized fields", extra={"entity": {"type": entity_type, "id": entity_id}})
+    today_str = _dt.now(_tz.utc).strftime("%Y-%m-%d")
 
     if entity_type == "employee":
         employee = await db.employees.find_one({"id": entity_id}, {"_id": 0})
         if employee:
+            # Only update future schedules to preserve historical accuracy
             await db.schedules.update_many(
-                {"employee_ids": entity_id},
+                {"employee_ids": entity_id, "date": {"$gte": today_str}},
                 {
                     "$set": {
                         "employees.$[elem].name": employee["name"],
@@ -314,8 +319,9 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
     elif entity_type == "location":
         location = await db.locations.find_one({"id": entity_id}, {"_id": 0})
         if location:
+            # Only update future schedules to preserve historical accuracy
             await db.schedules.update_many(
-                {"location_id": entity_id},
+                {"location_id": entity_id, "date": {"$gte": today_str}},
                 {
                     "$set": {
                         "location_name": location["city_name"],

@@ -25,6 +25,40 @@ from routers.schedule_helpers import (
 )
 
 
+async def _check_internal_conflicts(employees, date, start_time, end_time, drive_time):
+    """Check internal schedule conflicts for all employees."""
+    per_employee = {}
+    for emp in employees:
+        conflicts = await check_conflicts(
+            emp["id"], date, start_time, end_time, drive_time,
+        )
+        if conflicts:
+            per_employee[emp["id"]] = {"name": emp["name"], "conflicts": conflicts}
+    return per_employee
+
+
+async def _check_external_conflicts(employees, data, date_to_schedule):
+    """Check Outlook/Google calendar conflicts for all employees."""
+    per_employee = {}
+    for emp in employees:
+        if not data.force_outlook:
+            outlook = await check_outlook_conflicts(
+                emp["id"], date_to_schedule, data.start_time, data.end_time
+            )
+            if outlook:
+                per_employee.setdefault(emp["id"], {})["outlook"] = outlook
+                per_employee[emp["id"]]["name"] = emp["name"]
+
+        if not data.force_google:
+            google = await check_google_conflicts(
+                emp["id"], date_to_schedule, data.start_time, data.end_time
+            )
+            if google:
+                per_employee.setdefault(emp["id"], {})["google"] = google
+                per_employee[emp["id"]]["name"] = emp["name"]
+    return per_employee
+
+
 async def _handle_single_schedule(
     data: ScheduleCreate,
     date_to_schedule: str,
@@ -36,21 +70,9 @@ async def _handle_single_schedule(
     user: SchedulerRequired,
 ):
     # Check conflicts for each employee
-    per_employee_conflicts = {}
-    for emp in employees:
-        conflicts = await check_conflicts(
-            emp["id"],
-            date_to_schedule,
-            data.start_time,
-            data.end_time,
-            drive_time,
-        )
-        if conflicts:
-            per_employee_conflicts[emp["id"]] = {
-                "name": emp["name"],
-                "conflicts": conflicts,
-            }
-
+    per_employee_conflicts = await _check_internal_conflicts(
+        employees, date_to_schedule, data.start_time, data.end_time, drive_time,
+    )
     if per_employee_conflicts and not data.force:
         raise HTTPException(
             status_code=409,
@@ -61,37 +83,22 @@ async def _handle_single_schedule(
             },
         )
 
-    # Check Outlook/Google conflicts for first employee (primary)
+    # Check Outlook/Google conflicts for ALL employees
+    per_employee_external = await _check_external_conflicts(
+        employees, data, date_to_schedule,
+    )
+    if per_employee_external and not (data.force_outlook and data.force_google):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "External calendar conflict detected",
+                "conflicts": [],
+                "per_employee_external_conflicts": per_employee_external,
+            },
+        )
+
+    # Check town-to-town for primary employee (used for schedule document fields)
     primary = employees[0]
-    if not data.force_outlook:
-        outlook_conflicts = await check_outlook_conflicts(
-            primary["id"], date_to_schedule, data.start_time, data.end_time
-        )
-        if outlook_conflicts:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "Outlook calendar conflict detected",
-                    "conflicts": [],
-                    "outlook_conflicts": outlook_conflicts,
-                },
-            )
-
-    if not data.force_google:
-        google_conflicts = await check_google_conflicts(
-            primary["id"], date_to_schedule, data.start_time, data.end_time
-        )
-        if google_conflicts:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "Google Calendar conflict detected",
-                    "conflicts": [],
-                    "google_conflicts": google_conflicts,
-                },
-            )
-
-    # Check town-to-town for first employee
     town_to_town, town_to_town_warning, town_to_town_drive_minutes = (
         await _check_town_to_town(primary["id"], date_to_schedule, data.location_id)
     )
@@ -152,6 +159,7 @@ async def _handle_bulk_background(
     employees: list[dict],
     class_doc: dict | None,
     user: SchedulerRequired,
+    series_id: str | None = None,
 ):
     from core.queue import get_redis_pool
 
@@ -171,6 +179,7 @@ async def _handle_bulk_background(
         employees=employees,
         class_doc=class_doc,
         user_name=user.get("name", "System"),
+        series_id=series_id,
     )
     logger.info(
         "Bulk schedules enqueued",
@@ -211,6 +220,7 @@ async def _handle_bulk_synchronous(
     employees: list[dict],
     class_doc: dict | None,
     user: SchedulerRequired,
+    series_id: str | None = None,
 ):
     from services.schedule_utils import check_conflicts_bulk
 
@@ -256,6 +266,7 @@ async def _handle_bulk_synchronous(
             employees,
             class_doc,
             town_to_town_drive_minutes=tt_drive_minutes,
+            series_id=series_id,
         )
         docs_to_insert.append(doc)
 
@@ -314,6 +325,9 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
             user,
         )
 
+    # Generate a shared series_id for all recurring schedule occurrences
+    series_id = str(uuid.uuid4())
+
     result = await _handle_bulk_background(
         data,
         dates_to_schedule,
@@ -323,6 +337,7 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
         employees,
         class_doc,
         user,
+        series_id=series_id,
     )
     if result:
         return result
@@ -336,4 +351,5 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
         employees,
         class_doc,
         user,
+        series_id=series_id,
     )

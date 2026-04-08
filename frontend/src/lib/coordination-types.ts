@@ -195,6 +195,7 @@ export interface Message {
   sender_name: string;
   sender_id: string;
   body: string;
+  visibility?: 'internal' | 'shared';
   created_at: string;
   read_by: string[];
 }

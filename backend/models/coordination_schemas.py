@@ -16,6 +16,10 @@ class ProjectCreate(BaseModel):
     class_id: Optional[str] = None
 
 
+class PhaseAdvanceRequest(BaseModel):
+    force: bool = False  # bypass incomplete task warning
+
+
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     event_date: Optional[str] = None
@@ -127,6 +131,7 @@ class DocumentVisibilityUpdate(BaseModel):
 class MessageCreate(BaseModel):
     channel: str
     body: str
+    visibility: Literal["internal", "shared"] = "shared"
 
 
 # ── Portal Auth ───────────────────────────────────────────────────────
@@ -158,6 +163,7 @@ class OutcomeUpdate(BaseModel):
     contacted_at: Optional[str] = None
     consultation_at: Optional[str] = None
     converted_at: Optional[str] = None
+    force: Optional[bool] = None  # bypass backward transition warning
 
 
 class OutcomeBulkCreate(BaseModel):

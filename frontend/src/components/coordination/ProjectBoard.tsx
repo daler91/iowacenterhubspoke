@@ -8,6 +8,7 @@ import {
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Plus, AlertTriangle } from 'lucide-react';
 import { useProjectBoard } from '../../hooks/useCoordinationData';
 import { projectsAPI } from '../../lib/coordination-api';
@@ -123,6 +124,16 @@ export default function ProjectBoard() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [board]);
 
+  // Phase gate state
+  const [phaseGateWarning, setPhaseGateWarning] = useState<{
+    projectId: string;
+    projectTitle: string;
+    incompleteTasks: { id: string; title: string }[];
+    completionPercentage: number;
+    currentPhase: string;
+    nextPhase: string;
+  } | null>(null);
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !active.data.current?.project) return;
@@ -130,12 +141,55 @@ export default function ProjectBoard() {
     const newPhase = over.id as string;
     if (project.phase === newPhase) return;
 
+    // Determine if this is a forward phase advancement
+    const phaseOrder = PROJECT_PHASES as readonly string[];
+    const currentIdx = phaseOrder.indexOf(project.phase);
+    const newIdx = phaseOrder.indexOf(newPhase);
+    const isForwardMove = newIdx > currentIdx && newIdx === currentIdx + 1;
+
+    if (isForwardMove) {
+      try {
+        const res = await projectsAPI.advancePhase(project.id);
+        const data = res.data;
+        if (data.warning) {
+          // Show phase gate dialog
+          setPhaseGateWarning({
+            projectId: project.id,
+            projectTitle: project.title,
+            incompleteTasks: data.incomplete_tasks,
+            completionPercentage: data.completion_percentage,
+            currentPhase: data.current_phase,
+            nextPhase: data.next_phase,
+          });
+          return;
+        }
+        mutateBoard();
+        toast.success(`Moved "${project.title}" to ${PHASE_LABELS[newPhase]}`);
+      } catch {
+        toast.error('Failed to advance project phase');
+      }
+    } else {
+      // Backward or multi-step move: direct update without gate
+      try {
+        await projectsAPI.update(project.id, { phase: newPhase });
+        mutateBoard();
+        toast.success(`Moved "${project.title}" to ${PHASE_LABELS[newPhase]}`);
+      } catch {
+        toast.error('Failed to update project phase');
+      }
+    }
+  };
+
+  const handleForceAdvance = async () => {
+    if (!phaseGateWarning) return;
     try {
-      await projectsAPI.update(project.id, { phase: newPhase });
+      await projectsAPI.advancePhase(phaseGateWarning.projectId, true);
       mutateBoard();
-      toast.success(`Moved "${project.title}" to ${PHASE_LABELS[newPhase]}`);
+      toast.success(`Moved "${phaseGateWarning.projectTitle}" to ${PHASE_LABELS[phaseGateWarning.nextPhase]}`);
     } catch {
-      toast.error('Failed to update project phase');
+      toast.error('Failed to advance project phase');
+    } finally {
+      setPhaseGateWarning(null);
     }
   };
 
@@ -223,6 +277,44 @@ export default function ProjectBoard() {
           onCreated={() => { setShowCreate(false); mutateBoard(); }}
         />
       )}
+
+      {/* Phase Gate Warning Dialog */}
+      <Dialog open={!!phaseGateWarning} onOpenChange={() => setPhaseGateWarning(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Incomplete Tasks
+            </DialogTitle>
+          </DialogHeader>
+          {phaseGateWarning && (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                <strong>{phaseGateWarning.completionPercentage}%</strong> of tasks in{' '}
+                <strong>{PHASE_LABELS[phaseGateWarning.currentPhase]}</strong> are complete.
+                The following tasks are still open:
+              </p>
+              <ul className="max-h-48 overflow-y-auto space-y-1 text-sm">
+                {phaseGateWarning.incompleteTasks.map(t => (
+                  <li key={t.id} className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                    {t.title}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-slate-500">
+                Advance to <strong>{PHASE_LABELS[phaseGateWarning.nextPhase]}</strong> anyway?
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPhaseGateWarning(null)}>Cancel</Button>
+            <Button onClick={handleForceAdvance} className="bg-amber-600 hover:bg-amber-700 text-white">
+              Advance Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

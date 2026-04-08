@@ -8,7 +8,8 @@ export const projectsAPI = {
   create: (data: Record<string, unknown>) => api.post('/projects', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
-  advancePhase: (id: string) => api.post(`/projects/${id}/advance-phase`),
+  advancePhase: (id: string, force?: boolean) =>
+    api.post(`/projects/${id}/advance-phase`, { force: force ?? false }),
   getBoard: (params?: Record<string, unknown>) => api.get('/projects/board', { params }),
   getDashboard: () => api.get('/projects/dashboard'),
 };
@@ -98,7 +99,7 @@ export const projectDocsAPI = {
 export const projectMessagesAPI = {
   getAll: (projectId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/messages`, { params }),
-  send: (projectId: string, data: { channel: string; body: string }) =>
+  send: (projectId: string, data: { channel: string; body: string; visibility?: string }) =>
     api.post(`/projects/${projectId}/messages`, data),
   getChannels: (projectId: string) =>
     api.get(`/projects/${projectId}/messages/channels`),
@@ -144,6 +145,11 @@ export const portalAPI = {
     api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, portalHeaders(token)),
   projectDocuments: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/documents`, portalHeaders(token)),
+  downloadDocument: (projectId: string, docId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/documents/${docId}/download`, {
+      ...portalHeaders(token),
+      responseType: 'blob',
+    }),
   uploadDocument: (projectId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);

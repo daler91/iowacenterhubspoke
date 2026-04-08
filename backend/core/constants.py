@@ -47,6 +47,15 @@ SCHEDULE_STATUS_TO_PROJECT_PHASE = {
 PARTNER_STATUSES = ["prospect", "onboarding", "active", "inactive"]
 DOC_VISIBILITY = ["internal", "shared"]
 
+# Outcome funnel order for transition validation
+OUTCOME_FUNNEL_ORDER = {
+    "attended": 0,
+    "contacted": 1,
+    "consultation": 2,
+    "converted": 3,
+    "lost": -1,  # loss can happen from any stage
+}
+
 # Default promotion channels for co-marketing checklist
 DEFAULT_PROMOTION_CHANNELS = [
     {"channel": "social_media", "label": "Social media posts", "owner": "both"},

@@ -21,9 +21,11 @@ from core.constants import (
     STATUS_IN_PROGRESS,
     STATUS_COMPLETED,
 )
+from services.schedule_utils import check_conflicts
 from routers.schedule_helpers import (
     logger,
     _build_employees_snapshot,
+    _sync_same_day_town_to_town,
     EMPLOYEE_NOT_FOUND,
     LOCATION_NOT_FOUND,
     CLASS_NOT_FOUND,
@@ -96,6 +98,27 @@ async def bulk_update_status(
     return {"updated_count": updated_count}
 
 
+async def _check_reassign_conflicts(schedules, employees):
+    """Pre-flight conflict check for bulk reassignment."""
+    conflicts = []
+    for sched in schedules:
+        for emp in employees:
+            if emp["id"] in sched.get("employee_ids", []):
+                continue
+            found = await check_conflicts(
+                emp["id"], sched["date"], sched["start_time"], sched["end_time"],
+                sched.get("drive_time_minutes", 0), exclude_id=sched["id"],
+            )
+            if found:
+                conflicts.append({
+                    "schedule_id": sched["id"],
+                    "date": sched["date"],
+                    "employee_name": emp["name"],
+                    "conflicts": found,
+                })
+    return conflicts
+
+
 @router.put(
     "/bulk-reassign",
     summary="Bulk reassign schedules to another employee",
@@ -117,6 +140,22 @@ async def bulk_reassign_schedules(
     employee_ids = [e["id"] for e in employees]
     names = ", ".join(e["name"] for e in employees)
 
+    # Pre-flight conflict check for new employees
+    schedules = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"_id": 0, "id": 1, "date": 1, "start_time": 1, "end_time": 1,
+         "drive_time_minutes": 1, "employee_ids": 1},
+    ).to_list(200)
+
+    conflict_preview = await _check_reassign_conflicts(schedules, employees)
+
+    if conflict_preview and not data.force:
+        return {
+            "preview": True,
+            "conflicts": conflict_preview,
+            "message": f"{len(conflict_preview)} conflict(s) found. Set force=true to proceed.",
+        }
+
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {
@@ -127,6 +166,13 @@ async def bulk_reassign_schedules(
         },
     )
     updated_count = result.modified_count
+
+    # Recalculate town-to-town for affected employees/dates
+    affected_dates = {s["date"] for s in schedules}
+    for emp_id in employee_ids:
+        for d in affected_dates:
+            await _sync_same_day_town_to_town(emp_id, d)
+
     if updated_count > 0:
         logger.info(
             f"Bulk reassigned {updated_count} schedules to {names}",
@@ -163,18 +209,54 @@ async def bulk_update_location(
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
+    new_drive_time = location["drive_time_minutes"]
+
+    # Pre-flight conflict check with new drive time
+    schedules = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None},
+        {"_id": 0, "id": 1, "date": 1, "start_time": 1, "end_time": 1,
+         "employee_ids": 1},
+    ).to_list(200)
+
+    conflict_preview = []
+    for sched in schedules:
+        for emp_id in sched.get("employee_ids", [])[:1]:  # check primary employee
+            conflicts = await check_conflicts(
+                emp_id, sched["date"], sched["start_time"], sched["end_time"],
+                new_drive_time, exclude_id=sched["id"],
+            )
+            if conflicts:
+                conflict_preview.append({
+                    "schedule_id": sched["id"],
+                    "date": sched["date"],
+                    "conflicts": conflicts,
+                })
+
+    if conflict_preview and not data.force:
+        return {
+            "preview": True,
+            "conflicts": conflict_preview,
+            "message": f"{len(conflict_preview)} conflict(s) found. Set force=true to proceed.",
+        }
+
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {
             "$set": {
                 "location_id": data.location_id,
                 "location_name": location["city_name"],
-                "drive_time_minutes": location["drive_time_minutes"],
+                "drive_time_minutes": new_drive_time,
                 "travel_override_minutes": None,
             }
         },
     )
     updated_count = result.modified_count
+
+    # Recalculate town-to-town for affected employees/dates
+    for sched in schedules:
+        for emp_id in sched.get("employee_ids", []):
+            await _sync_same_day_town_to_town(emp_id, sched["date"])
+
     if updated_count > 0:
         logger.info(
             f"Bulk updated {updated_count} schedules to location {location['city_name']}",

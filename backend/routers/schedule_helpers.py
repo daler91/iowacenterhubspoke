@@ -77,6 +77,7 @@ def _build_schedule_doc(
     employees,
     class_doc,
     town_to_town_drive_minutes=None,
+    series_id=None,
 ):
     """Build a schedule document with multiple employees."""
     employee_ids = [e["id"] for e in employees]
@@ -106,6 +107,7 @@ def _build_schedule_doc(
         ),
         "location_name": location["city_name"],
         "calendar_events": {},
+        "series_id": series_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "deleted_at": None,
         **get_class_snapshot(class_doc),

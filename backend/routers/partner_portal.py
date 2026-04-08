@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import (
     PortalAuthRequest, MessageCreate, TaskCommentCreate,
@@ -386,6 +387,35 @@ async def portal_upload_document(
     return doc
 
 
+@router.get(
+    "/projects/{project_id}/documents/{doc_id}/download",
+    summary="Partner downloads a shared document",
+    responses={
+        401: {"description": INVALID_TOKEN},
+        404: {"description": "Document not found"},
+    },
+)
+async def portal_download_document(project_id: str, doc_id: str, ctx: PortalContext):
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+
+    doc = await db.documents.find_one(
+        {"id": doc_id, "project_id": project_id, "visibility": "shared"}, {"_id": 0}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    stored = os.path.basename(doc.get("file_path", ""))
+    file_path = os.path.join(UPLOAD_DIR, stored)
+    if not stored or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(file_path, filename=doc.get("filename", "download"))
+
+
 # ── Partner Messages ──────────────────────────────────────────────────
 
 @router.get(
@@ -403,7 +433,7 @@ async def portal_project_messages(
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
-    query = {"project_id": project_id}
+    query = {"project_id": project_id, "visibility": {"$ne": "internal"}}
     if channel:
         query["channel"] = channel
     messages = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
@@ -433,6 +463,7 @@ async def portal_send_message(project_id: str, ctx: PortalContext, data: Message
         "sender_name": ctx["contact"]["name"],
         "sender_id": ctx["contact"]["id"],
         "body": data.body,
+        "visibility": "shared",  # Partner messages are always visible to both sides
         "created_at": now,
         "read_by": [ctx["contact"]["id"]],
     }

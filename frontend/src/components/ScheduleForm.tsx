@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Repeat } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import ClassQuickCreateDialog from './ClassQuickCreateDialog';
 import CustomRecurrenceDialog from './CustomRecurrenceDialog';
+import { schedulesAPI } from '../lib/api';
+import { toast } from 'sonner';
 
 import { useScheduleForm } from '../hooks/useScheduleForm';
 import { EmployeeClassSelectors } from './schedule-form/EmployeeClassSelectors';
@@ -14,6 +17,9 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
   const isAdmin = user?.role === 'admin';
+  const [seriesAction, setSeriesAction] = useState<'this' | 'future'>('this');
+  const [showSeriesDeleteConfirm, setShowSeriesDeleteConfirm] = useState(false);
+  const hasSeries = !!editSchedule?.series_id;
 
   const {
     form, setForm,
@@ -54,6 +60,24 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {editSchedule && hasSeries && (
+            <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+              <Repeat className="w-4 h-4 text-indigo-500 shrink-0" />
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="seriesAction" value="this" checked={seriesAction === 'this'}
+                    onChange={() => setSeriesAction('this')} className="accent-indigo-600" />
+                  <span>This schedule only</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="seriesAction" value="future" checked={seriesAction === 'future'}
+                    onChange={() => setSeriesAction('future')} className="accent-indigo-600" />
+                  <span>All future in series</span>
+                </label>
+              </div>
+            </div>
+          )}
+
           <EmployeeClassSelectors
             form={form}
             setForm={setForm}
@@ -90,12 +114,18 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 type="button"
                 variant="outline"
                 data-testid="schedule-delete-btn"
-                onClick={handleDelete}
+                onClick={() => {
+                  if (hasSeries && seriesAction === 'future') {
+                    setShowSeriesDeleteConfirm(true);
+                  } else {
+                    handleDelete();
+                  }
+                }}
                 disabled={loading}
                 className="text-red-600 border-red-200 hover:bg-red-50"
               >
                 <Trash2 className="w-4 h-4 mr-1" />
-                Delete
+                {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}
               </Button>
             )}
             <Button
@@ -122,6 +152,37 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         value={customRecurrence}
         onSave={setCustomRecurrence}
       />
+
+      {/* Series Delete Confirmation */}
+      <Dialog open={showSeriesDeleteConfirm} onOpenChange={setShowSeriesDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete All Future Schedules?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            This will delete all future schedules in this recurring series. Past schedules will be preserved.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowSeriesDeleteConfirm(false)}>Cancel</Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={async () => {
+                try {
+                  await schedulesAPI.deleteSeries(editSchedule.series_id);
+                  toast.success('Future schedules in series deleted');
+                  setShowSeriesDeleteConfirm(false);
+                  onSaved?.();
+                  onOpenChange?.(false);
+                } catch {
+                  toast.error('Failed to delete series');
+                }
+              }}
+            >
+              Delete All Future
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
