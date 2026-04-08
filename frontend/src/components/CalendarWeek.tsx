@@ -98,7 +98,7 @@ function computeOverlapLayout(schedules: Array<{ id: string; start_time: string;
 
   const sorted = [...schedules].sort((a, b) => {
     const diff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
-    return diff !== 0 ? diff : timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
+    return diff === 0 ? timeToMinutes(b.end_time) - timeToMinutes(a.end_time) : diff;
   });
 
   const { columns, assignment } = assignColumns(sorted);
