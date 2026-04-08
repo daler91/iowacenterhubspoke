@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import OutcomeTracker from './OutcomeTracker';
 import PromotionChecklist from './PromotionChecklist';
 import ExportButton from './ExportButton';
+import TaskDetailModal from './TaskDetailModal';
 
 function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
@@ -193,6 +194,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const { project, isLoading: projectLoading } = useProject(id);
   const { tasks, mutateTasks, isLoading: tasksLoading } = useProjectTasks(id);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -278,7 +280,7 @@ export default function ProjectDetail() {
                 </div>
                 <div className="space-y-0">
                   {phaseTasks.map(task => (
-                    <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} onOpen={() => navigate(`/coordination/projects/${projectId}/tasks/${task.id}`)} />
+                    <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={mutateTasks} onOpen={() => setSelectedTaskId(task.id)} />
                   ))}
                 </div>
                 <AddTaskInline projectId={projectId} phase={phase} onCreated={mutateTasks} />
@@ -324,6 +326,17 @@ export default function ProjectDetail() {
         </span>
       </div>
 
+      {/* Task Detail Modal */}
+      {selectedTaskId && (
+        <TaskDetailModal
+          projectId={projectId}
+          taskId={selectedTaskId}
+          open={!!selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdated={mutateTasks}
+          projectTitle={project?.title}
+        />
+      )}
     </div>
   );
 }
