@@ -7,9 +7,6 @@ import { projectsAPI } from '../../lib/coordination-api';
 import { usePartnerOrgs } from '../../hooks/useCoordinationData';
 import { EVENT_FORMAT_LABELS, type Project } from '../../lib/coordination-types';
 import { toast } from 'sonner';
-import { cn } from '../../lib/utils';
-import { Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { SearchableSelect } from '../ui/searchable-select';
 
 interface Props {
@@ -128,48 +125,24 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
               onChange={e => setEventDate(e.target.value)}
             />
           </div>
-          <TooltipProvider>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="flex items-center gap-1">
-                  Community
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Auto-populated from the selected Partner Organization.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </Label>
-                <Input
-                  value={community}
-                  disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
-                  placeholder="Auto-filled from partner"
-                />
-              </div>
-              <div>
-                <Label className="flex items-center gap-1">
-                  Venue
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Auto-populated from the selected Partner Organization.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </Label>
-                <Input
-                  value={venueName}
-                  disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
-                  placeholder="Auto-filled from partner"
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-slate-500">Community (auto-derived)</Label>
+              <Input
+                value={community}
+                disabled
+                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+              />
             </div>
-          </TooltipProvider>
+            <div>
+              <Label className="text-xs text-slate-500">Venue (auto-derived)</Label>
+              <Input
+                value={venueName}
+                disabled
+                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+              />
+            </div>
+          </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>

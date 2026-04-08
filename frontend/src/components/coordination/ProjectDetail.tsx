@@ -30,7 +30,8 @@ import { schedulesAPI } from '../../lib/api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
   OWNER_COLORS, OWNER_LABELS, TASK_STATUSES, TASK_STATUS_LABELS,
-  TASK_STATUS_COLORS, type Task, type TaskPhase, type TaskStatus,
+  TASK_STATUS_COLORS, TASK_STATUS_RING_COLORS,
+  type Task, type TaskPhase, type TaskStatus,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -158,10 +159,7 @@ function TaskCard({
                 className={cn(
                   'w-4 h-4 rounded-full shrink-0 mt-1 ring-2 ring-offset-1 transition-colors',
                   TASK_STATUS_COLORS[status],
-                  status === 'to_do' ? 'ring-slate-300' : '',
-                  status === 'in_progress' ? 'ring-blue-400' : '',
-                  status === 'completed' ? 'ring-green-400' : '',
-                  status === 'on_hold' ? 'ring-amber-400' : '',
+                  TASK_STATUS_RING_COLORS[status],
                 )}
                 title={TASK_STATUS_LABELS[status]}
               />
