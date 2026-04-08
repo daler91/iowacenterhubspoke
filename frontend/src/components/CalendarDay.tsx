@@ -53,7 +53,7 @@ function assignColumns(sorted) {
   const assignment = {};
   for (const s of sorted) {
     const startMin = timeToMinutes(s.start_time);
-    const col = columns.findIndex(c => c.at(-1).endMin <= startMin);
+    const col = columns.findIndex(c => (c.at(-1)?.endMin ?? Infinity) <= startMin);
     if (col >= 0) {
       columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
       assignment[s.id] = col;

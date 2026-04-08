@@ -62,7 +62,7 @@ function assignColumns(sorted: Array<{ id: string; start_time: string; end_time:
 
   for (const s of sorted) {
     const startMin = timeToMinutes(s.start_time);
-    const col = columns.findIndex(c => c.at(-1)!.endMin <= startMin);
+    const col = columns.findIndex(c => (c.at(-1)?.endMin ?? Infinity) <= startMin);
     if (col >= 0) {
       columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
       assignment[s.id] = col;
@@ -79,7 +79,9 @@ function countOverlapping(columns: Array<{ id: string; endMin: number }[]>, sSta
   let count = 0;
   for (const col of columns) {
     const hasOverlap = col.some(item => {
-      const iStart = timeToMinutes(sorted.find(x => x.id === item.id)!.start_time);
+      const match = sorted.find(x => x.id === item.id);
+      if (!match) return false;
+      const iStart = timeToMinutes(match.start_time);
       return iStart < sEnd && item.endMin > sStart;
     });
     if (hasOverlap) count++;
