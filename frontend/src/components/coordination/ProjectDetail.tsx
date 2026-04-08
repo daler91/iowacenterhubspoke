@@ -9,7 +9,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2 } from 'lucide-react';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
@@ -267,9 +267,33 @@ export default function ProjectDetail() {
           </Badge>
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name} &middot; {project.community}
-          {project.partner_org_name && <> &middot; {project.partner_org_name}</>}
+          {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
+          {project.location_name && <> &middot; <MapPin className="w-3 h-3 inline" /> {project.location_name}</>}
+          {!project.location_name && project.community && <> &middot; {project.community}</>}
+          {project.partner_org_name && (
+            <> &middot; <Building2 className="w-3 h-3 inline" /> {project.partner_org_name}</>
+          )}
+          {project.partner_org_status && (
+            <Badge variant="secondary" className="ml-2 text-[10px]">{project.partner_org_status}</Badge>
+          )}
         </p>
+        {/* Venue details from partner org */}
+        {project.partner_org_venue_details && Object.values(project.partner_org_venue_details).some(Boolean) && (
+          <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
+            {project.partner_org_venue_details.capacity && (
+              <span>Capacity: {project.partner_org_venue_details.capacity}</span>
+            )}
+            {project.partner_org_venue_details.wifi !== undefined && project.partner_org_venue_details.wifi !== null && (
+              <span>WiFi: {project.partner_org_venue_details.wifi ? 'Yes' : 'No'}</span>
+            )}
+            {project.partner_org_venue_details.parking && (
+              <span>Parking: {project.partner_org_venue_details.parking}</span>
+            )}
+            {project.partner_org_venue_details.accessibility && (
+              <span>Access: {project.partner_org_venue_details.accessibility}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Linked Schedule */}

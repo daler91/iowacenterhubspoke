@@ -9,11 +9,16 @@ class ProjectCreate(BaseModel):
     event_format: Literal["workshop", "series", "office_hours", "onboarding"]
     partner_org_id: str
     event_date: str  # ISO datetime string
-    community: str
-    venue_name: str
+    community: Optional[str] = None  # auto-derived from partner org's location
+    venue_name: Optional[str] = None  # auto-derived from partner org name
     template_id: Optional[str] = None
     schedule_id: Optional[str] = None
     class_id: Optional[str] = None
+    # Auto-schedule creation fields
+    employee_ids: Optional[List[str]] = None
+    start_time: Optional[str] = None  # HH:MM
+    end_time: Optional[str] = None  # HH:MM
+    auto_create_schedule: bool = False
 
 
 class PhaseAdvanceRequest(BaseModel):
