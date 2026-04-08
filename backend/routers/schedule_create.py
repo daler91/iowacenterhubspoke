@@ -25,6 +25,40 @@ from routers.schedule_helpers import (
 )
 
 
+async def _check_internal_conflicts(employees, date, start_time, end_time, drive_time):
+    """Check internal schedule conflicts for all employees."""
+    per_employee = {}
+    for emp in employees:
+        conflicts = await check_conflicts(
+            emp["id"], date, start_time, end_time, drive_time,
+        )
+        if conflicts:
+            per_employee[emp["id"]] = {"name": emp["name"], "conflicts": conflicts}
+    return per_employee
+
+
+async def _check_external_conflicts(employees, data, date_to_schedule):
+    """Check Outlook/Google calendar conflicts for all employees."""
+    per_employee = {}
+    for emp in employees:
+        if not data.force_outlook:
+            outlook = await check_outlook_conflicts(
+                emp["id"], date_to_schedule, data.start_time, data.end_time
+            )
+            if outlook:
+                per_employee.setdefault(emp["id"], {})["outlook"] = outlook
+                per_employee[emp["id"]]["name"] = emp["name"]
+
+        if not data.force_google:
+            google = await check_google_conflicts(
+                emp["id"], date_to_schedule, data.start_time, data.end_time
+            )
+            if google:
+                per_employee.setdefault(emp["id"], {})["google"] = google
+                per_employee[emp["id"]]["name"] = emp["name"]
+    return per_employee
+
+
 async def _handle_single_schedule(
     data: ScheduleCreate,
     date_to_schedule: str,
@@ -36,21 +70,9 @@ async def _handle_single_schedule(
     user: SchedulerRequired,
 ):
     # Check conflicts for each employee
-    per_employee_conflicts = {}
-    for emp in employees:
-        conflicts = await check_conflicts(
-            emp["id"],
-            date_to_schedule,
-            data.start_time,
-            data.end_time,
-            drive_time,
-        )
-        if conflicts:
-            per_employee_conflicts[emp["id"]] = {
-                "name": emp["name"],
-                "conflicts": conflicts,
-            }
-
+    per_employee_conflicts = await _check_internal_conflicts(
+        employees, date_to_schedule, data.start_time, data.end_time, drive_time,
+    )
     if per_employee_conflicts and not data.force:
         raise HTTPException(
             status_code=409,
@@ -62,24 +84,9 @@ async def _handle_single_schedule(
         )
 
     # Check Outlook/Google conflicts for ALL employees
-    per_employee_external = {}
-    for emp in employees:
-        if not data.force_outlook:
-            outlook = await check_outlook_conflicts(
-                emp["id"], date_to_schedule, data.start_time, data.end_time
-            )
-            if outlook:
-                per_employee_external.setdefault(emp["id"], {})["outlook"] = outlook
-                per_employee_external[emp["id"]]["name"] = emp["name"]
-
-        if not data.force_google:
-            google = await check_google_conflicts(
-                emp["id"], date_to_schedule, data.start_time, data.end_time
-            )
-            if google:
-                per_employee_external.setdefault(emp["id"], {})["google"] = google
-                per_employee_external[emp["id"]]["name"] = emp["name"]
-
+    per_employee_external = await _check_external_conflicts(
+        employees, data, date_to_schedule,
+    )
     if per_employee_external and not (data.force_outlook and data.force_google):
         raise HTTPException(
             status_code=409,

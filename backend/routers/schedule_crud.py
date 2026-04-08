@@ -436,6 +436,9 @@ async def update_schedule_status(
 @router.delete(
     "/series/{series_id}",
     summary="Soft-delete all future schedules in a recurrence series",
+    responses={
+        404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
+    },
 )
 async def delete_series(series_id: str, user: SchedulerRequired):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -458,6 +461,10 @@ async def delete_series(series_id: str, user: SchedulerRequired):
 @router.put(
     "/series/{series_id}",
     summary="Update all future schedules in a recurrence series",
+    responses={
+        400: {"model": ErrorResponse, "description": NO_FIELDS_TO_UPDATE},
+        404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
+    },
 )
 async def update_series(
     series_id: str, data: ScheduleUpdate, user: SchedulerRequired

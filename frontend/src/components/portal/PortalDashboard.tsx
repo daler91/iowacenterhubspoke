@@ -279,7 +279,7 @@ export default function PortalDashboard() {
                         variant="ghost"
                         onClick={async () => {
                           try {
-                            const res = await portalAPI.downloadDocument(project.id, doc.id, token!);
+                            const res = await portalAPI.downloadDocument(project.id, doc.id, token);
                             const blob = new Blob([res.data]);
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');

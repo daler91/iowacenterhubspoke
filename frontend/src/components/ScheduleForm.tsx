@@ -67,12 +67,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="seriesAction" value="this" checked={seriesAction === 'this'}
                     onChange={() => setSeriesAction('this')} className="accent-indigo-600" />
-                  This schedule only
+                  <span>This schedule only</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="seriesAction" value="future" checked={seriesAction === 'future'}
                     onChange={() => setSeriesAction('future')} className="accent-indigo-600" />
-                  All future in series
+                  <span>All future in series</span>
                 </label>
               </div>
             </div>

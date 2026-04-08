@@ -98,6 +98,27 @@ async def bulk_update_status(
     return {"updated_count": updated_count}
 
 
+async def _check_reassign_conflicts(schedules, employees):
+    """Pre-flight conflict check for bulk reassignment."""
+    conflicts = []
+    for sched in schedules:
+        for emp in employees:
+            if emp["id"] in sched.get("employee_ids", []):
+                continue
+            found = await check_conflicts(
+                emp["id"], sched["date"], sched["start_time"], sched["end_time"],
+                sched.get("drive_time_minutes", 0), exclude_id=sched["id"],
+            )
+            if found:
+                conflicts.append({
+                    "schedule_id": sched["id"],
+                    "date": sched["date"],
+                    "employee_name": emp["name"],
+                    "conflicts": found,
+                })
+    return conflicts
+
+
 @router.put(
     "/bulk-reassign",
     summary="Bulk reassign schedules to another employee",
@@ -126,23 +147,7 @@ async def bulk_reassign_schedules(
          "drive_time_minutes": 1, "employee_ids": 1},
     ).to_list(200)
 
-    conflict_preview = []
-    for sched in schedules:
-        for emp in employees:
-            # Skip if employee is already assigned to this schedule
-            if emp["id"] in sched.get("employee_ids", []):
-                continue
-            conflicts = await check_conflicts(
-                emp["id"], sched["date"], sched["start_time"], sched["end_time"],
-                sched.get("drive_time_minutes", 0), exclude_id=sched["id"],
-            )
-            if conflicts:
-                conflict_preview.append({
-                    "schedule_id": sched["id"],
-                    "date": sched["date"],
-                    "employee_name": emp["name"],
-                    "conflicts": conflicts,
-                })
+    conflict_preview = await _check_reassign_conflicts(schedules, employees)
 
     if conflict_preview and not data.force:
         return {

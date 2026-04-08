@@ -203,7 +203,37 @@ export default function OutcomeTracker({ projectId }: Props) {
           <DialogHeader>
             <DialogTitle>Add Attendees</DialogTitle>
           </DialogHeader>
-          {!showPreview ? (
+          {showPreview ? (
+            <>
+              <p className="text-sm text-slate-500 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
+              <div className="max-h-60 overflow-y-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-1.5 font-medium">Name</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Email</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedAttendees.map((a) => (
+                      <tr key={a.attendee_name + (a.attendee_email || '')} className="border-t">
+                        <td className="px-3 py-1.5">{a.attendee_name}</td>
+                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_email || '-'}</td>
+                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_phone || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <Button variant="outline" onClick={() => setShowPreview(false)}>Back</Button>
+                <Button onClick={handleBulkAdd} disabled={adding} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {adding ? 'Adding...' : `Add ${parsedAttendees.length} Attendees`}
+                </Button>
+              </div>
+            </>
+          ) : (
             <>
               <p className="text-sm text-slate-500 mb-2">
                 Enter one attendee per line (Name, Email, Phone):
@@ -219,36 +249,6 @@ export default function OutcomeTracker({ projectId }: Props) {
                 <Button variant="outline" onClick={() => setShowBulkAdd(false)}>Cancel</Button>
                 <Button onClick={handleParsePreview} disabled={!bulkText.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
                   Preview
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-slate-500 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
-              <div className="max-h-60 overflow-y-auto border rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
-                    <tr>
-                      <th className="text-left px-3 py-1.5 font-medium">Name</th>
-                      <th className="text-left px-3 py-1.5 font-medium">Email</th>
-                      <th className="text-left px-3 py-1.5 font-medium">Phone</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedAttendees.map((a, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-3 py-1.5">{a.attendee_name}</td>
-                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_email || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_phone || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex justify-end gap-2 mt-2">
-                <Button variant="outline" onClick={() => setShowPreview(false)}>Back</Button>
-                <Button onClick={handleBulkAdd} disabled={adding} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                  {adding ? 'Adding...' : `Add ${parsedAttendees.length} Attendees`}
                 </Button>
               </div>
             </>
