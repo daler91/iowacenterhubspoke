@@ -69,6 +69,23 @@ async def get_schedules(
         .limit(limit)
         .to_list(limit)
     )
+    # Enrich with linked project summaries
+    schedule_ids = [s["id"] for s in schedules]
+    if schedule_ids:
+        linked_projects = await db.projects.find(
+            {"schedule_id": {"$in": schedule_ids}, "deleted_at": None},
+            {"_id": 0, "schedule_id": 1, "id": 1, "title": 1, "phase": 1,
+             "partner_org_id": 1, "task_total": 1, "task_completed": 1},
+        ).to_list(500)
+        project_map = {p["schedule_id"]: p for p in linked_projects}
+        for s in schedules:
+            proj = project_map.get(s["id"])
+            if proj:
+                s["linked_project"] = {
+                    "id": proj["id"],
+                    "title": proj.get("title", ""),
+                    "phase": proj.get("phase", "planning"),
+                }
     return {"items": schedules, "total": total, "skip": skip, "limit": limit}
 
 
@@ -241,6 +258,21 @@ async def update_schedule(
     await _sync_town_to_town_if_needed(schedule_id, update_data)
     await _sync_calendar_events_if_needed(schedule_id, update_data, old_schedule)
 
+    # Sync date to linked project if date changed
+    if "date" in update_data:
+        linked = await db.projects.find_one(
+            {"schedule_id": schedule_id, "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if linked:
+            await db.projects.update_one(
+                {"id": linked["id"]},
+                {"$set": {
+                    "event_date": update_data["date"],
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+
     logger.info(
         f"Schedule updated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id}},
@@ -360,13 +392,19 @@ async def update_schedule_status(
         user_name=user.get("name", "System"),
     )
     # Auto-advance linked project phase when schedule status changes
+    linked_project_summary = None
     target_phase = SCHEDULE_STATUS_TO_PROJECT_PHASE.get(data.status)
     if target_phase:
         linked_project = await db.projects.find_one(
             {"schedule_id": schedule_id, "deleted_at": None},
-            {"_id": 0, "id": 1, "phase": 1},
+            {"_id": 0, "id": 1, "phase": 1, "title": 1},
         )
         if linked_project:
+            linked_project_summary = {
+                "id": linked_project["id"],
+                "title": linked_project.get("title", ""),
+                "phase": linked_project["phase"],
+            }
             current_idx = PROJECT_PHASE_ORDER.get(linked_project["phase"], 0)
             target_idx = PROJECT_PHASE_ORDER.get(target_phase, 0)
             if target_idx > current_idx:
@@ -375,6 +413,7 @@ async def update_schedule_status(
                     {"id": linked_project["id"]},
                     {"$set": {"phase": target_phase, "updated_at": now}},
                 )
+                linked_project_summary["phase"] = target_phase
                 await log_activity(
                     "project_phase_auto_advanced",
                     f"Project auto-advanced to {target_phase} (schedule {data.status})",
@@ -382,6 +421,8 @@ async def update_schedule_status(
                     linked_project["id"],
                     user.get("name", "System"),
                 )
+    if linked_project_summary:
+        updated["linked_project"] = linked_project_summary
     return updated
 
 

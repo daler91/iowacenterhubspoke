@@ -76,6 +76,7 @@ export interface Project {
   partner_org_name?: string;
   template_id?: string;
   schedule_id?: string;
+  class_id?: string;
   event_date: string;
   phase: ProjectPhase;
   community: string;
@@ -236,6 +237,15 @@ export interface TrendData {
   by_month: Record<string, Record<string, { delivered: number; attendance: number }>>;
 }
 
+export interface ClassBreakdown {
+  class_id: string | null;
+  class_name?: string;
+  class_color?: string;
+  delivered: number;
+  attendance: number;
+  warm_leads: number;
+}
+
 export interface DashboardMetrics {
   classes_delivered: number;
   total_attendance: number;
@@ -243,6 +253,8 @@ export interface DashboardMetrics {
   active_partners: number;
   upcoming_classes: number;
   overdue_alert_count: number;
+  orphan_completed_schedules: number;
+  class_breakdown: ClassBreakdown[];
   communities: CommunityStats[];
   upcoming_projects: Project[];
   trends?: TrendData;

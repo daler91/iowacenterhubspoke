@@ -207,6 +207,15 @@ async def get_class_stats(
         loc_name = s.get('location_name', 'Unknown')
         loc_counts[loc_name] = loc_counts.get(loc_name, 0) + 1
 
+    # Business outcomes from linked projects
+    projects = await db.projects.find(
+        {"class_id": class_id, "deleted_at": None},
+        {"_id": 0, "phase": 1, "attendance_count": 1, "warm_leads": 1},
+    ).to_list(500)
+    projects_delivered = sum(1 for p in projects if p.get("phase") == "complete")
+    total_attendance = sum(p.get("attendance_count") or 0 for p in projects)
+    total_warm_leads = sum(p.get("warm_leads") or 0 for p in projects)
+
     return {
         "class_info": class_doc,
         "total_schedules": total_schedules,
@@ -215,6 +224,9 @@ async def get_class_stats(
         "completed": completed,
         "upcoming": upcoming,
         "in_progress": in_progress,
+        "projects_delivered": projects_delivered,
+        "total_attendance": total_attendance,
+        "total_warm_leads": total_warm_leads,
         "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
         "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
         "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]

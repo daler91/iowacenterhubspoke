@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Clock, Car, BookOpen,
-  CheckCircle2, CalendarDays, Users, Filter
+  CheckCircle2, CalendarDays, Users, Filter, GraduationCap, Flame
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
@@ -54,7 +54,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
     </div>
   );
 
-  const { class_info, total_schedules, total_drive_minutes, total_class_minutes, completed, upcoming, employee_breakdown, location_breakdown, recent_schedules } = data;
+  const { class_info, total_schedules, total_drive_minutes, total_class_minutes, completed, upcoming, projects_delivered, total_attendance, total_warm_leads, employee_breakdown, location_breakdown, recent_schedules } = data;
 
   const getStatusStyle = (status) => {
     if (status === 'completed') return 'bg-green-50 text-green-700';
@@ -176,6 +176,33 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
           <p className="text-xs text-slate-500">Upcoming</p>
         </div>
       </div>
+
+      {/* Business Outcomes (from linked projects) */}
+      {(projects_delivered > 0 || total_attendance > 0) && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-green-100 p-4 text-center">
+            <GraduationCap className="w-5 h-5 text-green-600 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              {projects_delivered}
+            </p>
+            <p className="text-xs text-slate-500">Projects Delivered</p>
+          </div>
+          <div className="bg-white rounded-xl border border-green-100 p-4 text-center">
+            <Users className="w-5 h-5 text-green-600 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              {total_attendance}
+            </p>
+            <p className="text-xs text-slate-500">Total Attendance</p>
+          </div>
+          <div className="bg-white rounded-xl border border-green-100 p-4 text-center">
+            <Flame className="w-5 h-5 text-amber-600 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              {total_warm_leads}
+            </p>
+            <p className="text-xs text-slate-500">Warm Leads</p>
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

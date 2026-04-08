@@ -67,12 +67,15 @@ async def get_project_board(
     user: CurrentUser,
     community: Optional[str] = None,
     event_format: Optional[str] = None,
+    class_id: Optional[str] = None,
 ):
     query: dict = {"deleted_at": None, "phase": {"$ne": "complete"}}
     if community:
         query["community"] = community
     if event_format:
         query["event_format"] = event_format
+    if class_id:
+        query["class_id"] = class_id
 
     projects = await db.projects.find(query, {"_id": 0}).to_list(500)
     task_stats = await _build_task_stats([p["id"] for p in projects])
@@ -136,6 +139,41 @@ async def get_dashboard(
             phase = p.get("phase", "planning")
             communities[c]["phases"][phase] = communities[c]["phases"].get(phase, 0) + 1
 
+    # Per-class breakdown for completed projects
+    class_breakdown = {}
+    for p in completed:
+        cid = p.get("class_id") or "unlinked"
+        if cid not in class_breakdown:
+            class_breakdown[cid] = {
+                "class_id": cid if cid != "unlinked" else None,
+                "delivered": 0, "attendance": 0, "warm_leads": 0,
+            }
+        class_breakdown[cid]["delivered"] += 1
+        class_breakdown[cid]["attendance"] += p.get("attendance_count") or 0
+        class_breakdown[cid]["warm_leads"] += p.get("warm_leads") or 0
+    # Enrich with class names
+    class_ids = [k for k in class_breakdown if k != "unlinked"]
+    if class_ids:
+        class_docs = await db.classes.find(
+            {"id": {"$in": class_ids}}, {"_id": 0, "id": 1, "name": 1, "color": 1}
+        ).to_list(100)
+        class_map = {c["id"]: c for c in class_docs}
+        for cid, info in class_breakdown.items():
+            if cid in class_map:
+                info["class_name"] = class_map[cid].get("name", "Unknown")
+                info["class_color"] = class_map[cid].get("color")
+            elif cid == "unlinked":
+                info["class_name"] = "No class linked"
+
+    # Count completed schedules without linked projects (orphans)
+    all_project_schedule_ids = [
+        p["schedule_id"] for p in all_projects if p.get("schedule_id")
+    ]
+    orphan_query = {"status": "completed", "deleted_at": None}
+    if all_project_schedule_ids:
+        orphan_query["id"] = {"$nin": all_project_schedule_ids}
+    orphan_completed = await db.schedules.count_documents(orphan_query)
+
     return {
         "classes_delivered": len(completed),
         "total_attendance": total_attendance,
@@ -143,6 +181,8 @@ async def get_dashboard(
         "active_partners": len(partner_orgs),
         "upcoming_classes": len(upcoming),
         "overdue_alert_count": overdue_count,
+        "orphan_completed_schedules": orphan_completed,
+        "class_breakdown": list(class_breakdown.values()),
         "communities": list(communities.values()),
         "upcoming_projects": sorted(upcoming, key=lambda x: x.get("event_date", ""))[:20],
         "trends": _build_trends(all_projects, period),
@@ -188,6 +228,8 @@ async def list_projects(
     phase: Optional[str] = None,
     event_format: Optional[str] = None,
     partner_org_id: Optional[str] = None,
+    class_id: Optional[str] = None,
+    schedule_id: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
 ):
@@ -200,6 +242,10 @@ async def list_projects(
         query["event_format"] = event_format
     if partner_org_id:
         query["partner_org_id"] = partner_org_id
+    if class_id:
+        query["class_id"] = class_id
+    if schedule_id:
+        query["schedule_id"] = schedule_id
     total = await db.projects.count_documents(query)
     items = await db.projects.find(query, {"_id": 0}).sort("event_date", -1).skip(skip).limit(limit).to_list(limit)
     return {"items": items, "total": total, "skip": skip, "limit": limit}
@@ -248,14 +294,17 @@ async def _clone_template_tasks(
     responses={400: {"description": "Linked schedule not found"}},
 )
 async def create_project(data: ProjectCreate, user: CurrentUser):
-    # Validate linked schedule exists if provided
+    # Validate linked schedule and auto-fill class_id if not provided
+    class_id = data.class_id
     if data.schedule_id:
         schedule = await db.schedules.find_one(
             {"id": data.schedule_id, "deleted_at": None},
-            {"_id": 0, "id": 1},
+            {"_id": 0, "id": 1, "class_id": 1},
         )
         if not schedule:
             raise HTTPException(status_code=400, detail="Linked schedule not found")
+        if not class_id and schedule.get("class_id"):
+            class_id = schedule["class_id"]
 
     project_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -267,6 +316,7 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
         "partner_org_id": data.partner_org_id,
         "template_id": data.template_id,
         "schedule_id": data.schedule_id,
+        "class_id": class_id,
         "event_date": data.event_date,
         "phase": "planning",
         "community": data.community,
@@ -357,6 +407,13 @@ async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     updated = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    # Sync event_date to linked schedule if date changed
+    if "event_date" in update_data and updated and updated.get("schedule_id"):
+        new_date = update_data["event_date"][:10]  # Extract YYYY-MM-DD
+        await db.schedules.update_one(
+            {"id": updated["schedule_id"], "deleted_at": None},
+            {"$set": {"date": new_date}},
+        )
     return updated
 
 

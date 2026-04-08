@@ -74,6 +74,39 @@ export default function CommunityDashboard() {
         />
       </div>
 
+      {/* Orphan Alert */}
+      {dashboard.orphan_completed_schedules > 0 && (
+        <Card className="p-4 mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="flex items-center gap-3 text-sm">
+            <CalendarDays className="w-5 h-5 text-amber-600 shrink-0" />
+            <p className="text-slate-700 dark:text-slate-300">
+              <strong>{dashboard.orphan_completed_schedules}</strong> completed schedule{dashboard.orphan_completed_schedules > 1 ? 's' : ''} {dashboard.orphan_completed_schedules > 1 ? 'have' : 'has'} no linked project — outcomes are not being tracked.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Class Breakdown */}
+      {dashboard.class_breakdown?.length > 0 && (
+        <>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">By Class</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+            {dashboard.class_breakdown.map((cb) => (
+              <Card key={cb.class_id || 'unlinked'} className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  {cb.class_color && (
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cb.class_color }} />
+                  )}
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{cb.class_name || 'Unknown'}</p>
+                </div>
+                <p className="text-lg font-bold text-slate-800 dark:text-white">{cb.delivered}</p>
+                <p className="text-[10px] text-slate-400">{cb.attendance} attended &middot; {cb.warm_leads} leads</p>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Community Cards */}
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Communities</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
