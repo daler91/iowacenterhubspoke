@@ -192,16 +192,16 @@ export default function OutcomeTracker({ projectId }: Props) {
         <Card className="p-3 mb-4 border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/20">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Name *</label>
-              <Input value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="Attendee name" className="h-8 text-sm" />
+              <label htmlFor="quick-add-name" className="text-[10px] text-slate-500 uppercase tracking-wide">Name *</label>
+              <Input id="quick-add-name" value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="Attendee name" className="h-8 text-sm" />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Email</label>
-              <Input value={quickEmail} onChange={e => setQuickEmail(e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
+              <label htmlFor="quick-add-email" className="text-[10px] text-slate-500 uppercase tracking-wide">Email</label>
+              <Input id="quick-add-email" value={quickEmail} onChange={e => setQuickEmail(e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
             </div>
             <div className="w-32">
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Phone</label>
-              <Input value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="515-555-0100" className="h-8 text-sm" />
+              <label htmlFor="quick-add-phone" className="text-[10px] text-slate-500 uppercase tracking-wide">Phone</label>
+              <Input id="quick-add-phone" value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="515-555-0100" className="h-8 text-sm" />
             </div>
             <Button size="sm" onClick={handleQuickAdd} disabled={quickAdding || !quickName.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white h-8">
               Add

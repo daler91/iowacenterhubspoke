@@ -55,6 +55,38 @@ interface OverlapInfo {
   totalColumns: number;
 }
 
+/** Assign each schedule to a column, return per-schedule column and total overlap count */
+function assignColumns(sorted: Array<{ id: string; start_time: string; end_time: string }>) {
+  const columns: Array<{ id: string; endMin: number }[]> = [];
+  const assignment: Record<string, number> = {};
+
+  for (const s of sorted) {
+    const startMin = timeToMinutes(s.start_time);
+    const col = columns.findIndex(c => c.at(-1)!.endMin <= startMin);
+    if (col >= 0) {
+      columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
+      assignment[s.id] = col;
+    } else {
+      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
+      assignment[s.id] = columns.length - 1;
+    }
+  }
+  return { columns, assignment };
+}
+
+/** Count how many columns have items overlapping with the given time range */
+function countOverlapping(columns: Array<{ id: string; endMin: number }[]>, sStart: number, sEnd: number, sorted: Array<{ id: string; start_time: string }>) {
+  let count = 0;
+  for (const col of columns) {
+    const hasOverlap = col.some(item => {
+      const iStart = timeToMinutes(sorted.find(x => x.id === item.id)!.start_time);
+      return iStart < sEnd && item.endMin > sStart;
+    });
+    if (hasOverlap) count++;
+  }
+  return count;
+}
+
 function computeOverlapLayout(schedules: Array<{ id: string; start_time: string; end_time: string }>): Record<string, OverlapInfo> {
   if (schedules.length <= 1) {
     const result: Record<string, OverlapInfo> = {};
@@ -62,59 +94,18 @@ function computeOverlapLayout(schedules: Array<{ id: string; start_time: string;
     return result;
   }
 
-  // Sort by start time, then by end time descending (longer events first)
   const sorted = [...schedules].sort((a, b) => {
     const diff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
-    if (diff !== 0) return diff;
-    return timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
+    return diff !== 0 ? diff : timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
   });
 
-  // Assign columns greedily
-  const columns: Array<{ id: string; endMin: number }[]> = [];
-  const assignment: Record<string, number> = {};
-
-  for (const s of sorted) {
-    const startMin = timeToMinutes(s.start_time);
-    let placed = false;
-    for (let col = 0; col < columns.length; col++) {
-      // Check if this schedule fits in this column (no overlap with last item)
-      const lastInCol = columns[col][columns[col].length - 1];
-      if (lastInCol.endMin <= startMin) {
-        columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
-        assignment[s.id] = col;
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
-      assignment[s.id] = columns.length - 1;
-    }
-  }
-
-  // Now determine the max overlap depth for each schedule's time range
-  // For simplicity, use the total columns count for all overlapping groups
-  // Find connected groups of overlapping schedules
+  const { columns, assignment } = assignColumns(sorted);
   const result: Record<string, OverlapInfo> = {};
-  const totalCols = columns.length;
 
-  // Refine: for each schedule, find how many columns are actually used
-  // during its time range (not global total, but local overlap count)
   for (const s of sorted) {
     const sStart = timeToMinutes(s.start_time);
     const sEnd = timeToMinutes(s.end_time);
-    let maxOverlap = 0;
-    for (const col of columns) {
-      for (const item of col) {
-        const iStart = timeToMinutes(sorted.find(x => x.id === item.id)!.start_time);
-        const iEnd = item.endMin;
-        // Check if this item overlaps with s
-        if (iStart < sEnd && iEnd > sStart) {
-          maxOverlap++;
-          break; // One overlap per column is enough
-        }
-      }
-    }
+    const maxOverlap = countOverlapping(columns, sStart, sEnd, sorted);
     result[s.id] = { column: assignment[s.id], totalColumns: Math.max(maxOverlap, 1) };
   }
 

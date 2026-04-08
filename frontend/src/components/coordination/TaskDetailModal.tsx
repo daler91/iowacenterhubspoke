@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Label } from '../ui/label';
 import { Card } from '../ui/card';
 import {
   Check, Paperclip, Upload, Download,
@@ -56,7 +55,6 @@ export default function TaskDetailModal({
 }: Props) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'info' | 'additional'>('info');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -94,7 +92,6 @@ export default function TaskDetailModal({
   useEffect(() => {
     if (open && taskId) {
       setLoading(true);
-      setActiveTab('info');
       loadTask();
     }
   }, [open, taskId, loadTask]);

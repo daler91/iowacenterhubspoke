@@ -48,6 +48,35 @@ function snapYToMinutes(y) {
 }
 
 // ─── Overlap layout algorithm ─────────────────────────────────────────────
+function assignColumns(sorted) {
+  const columns = [];
+  const assignment = {};
+  for (const s of sorted) {
+    const startMin = timeToMinutes(s.start_time);
+    const col = columns.findIndex(c => c.at(-1).endMin <= startMin);
+    if (col >= 0) {
+      columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
+      assignment[s.id] = col;
+    } else {
+      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
+      assignment[s.id] = columns.length - 1;
+    }
+  }
+  return { columns, assignment };
+}
+
+function countOverlapping(columns, sStart, sEnd, sorted) {
+  let count = 0;
+  for (const col of columns) {
+    const hasOverlap = col.some(item => {
+      const iS = sorted.find(x => x.id === item.id);
+      return iS && timeToMinutes(iS.start_time) < sEnd && item.endMin > sStart;
+    });
+    if (hasOverlap) count++;
+  }
+  return count;
+}
+
 function computeOverlapLayout(schedules) {
   if (schedules.length <= 1) {
     const result = {};
@@ -56,42 +85,14 @@ function computeOverlapLayout(schedules) {
   }
   const sorted = [...schedules].sort((a, b) => {
     const diff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
-    if (diff !== 0) return diff;
-    return timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
+    return diff !== 0 ? diff : timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
   });
-  const columns = [];
-  const assignment = {};
-  for (const s of sorted) {
-    const startMin = timeToMinutes(s.start_time);
-    let placed = false;
-    for (let col = 0; col < columns.length; col++) {
-      const lastInCol = columns[col][columns[col].length - 1];
-      if (lastInCol.endMin <= startMin) {
-        columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
-        assignment[s.id] = col;
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
-      assignment[s.id] = columns.length - 1;
-    }
-  }
+  const { columns, assignment } = assignColumns(sorted);
   const result = {};
   for (const s of sorted) {
     const sStart = timeToMinutes(s.start_time);
     const sEnd = timeToMinutes(s.end_time);
-    let maxOverlap = 0;
-    for (const col of columns) {
-      for (const item of col) {
-        const iS = sorted.find(x => x.id === item.id);
-        if (iS && timeToMinutes(iS.start_time) < sEnd && item.endMin > sStart) {
-          maxOverlap++;
-          break;
-        }
-      }
-    }
+    const maxOverlap = countOverlapping(columns, sStart, sEnd, sorted);
     result[s.id] = { column: assignment[s.id], totalColumns: Math.max(maxOverlap, 1) };
   }
   return result;

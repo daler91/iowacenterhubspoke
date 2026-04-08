@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, useSensor, useSensors,
@@ -9,7 +9,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ArrowLeft, Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2, ChevronDown, ChevronRight, Megaphone, Users } from 'lucide-react';
+import { Plus, Check, X, Paperclip, MessageSquare, CalendarDays, MapPin, Building2, ChevronRight, Megaphone, Users } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
@@ -196,23 +196,27 @@ function AddTaskInline({
       <div className="flex items-center gap-2">
         <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="text-xs h-7 w-32" />
         <div className="flex gap-0.5">
-          {(['internal', 'partner', 'both'] as const).map(o => (
+          {(['internal', 'partner', 'both'] as const).map(o => {
+            const ACTIVE_STYLES: Record<string, string> = {
+              internal: 'bg-blue-100 border-blue-300 text-blue-700',
+              partner: 'bg-purple-100 border-purple-300 text-purple-700',
+              both: 'bg-orange-100 border-orange-300 text-orange-700',
+            };
+            const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-slate-200 text-slate-400 hover:border-slate-300';
+            return (
             <button
               key={o}
               type="button"
               onClick={() => setOwner(o)}
               className={cn(
                 'text-[10px] px-2 py-0.5 rounded-full border transition-colors capitalize',
-                owner === o
-                  ? o === 'internal' ? 'bg-blue-100 border-blue-300 text-blue-700'
-                    : o === 'partner' ? 'bg-purple-100 border-purple-300 text-purple-700'
-                    : 'bg-orange-100 border-orange-300 text-orange-700'
-                  : 'border-slate-200 text-slate-400 hover:border-slate-300',
+                activeStyle,
               )}
             >
               {OWNER_LABELS[o]}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -221,7 +225,6 @@ function AddTaskInline({
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const { project, isLoading: projectLoading } = useProject(id);

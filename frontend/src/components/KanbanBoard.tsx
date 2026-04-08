@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake, CalendarDays } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -168,7 +168,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   );
 }
 
-function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+function DroppableColumn({ id, children }: Readonly<{ id: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div ref={setNodeRef} className={cn('transition-colors rounded-xl', isOver && 'bg-indigo-50/40')}>
