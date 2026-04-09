@@ -87,10 +87,15 @@ export default function PartnerProfile() {
       toast.success(`Status updated to ${newStatus}`);
       mutatePartnerOrg();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: { message?: string; blockers?: string[] } | string } } };
-      const detail = axiosErr.response?.data?.detail;
-      if (typeof detail === 'object' && detail?.blockers) {
-        toast.error(detail.blockers.join('. '));
+      const resp = err && typeof err === 'object' && 'response' in err
+        ? (err as { response: { data?: { detail?: unknown } } }).response
+        : null;
+      const detail = resp?.data?.detail;
+      const blockers = detail && typeof detail === 'object' && 'blockers' in detail
+        ? (detail as { blockers: string[] }).blockers
+        : null;
+      if (blockers) {
+        toast.error(blockers.join('. '));
       } else {
         toast.error(typeof detail === 'string' ? detail : 'Failed to update status');
       }

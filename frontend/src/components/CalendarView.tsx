@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useSearchParams, useOutletContext } from 'react-router-dom';
+import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
@@ -201,7 +201,7 @@ export default function CalendarView() {
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
             <p className="text-sm text-slate-500">Before you can schedule classes, make sure you have the basics set up:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <a href="/locations" className={cn(
+              <Link to="/locations" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (locations || []).length > 0
                   ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
@@ -212,8 +212,8 @@ export default function CalendarView() {
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
                   <p className="text-xs text-slate-500">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
                 </div>
-              </a>
-              <a href="/employees" className={cn(
+              </Link>
+              <Link to="/employees" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (employees || []).length > 0
                   ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
@@ -224,8 +224,8 @@ export default function CalendarView() {
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
                   <p className="text-xs text-slate-500">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
                 </div>
-              </a>
-              <a href="/classes" className={cn(
+              </Link>
+              <Link to="/classes" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (classes || []).length > 0
                   ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
@@ -236,7 +236,7 @@ export default function CalendarView() {
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
                   <p className="text-xs text-slate-500">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
                 </div>
-              </a>
+              </Link>
             </div>
             {(locations || []).length > 0 && (employees || []).length > 0 && (classes || []).length > 0 && (
               <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">

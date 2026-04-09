@@ -50,9 +50,10 @@ interface UseScheduleFormProps {
   editSchedule: Schedule | null;
   onSaved?: () => void;
   onOpenChange: (open: boolean) => void;
+  onProjectPrompt?: () => void;
 }
 
-export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: UseScheduleFormProps) {
+export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onProjectPrompt }: UseScheduleFormProps) {
   const [form, setForm] = useState<ScheduleFormData>({
     employee_ids: [],
     class_id: '',
@@ -253,12 +254,12 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
       toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
     }
     // Prompt to create a coordination project for new single schedules
-    if (isSingleCreation && form.recurrence === 'none') {
+    if (isSingleCreation && form.recurrence === 'none' && onProjectPrompt) {
       toast('Track partner coordination for this class?', {
         duration: 8000,
         action: {
           label: 'Create Project',
-          onClick: () => { globalThis.location.href = '/coordination/board?create=true'; },
+          onClick: onProjectPrompt,
         },
       });
     }

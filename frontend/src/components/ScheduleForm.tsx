@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Trash2, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -15,12 +16,13 @@ import { LocationTimeSelectors } from './schedule-form/LocationTimeSelectors';
 import { RecurrenceOptions } from './schedule-form/RecurrenceOptions';
 
 const STEPS = [
-  { label: 'Who & What', description: 'Select employees and class' },
-  { label: 'Where & When', description: 'Choose location and time' },
-  { label: 'Recurrence', description: 'Set repeat pattern' },
+  { label: 'Who & What' },
+  { label: 'Where & When' },
+  { label: 'Recurrence' },
 ];
 
 export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'scheduler';
   const isAdmin = user?.role === 'admin';
@@ -43,7 +45,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     previewConflicts, travelChain, outlookOverride, googleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
-  } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange });
+  } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onProjectPrompt: () => navigate('/coordination/board?create=true') });
 
   const selectedLocation = locations?.find(l => l.id === form.location_id);
   const selectedClass = classes?.find(c => c.id === form.class_id);
