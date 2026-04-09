@@ -97,6 +97,35 @@ async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentU
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+
+    # Validate status transitions
+    new_status = update_data.get("status")
+    if new_status:
+        org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+        if not org:
+            raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
+        current_status = org.get("status", "prospect")
+        if new_status != current_status:
+            contacts = await db.partner_contacts.count_documents(
+                {"partner_org_id": org_id, "deleted_at": None}
+            )
+            venue = org.get("venue_details", {})
+            has_venue = bool(venue.get("capacity") or venue.get("av_setup"))
+            blockers = []
+            if new_status == "onboarding" and current_status == "prospect":
+                if contacts == 0:
+                    blockers.append("At least 1 contact is required to begin onboarding")
+            elif new_status == "active":
+                if contacts == 0:
+                    blockers.append("At least 1 contact is required")
+                if not has_venue:
+                    blockers.append("Venue details (capacity or AV setup) must be provided")
+            if blockers:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"message": "Status transition blocked", "blockers": blockers},
+                )
+
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.partner_orgs.update_one({"id": org_id, "deleted_at": None}, {"$set": update_data})
     if result.matched_count == 0:

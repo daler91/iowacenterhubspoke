@@ -6,7 +6,10 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Plus, User, MapPin, Calendar } from 'lucide-react';
+import { Plus, User, MapPin, Calendar, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from '../ui/dropdown-menu';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { usePartnerOrg } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
@@ -58,6 +61,25 @@ export default function PartnerProfile() {
 
   const orgId = id;
 
+  const STATUSES = ['prospect', 'onboarding', 'active', 'inactive'] as const;
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === partnerOrg.status) return;
+    try {
+      await partnerOrgsAPI.update(orgId, { status: newStatus });
+      toast.success(`Status updated to ${newStatus}`);
+      mutatePartnerOrg();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: { message?: string; blockers?: string[] } | string } } };
+      const detail = axiosErr.response?.data?.detail;
+      if (typeof detail === 'object' && detail?.blockers) {
+        toast.error(detail.blockers.join('. '));
+      } else {
+        toast.error(typeof detail === 'string' ? detail : 'Failed to update status');
+      }
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl">
       <PageBreadcrumb segments={[
@@ -71,9 +93,28 @@ export default function PartnerProfile() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
           {partnerOrg.name}
         </h1>
-        <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
-          {partnerOrg.status}
-        </Badge>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1 cursor-pointer">
+              <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
+                {partnerOrg.status}
+              </Badge>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {STATUSES.map(s => (
+              <DropdownMenuItem
+                key={s}
+                onClick={() => handleStatusChange(s)}
+                className={cn(s === partnerOrg.status && 'font-semibold bg-slate-50 dark:bg-slate-800')}
+              >
+                <Badge variant="outline" className={cn('text-xs mr-2', STATUS_BADGE_COLORS[s])}>{s}</Badge>
+                {s === partnerOrg.status && '(current)'}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

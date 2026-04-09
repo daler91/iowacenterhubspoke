@@ -265,7 +265,7 @@ export default function ProjectBoard() {
 
       {/* Kanban Columns */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
             const allProjects = board?.columns?.[phase] ?? [];
             const projects = searchQuery

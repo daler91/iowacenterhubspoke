@@ -17,8 +17,12 @@ import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
 
+const PORTAL_TOKEN_KEY = 'portal_session_token';
+
 export default function PortalDashboard() {
-  const { token } = useParams<{ token: string }>();
+  const { token: urlToken } = useParams<{ token: string }>();
+  // Prefer URL token, fall back to sessionStorage for in-session persistence
+  const token = urlToken || sessionStorage.getItem(PORTAL_TOKEN_KEY) || '';
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,16 +45,19 @@ export default function PortalDashboard() {
   const [activeProject, setActiveProject] = useState('');
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setError('No portal token provided'); setLoading(false); return; }
     (async () => {
       try {
         const verifyRes = await portalAPI.verify(token);
         setOrg(verifyRes.data.org);
         setContact(verifyRes.data.contact);
+        // Persist token in session so portal survives tab navigation
+        sessionStorage.setItem(PORTAL_TOKEN_KEY, token);
 
         const dashRes = await portalAPI.dashboard(token);
         setDashboardData(dashRes.data);
       } catch {
+        sessionStorage.removeItem(PORTAL_TOKEN_KEY);
         setError('Invalid or expired portal link');
       } finally {
         setLoading(false);
@@ -158,7 +165,7 @@ export default function PortalDashboard() {
       {/* Overview Tab */}
       {activeTab === 'overview' && dashboardData && (
         <div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <Card className="p-4 flex items-center gap-3">
               <CalendarDays className="w-8 h-8 text-indigo-500" />
               <div>

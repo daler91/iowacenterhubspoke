@@ -1,17 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
-import { Trash2, Repeat } from 'lucide-react';
+import { Trash2, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import ClassQuickCreateDialog from './ClassQuickCreateDialog';
 import CustomRecurrenceDialog from './CustomRecurrenceDialog';
 import { schedulesAPI } from '../lib/api';
 import { toast } from 'sonner';
+import { cn } from '../lib/utils';
 
 import { useScheduleForm } from '../hooks/useScheduleForm';
 import { EmployeeClassSelectors } from './schedule-form/EmployeeClassSelectors';
 import { LocationTimeSelectors } from './schedule-form/LocationTimeSelectors';
 import { RecurrenceOptions } from './schedule-form/RecurrenceOptions';
+
+const STEPS = [
+  { label: 'Who & What', description: 'Select employees and class' },
+  { label: 'Where & When', description: 'Choose location and time' },
+  { label: 'Recurrence', description: 'Set repeat pattern' },
+];
 
 export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
   const { user } = useAuth();
@@ -20,6 +27,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const [seriesAction, setSeriesAction] = useState<'this' | 'future'>('this');
   const [showSeriesDeleteConfirm, setShowSeriesDeleteConfirm] = useState(false);
   const hasSeries = !!editSchedule?.series_id;
+  const [step, setStep] = useState(0);
+  const isWizard = !editSchedule;
+  const totalSteps = isWizard ? STEPS.length : 1;
+
+  // Reset step when dialog opens/closes
+  useEffect(() => { if (open) setStep(0); }, [open]);
 
   const {
     form, setForm,
@@ -60,6 +73,29 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Wizard step indicator for new schedules */}
+          {isWizard && (
+            <div className="flex items-center gap-1" data-testid="wizard-steps">
+              {STEPS.map((s, i) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => setStep(i)}
+                  className={cn(
+                    'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors text-center',
+                    i === step
+                      ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                      : i < step
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-gray-800 text-slate-400',
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {editSchedule && hasSeries && (
             <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
               <Repeat className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -78,28 +114,32 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             </div>
           )}
 
-          <EmployeeClassSelectors
-            form={form}
-            setForm={setForm}
-            employees={employees}
-            classes={classes}
-            selectedClass={selectedClass}
-            onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
-          />
+          {(!isWizard || step === 0) && (
+            <EmployeeClassSelectors
+              form={form}
+              setForm={setForm}
+              employees={employees}
+              classes={classes}
+              selectedClass={selectedClass}
+              onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
+            />
+          )}
 
-          <LocationTimeSelectors
-            form={form}
-            setForm={setForm}
-            locations={locations}
-            selectedLocation={selectedLocation}
-            onDateChange={handleDateChange}
-            previewConflicts={previewConflicts}
-            travelChain={travelChain}
-            onOverrideChange={handleOverrideChange}
-          />
+          {(!isWizard || step === 1) && (
+            <LocationTimeSelectors
+              form={form}
+              setForm={setForm}
+              locations={locations}
+              selectedLocation={selectedLocation}
+              onDateChange={handleDateChange}
+              previewConflicts={previewConflicts}
+              travelChain={travelChain}
+              onOverrideChange={handleOverrideChange}
+            />
+          )}
 
-          {!editSchedule && (
-            <RecurrenceOptions 
+          {!editSchedule && (!isWizard || step === 2) && (
+            <RecurrenceOptions
               form={form}
               setForm={setForm}
               customRecurrence={customRecurrence}
@@ -128,14 +168,40 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}
               </Button>
             )}
-            <Button
-              type="submit"
-              data-testid="schedule-save-btn"
-              disabled={loading}
-              className={`${outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white flex-1`}
-            >
-              {submitLabel}
-            </Button>
+            {isWizard && step > 0 && (
+              <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
+                <ChevronLeft className="w-4 h-4 mr-1" /> Back
+              </Button>
+            )}
+            {isWizard && step < totalSteps - 1 ? (
+              <Button
+                type="button"
+                data-testid="wizard-next-btn"
+                onClick={() => {
+                  if (step === 0 && form.employee_ids.length === 0) {
+                    toast.error('Select at least one employee');
+                    return;
+                  }
+                  if (step === 1 && (!form.location_id || !form.date || !form.start_time || !form.end_time)) {
+                    toast.error('Fill in location, date, and time');
+                    return;
+                  }
+                  setStep(step + 1);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
+              >
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                data-testid="schedule-save-btn"
+                disabled={loading}
+                className={`${outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white flex-1`}
+              >
+                {submitLabel}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
