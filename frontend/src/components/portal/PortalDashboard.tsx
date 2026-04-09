@@ -60,26 +60,32 @@ export default function PortalDashboard() {
 
   const loadTasks = async () => {
     if (!token || !dashboardData?.projects) return;
-    const tasksByProject: Record<string, Task[]> = {};
-    for (const p of dashboardData.projects) {
-      try {
-        const res = await portalAPI.projectTasks(p.id, token);
-        tasksByProject[p.id] = res.data.items || [];
-      } catch { /* skip */ }
-    }
-    setAllTasks(tasksByProject);
+    const results = await Promise.all(
+      dashboardData.projects.map(async (p) => {
+        try {
+          const res = await portalAPI.projectTasks(p.id, token);
+          return [p.id, res.data.items || []] as const;
+        } catch {
+          return [p.id, []] as const;
+        }
+      })
+    );
+    setAllTasks(Object.fromEntries(results));
   };
 
   const loadDocuments = async () => {
     if (!token || !dashboardData?.projects) return;
-    const docsByProject: Record<string, ProjectDocument[]> = {};
-    for (const p of dashboardData.projects) {
-      try {
-        const res = await portalAPI.projectDocuments(p.id, token);
-        docsByProject[p.id] = res.data.items || [];
-      } catch { /* skip */ }
-    }
-    setDocuments(docsByProject);
+    const results = await Promise.all(
+      dashboardData.projects.map(async (p) => {
+        try {
+          const res = await portalAPI.projectDocuments(p.id, token);
+          return [p.id, res.data.items || []] as const;
+        } catch {
+          return [p.id, []] as const;
+        }
+      })
+    );
+    setDocuments(Object.fromEntries(results));
   };
 
   const loadMessages = async (projectId: string) => {

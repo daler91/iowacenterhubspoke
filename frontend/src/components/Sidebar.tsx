@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
-  Kanban, BarChart3, BookOpen,
+  ListChecks, BarChart3, BookOpen, Briefcase,
   Moon, Sun, Settings, LayoutDashboard, Handshake, Webhook,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -17,7 +17,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'calendar', path: '/calendar', label: 'Calendar', icon: CalendarDays },
       { id: 'map', path: '/map', label: 'Map View', icon: Map },
-      { id: 'kanban', path: '/kanban', label: 'Status Board', icon: Kanban },
+      { id: 'kanban', path: '/kanban', label: 'Schedule Tracker', icon: ListChecks },
     ],
   },
   {
@@ -32,7 +32,7 @@ const NAV_SECTIONS = [
     label: 'Coordination',
     items: [
       { id: 'coord-dashboard', path: '/coordination', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'coord-board', path: '/coordination/board', label: 'Projects', icon: Kanban },
+      { id: 'coord-board', path: '/coordination/board', label: 'Projects', icon: Briefcase },
       { id: 'coord-partners', path: '/coordination/partners', label: 'Partners', icon: Handshake },
       { id: 'coord-webhooks', path: '/coordination/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
     ],

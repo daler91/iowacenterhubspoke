@@ -239,16 +239,28 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange }: U
   };
 
   const handleCreateResponse = (res: { data: Record<string, unknown> }) => {
+    let isSingleCreation = false;
     if (res.data.background) {
       toast.info(res.data.message);
     } else if (res.data.town_to_town_warning) {
       toast.warning(res.data.town_to_town_warning, { duration: 6000 });
     } else if (res.data.total_created === undefined) {
       toast.success('Class scheduled successfully');
+      isSingleCreation = true;
     } else {
       const skipped = (res.data.conflicts_skipped as unknown[] | undefined)?.length || 0;
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
       toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
+    }
+    // Prompt to create a coordination project for new single schedules
+    if (isSingleCreation && form.recurrence === 'none') {
+      toast('Track partner coordination for this class?', {
+        duration: 8000,
+        action: {
+          label: 'Create Project',
+          onClick: () => { globalThis.location.href = '/coordination/board?create=true'; },
+        },
+      });
     }
   };
 
