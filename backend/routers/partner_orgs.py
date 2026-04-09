@@ -1,5 +1,7 @@
 import uuid
-from datetime import datetime, timezone
+import secrets
+import os
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
@@ -222,6 +224,63 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
         raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
     updated = await db.partner_contacts.find_one({"id": contact_id}, {"_id": 0})
     return updated
+
+
+@router.post(
+    "/{org_id}/contacts/{contact_id}/invite",
+    summary="Send portal invite to a partner contact",
+    responses={404: {"description": CONTACT_NOT_FOUND}},
+)
+async def send_portal_invite(org_id: str, contact_id: str, user: CurrentUser):
+    """Generate a magic link token and email it to the partner contact."""
+    from services.email import send_portal_invite as send_invite_email
+
+    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
+
+    contact = await db.partner_contacts.find_one(
+        {"id": contact_id, "partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not contact:
+        raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
+
+    # Generate magic link token
+    token = secrets.token_urlsafe(48)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(days=7)
+
+    await db.portal_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "contact_id": contact_id,
+        "token": token,
+        "expires_at": expires.isoformat(),
+        "created_at": now.isoformat(),
+        "last_used_at": None,
+    })
+
+    # Build portal URL
+    app_url = os.getenv("APP_URL", os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")[0].strip())
+    portal_url = f"{app_url}/portal/{token}"
+
+    # Send email
+    sent = await send_invite_email(
+        to=contact["email"],
+        contact_name=contact["name"],
+        org_name=org["name"],
+        portal_url=portal_url,
+    )
+
+    await log_activity(
+        "portal_invite_sent",
+        f"Portal invite sent to {contact['name']} ({contact['email']})",
+        "partner_contact", contact_id, user.get("name", "System"),
+    )
+
+    return {
+        "message": "Portal invite sent" if sent else "Invite created (email delivery pending)",
+        "portal_url": portal_url,
+    }
 
 
 # ── Health Score ──────────────────────────────────────────────────────

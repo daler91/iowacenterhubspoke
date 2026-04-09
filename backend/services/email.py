@@ -81,3 +81,27 @@ async def send_task_overdue(
         f"<p>— Iowa Center for Economic Success</p>"
     )
     return await send_email(to, subject, body)
+
+
+async def send_portal_invite(
+    to: str, contact_name: str, org_name: str,
+    portal_url: str,
+) -> bool:
+    """Send a portal access magic link to a partner contact."""
+    subject = f"You're invited to the {org_name} partner portal"
+    body = (
+        f"<p>Hi {contact_name},</p>"
+        f"<p>You've been invited to access the <strong>{org_name}</strong> "
+        f"partner portal for the Iowa Center for Economic Success.</p>"
+        f"<p>Use the link below to view your upcoming classes, tasks, "
+        f"shared documents, and messages:</p>"
+        f"<p><a href=\"{portal_url}\" "
+        f"style=\"display:inline-block;padding:12px 24px;"
+        f"background-color:#4F46E5;color:#ffffff;text-decoration:none;"
+        f"border-radius:8px;font-weight:600;\">Open Partner Portal</a></p>"
+        f"<p style=\"color:#6b7280;font-size:13px;\">This link expires in "
+        f"7 days. If it expires, ask your Iowa Center contact to send a "
+        f"new one.</p>"
+        f"<p>— Iowa Center for Economic Success</p>"
+    )
+    return await send_email(to, subject, body)

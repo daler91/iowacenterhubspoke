@@ -6,7 +6,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Plus, User, MapPin, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, User, MapPin, Calendar, ChevronDown, Send } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '../ui/dropdown-menu';
@@ -27,6 +27,23 @@ export default function PartnerProfile() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', role: '', is_primary: false });
   const [addingContact, setAddingContact] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState<string | null>(null);
+
+  const handleSendInvite = async (contactId: string) => {
+    if (!id) return;
+    setSendingInvite(contactId);
+    try {
+      const res = await partnerOrgsAPI.sendInvite(id, contactId);
+      toast.success(res.data.message, {
+        description: 'Portal link has been generated and emailed.',
+        duration: 6000,
+      });
+    } catch {
+      toast.error('Failed to send portal invite');
+    } finally {
+      setSendingInvite(null);
+    }
+  };
 
   const handleAddContact = async () => {
     if (!contactForm.name || !contactForm.email) {
@@ -190,6 +207,16 @@ export default function PartnerProfile() {
                   <p className="text-xs text-slate-500">{contact.email}</p>
                   {contact.role && <p className="text-xs text-slate-400">{contact.role}</p>}
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 text-xs"
+                  disabled={sendingInvite === contact.id}
+                  onClick={() => handleSendInvite(contact.id)}
+                >
+                  <Send className="w-3 h-3 mr-1" />
+                  {sendingInvite === contact.id ? 'Sending...' : 'Invite'}
+                </Button>
               </div>
             ))}
             {(!partnerOrg.contacts || partnerOrg.contacts.length === 0) && (

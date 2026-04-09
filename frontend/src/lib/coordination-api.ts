@@ -71,6 +71,8 @@ export const partnerOrgsAPI = {
   updateContact: (orgId: string, contactId: string, data: Record<string, unknown>) =>
     api.put(`/partner-orgs/${orgId}/contacts/${contactId}`, data),
   getHealth: (id: string) => api.get(`/partner-orgs/${id}/health`),
+  sendInvite: (orgId: string, contactId: string) =>
+    api.post(`/partner-orgs/${orgId}/contacts/${contactId}/invite`),
 };
 
 // ── Project Documents ────────────────────────────────────────────────
