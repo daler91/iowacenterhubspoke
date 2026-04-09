@@ -272,9 +272,9 @@ export default function KanbanBoard() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Status Board
+            Schedule Tracker
           </h2>
-          <p className="text-sm text-slate-500 mt-1" data-testid="kanban-subtitle">Drag cards between columns to update class status</p>
+          <p className="text-sm text-slate-500 mt-1" data-testid="kanban-subtitle">Track class delivery status — drag cards to mark progress from upcoming to completed</p>
         </div>
         <Button
           variant={selectionMode ? 'default' : 'outline'}

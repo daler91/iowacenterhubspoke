@@ -6,7 +6,10 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Plus, User, MapPin, Calendar } from 'lucide-react';
+import { Plus, User, MapPin, Calendar, ChevronDown, Send } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from '../ui/dropdown-menu';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { usePartnerOrg } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
@@ -24,6 +27,23 @@ export default function PartnerProfile() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', role: '', is_primary: false });
   const [addingContact, setAddingContact] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState<string | null>(null);
+
+  const handleSendInvite = async (contactId: string) => {
+    if (!id) return;
+    setSendingInvite(contactId);
+    try {
+      const res = await partnerOrgsAPI.sendInvite(id, contactId);
+      toast.success(res.data.message, {
+        description: 'Portal link has been generated and emailed.',
+        duration: 6000,
+      });
+    } catch {
+      toast.error('Failed to send portal invite');
+    } finally {
+      setSendingInvite(null);
+    }
+  };
 
   const handleAddContact = async () => {
     if (!contactForm.name || !contactForm.email) {
@@ -58,6 +78,30 @@ export default function PartnerProfile() {
 
   const orgId = id;
 
+  const STATUSES = ['prospect', 'onboarding', 'active', 'inactive'] as const;
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === partnerOrg.status) return;
+    try {
+      await partnerOrgsAPI.update(orgId, { status: newStatus });
+      toast.success(`Status updated to ${newStatus}`);
+      mutatePartnerOrg();
+    } catch (err: unknown) {
+      const resp = err && typeof err === 'object' && 'response' in err
+        ? (err as { response: { data?: { detail?: unknown } } }).response
+        : null;
+      const detail = resp?.data?.detail;
+      const blockers = detail && typeof detail === 'object' && 'blockers' in detail
+        ? (detail as { blockers: string[] }).blockers
+        : null;
+      if (blockers) {
+        toast.error(blockers.join('. '));
+      } else {
+        toast.error(typeof detail === 'string' ? detail : 'Failed to update status');
+      }
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl">
       <PageBreadcrumb segments={[
@@ -71,9 +115,28 @@ export default function PartnerProfile() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
           {partnerOrg.name}
         </h1>
-        <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
-          {partnerOrg.status}
-        </Badge>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1 cursor-pointer">
+              <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
+                {partnerOrg.status}
+              </Badge>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {STATUSES.map(s => (
+              <DropdownMenuItem
+                key={s}
+                onClick={() => handleStatusChange(s)}
+                className={cn(s === partnerOrg.status && 'font-semibold bg-slate-50 dark:bg-slate-800')}
+              >
+                <Badge variant="outline" className={cn('text-xs mr-2', STATUS_BADGE_COLORS[s])}>{s}</Badge>
+                {s === partnerOrg.status && '(current)'}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -149,6 +212,16 @@ export default function PartnerProfile() {
                   <p className="text-xs text-slate-500">{contact.email}</p>
                   {contact.role && <p className="text-xs text-slate-400">{contact.role}</p>}
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 text-xs"
+                  disabled={sendingInvite === contact.id}
+                  onClick={() => handleSendInvite(contact.id)}
+                >
+                  <Send className="w-3 h-3 mr-1" />
+                  {sendingInvite === contact.id ? 'Sending...' : 'Invite'}
+                </Button>
               </div>
             ))}
             {(!partnerOrg.contacts || partnerOrg.contacts.length === 0) && (

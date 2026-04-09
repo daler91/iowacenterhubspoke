@@ -17,8 +17,12 @@ import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
 
+const PORTAL_TOKEN_KEY = 'portal_session_token';
+
 export default function PortalDashboard() {
-  const { token } = useParams<{ token: string }>();
+  const { token: urlToken } = useParams<{ token: string }>();
+  // Prefer URL token, fall back to sessionStorage for in-session persistence
+  const token = urlToken || sessionStorage.getItem(PORTAL_TOKEN_KEY) || '';
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,16 +45,19 @@ export default function PortalDashboard() {
   const [activeProject, setActiveProject] = useState('');
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setError('No portal token provided'); setLoading(false); return; }
     (async () => {
       try {
         const verifyRes = await portalAPI.verify(token);
         setOrg(verifyRes.data.org);
         setContact(verifyRes.data.contact);
+        // Persist token in session so portal survives tab navigation
+        sessionStorage.setItem(PORTAL_TOKEN_KEY, token);
 
         const dashRes = await portalAPI.dashboard(token);
         setDashboardData(dashRes.data);
       } catch {
+        sessionStorage.removeItem(PORTAL_TOKEN_KEY);
         setError('Invalid or expired portal link');
       } finally {
         setLoading(false);
@@ -60,26 +67,32 @@ export default function PortalDashboard() {
 
   const loadTasks = async () => {
     if (!token || !dashboardData?.projects) return;
-    const tasksByProject: Record<string, Task[]> = {};
-    for (const p of dashboardData.projects) {
-      try {
-        const res = await portalAPI.projectTasks(p.id, token);
-        tasksByProject[p.id] = res.data.items || [];
-      } catch { /* skip */ }
-    }
-    setAllTasks(tasksByProject);
+    const results = await Promise.all(
+      dashboardData.projects.map(async (p) => {
+        try {
+          const res = await portalAPI.projectTasks(p.id, token);
+          return [p.id, res.data.items || []] as const;
+        } catch {
+          return [p.id, []] as const;
+        }
+      })
+    );
+    setAllTasks(Object.fromEntries(results));
   };
 
   const loadDocuments = async () => {
     if (!token || !dashboardData?.projects) return;
-    const docsByProject: Record<string, ProjectDocument[]> = {};
-    for (const p of dashboardData.projects) {
-      try {
-        const res = await portalAPI.projectDocuments(p.id, token);
-        docsByProject[p.id] = res.data.items || [];
-      } catch { /* skip */ }
-    }
-    setDocuments(docsByProject);
+    const results = await Promise.all(
+      dashboardData.projects.map(async (p) => {
+        try {
+          const res = await portalAPI.projectDocuments(p.id, token);
+          return [p.id, res.data.items || []] as const;
+        } catch {
+          return [p.id, []] as const;
+        }
+      })
+    );
+    setDocuments(Object.fromEntries(results));
   };
 
   const loadMessages = async (projectId: string) => {
@@ -106,7 +119,21 @@ export default function PortalDashboard() {
     try {
       await portalAPI.completeTask(projectId, taskId, token);
       await loadTasks();
-      toast.success('Task updated');
+      toast.success('Task updated', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await portalAPI.completeTask(projectId, taskId, token);
+              await loadTasks();
+              toast.success('Task reverted');
+            } catch {
+              toast.error('Failed to undo');
+            }
+          },
+        },
+        duration: 5000,
+      });
     } catch {
       toast.error('Failed to update task');
     }
@@ -152,7 +179,7 @@ export default function PortalDashboard() {
       {/* Overview Tab */}
       {activeTab === 'overview' && dashboardData && (
         <div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <Card className="p-4 flex items-center gap-3">
               <CalendarDays className="w-8 h-8 text-indigo-500" />
               <div>

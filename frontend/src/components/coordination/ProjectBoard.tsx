@@ -107,11 +107,11 @@ export default function ProjectBoard() {
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const classes = (context.classes || []) as Array<{ id: string; name: string; color?: string }>;
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [communityFilter, setCommunityFilter] = useState(searchParams.get('community') || '');
   const [eventFormatFilter, setEventFormatFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(() => searchParams.get('create') === 'true');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -211,9 +211,12 @@ export default function ProjectBoard() {
     <div className="p-6">
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Project Board
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            Project Board
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage partner coordination — track projects through planning, promotion, delivery, and follow-up</p>
+        </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-48">
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -262,7 +265,7 @@ export default function ProjectBoard() {
 
       {/* Kanban Columns */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
             const allProjects = board?.columns?.[phase] ?? [];
             const projects = searchQuery
@@ -350,8 +353,8 @@ export default function ProjectBoard() {
         <ProjectCreateDialog
           classes={classes}
           employees={employees}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); mutateBoard(); }}
+          onClose={() => { setShowCreate(false); setSearchParams((prev) => { prev.delete('create'); return prev; }, { replace: true }); }}
+          onCreated={() => { setShowCreate(false); setSearchParams((prev) => { prev.delete('create'); return prev; }, { replace: true }); mutateBoard(); }}
         />
       )}
 

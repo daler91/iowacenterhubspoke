@@ -1,9 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, AlertTriangle, CalendarDays, UserX, X } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 import { cn } from '../lib/utils';
+
+function getNotificationLink(notification: { type?: string; id?: string }): string | null {
+  const { type } = notification;
+  if (type === 'upcoming_class' || type === 'town_to_town') return '/calendar';
+  if (type === 'idle_employee') return '/employees';
+  return null;
+}
 
 const SEVERITY_CONFIG = {
   warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
@@ -11,6 +19,7 @@ const SEVERITY_CONFIG = {
 };
 
 export default function NotificationsPanel() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
@@ -98,22 +107,38 @@ export default function NotificationsPanel() {
                   const Icon = config.icon;
                   const isIdle = notification.type === 'idle_employee';
 
-                  return (
-                    <div
-                      key={notification.id}
-                      className="p-4 hover:bg-gray-50/50 transition-colors flex gap-3"
-                      data-testid={`notification-${notification.id}`}
-                    >
+                  const link = getNotificationLink(notification);
+                  const content = (
+                    <>
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", config.bg)}>
                         {isIdle ? <UserX className={cn("w-4 h-4", config.color)} /> : <Icon className={cn("w-4 h-4", config.color)} />}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 text-left">
                         <p className="text-sm font-medium text-slate-700">{notification.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{notification.description}</p>
+                        {link && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
                       </div>
+                    </>
+                  );
+                  return (
+                    <div key={notification.id} className="flex items-start gap-0" data-testid={`notification-${notification.id}`}>
+                      {link ? (
+                        <button
+                          type="button"
+                          className="flex-1 p-4 hover:bg-gray-50/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
+                          onClick={() => { navigate(link); setOpen(false); }}
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <div className="flex-1 p-4 flex gap-3">
+                          {content}
+                        </div>
+                      )}
                       <button
-                        onClick={() => setDismissed(prev => new Set([...prev, notification.id]))}
-                        className="text-slate-300 hover:text-slate-500 shrink-0"
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDismissed(prev => new Set([...prev, notification.id])); }}
+                        className="text-slate-300 hover:text-slate-500 shrink-0 p-4 pl-0"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>

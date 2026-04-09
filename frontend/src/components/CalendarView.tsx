@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useSearchParams, useOutletContext } from 'react-router-dom';
+import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
+import { MapPin, Users, BookOpen } from 'lucide-react';
 import { schedulesAPI } from '../lib/api';
+import { cn } from '../lib/utils';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
@@ -142,7 +144,7 @@ export default function CalendarView() {
     updateParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
-  const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false) => {
+  const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false, overrideReason?: string) => {
     fetchSchedules(
       (current: Schedule[] | null) => (current || []).map((s: Schedule) =>
         s.id === scheduleId
@@ -153,7 +155,7 @@ export default function CalendarView() {
     );
 
     try {
-      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
+      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force, ...(overrideReason && { override_reason: overrideReason }) });
       toast.success('Schedule moved');
       fetchSchedules();
       fetchActivities();
@@ -175,10 +177,10 @@ export default function CalendarView() {
     }
   };
 
-  const handleForceRelocate = () => {
+  const handleForceRelocate = (reason: string) => {
     if (!relocateConflictData) return;
     const { scheduleId, newDate, newStart, newEnd } = relocateConflictData;
-    handleRelocate(scheduleId, newDate, newStart, newEnd, true);
+    handleRelocate(scheduleId, newDate, newStart, newEnd, true, reason);
   };
 
   const handleBulkComplete = () => {
@@ -195,9 +197,53 @@ export default function CalendarView() {
         </h2>
         <p className="text-slate-500">Your main planning view — focused on classes, travel time, and weekly flow.</p>
         {(schedules || []).length === 0 && (
-          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2" data-testid="schedule-debug">
-            No schedule data loaded. Total in context: {(schedules || []).length} | Filtered: {filteredSchedules.length}
-          </p>
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 space-y-4" data-testid="empty-state-guide">
+            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
+            <p className="text-sm text-slate-500">Before you can schedule classes, make sure you have the basics set up:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Link to="/locations" className={cn(
+                'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                (locations || []).length > 0
+                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+              )}>
+                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <div>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
+                  <p className="text-xs text-slate-500">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
+                </div>
+              </Link>
+              <Link to="/employees" className={cn(
+                'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                (employees || []).length > 0
+                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+              )}>
+                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <div>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
+                  <p className="text-xs text-slate-500">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
+                </div>
+              </Link>
+              <Link to="/classes" className={cn(
+                'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                (classes || []).length > 0
+                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+              )}>
+                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <div>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
+                  <p className="text-xs text-slate-500">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
+                </div>
+              </Link>
+            </div>
+            {(locations || []).length > 0 && (employees || []).length > 0 && (classes || []).length > 0 && (
+              <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+                All set! Click "New Schedule" in the sidebar to create your first class assignment.
+              </p>
+            )}
+          </div>
         )}
         {(schedules || []).length > 0 && filteredSchedules.length > 0 && (
           <p className="text-xs text-slate-400" data-testid="schedule-count">
