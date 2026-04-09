@@ -21,6 +21,61 @@ const STEPS = [
   { label: 'Recurrence' },
 ];
 
+function stepStyle(i: number, current: number): string {
+  if (i === current) return 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300';
+  if (i < current) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400';
+  return 'bg-gray-100 dark:bg-gray-800 text-slate-400';
+}
+
+function WizardSteps({ step, onStep }: { step: number; onStep: (i: number) => void }) {
+  return (
+    <div className="flex items-center gap-1" data-testid="wizard-steps">
+      {STEPS.map((s, i) => (
+        <button
+          key={s.label}
+          type="button"
+          onClick={() => onStep(i)}
+          className={cn(
+            'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors text-center',
+            stepStyle(i, step),
+          )}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function WizardNextButton({ step, form, onNext }: {
+  step: number;
+  form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string };
+  onNext: () => void;
+}) {
+  const handleClick = () => {
+    if (step === 0 && form.employee_ids.length === 0) {
+      toast.error('Select at least one employee');
+      return;
+    }
+    if (step === 1 && (!form.location_id || !form.date || !form.start_time || !form.end_time)) {
+      toast.error('Fill in location, date, and time');
+      return;
+    }
+    onNext();
+  };
+
+  return (
+    <Button
+      type="button"
+      data-testid="wizard-next-btn"
+      onClick={handleClick}
+      className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
+    >
+      Next <ChevronRight className="w-4 h-4 ml-1" />
+    </Button>
+  );
+}
+
 export default function ScheduleForm({ open, onOpenChange, locations, employees, classes, editSchedule, onSaved, onClassCreated }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -75,28 +130,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Wizard step indicator for new schedules */}
-          {isWizard && (
-            <div className="flex items-center gap-1" data-testid="wizard-steps">
-              {STEPS.map((s, i) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  onClick={() => setStep(i)}
-                  className={cn(
-                    'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors text-center',
-                    i === step
-                      ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                      : i < step
-                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-gray-800 text-slate-400',
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {isWizard && <WizardSteps step={step} onStep={setStep} />}
 
           {editSchedule && hasSeries && (
             <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
@@ -176,30 +210,16 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               </Button>
             )}
             {isWizard && step < totalSteps - 1 ? (
-              <Button
-                type="button"
-                data-testid="wizard-next-btn"
-                onClick={() => {
-                  if (step === 0 && form.employee_ids.length === 0) {
-                    toast.error('Select at least one employee');
-                    return;
-                  }
-                  if (step === 1 && (!form.location_id || !form.date || !form.start_time || !form.end_time)) {
-                    toast.error('Fill in location, date, and time');
-                    return;
-                  }
-                  setStep(step + 1);
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
-              >
-                Next <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+              <WizardNextButton step={step} form={form} onNext={() => setStep(step + 1)} />
             ) : (
               <Button
                 type="submit"
                 data-testid="schedule-save-btn"
                 disabled={loading}
-                className={`${outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white flex-1`}
+                className={cn(
+                  'text-white flex-1',
+                  outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700',
+                )}
               >
                 {submitLabel}
               </Button>

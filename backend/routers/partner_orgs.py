@@ -87,12 +87,41 @@ async def get_partner_org(org_id: str, user: CurrentUser):
     return org
 
 
+async def _validate_status_transition(org_id: str, org: dict, new_status: str) -> None:
+    """Check business rules for partner status transitions. Raises 422 if blocked."""
+    current_status = org.get("status", "prospect")
+    if new_status == current_status:
+        return
+
+    contacts = await db.partner_contacts.count_documents(
+        {"partner_org_id": org_id, "deleted_at": None}
+    )
+    venue = org.get("venue_details", {})
+    has_venue = bool(venue.get("capacity") or venue.get("av_setup"))
+
+    blockers = []
+    if new_status == "onboarding" and current_status == "prospect" and contacts == 0:
+        blockers.append("At least 1 contact is required to begin onboarding")
+    elif new_status == "active":
+        if contacts == 0:
+            blockers.append("At least 1 contact is required")
+        if not has_venue:
+            blockers.append("Venue details (capacity or AV setup) must be provided")
+
+    if blockers:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Status transition blocked", "blockers": blockers},
+        )
+
+
 @router.put(
     "/{org_id}",
     summary="Update partner organization",
     responses={
         400: {"description": NO_FIELDS_TO_UPDATE},
         404: {"description": ORG_NOT_FOUND},
+        422: {"description": "Status transition blocked by missing requirements"},
     },
 )
 async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentUser):
@@ -100,33 +129,12 @@ async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentU
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
 
-    # Validate status transitions
     new_status = update_data.get("status")
     if new_status:
         org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
         if not org:
             raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-        current_status = org.get("status", "prospect")
-        if new_status != current_status:
-            contacts = await db.partner_contacts.count_documents(
-                {"partner_org_id": org_id, "deleted_at": None}
-            )
-            venue = org.get("venue_details", {})
-            has_venue = bool(venue.get("capacity") or venue.get("av_setup"))
-            blockers = []
-            if new_status == "onboarding" and current_status == "prospect":
-                if contacts == 0:
-                    blockers.append("At least 1 contact is required to begin onboarding")
-            elif new_status == "active":
-                if contacts == 0:
-                    blockers.append("At least 1 contact is required")
-                if not has_venue:
-                    blockers.append("Venue details (capacity or AV setup) must be provided")
-            if blockers:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"message": "Status transition blocked", "blockers": blockers},
-                )
+        await _validate_status_transition(org_id, org, new_status)
 
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.partner_orgs.update_one({"id": org_id, "deleted_at": None}, {"$set": update_data})

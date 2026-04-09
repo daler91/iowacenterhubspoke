@@ -108,12 +108,16 @@ export default function NotificationsPanel() {
                   const isIdle = notification.type === 'idle_employee';
 
                   const link = getNotificationLink(notification);
+                  const handleNav = link ? () => { navigate(link); setOpen(false); } : undefined;
                   return (
                     <div
                       key={notification.id}
+                      role={link ? 'button' : undefined}
+                      tabIndex={link ? 0 : undefined}
                       className={cn("p-4 hover:bg-gray-50/50 transition-colors flex gap-3", link && "cursor-pointer")}
                       data-testid={`notification-${notification.id}`}
-                      onClick={() => { if (link) { navigate(link); setOpen(false); } }}
+                      onClick={handleNav}
+                      onKeyDown={link ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav?.(); } } : undefined}
                     >
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", config.bg)}>
                         {isIdle ? <UserX className={cn("w-4 h-4", config.color)} /> : <Icon className={cn("w-4 h-4", config.color)} />}
