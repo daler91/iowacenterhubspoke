@@ -108,28 +108,37 @@ export default function NotificationsPanel() {
                   const isIdle = notification.type === 'idle_employee';
 
                   const link = getNotificationLink(notification);
-                  const handleNav = link ? () => { navigate(link); setOpen(false); } : undefined;
-                  return (
-                    <div
-                      key={notification.id}
-                      role={link ? 'button' : undefined}
-                      tabIndex={link ? 0 : undefined}
-                      className={cn("p-4 hover:bg-gray-50/50 transition-colors flex gap-3", link && "cursor-pointer")}
-                      data-testid={`notification-${notification.id}`}
-                      onClick={handleNav}
-                      onKeyDown={link ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav?.(); } } : undefined}
-                    >
+                  const content = (
+                    <>
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", config.bg)}>
                         {isIdle ? <UserX className={cn("w-4 h-4", config.color)} /> : <Icon className={cn("w-4 h-4", config.color)} />}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 text-left">
                         <p className="text-sm font-medium text-slate-700">{notification.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{notification.description}</p>
                         {link && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
                       </div>
+                    </>
+                  );
+                  return (
+                    <div key={notification.id} className="flex items-start gap-0" data-testid={`notification-${notification.id}`}>
+                      {link ? (
+                        <button
+                          type="button"
+                          className="flex-1 p-4 hover:bg-gray-50/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
+                          onClick={() => { navigate(link); setOpen(false); }}
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <div className="flex-1 p-4 flex gap-3">
+                          {content}
+                        </div>
+                      )}
                       <button
-                        onClick={() => setDismissed(prev => new Set([...prev, notification.id]))}
-                        className="text-slate-300 hover:text-slate-500 shrink-0"
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDismissed(prev => new Set([...prev, notification.id])); }}
+                        className="text-slate-300 hover:text-slate-500 shrink-0 p-4 pl-0"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>

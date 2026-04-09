@@ -21,13 +21,21 @@ const STEPS = [
   { label: 'Recurrence' },
 ];
 
+function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverride: boolean, editSchedule: unknown, employeeCount: number): string {
+  if (loading) return 'Saving...';
+  if (outlookOverride || googleOverride) return 'Schedule Anyway';
+  if (editSchedule) return employeeCount > 1 ? `Update (${employeeCount} Employees)` : 'Update Schedule';
+  if (employeeCount > 1) return `Schedule ${employeeCount} Employees`;
+  return 'Schedule Class';
+}
+
 function stepStyle(i: number, current: number): string {
   if (i === current) return 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300';
   if (i < current) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400';
   return 'bg-gray-100 dark:bg-gray-800 text-slate-400';
 }
 
-function WizardSteps({ step, onStep }: { step: number; onStep: (i: number) => void }) {
+function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: number) => void }>) {
   return (
     <div className="flex items-center gap-1" data-testid="wizard-steps">
       {STEPS.map((s, i) => (
@@ -47,11 +55,11 @@ function WizardSteps({ step, onStep }: { step: number; onStep: (i: number) => vo
   );
 }
 
-function WizardNextButton({ step, form, onNext }: {
+function WizardNextButton({ step, form, onNext }: Readonly<{
   step: number;
   form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string };
   onNext: () => void;
-}) {
+}>) {
   const handleClick = () => {
     if (step === 0 && form.employee_ids.length === 0) {
       toast.error('Select at least one employee');
@@ -110,12 +118,9 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     setForm((prev) => ({ ...prev, class_id: classDoc.id }));
   };
 
-  const employeeCount = form.employee_ids?.length || 0;
-  let submitLabel = 'Schedule Class';
-  if (loading) submitLabel = 'Saving...';
-  else if (outlookOverride || googleOverride) submitLabel = 'Schedule Anyway';
-  else if (editSchedule) submitLabel = employeeCount > 1 ? `Update (${employeeCount} Employees)` : 'Update Schedule';
-  else if (employeeCount > 1) submitLabel = `Schedule ${employeeCount} Employees`;
+  const submitLabel = getSubmitLabel(loading, outlookOverride, googleOverride, editSchedule, form.employee_ids?.length || 0);
+  const showStep = (s: number) => !isWizard || step === s;
+  const showSubmit = !isWizard || step >= totalSteps - 1;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -150,7 +155,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             </div>
           )}
 
-          {(!isWizard || step === 0) && (
+          {showStep(0) && (
             <EmployeeClassSelectors
               form={form}
               setForm={setForm}
@@ -161,7 +166,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             />
           )}
 
-          {(!isWizard || step === 1) && (
+          {showStep(1) && (
             <LocationTimeSelectors
               form={form}
               setForm={setForm}
@@ -174,7 +179,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             />
           )}
 
-          {!editSchedule && (!isWizard || step === 2) && (
+          {!editSchedule && showStep(2) && (
             <RecurrenceOptions
               form={form}
               setForm={setForm}
@@ -190,13 +195,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 type="button"
                 variant="outline"
                 data-testid="schedule-delete-btn"
-                onClick={() => {
-                  if (hasSeries && seriesAction === 'future') {
-                    setShowSeriesDeleteConfirm(true);
-                  } else {
-                    handleDelete();
-                  }
-                }}
+                onClick={() => hasSeries && seriesAction === 'future' ? setShowSeriesDeleteConfirm(true) : handleDelete()}
                 disabled={loading}
                 className="text-red-600 border-red-200 hover:bg-red-50"
               >
@@ -209,9 +208,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
             )}
-            {isWizard && step < totalSteps - 1 ? (
-              <WizardNextButton step={step} form={form} onNext={() => setStep(step + 1)} />
-            ) : (
+            {showSubmit ? (
               <Button
                 type="submit"
                 data-testid="schedule-save-btn"
@@ -223,6 +220,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               >
                 {submitLabel}
               </Button>
+            ) : (
+              <WizardNextButton step={step} form={form} onNext={() => setStep(step + 1)} />
             )}
           </DialogFooter>
         </form>
