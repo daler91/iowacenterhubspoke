@@ -119,7 +119,21 @@ export default function PortalDashboard() {
     try {
       await portalAPI.completeTask(projectId, taskId, token);
       await loadTasks();
-      toast.success('Task updated');
+      toast.success('Task updated', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await portalAPI.completeTask(projectId, taskId, token);
+              await loadTasks();
+              toast.success('Task reverted');
+            } catch {
+              toast.error('Failed to undo');
+            }
+          },
+        },
+        duration: 5000,
+      });
     } catch {
       toast.error('Failed to update task');
     }

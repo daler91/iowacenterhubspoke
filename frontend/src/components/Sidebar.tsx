@@ -15,36 +15,36 @@ const NAV_SECTIONS = [
     id: 'planning',
     label: 'Planning',
     items: [
-      { id: 'calendar', path: '/calendar', label: 'Calendar', icon: CalendarDays },
-      { id: 'map', path: '/map', label: 'Map View', icon: Map },
-      { id: 'kanban', path: '/kanban', label: 'Schedule Tracker', icon: ListChecks },
+      { id: 'calendar', path: '/calendar', label: 'Calendar', icon: CalendarDays, tooltip: 'Weekly, daily, monthly class calendar' },
+      { id: 'map', path: '/map', label: 'Map View', icon: Map, tooltip: 'Geographic view of hub & spoke locations' },
+      { id: 'kanban', path: '/kanban', label: 'Schedule Tracker', icon: ListChecks, tooltip: 'Track class delivery status' },
     ],
   },
   {
     id: 'insights',
     label: 'Insights',
     items: [
-      { id: 'insights', path: '/insights', label: 'Insights', icon: BarChart3 },
+      { id: 'insights', path: '/insights', label: 'Insights', icon: BarChart3, tooltip: 'Reports, workload, analytics, activity' },
     ],
   },
   {
     id: 'coordination',
     label: 'Coordination',
     items: [
-      { id: 'coord-dashboard', path: '/coordination', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'coord-board', path: '/coordination/board', label: 'Projects', icon: Briefcase },
-      { id: 'coord-partners', path: '/coordination/partners', label: 'Partners', icon: Handshake },
-      { id: 'coord-webhooks', path: '/coordination/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
+      { id: 'coord-dashboard', path: '/coordination', label: 'Dashboard', icon: LayoutDashboard, tooltip: 'Multi-community coordination overview' },
+      { id: 'coord-board', path: '/coordination/board', label: 'Projects', icon: Briefcase, tooltip: 'Manage partner coordination projects' },
+      { id: 'coord-partners', path: '/coordination/partners', label: 'Partners', icon: Handshake, tooltip: 'Partner organizations & contacts' },
+      { id: 'coord-webhooks', path: '/coordination/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true, tooltip: 'External integrations' },
     ],
   },
   {
     id: 'manage',
     label: 'Manage',
     items: [
-      { id: 'classes', path: '/classes', label: 'Classes', icon: BookOpen },
-      { id: 'employees', path: '/employees', label: 'Employees', icon: Users },
-      { id: 'locations', path: '/locations', label: 'Locations', icon: MapPin },
-      { id: 'users', path: '/users', label: 'Users', icon: Shield, adminOnly: true },
+      { id: 'classes', path: '/classes', label: 'Classes', icon: BookOpen, tooltip: 'Class types and formats' },
+      { id: 'employees', path: '/employees', label: 'Employees', icon: Users, tooltip: 'Instructors and coordinators' },
+      { id: 'locations', path: '/locations', label: 'Locations', icon: MapPin, tooltip: 'Hub & spoke cities' },
+      { id: 'users', path: '/users', label: 'Users', icon: Shield, adminOnly: true, tooltip: 'User accounts and roles' },
     ],
   },
 ];
@@ -65,12 +65,9 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
       <button
         key={item.id}
         data-testid={`nav-${item.id}`}
+        title={collapsed ? item.tooltip || item.label : item.tooltip}
         onClick={() => {
           navigate(item.path);
-          if (globalThis.innerWidth < 768) {
-             // Close mobile sidebar if needed, but Sidebar is usually managed by parent
-             // This component currently doesn't have a closeSidebar prop, but onViewChange used to handle it in DashboardPage
-          }
         }}
         className={cn(
           'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',

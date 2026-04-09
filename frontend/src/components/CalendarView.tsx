@@ -144,7 +144,7 @@ export default function CalendarView() {
     updateParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
-  const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false) => {
+  const handleRelocate = async (scheduleId: string, newDate: string, newStart: string, newEnd: string, force = false, overrideReason?: string) => {
     fetchSchedules(
       (current: Schedule[] | null) => (current || []).map((s: Schedule) =>
         s.id === scheduleId
@@ -155,7 +155,7 @@ export default function CalendarView() {
     );
 
     try {
-      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force });
+      await schedulesAPI.relocate(scheduleId, { date: newDate, start_time: newStart, end_time: newEnd, force, ...(overrideReason && { override_reason: overrideReason }) });
       toast.success('Schedule moved');
       fetchSchedules();
       fetchActivities();
@@ -177,10 +177,10 @@ export default function CalendarView() {
     }
   };
 
-  const handleForceRelocate = () => {
+  const handleForceRelocate = (reason: string) => {
     if (!relocateConflictData) return;
     const { scheduleId, newDate, newStart, newEnd } = relocateConflictData;
-    handleRelocate(scheduleId, newDate, newStart, newEnd, true);
+    handleRelocate(scheduleId, newDate, newStart, newEnd, true, reason);
   };
 
   const handleBulkComplete = () => {
