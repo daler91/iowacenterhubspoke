@@ -1,9 +1,13 @@
 import os
+import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Response
 from database import db
-from models.schemas import UserRegister, UserLogin, PasswordChange, ErrorResponse
+from models.schemas import (
+    UserRegister, UserLogin, PasswordChange, ErrorResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
+)
 from core.auth import hash_password, verify_password, create_token, CurrentUser
 from core.constants import ROLE_VIEWER, ROLE_ADMIN, USER_STATUS_PENDING, USER_STATUS_APPROVED, USER_STATUS_REJECTED
 from fastapi import Request
@@ -98,6 +102,15 @@ async def register(request: Request, data: UserRegister, response: Response):
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
         }
     else:
+        # Self-service registration awaiting admin approval — send a
+        # "received, pending review" acknowledgement. Non-fatal on failure.
+        try:
+            from services.email import send_welcome_pending
+            await send_welcome_pending(to=data.email, name=data.name)
+        except Exception as e:
+            logger.warning(
+                "Failed to send pending-welcome email to %s: %s", data.email, e,
+            )
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
 
@@ -142,6 +155,120 @@ async def logout(request: Request, response: Response):
     """Clear the auth_token cookie to end the session."""
     response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
     return {"message": "Logged out successfully"}
+
+
+PASSWORD_RESET_EXPIRY_HOURS = 1
+_GENERIC_FORGOT_RESPONSE = {
+    "message": "If that email is registered, a reset link has been sent.",
+}
+_INVALID_RESET_TOKEN = "Invalid or expired reset link"
+
+
+async def _find_valid_reset_token(token: str):
+    """Look up a password_resets row that is unused and not expired."""
+    row = await db.password_resets.find_one(
+        {"token": token, "used_at": None}, {"_id": 0},
+    )
+    if not row:
+        return None
+    try:
+        expires = datetime.fromisoformat(row["expires_at"])
+    except (KeyError, ValueError):
+        return None
+    if expires < datetime.now(timezone.utc):
+        return None
+    return row
+
+
+@router.post(
+    "/forgot-password",
+    summary="Request a password reset link",
+)
+@limiter.limit("3/minute")
+async def forgot_password(request: Request, data: ForgotPasswordRequest):  # NOSONAR(S3516)
+    """Generate a password reset token and email it. Always returns the same
+    generic response to avoid leaking which emails are registered
+    (anti-enumeration — intentional invariant response)."""
+    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if not user:
+        return _GENERIC_FORGOT_RESPONSE
+
+    token = secrets.token_urlsafe(48)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(hours=PASSWORD_RESET_EXPIRY_HOURS)
+    await db.password_resets.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "email": user["email"],
+        "token": token,
+        "expires_at": expires.isoformat(),
+        "created_at": now.isoformat(),
+        "used_at": None,
+    })
+    logger.info(
+        "Password reset token created", extra={"entity": {"user_id": user["id"]}},
+    )
+
+    try:
+        from services.email import send_password_reset, resolve_app_url
+        reset_url = f"{resolve_app_url()}/reset-password/{token}"
+        await send_password_reset(
+            to=user["email"], name=user.get("name", ""), reset_url=reset_url,
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to send password reset email to %s: %s", user["email"], e,
+        )
+
+    return _GENERIC_FORGOT_RESPONSE
+
+
+@router.get(
+    "/reset-password/{token}",
+    summary="Validate a password reset token",
+    responses={404: {"model": ErrorResponse, "description": _INVALID_RESET_TOKEN}},
+)
+@limiter.limit("10/minute")
+async def validate_reset_token(request: Request, token: str):
+    row = await _find_valid_reset_token(token)
+    if not row:
+        raise HTTPException(status_code=404, detail=_INVALID_RESET_TOKEN)
+    return {"valid": True, "email": row["email"]}
+
+
+@router.post(
+    "/reset-password",
+    summary="Set a new password using a reset token",
+    responses={404: {"model": ErrorResponse, "description": _INVALID_RESET_TOKEN}},
+)
+@limiter.limit("5/minute")
+async def reset_password(request: Request, data: ResetPasswordRequest):
+    row = await _find_valid_reset_token(data.token)
+    if not row:
+        raise HTTPException(status_code=404, detail=_INVALID_RESET_TOKEN)
+
+    now = datetime.now(timezone.utc)
+    # Also bump password_changed_at so any active sessions (which carry an
+    # older iat) are invalidated by the token validator in core/auth.py.
+    await db.users.update_one(
+        {"id": row["user_id"]},
+        {"$set": {
+            "password_hash": hash_password(data.new_password),
+            "password_changed_at": now.isoformat(),
+        }},
+    )
+    # Invalidate ALL outstanding reset tokens for this user, not just the one
+    # that was submitted. Otherwise a second leaked link could still be used
+    # to reset the password again after a successful reset.
+    await db.password_resets.update_many(
+        {"user_id": row["user_id"], "used_at": None},
+        {"$set": {"used_at": now.isoformat()}},
+    )
+    logger.info(
+        "Password reset via token",
+        extra={"entity": {"user_id": row["user_id"]}},
+    )
+    return {"message": "Password reset successful"}
 
 
 @router.get("/me", summary="Get current user profile")

@@ -29,6 +29,8 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return user ? <Navigate to="/" replace /> : children;
 }
 
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const MapView = lazy(() => import("./components/MapView"));
 const KanbanBoard = lazy(() => import("./components/KanbanBoard"));
 const CalendarView = lazy(() => import("./components/CalendarView"));
@@ -60,6 +62,12 @@ function AppRoutes() {
         <Routes>
           <Route path="/login" element={
             <PublicRoute><LoginPage /></PublicRoute>
+          } />
+          <Route path="/forgot-password" element={
+            <PublicRoute><ForgotPasswordPage /></PublicRoute>
+          } />
+          <Route path="/reset-password/:token" element={
+            <PublicRoute><ResetPasswordPage /></PublicRoute>
           } />
           <Route path="/" element={
             <ProtectedRoute>

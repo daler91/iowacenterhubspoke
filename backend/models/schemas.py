@@ -15,6 +15,15 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
 class LocationCreate(BaseModel):
     city_name: str
     drive_time_minutes: int

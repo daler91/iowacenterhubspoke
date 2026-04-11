@@ -1,6 +1,5 @@
 import uuid
 import secrets
-import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException
@@ -268,8 +267,8 @@ async def send_portal_invite(org_id: str, contact_id: str, user: CurrentUser):
     })
 
     # Build portal URL
-    app_url = os.getenv("APP_URL", os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")[0].strip())
-    portal_url = f"{app_url}/portal/{token}"
+    from services.email import resolve_app_url
+    portal_url = f"{resolve_app_url()}/portal/{token}"
 
     # Send email
     sent = await send_invite_email(

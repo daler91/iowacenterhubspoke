@@ -32,13 +32,33 @@ async def list_users(user: AdminRequired):
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def approve_user(user_id: str, user: AdminRequired):
-    result = await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"status": USER_STATUS_APPROVED}}
-    )
-    if result.matched_count == 0:
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+
+    was_pending = target.get("status") != USER_STATUS_APPROVED
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"status": USER_STATUS_APPROVED}},
+    )
     logger.info(f"User {user_id} approved by {user['email']}")
+
+    # Only email on the pending → approved transition (idempotent re-approvals
+    # shouldn't spam the user).
+    if was_pending:
+        try:
+            from services.email import send_account_approved, resolve_app_url
+            await send_account_approved(
+                to=target["email"],
+                name=target.get("name", ""),
+                login_url=f"{resolve_app_url()}/login",
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to send approval email to %s: %s",
+                target["email"], e,
+            )
+
     return {"message": "User approved"}
 
 
@@ -145,6 +165,23 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
     }
     await db.invitations.insert_one(invite_doc)
     logger.info(f"Invitation created for {data.email} by {user['email']}")
+
+    # Auto-email the invitee; failure is non-fatal so the admin can still
+    # copy the link from the response.
+    try:
+        from services.email import send_user_invite, resolve_app_url
+        invite_url = f"{resolve_app_url()}/login?invite={invite_doc['token']}"
+        await send_user_invite(
+            to=data.email,
+            name=data.name,
+            role=data.role,
+            invite_url=invite_url,
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to send user invitation email to %s: %s", data.email, e,
+        )
+
     return {
         "id": invite_doc["id"],
         "email": invite_doc["email"],

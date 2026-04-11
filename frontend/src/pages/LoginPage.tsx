@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { authAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -192,7 +192,18 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {isLogin && !inviteData && (
+                    <Link
+                      to="/forgot-password"
+                      data-testid="forgot-password-link"
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      Forgot password?
+                    </Link>
+                  )}
+                </div>
                 <Input
                   id="password"
                   type="password"

@@ -139,6 +139,56 @@ yarn start
 | `SENTRY_DSN` | No | — | Sentry error tracking |
 | `ENVIRONMENT` | No | `development` | `production` or `development` |
 | `VITE_GOOGLE_MAPS_API_KEY` | No | — | Frontend Google Maps key |
+| `EMAIL_FROM` | No | `noreply@iowacenter.org` | Sender address for all outbound email |
+| `SMTP_HOST` | No | — | SMTP server. Leave empty to log-only in dev. See Email configuration below. |
+| `SMTP_PORT` | No | `587` | SMTP port (STARTTLS) |
+| `SMTP_USER` | No | — | SMTP username (`resend` for Resend) |
+| `SMTP_PASSWORD` | No | — | SMTP password (Resend API key) |
+| `APP_URL` | No | First `CORS_ORIGINS` entry | Public base URL used in emailed magic links |
+
+## Email configuration (Resend)
+
+The app sends email for task reminders, partner-portal magic links, user invitations, registration/approval notifications, and password resets. It talks to any SMTP provider via `aiosmtplib`; **Resend** is the recommended default because of its generous free tier (100 emails/day, 3,000/month) and simple API-key-as-password setup.
+
+### 1. Create a Resend account and verify your domain
+
+1. Sign up at [resend.com](https://resend.com).
+2. In the dashboard, go to **Domains** → **Add Domain** and enter your sending domain (e.g. `iowacenter.org`).
+3. Resend shows a set of DNS records (SPF TXT + DKIM CNAMEs). Add them to your DNS provider and wait for Resend to mark the domain as **Verified**.
+4. Go to **API Keys** → **Create API Key** (Full Access). Copy the key — it's shown only once and starts with `re_`.
+
+### 2. Fill in `backend/.env`
+
+```
+EMAIL_FROM=noreply@iowacenter.org     # must be on the verified domain
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=resend                      # literal string "resend"
+SMTP_PASSWORD=re_xxxxxxxxxxxxxxxxxxxx # the API key you copied
+APP_URL=https://hub.iowacenter.org    # public base URL for magic links
+```
+
+Restart the backend and worker after changing these:
+
+```bash
+docker-compose restart backend worker
+```
+
+### 3. Verify it works
+
+Trigger any email-producing flow — e.g. invite a partner contact from the Partner Profile page — and check:
+
+- Backend logs for `Email sent to …: <subject>`
+- The **Emails** activity log in the Resend dashboard for the delivery
+
+### Dev mode behaviour
+
+- When `SMTP_HOST` is empty or `localhost`, `send_email` logs `Email (dev mode): …` instead of opening an SMTP connection. Useful for local dev with no provider.
+- When `ENVIRONMENT=production` *and* `SMTP_HOST` is unset, `send_email` logs a **warning** on every call — silent drops in prod are exactly how incidents happen, so we surface them.
+
+### Using another SMTP provider
+
+Resend isn't special — the code only uses plain SMTP. To switch, change the four `SMTP_*` values in `backend/.env`. Common alternatives: SendGrid (`smtp.sendgrid.net`, user `apikey`), AWS SES (`email-smtp.<region>.amazonaws.com` + IAM SMTP credentials), Mailgun (`smtp.mailgun.org`), Gmail (`smtp.gmail.com` + app password, 500/day cap).
 
 ## API Overview
 
