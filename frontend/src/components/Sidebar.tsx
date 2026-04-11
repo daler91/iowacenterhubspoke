@@ -81,6 +81,91 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
   );
 }
 
+/**
+ * User section at the bottom of the sidebar — avatar/email/role
+ * summary, then Settings / Theme toggle / Sign out action buttons.
+ * Extracted from the `Sidebar` function body because its three
+ * Button sub-sections with collapsed/active ternaries were the
+ * main source of cognitive complexity in the parent (S3776).
+ */
+function SidebarUserFooter({ collapsed, user, location, navigate, theme, setTheme, logout }) {
+  const isSettingsActive = location.pathname === '/settings';
+  const isDark = theme === 'dark';
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-800 p-3">
+      {!collapsed && user && (
+        <div className="flex items-center gap-3 px-3 py-2 mb-2">
+          <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-sm">
+            {user.name?.charAt(0)?.toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+                {user.role}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        data-testid="settings-btn"
+        aria-label={collapsed ? 'Settings' : undefined}
+        aria-current={isSettingsActive ? 'page' : undefined}
+        onClick={() => navigate('/settings')}
+        className={cn(
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+          isSettingsActive
+            ? 'bg-hub-soft text-hub hover:bg-hub-soft'
+            : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <Settings aria-hidden="true" className={cn('w-5 h-5 shrink-0', isSettingsActive ? 'text-hub' : 'text-slate-400')} />
+        {!collapsed && <span>Settings</span>}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        data-testid="theme-toggle"
+        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-pressed={isDark}
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        className={cn(
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <SidebarThemeIcon isDark={isDark} />
+        {!collapsed && <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        data-testid="logout-btn"
+        aria-label={collapsed ? 'Sign out' : undefined}
+        onClick={logout}
+        className={cn(
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-danger-soft hover:text-danger transition-all',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <LogOut aria-hidden="true" className="w-5 h-5 shrink-0" />
+        {!collapsed && <span>Sign Out</span>}
+      </Button>
+    </div>
+  );
+}
+
+function SidebarThemeIcon({ isDark }) {
+  return isDark
+    ? <Sun aria-hidden="true" className="w-5 h-5 shrink-0" />
+    : <Moon aria-hidden="true" className="w-5 h-5 shrink-0" />;
+}
+
 export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -159,74 +244,15 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
       </nav>
 
       {/* User section */}
-      <div className="border-t border-gray-100 dark:border-gray-800 p-3">
-        {!collapsed && user && (
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-sm">
-              {user.name?.charAt(0)?.toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
-                  {user.role}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          data-testid="settings-btn"
-          aria-label={collapsed ? 'Settings' : undefined}
-          aria-current={location.pathname === '/settings' ? 'page' : undefined}
-          onClick={() => navigate('/settings')}
-          className={cn(
-            "h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-            location.pathname === '/settings'
-              ? "bg-hub-soft text-hub hover:bg-hub-soft"
-              : "text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          <Settings aria-hidden="true" className={cn("w-5 h-5 shrink-0", location.pathname === '/settings' ? "text-hub" : "text-slate-400")} />
-          {!collapsed && <span>Settings</span>}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          data-testid="theme-toggle"
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          aria-pressed={theme === 'dark'}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className={cn(
-            "h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          {theme === 'dark'
-            ? <Sun aria-hidden="true" className="w-5 h-5 shrink-0" />
-            : <Moon aria-hidden="true" className="w-5 h-5 shrink-0" />
-          }
-          {!collapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          data-testid="logout-btn"
-          aria-label={collapsed ? 'Sign out' : undefined}
-          onClick={logout}
-          className={cn(
-            "h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-danger-soft hover:text-danger transition-all",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          <LogOut aria-hidden="true" className="w-5 h-5 shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
-        </Button>
-      </div>
+      <SidebarUserFooter
+        collapsed={collapsed}
+        user={user}
+        location={location}
+        navigate={navigate}
+        theme={theme}
+        setTheme={setTheme}
+        logout={logout}
+      />
 
       {/* Collapse toggle */}
       <Button

@@ -38,154 +38,144 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
-  // Capture dnd-kit's own onKeyDown BEFORE the spread so we can chain it
-  // — otherwise our custom onKeyDown (spread last) silently overrides
-  // the KeyboardSensor activator and drag pickup stops working.
+  // In drag mode, capture dnd-kit's own onKeyDown BEFORE the spread so we
+  // can chain it — otherwise our custom onKeyDown (spread last) silently
+  // overrides the KeyboardSensor activator and drag pickup stops working.
+  // Enter still auto-fires the native <button> onClick (→ onEdit), so we
+  // only need custom handling for selection mode's Space/Enter toggle
+  // and for delegating Space/arrows to dnd-kit in drag mode.
   const dndKeyDown = selectionMode ? undefined : listeners?.onKeyDown;
 
   const handleKeyDown = (e) => {
     if (selectionMode) {
-      // Selection mode: we own Enter/Space → toggle.
-      if (e.key === 'Enter' || e.key === ' ') {
+      // Selection mode: Space toggles. Enter already fires native click
+      // on the <button>, which calls toggleItem — no extra handling.
+      if (e.key === ' ') {
         e.preventDefault();
         toggleItem?.(schedule.id);
       }
       return;
     }
-    // Drag mode: Enter opens the edit dialog (non-native <div role=button>
-    // doesn't auto-fire click on Enter, so we do it manually). Space is
-    // reserved for dnd-kit's drag pickup, which we delegate to below.
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onEdit?.(schedule);
-      return;
+    // Drag mode: delegate everything to dnd-kit's KeyboardSensor (Space
+    // for pickup, arrows for move, Escape for cancel). Enter falls
+    // through to native button click → onEdit.
+    if (e.key !== 'Enter') {
+      dndKeyDown?.(e);
     }
-    // Everything else (Space for drag pickup, arrows for drag-move,
-    // Escape for cancel) goes to dnd-kit's KeyboardSensor.
-    dndKeyDown?.(e);
   };
 
-  // The card root is a `div[role=button]` because it contains nested
-  // action buttons (Edit details / Move) and a `<button>` in a `<button>`
-  // is invalid HTML. Explicit role + tabIndex keep it keyboard-focusable
-  // in both drag mode and selection mode. The spread of `listeners` is
-  // conditional on drag mode so dnd-kit's drag handlers are skipped when
-  // bulk-select is active, but our chained `onKeyDown` above preserves
-  // dnd-kit's keyboard activator otherwise.
+  // The card root is a native <button type="button">, positioned inside a
+  // relative wrapper so the "Move" action can sit next to it as a sibling
+  // rather than a nested <button> (which would be invalid HTML). The old
+  // inline "Edit details" link was removed — it was redundant with the
+  // card's own onClick that already fires onEdit. Mouse and keyboard users
+  // get the same behaviour: click or Enter on the card to open details,
+  // Space to start a drag, click the floating Move button to advance the
+  // schedule status without opening the dialog.
+  const canAdvance =
+    !selectionMode && (schedule.status || 'upcoming') !== 'completed';
+
   return (
-    <div
-      ref={setNodeRef}
-      role="button"
-      tabIndex={0}
-      {...(selectionMode ? {} : { ...listeners, ...attributes })}
-      data-testid={`kanban-card-${schedule.id}`}
-      onClick={() => {
-        if (selectionMode) {
-          toggleItem?.(schedule.id);
-        } else {
-          onEdit?.(schedule);
-        }
-      }}
-      onKeyDown={handleKeyDown}
-      className={cn(
-        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
-        selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-50 scale-95",
-        selected && "ring-2 ring-indigo-500 ring-offset-1"
-      )}
-      style={{ borderLeftColor: classColor, ...transformStyle }}
-    >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {selectionMode ? (
-            <div className={cn(
-              "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-              selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
-            )}>
-              {selected && <Check className="w-3 h-3 text-white" />}
-            </div>
-          ) : (
-            <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-          )}
-          <span
-            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
-            style={{ backgroundColor: classColor }}
-            data-testid={`kanban-class-name-${schedule.id}`}
-          >
-            {className}
-          </span>
-        </div>
-        {schedule.town_to_town && (
-          <AlertTriangle className="w-4 h-4 text-amber-500" />
+    <div className="relative mb-2">
+      <button
+        ref={setNodeRef}
+        type="button"
+        {...(selectionMode ? {} : { ...listeners, ...attributes })}
+        data-testid={`kanban-card-${schedule.id}`}
+        onClick={() => {
+          if (selectionMode) {
+            toggleItem?.(schedule.id);
+          } else {
+            onEdit?.(schedule);
+          }
+        }}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
+          selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+          isDragging && "opacity-50 scale-95",
+          selected && "ring-2 ring-indigo-500 ring-offset-1"
         )}
-      </div>
-
-      <div className="pl-[26px] space-y-2">
-        <div className="flex items-center gap-2 text-xs text-slate-600">
-          <MapPin className="w-3 h-3" />
-          <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <User className="w-3 h-3" />
-          {schedule.employees?.length > 0 ? (
-            schedule.employees.map((emp, i) => (
-              <span key={emp.id}>
-                <EntityLink type="employee" id={emp.id}>{emp.name}</EntityLink>
-                {i < schedule.employees.length - 1 && ', '}
-              </span>
-            ))
-          ) : (
-            <span>Unassigned</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Clock className="w-3 h-3" />
-          <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <Car className="w-3 h-3" />
-          <span>{schedule.drive_time_minutes}m drive each way</span>
-        </div>
-        {schedule.linked_project && (
-          <div className="flex items-center gap-1.5 text-xs text-indigo-600">
-            <Handshake className="w-3 h-3" />
-            <span className="truncate font-medium">{schedule.linked_project.title}</span>
-            <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-auto shrink-0">
-              {schedule.linked_project.phase?.replace('_', ' ')}
-            </Badge>
+        style={{ borderLeftColor: classColor, ...transformStyle }}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {selectionMode ? (
+              <div className={cn(
+                "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
+              )}>
+                {selected && <Check className="w-3 h-3 text-white" />}
+              </div>
+            ) : (
+              <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
+              style={{ backgroundColor: classColor }}
+              data-testid={`kanban-class-name-${schedule.id}`}
+            >
+              {className}
+            </span>
           </div>
-        )}
-        {schedule.notes && (
-          <p className="text-[11px] text-slate-400 italic truncate">{schedule.notes}</p>
-        )}
-      </div>
+          {schedule.town_to_town && (
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+          )}
+        </div>
 
-      {!selectionMode && (
-        <div className="flex items-center justify-between mt-3 pl-[26px]">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onEdit?.(schedule); }}
-            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
-            data-testid={`kanban-edit-${schedule.id}`}
-          >
-            Edit details
-          </button>
-          <div className="flex gap-1">
-            {(schedule.status || 'upcoming') !== 'completed' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => { e.stopPropagation(); onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed'); }}
-                className="h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700"
-                data-testid={`kanban-advance-${schedule.id}`}
-              >
-                <ChevronRight className="w-3 h-3 mr-0.5" />
-                Move
-              </Button>
+        <div className="pl-[26px] space-y-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <MapPin className="w-3 h-3" />
+            <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <User className="w-3 h-3" />
+            {schedule.employees?.length > 0 ? (
+              schedule.employees.map((emp, i) => (
+                <span key={emp.id}>
+                  <EntityLink type="employee" id={emp.id}>{emp.name}</EntityLink>
+                  {i < schedule.employees.length - 1 && ', '}
+                </span>
+              ))
+            ) : (
+              <span>Unassigned</span>
             )}
           </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Clock className="w-3 h-3" />
+            <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Car className="w-3 h-3" />
+            <span>{schedule.drive_time_minutes}m drive each way</span>
+          </div>
+          {schedule.linked_project && (
+            <div className="flex items-center gap-1.5 text-xs text-indigo-600">
+              <Handshake className="w-3 h-3" />
+              <span className="truncate font-medium">{schedule.linked_project.title}</span>
+              <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-auto shrink-0">
+                {schedule.linked_project.phase?.replace('_', ' ')}
+              </Badge>
+            </div>
+          )}
+          {schedule.notes && (
+            <p className="text-[11px] text-slate-400 italic truncate">{schedule.notes}</p>
+          )}
         </div>
+      </button>
+
+      {canAdvance && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
+          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700 bg-white/80 backdrop-blur-sm"
+          data-testid={`kanban-advance-${schedule.id}`}
+        >
+          <ChevronRight className="w-3 h-3 mr-0.5" />
+          Move
+        </Button>
       )}
     </div>
   );
