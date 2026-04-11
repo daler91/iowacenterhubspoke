@@ -600,6 +600,7 @@ async def legacy_api_deprecation_middleware(request: Request, call_next):
 
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"
+_static_root = _static_dir.resolve()
 # Serving built frontend assets
 if (_static_dir / "static").exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir / "static")), name="frontend-static")
@@ -608,7 +609,12 @@ elif (_static_dir / "assets").exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        file_path = _static_dir / full_path
+        file_path = (_static_root / full_path).resolve(strict=False)
+        try:
+            file_path.relative_to(_static_root)
+        except ValueError:
+            return FileResponse(str(_static_root / "index.html"))
+
         if file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))
-        return FileResponse(str(_static_dir / "index.html"))
+        return FileResponse(str(_static_root / "index.html"))
