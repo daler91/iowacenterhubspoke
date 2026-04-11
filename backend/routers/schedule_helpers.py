@@ -165,3 +165,140 @@ async def _fetch_schedule_entities(data: ScheduleCreate):
     location, class_doc = await _fetch_location_and_class(data)
     employees = await _fetch_employees(data.employee_ids)
     return location, employees, class_doc
+
+
+# --- Update helpers ---
+#
+# These used to live inside ``routers/schedule_crud.py`` and were imported
+# back into ``update_series`` via a circular-import workaround. Lifting them
+# here lets both ``schedule_crud.update_schedule`` and
+# ``schedule_crud.update_series`` call them directly, and shrinks the CRUD
+# router back below ~500 lines.
+
+
+async def _resolve_location_update(location_id: str, update_data: dict):
+    location = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    if not location:
+        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    update_data["location_name"] = location["city_name"]
+    # ``_handle_drive_overrides`` may replace this with the per-leg override
+    # below; absent an override the location's default drive time wins.
+    update_data["drive_time_minutes"] = location["drive_time_minutes"]
+
+
+async def _resolve_class_update(class_id: str, update_data: dict):
+    class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not class_doc:
+        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+    update_data.update(
+        {
+            "class_name": class_doc["name"],
+            "class_color": class_doc.get("color", "#0F766E"),
+            "class_description": class_doc.get("description"),
+        }
+    )
+
+
+async def _handle_drive_overrides(schedule_id: str, update_data: dict):
+    location_id = update_data.get("location_id")
+    if not location_id:
+        existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
+        if existing:
+            location_id = existing.get("location_id")
+
+    loc = None
+    if location_id:
+        loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
+
+    if "drive_to_override_minutes" in update_data:
+        if update_data["drive_to_override_minutes"]:
+            update_data["drive_time_minutes"] = update_data["drive_to_override_minutes"]
+        elif loc:
+            update_data["drive_time_minutes"] = loc["drive_time_minutes"]
+
+
+async def resolve_update_relations(schedule_id: str, update_data: dict):
+    """Resolve location, employee, class, and drive override relations for an update.
+
+    Mutates ``update_data`` in-place so the caller can pass it straight into
+    ``db.schedules.update_one``. Raises 404 if a referenced location, employee,
+    or class is missing (matching the pre-extraction behavior).
+    """
+    if "location_id" in update_data:
+        await _resolve_location_update(update_data["location_id"], update_data)
+    if "employee_ids" in update_data:
+        employees = await _fetch_employees(update_data["employee_ids"])
+        update_data["employees"] = _build_employees_snapshot(employees)
+        update_data.pop("employee_id", None)
+        update_data.pop("employee_name", None)
+        update_data.pop("employee_color", None)
+    if "class_id" in update_data:
+        await _resolve_class_update(update_data["class_id"], update_data)
+    if (
+        "drive_to_override_minutes" in update_data
+        or "drive_from_override_minutes" in update_data
+    ):
+        await _handle_drive_overrides(schedule_id, update_data)
+
+
+async def sync_town_to_town_if_needed(schedule_id: str, update_data: dict):
+    """Recalculate town-to-town flags if relevant fields changed."""
+    recalc_fields = {"location_id", "date", "employee_ids"}
+    if not (recalc_fields & update_data.keys()):
+        return
+    updated_sched = await db.schedules.find_one(
+        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not updated_sched:
+        return
+    for emp_id in updated_sched.get("employee_ids", []):
+        await _sync_same_day_town_to_town(emp_id, updated_sched["date"])
+
+
+async def sync_calendar_events_if_needed(
+    schedule_id: str, update_data: dict, old_schedule: dict,
+):
+    """Delete old and create new calendar events if calendar-relevant fields changed."""
+    calendar_fields = {
+        "employee_ids", "location_id", "class_id", "date",
+        "start_time", "end_time", "notes",
+        "drive_to_override_minutes", "drive_from_override_minutes",
+        "drive_time_minutes",
+    }
+    if not (calendar_fields & update_data.keys()):
+        return
+    updated_sched = await db.schedules.find_one(
+        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
+    )
+    if not updated_sched:
+        return
+    await _delete_calendar_events_for_all(old_schedule)
+    employees = await _fetch_employees(updated_sched.get("employee_ids", []))
+    location = await db.locations.find_one(
+        {"id": updated_sched["location_id"], "deleted_at": None}, {"_id": 0}
+    )
+    class_doc = None
+    if updated_sched.get("class_id"):
+        class_doc = await db.classes.find_one(
+            {"id": updated_sched["class_id"], "deleted_at": None}, {"_id": 0}
+        )
+    if employees and location:
+        _enqueue_calendar_events_for_all(employees, location, class_doc, updated_sched)
+
+
+async def sync_relocate_calendar(old_schedule: dict, updated: dict):
+    """Re-create calendar events after a relocate."""
+    if not updated:
+        return
+    await _delete_calendar_events_for_all(old_schedule)
+    employees = await _fetch_employees(updated.get("employee_ids", []))
+    location = await db.locations.find_one(
+        {"id": updated["location_id"], "deleted_at": None}, {"_id": 0}
+    )
+    class_doc = None
+    if updated.get("class_id"):
+        class_doc = await db.classes.find_one(
+            {"id": updated["class_id"], "deleted_at": None}, {"_id": 0}
+        )
+    if employees and location:
+        _enqueue_calendar_events_for_all(employees, location, class_doc, updated)
