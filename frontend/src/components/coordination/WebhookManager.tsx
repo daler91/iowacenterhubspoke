@@ -116,7 +116,7 @@ export default function WebhookManager() {
                   )}
                 </div>
                 {sub.last_triggered_at && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Last triggered: {new Date(sub.last_triggered_at).toLocaleString()}
                   </p>
                 )}
@@ -133,7 +133,7 @@ export default function WebhookManager() {
           </Card>
         ))}
         {subs.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-8">No webhooks configured</p>
+          <p className="text-sm text-muted-foreground text-center py-8">No webhooks configured</p>
         )}
       </div>
 

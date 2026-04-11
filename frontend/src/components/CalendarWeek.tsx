@@ -473,12 +473,12 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-week">
         {/* Header row */}
         <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50/50">
-          <div className="p-3 text-xs font-medium text-slate-400 uppercase tracking-wider border-r border-gray-100">
+          <div className="p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider border-r border-gray-100">
             Time
           </div>
           {days.map(day => (
             <div key={day.toISOString()} className="p-3 text-center border-r border-gray-100 last:border-r-0">
-              <p className="text-xs font-medium text-slate-400 uppercase">{format(day, 'EEE')}</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase">{format(day, 'EEE')}</p>
               <p className={cn(
                 "text-lg font-bold mt-0.5 font-display",
                 isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-800"
@@ -507,7 +507,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             <div className="border-r border-gray-100">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[60px] px-2 flex items-start justify-end pt-1">
-                  <span className="text-[11px] text-slate-400 font-medium">
+                  <span className="text-[11px] text-muted-foreground font-medium">
                     {formatHourLabel(hour)}
                   </span>
                 </div>

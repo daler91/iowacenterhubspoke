@@ -106,7 +106,7 @@ export default function PartnerProfile() {
           <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
             {partnerOrg.status}
           </Badge>
-          <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />
+          <ChevronDown className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -160,7 +160,7 @@ export default function PartnerProfile() {
             {partnerOrg.notes && (
               <div>
                 <span className="text-slate-500 block mb-1">Notes</span>
-                <p className="text-slate-700 dark:text-slate-300">{partnerOrg.notes}</p>
+                <p className="text-slate-700 dark:text-muted-foreground">{partnerOrg.notes}</p>
               </div>
             )}
           </div>
@@ -171,16 +171,16 @@ export default function PartnerProfile() {
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Venue Details</h3>
               <div className="space-y-1 text-sm">
                 {partnerOrg.venue_details.capacity && (
-                  <p className="text-slate-500">Capacity: <span className="font-medium text-slate-700 dark:text-slate-300">{partnerOrg.venue_details.capacity}</span></p>
+                  <p className="text-slate-500">Capacity: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.capacity}</span></p>
                 )}
                 {partnerOrg.venue_details.av_setup && (
-                  <p className="text-slate-500">AV: <span className="font-medium text-slate-700 dark:text-slate-300">{partnerOrg.venue_details.av_setup}</span></p>
+                  <p className="text-slate-500">AV: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.av_setup}</span></p>
                 )}
                 {partnerOrg.venue_details.wifi !== undefined && (
-                  <p className="text-slate-500">Wi-Fi: <span className="font-medium text-slate-700 dark:text-slate-300">{partnerOrg.venue_details.wifi ? 'Yes' : 'No'}</span></p>
+                  <p className="text-slate-500">Wi-Fi: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.wifi ? 'Yes' : 'No'}</span></p>
                 )}
                 {partnerOrg.venue_details.parking && (
-                  <p className="text-slate-500">Parking: <span className="font-medium text-slate-700 dark:text-slate-300">{partnerOrg.venue_details.parking}</span></p>
+                  <p className="text-slate-500">Parking: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.parking}</span></p>
                 )}
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function PartnerProfile() {
                     )}
                   </p>
                   <p className="text-xs text-slate-500">{contact.email}</p>
-                  {contact.role && <p className="text-xs text-slate-400">{contact.role}</p>}
+                  {contact.role && <p className="text-xs text-muted-foreground">{contact.role}</p>}
                 </div>
                 <Button
                   size="sm"
@@ -226,7 +226,7 @@ export default function PartnerProfile() {
               </div>
             ))}
             {(!partnerOrg.contacts || partnerOrg.contacts.length === 0) && (
-              <p className="text-sm text-slate-400 text-center py-4">No contacts yet</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No contacts yet</p>
             )}
           </div>
         </Card>
@@ -271,7 +271,7 @@ export default function PartnerProfile() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-slate-400 text-center py-4">No projects yet</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No projects yet</p>
         )}
       </Card>
         </>

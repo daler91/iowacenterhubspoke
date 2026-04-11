@@ -60,7 +60,7 @@ export default function PartnerManager() {
       }
     >
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <label htmlFor="partner-search" className="sr-only">Search partners</label>
         <Input
           id="partner-search"
@@ -92,7 +92,7 @@ export default function PartnerManager() {
           </Card>
         ))}
         {filtered.length === 0 && (
-          <p className="text-center text-slate-400 py-8">No partner organizations found</p>
+          <p className="text-center text-muted-foreground py-8">No partner organizations found</p>
         )}
       </div>
 

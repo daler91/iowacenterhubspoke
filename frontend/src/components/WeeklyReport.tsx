@@ -99,7 +99,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       </div>
 
       <div className="max-w-[280px] space-y-2">
-        <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400" htmlFor="report-class-filter">Filter by Class</Label>
+        <Label className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground" htmlFor="report-class-filter">Filter by Class</Label>
         <Select value={selectedClassId} onValueChange={setSelectedClassId}>
           <SelectTrigger id="report-class-filter" className="bg-white" data-testid="report-class-filter">
             <SelectValue placeholder="All classes" />
@@ -135,24 +135,24 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-indigo-50 rounded-lg p-4 text-center">
-              <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
+              <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-indigo-700 font-display">{report.totals.classes}</p>
-              <p className="text-xs text-indigo-500">Total Classes</p>
+              <p className="text-xs text-indigo-700">Total Classes</p>
             </div>
             <div className="bg-teal-50 rounded-lg p-4 text-center">
-              <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" />
+              <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-teal-700 font-display">{report.totals.class_hours}h</p>
-              <p className="text-xs text-teal-500">Class Hours</p>
+              <p className="text-xs text-teal-700">Class Hours</p>
             </div>
             <div className="bg-amber-50 rounded-lg p-4 text-center">
-              <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+              <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-amber-700 font-display">{report.totals.drive_hours}h</p>
-              <p className="text-xs text-amber-500">Drive Hours</p>
+              <p className="text-xs text-amber-700">Drive Hours</p>
             </div>
             <div className="bg-violet-50 rounded-lg p-4 text-center">
-              <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" />
+              <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-violet-700 font-display">{report.totals.employees_active}</p>
-              <p className="text-xs text-violet-500">Active Employees</p>
+              <p className="text-xs text-violet-700">Active Employees</p>
             </div>
           </div>
 
@@ -178,7 +178,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   </div>
                   <div>
                     <EntityLink type="employee" id={emp.employee_id} className="font-semibold text-slate-800">{emp.employee_name}</EntityLink>
-                    <p className="text-xs text-slate-400">{emp.days_worked} day{emp.days_worked === 1 ? '' : 's'} worked</p>
+                    <p className="text-xs text-muted-foreground">{emp.days_worked} day{emp.days_worked === 1 ? '' : 's'} worked</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
@@ -218,7 +218,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                         {scheduleDetail.class_name}
                       </Badge>
                     </div>
-                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
+                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
                     <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
                     <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
                     <div className="bg-white px-3 py-2">
@@ -235,7 +235,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           ))}
 
           {(!report.employees || report.employees.length === 0) && (
-            <div className="text-center py-12 text-slate-400" data-testid="weekly-report-empty-state">
+            <div className="text-center py-12 text-muted-foreground" data-testid="weekly-report-empty-state">
               <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No classes scheduled for this week</p>
             </div>

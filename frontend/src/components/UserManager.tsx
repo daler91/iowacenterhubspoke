@@ -331,7 +331,7 @@ export default function UserManager() {
                           </Button>
                         )}
                         {u.id === user.id && (
-                          <span className="text-xs text-slate-400 flex items-center justify-end gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
                             <Shield className="w-3 h-3" /> You
                           </span>
                         )}

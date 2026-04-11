@@ -248,7 +248,7 @@ export default function CalendarView() {
           </div>
         )}
         {(schedules || []).length > 0 && filteredSchedules.length > 0 && (
-          <p className="text-xs text-slate-400" data-testid="schedule-count">
+          <p className="text-xs text-muted-foreground" data-testid="schedule-count">
             {filteredSchedules.length} schedules loaded — showing {calendarView} view
           </p>
         )}

@@ -63,7 +63,7 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
             'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
             task.spotlight
               ? 'border-amber-400 text-amber-700 bg-amber-100 font-semibold'
-              : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600',
+              : 'border-slate-200 text-muted-foreground hover:border-amber-300 hover:text-amber-600',
           )}
         >
           <Star className="w-3 h-3 inline mr-0.5" />
@@ -75,7 +75,7 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
             'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
             task.at_risk
               ? 'border-danger text-danger bg-danger-soft font-semibold'
-              : 'border-slate-200 text-slate-400 hover:border-danger/30 hover:text-danger',
+              : 'border-slate-200 text-muted-foreground hover:border-danger/30 hover:text-danger',
           )}
         >
           <AlertTriangle className="w-3 h-3 inline mr-0.5" />
@@ -117,13 +117,13 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {groups.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-6">No messages yet</p>
+          <p className="text-xs text-muted-foreground text-center py-6">No messages yet</p>
         )}
         {groups.map(group => (
           <div key={group.date}>
             <div className="flex items-center gap-2 my-3">
               <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-              <span className="text-[10px] text-slate-400 font-medium">{group.date}</span>
+              <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
               <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
             </div>
             {group.items.map((cmt) => (
@@ -139,11 +139,11 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-muted-foreground">
                       {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{cmt.body}</p>
+                  <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5 leading-relaxed">{cmt.body}</p>
                 </div>
               </div>
             ))}
@@ -336,7 +336,7 @@ export default function TaskDetailModal({
               {/* Metadata row */}
               <div className="flex items-center gap-4 mb-5 flex-wrap text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400 uppercase tracking-wide">Assign to</span>
+                  <span className="text-muted-foreground uppercase tracking-wide">Assign to</span>
                   <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[9px] font-semibold">
                     {(assignedTo || '?').charAt(0).toUpperCase()}
                   </div>
@@ -373,7 +373,7 @@ export default function TaskDetailModal({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
                   <Input
                     type="date"
                     value={dueDate}
@@ -386,7 +386,7 @@ export default function TaskDetailModal({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400 uppercase tracking-wide">Status</span>
+                  <span className="text-muted-foreground uppercase tracking-wide">Status</span>
                   <select
                     value={task.status || (task.completed ? 'completed' : 'to_do')}
                     onChange={e => handleStatusChange(e.target.value)}
@@ -461,7 +461,7 @@ export default function TaskDetailModal({
                 {/* Attachments */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                    <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       Attachments ({task.attachments?.length ?? 0})
                     </span>
@@ -470,10 +470,10 @@ export default function TaskDetailModal({
                   <div className="space-y-1.5 mb-2">
                     {(task.attachments ?? []).map(att => (
                       <Card key={att.id} className="p-2 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">{att.filename}</p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-muted-foreground">
                             {att.uploaded_by} &middot; {new Date(att.uploaded_at).toLocaleDateString()}
                           </p>
                         </div>
@@ -482,13 +482,13 @@ export default function TaskDetailModal({
                         </Badge>
                         <a
                           href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
-                          className="text-slate-400 hover:text-indigo-600"
+                          className="text-muted-foreground hover:text-indigo-600"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="text-slate-400 hover:text-danger"
+                          className="text-muted-foreground hover:text-danger"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -511,7 +511,7 @@ export default function TaskDetailModal({
                 </div>
 
                 {/* Timestamps */}
-                <div className="text-[10px] text-slate-400 pt-2 border-t">
+                <div className="text-[10px] text-muted-foreground pt-2 border-t">
                   Created {new Date(task.created_at).toLocaleString()}
                   {task.completed_at && (
                     <> &middot; Completed {new Date(task.completed_at).toLocaleString()}

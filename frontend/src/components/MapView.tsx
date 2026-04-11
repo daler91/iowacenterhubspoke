@@ -98,12 +98,12 @@ export default function MapView() {
                       <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3 min-w-[220px]">
                         <p className="font-bold text-sm text-teal-700">{loc.city_name}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Car className="w-3 h-3 text-slate-400" />
+                          <Car className="w-3 h-3 text-muted-foreground" />
                           <span className="text-xs text-slate-500">{loc.drive_time_minutes} min from Hub</span>
                         </div>
                         {locSchedules.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-gray-100">
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold mb-1">Today's Classes</p>
+                            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Today's Classes</p>
                             {locSchedules.map(s => (
                               <div key={s.id} className="flex items-center gap-2 mt-1">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />

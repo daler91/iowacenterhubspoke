@@ -115,7 +115,7 @@ export default function NotificationsPanel() {
             {activeNotifications.length === 0 ? (
               <div className="p-8 text-center">
                 <Bell className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">All caught up!</p>
+                <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -155,7 +155,7 @@ export default function NotificationsPanel() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setDismissed(prev => new Set([...prev, notification.id])); }}
-                        className="text-slate-300 hover:text-slate-500 shrink-0 p-4 pl-0"
+                        className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>

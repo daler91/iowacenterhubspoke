@@ -77,7 +77,7 @@ export function SearchableSelect({
                   <div className="flex-1 min-w-0">
                     <span className="truncate">{option.label}</span>
                     {option.sublabel && (
-                      <span className="text-xs text-slate-400 ml-1">{option.sublabel}</span>
+                      <span className="text-xs text-muted-foreground ml-1">{option.sublabel}</span>
                     )}
                   </div>
                 </CommandItem>

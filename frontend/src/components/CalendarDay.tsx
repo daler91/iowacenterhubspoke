@@ -362,7 +362,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-gray-50/50">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
           <p className="text-2xl font-bold text-slate-800 font-display">
             {format(currentDate, 'MMMM d, yyyy')}
           </p>
@@ -378,7 +378,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
             <div className="border-r border-gray-100">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     {formatHourLabel(hour)}
                   </span>
                 </div>

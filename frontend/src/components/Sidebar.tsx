@@ -70,12 +70,12 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
         // sidebar can own width/padding/active-state styling.
         'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
         isActive
-          ? 'bg-hub-soft text-hub hover:bg-hub-soft shadow-sm'
-          : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+          ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft shadow-sm'
+          : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
         collapsed && 'justify-center px-0',
       )}
     >
-      <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-slate-400')} />
+      <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-muted-foreground')} />
       {!collapsed && <span>{item.label}</span>}
     </Button>
   );
@@ -101,8 +101,8 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
             <div className="flex items-center gap-2">
-              <p className="text-xs text-slate-400 truncate">{user.email}</p>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-muted-foreground font-bold uppercase tracking-wider">
                 {user.role}
               </span>
             </div>
@@ -119,12 +119,12 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         className={cn(
           'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
           isSettingsActive
-            ? 'bg-hub-soft text-hub hover:bg-hub-soft'
-            : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+            ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft'
+            : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
           collapsed && 'justify-center px-0',
         )}
       >
-        <Settings aria-hidden="true" className={cn('w-5 h-5 shrink-0', isSettingsActive ? 'text-hub' : 'text-slate-400')} />
+        <Settings aria-hidden="true" className={cn('w-5 h-5 shrink-0', isSettingsActive ? 'text-hub' : 'text-muted-foreground')} />
         {!collapsed && <span>Settings</span>}
       </Button>
       <Button
@@ -135,7 +135,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-pressed={isDark}
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -149,7 +149,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-label={collapsed ? 'Sign out' : undefined}
         onClick={logout}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-danger-soft hover:text-danger transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-danger-soft hover:text-danger transition-all',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -231,7 +231,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
           <div className="space-y-5">
             {NAV_SECTIONS.map((section) => (
               <div key={section.id} className="space-y-1.5" data-testid={`nav-section-${section.id}`}>
-                <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 dark:text-slate-600">
+                <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   {section.label}
                 </p>
                 <div className="space-y-1">

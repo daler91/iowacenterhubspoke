@@ -239,7 +239,7 @@ export default function OutcomeTracker({ projectId }: Props) {
       {/* Search */}
       {outcomes.length > 5 && (
         <div className="relative mb-3">
-          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -258,7 +258,7 @@ export default function OutcomeTracker({ projectId }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{o.attendee_name}</p>
                 {o.attendee_email && (
-                  <p className="text-xs text-slate-400">{o.attendee_email}</p>
+                  <p className="text-xs text-muted-foreground">{o.attendee_email}</p>
                 )}
               </div>
               <select
@@ -274,10 +274,10 @@ export default function OutcomeTracker({ projectId }: Props) {
           );
         })}
         {outcomes.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-4">No outcomes tracked yet</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No outcomes tracked yet</p>
         )}
         {outcomes.length > 0 && filteredOutcomes.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-4">No matching attendees</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No matching attendees</p>
         )}
       </div>
 
@@ -347,7 +347,7 @@ export default function OutcomeTracker({ projectId }: Props) {
             <DialogTitle>Confirm Status Change</DialogTitle>
           </DialogHeader>
           {transitionWarning && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600 dark:text-muted-foreground">
               Move <strong>{transitionWarning.attendeeName}</strong> from{' '}
               <strong>{transitionWarning.currentStatus}</strong> back to{' '}
               <strong>{transitionWarning.requestedStatus}</strong>?

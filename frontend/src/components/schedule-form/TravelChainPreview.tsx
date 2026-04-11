@@ -51,7 +51,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
   // Non-editable: plain text
   if (!canEdit) {
     return (
-      <span className="text-[10px] text-slate-400 tabular-nums">
+      <span className="text-[10px] text-muted-foreground tabular-nums">
         {leg.minutes} min
       </span>
     );
@@ -178,12 +178,12 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                       <span className="text-[11px] font-medium text-indigo-600">
                         {isFirst ? leg.from_label : leg.to_label}
                         {isFirst && leg.start_time && (
-                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          <span className="text-[10px] text-muted-foreground font-normal ml-1">
                             depart {leg.start_time}
                           </span>
                         )}
                         {isLast && leg.end_time && (
-                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          <span className="text-[10px] text-muted-foreground font-normal ml-1">
                             arrive {leg.end_time}
                           </span>
                         )}
@@ -193,7 +193,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                   )}
                   {!isHub && !isSameCity && (
                     <>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <ArrowDown className="w-3 h-3" />
                         {leg.start_time && leg.end_time ? `${leg.start_time}–${leg.end_time}` : ''}
                       </span>
@@ -201,7 +201,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                     </>
                   )}
                   {isSameCity && (
-                    <span className="text-[10px] text-slate-300 italic">Same city</span>
+                    <span className="text-[10px] text-muted-foreground italic">Same city</span>
                   )}
                 </div>
               </div>
@@ -240,7 +240,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                     </Badge>
                   )}
                 </div>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-muted-foreground">
                   {leg.start_time} – {leg.end_time}
                 </span>
               </div>

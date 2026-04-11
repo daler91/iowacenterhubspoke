@@ -19,7 +19,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Today</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Today</p>
             <p className="text-2xl font-bold text-slate-800 font-display" data-testid="stat-today">
               {safeStats.today_schedules}
             </p>
@@ -37,7 +37,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Scheduled</p>
             <p className="text-2xl font-bold text-slate-800 font-display" data-testid="stat-total-schedules">
               {safeStats.total_schedules}
             </p>
@@ -55,7 +55,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Team</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Team</p>
             <p className="text-2xl font-bold text-slate-800 font-display" data-testid="stat-employees">
               {safeStats.total_employees}
             </p>
@@ -73,7 +73,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Locations</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Locations</p>
             <p className="text-2xl font-bold text-slate-800 font-display" data-testid="stat-locations">
               {safeStats.total_locations}
             </p>
@@ -91,7 +91,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Classes</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Classes</p>
             <p className="text-2xl font-bold text-slate-800 font-display" data-testid="stat-classes">
               {safeStats.total_classes}
             </p>

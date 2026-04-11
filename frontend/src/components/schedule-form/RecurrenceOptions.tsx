@@ -20,7 +20,7 @@ export function RecurrenceOptions({
   const endModeButtonClass = (mode: string) =>
     `rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 ${
       recurrence_end_mode === mode
-        ? 'border-hub/40 bg-hub-soft text-hub'
+        ? 'border-hub/40 bg-hub-soft text-hub-strong'
         : 'border-gray-200 bg-white text-slate-500 hover:bg-gray-50'
     }`;
 
@@ -69,7 +69,7 @@ export function RecurrenceOptions({
             <div className="space-y-2">
               <p
                 id="schedule-end-mode-label"
-                className="text-xs uppercase tracking-[0.18em] text-slate-400"
+                className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
               >
                 Ends
               </p>
@@ -140,7 +140,7 @@ export function RecurrenceOptions({
             )}
 
             {recurrence_end_mode === 'never' && (
-              <p className="text-xs text-slate-400" data-testid="schedule-recurrence-never-note">
+              <p className="text-xs text-muted-foreground" data-testid="schedule-recurrence-never-note">
                 Never creates the next 52 occurrences for now.
               </p>
             )}

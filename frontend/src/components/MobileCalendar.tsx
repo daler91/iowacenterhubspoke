@@ -186,7 +186,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
               <div className="p-6 space-y-4">
                 <div className="bg-slate-50 p-4 rounded-lg space-y-3">
                   <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
+                    <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">Location</p>
                       <p className="text-sm text-slate-600">{selectedSchedule.location_name}</p>
@@ -196,7 +196,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                   <div className="w-full h-px bg-slate-200 ml-8" />
 
                   <div className="flex items-start gap-3">
-                    <User className="w-5 h-5 text-slate-400 mt-0.5" />
+                    <User className="w-5 h-5 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">Instructor</p>
                       <p className="text-sm text-slate-600">{selectedSchedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</p>

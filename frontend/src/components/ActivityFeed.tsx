@@ -34,7 +34,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
         </div>
         <div className="bg-white rounded-lg border border-gray-100 p-12 text-center">
           <Activity className="w-12 h-12 mx-auto text-gray-200 mb-3" />
-          <p className="text-slate-400 text-sm">No activity yet. Start scheduling to see updates here.</p>
+          <p className="text-muted-foreground text-sm">No activity yet. Start scheduling to see updates here.</p>
         </div>
       </div>
     );
@@ -61,7 +61,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
             {Object.entries(grouped).map(([date, items]) => (
               <div key={date}>
                 <div className="px-5 py-2 bg-gray-50/50 sticky top-0">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{date}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{date}</p>
                 </div>
                 {items.map((activity, idx) => {
                   const config = ACTION_CONFIG[activity.action] || {
@@ -83,10 +83,10 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
                           <Badge className={`${config.bg} ${config.color} border-0 text-[10px] px-1.5`}>
                             {config.label}
                           </Badge>
-                          <span className="text-[11px] text-slate-400">{timeAgo}</span>
+                          <span className="text-[11px] text-muted-foreground">{timeAgo}</span>
                         </div>
                         <p className="text-sm text-slate-700">{activity.description}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">by {activity.user_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">by {activity.user_name}</p>
                       </div>
                     </div>
                   );

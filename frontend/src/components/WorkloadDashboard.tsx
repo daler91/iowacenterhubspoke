@@ -113,7 +113,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
           Workload Overview
         </h2>
         <div className="min-w-[240px] space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400" htmlFor="workload-class-filter">
+          <Label className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground" htmlFor="workload-class-filter">
             Filter by Class
           </Label>
           <Select value={selectedClassId} onValueChange={setSelectedClassId}>
@@ -155,7 +155,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center">
               <BookOpen className="w-5 h-5 text-indigo-600" />
             </div>
-            <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Total Classes</span>
+            <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Total Classes</span>
           </div>
           <p className="text-3xl font-bold text-slate-800 font-display" data-testid="workload-total-classes">
             {totals.classes}
@@ -166,7 +166,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 text-teal-600" />
             </div>
-            <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Class Hours</span>
+            <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Class Hours</span>
           </div>
           <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.classHours.toFixed(1)}h
@@ -177,7 +177,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center">
               <Car className="w-5 h-5 text-amber-600" />
             </div>
-            <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Drive Hours</span>
+            <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Drive Hours</span>
           </div>
           <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.driveHours.toFixed(1)}h
@@ -188,7 +188,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-spoke" />
             </div>
-            <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Completed</span>
+            <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Completed</span>
           </div>
           <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.completed}
@@ -217,7 +217,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm" data-testid="workload-chart-empty-state">
+            <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm" data-testid="workload-chart-empty-state">
               No schedule data yet. Create some classes to see workload distribution.
             </div>
           )}
@@ -239,7 +239,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[220px] flex items-center justify-center text-slate-400 text-sm" data-testid="workload-pie-empty-state">
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm" data-testid="workload-pie-empty-state">
               No data yet
             </div>
           )}
@@ -269,7 +269,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
               </div>
               <div>
                 <EntityLink type="employee" id={employeeWorkload.employee_id} className="font-semibold text-slate-800 text-sm">{employeeWorkload.employee_name}</EntityLink>
-                <p className="text-xs text-slate-400" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
+                <p className="text-xs text-muted-foreground" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
                   {employeeWorkload.display_classes} class{employeeWorkload.display_classes === 1 ? '' : 'es'} in scope
                 </p>
               </div>
@@ -298,7 +298,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         ))}
 
         {scopedWorkload.length === 0 && (
-          <div className="col-span-full text-center py-10 text-slate-400" data-testid="workload-empty-state">
+          <div className="col-span-full text-center py-10 text-muted-foreground" data-testid="workload-empty-state">
             No workload found for the selected class.
           </div>
         )}

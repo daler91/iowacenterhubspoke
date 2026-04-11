@@ -105,7 +105,7 @@ export default function PromotionChecklist({ projectId }: Props) {
 
       {/* Progress */}
       <div className="mb-4">
-        <div className="flex justify-between text-xs text-slate-400 mb-1">
+        <div className="flex justify-between text-xs text-muted-foreground mb-1">
           <span>{done}/{total} completed</span>
           <span>{pct}%</span>
         </div>
@@ -124,7 +124,7 @@ export default function PromotionChecklist({ projectId }: Props) {
           return (
             <Card key={item.id} className="p-3">
               <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="flex-1 text-sm">{item.label}</span>
                 <div className="flex items-center gap-2">
                   <button
@@ -165,7 +165,7 @@ export default function PromotionChecklist({ projectId }: Props) {
       </div>
 
       {/* Legend */}
-      <div className="mt-2 flex gap-3 text-[10px] text-slate-400">
+      <div className="mt-2 flex gap-3 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> Internal
         </span>

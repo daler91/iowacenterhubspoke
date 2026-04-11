@@ -132,7 +132,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                     size="sm"
                     data-testid="class-profile-clear-dates"
                     onClick={() => { setDateFrom(''); setDateTo(''); }}
-                    className="text-xs text-slate-400 hover:text-slate-600"
+                    className="text-xs text-muted-foreground hover:text-slate-600"
                   >
                     Clear
                   </Button>
@@ -204,7 +204,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
                   No employee data yet
                 </div>
               )}
@@ -226,7 +226,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
                   No location data yet
                 </div>
               )}
@@ -256,7 +256,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                       ) : (
                         <span className="text-sm font-medium text-slate-700">Unassigned</span>
                       )}
-                      <p className="text-xs text-slate-400"><EntityLink type="location" id={s.location_id} className="text-slate-400">{s.location_name}</EntityLink> | {s.date} | {s.start_time}-{s.end_time}</p>
+                      <p className="text-xs text-muted-foreground"><EntityLink type="location" id={s.location_id} className="text-muted-foreground">{s.location_name}</EntityLink> | {s.date} | {s.start_time}-{s.end_time}</p>
                     </div>
                     <Badge className={`border-0 text-[10px] ${getScheduleStatusStyle(s.status)}`}>
                       {(s.status || 'upcoming').replace('_', ' ')}
@@ -264,7 +264,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                   </div>
                 ))}
                 {(!data.recent_schedules || data.recent_schedules.length === 0) && (
-                  <p className="text-sm text-slate-400 text-center py-8">No assignments yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-8">No assignments yet</p>
                 )}
               </div>
             </ScrollArea>

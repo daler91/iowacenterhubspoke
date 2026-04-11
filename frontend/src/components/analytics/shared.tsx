@@ -12,7 +12,7 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Rea
         <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
-        <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">{label}</span>
+        <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">{label}</span>
       </div>
       <p className="text-2xl font-bold text-slate-800 font-display">
         {value}
@@ -25,7 +25,7 @@ export function FilterSelect({ label, value, onChange, options }: Readonly<Filte
   const selectId = `filter-select-${label.replaceAll(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="min-w-[160px] space-y-2">
-      <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>
+      <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger id={selectId} className="bg-white">
           <SelectValue />
@@ -48,7 +48,7 @@ export function LoadingChart() {
     >
       <span className="flex flex-col items-center gap-2">
         <span className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm text-slate-400">Loading analytics...</span>
+        <span className="text-sm text-muted-foreground">Loading analytics...</span>
       </span>
     </output>
   );
@@ -56,7 +56,7 @@ export function LoadingChart() {
 
 export function EmptyState({ message }: Readonly<{ message: string }>) {
   return (
-    <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">
+    <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
       {message}
     </div>
   );
