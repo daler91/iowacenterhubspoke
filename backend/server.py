@@ -609,7 +609,12 @@ elif (_static_dir / "assets").exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        file_path = (_static_root / full_path).resolve(strict=False)
+        requested_path = Path(full_path)
+        if requested_path.is_absolute() or any(part in ("", ".", "..") for part in requested_path.parts):
+            return FileResponse(str(_static_root / "index.html"))
+
+        safe_relative_path = Path(*requested_path.parts) if requested_path.parts else Path()
+        file_path = (_static_root / safe_relative_path).resolve(strict=False)
         try:
             file_path.relative_to(_static_root)
         except ValueError:
