@@ -445,12 +445,35 @@ async def deliver_webhook_job(ctx, subscription_id, event, payload):
     return await deliver_webhook(ctx, subscription_id, event, payload)
 
 
+async def send_password_reset_email_job(ctx, email):
+    """Background job: send a password reset email (anti-enumeration safe).
+
+    The handler enqueues unconditionally; this worker is where the DB
+    lookup and SMTP send happen, off the request path.
+    """
+    from services.email_jobs import send_password_reset_email
+    return await send_password_reset_email(email)
+
+
+async def send_partner_magic_link_email_job(ctx, email):
+    """Background job: send a partner portal magic link email.
+
+    Same pattern as send_password_reset_email_job — the handler enqueues
+    unconditionally and returns immediately; this worker does the DB
+    lookup and SMTP send.
+    """
+    from services.email_jobs import send_partner_magic_link_email
+    return await send_partner_magic_link_email(email)
+
+
 class WorkerSettings:
     functions = [
         generate_bulk_schedules, sync_schedules_denormalized,
         create_outlook_event, delete_outlook_event,
         create_google_event, delete_google_event,
         deliver_webhook_job,
+        send_password_reset_email_job,
+        send_partner_magic_link_email_job,
     ]
     cron_jobs = [
         arq.cron(process_task_reminders, hour=None, minute=0),

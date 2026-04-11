@@ -1,7 +1,6 @@
 import os
-import secrets
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Response
 from database import db
 from models.schemas import (
@@ -11,6 +10,7 @@ from models.schemas import (
 from core.auth import hash_password, verify_password, create_token, CurrentUser
 from core.constants import ROLE_VIEWER, ROLE_ADMIN, USER_STATUS_PENDING, USER_STATUS_APPROVED, USER_STATUS_REJECTED
 from fastapi import Request
+from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
 from core.logger import get_logger, user_var
 
@@ -157,7 +157,6 @@ async def logout(request: Request, response: Response):
     return {"message": "Logged out successfully"}
 
 
-PASSWORD_RESET_EXPIRY_HOURS = 1
 _GENERIC_FORGOT_RESPONSE = {
     "message": "If that email is registered, a reset link has been sent.",
 }
@@ -186,40 +185,15 @@ async def _find_valid_reset_token(token: str):
 )
 @limiter.limit("3/minute")
 async def forgot_password(request: Request, data: ForgotPasswordRequest):  # NOSONAR(S3516)
-    """Generate a password reset token and email it. Always returns the same
-    generic response to avoid leaking which emails are registered
-    (anti-enumeration — intentional invariant response)."""
-    user = await db.users.find_one({"email": data.email}, {"_id": 0})
-    if not user:
-        return _GENERIC_FORGOT_RESPONSE
+    """Request a password reset link.
 
-    token = secrets.token_urlsafe(48)
-    now = datetime.now(timezone.utc)
-    expires = now + timedelta(hours=PASSWORD_RESET_EXPIRY_HOURS)
-    await db.password_resets.insert_one({
-        "id": str(uuid.uuid4()),
-        "user_id": user["id"],
-        "email": user["email"],
-        "token": token,
-        "expires_at": expires.isoformat(),
-        "created_at": now.isoformat(),
-        "used_at": None,
-    })
-    logger.info(
-        "Password reset token created", extra={"entity": {"user_id": user["id"]}},
-    )
-
-    try:
-        from services.email import send_password_reset, resolve_app_url
-        reset_url = f"{resolve_app_url()}/reset-password/{token}"
-        await send_password_reset(
-            to=user["email"], name=user.get("name", ""), reset_url=reset_url,
-        )
-    except Exception as e:
-        logger.warning(
-            "Failed to send password reset email to %s: %s", user["email"], e,
-        )
-
+    The DB lookup, token creation, and SMTP send are all dispatched to
+    a background worker so request timing is identical whether or not
+    the email is registered (anti-enumeration — intentional invariant
+    response and constant-time handler). `safe_enqueue_job` never
+    raises, so even a transient Redis failure still returns the generic
+    response rather than leaking a 500."""
+    await safe_enqueue_job("send_password_reset_email_job", data.email)
     return _GENERIC_FORGOT_RESPONSE
 
 
