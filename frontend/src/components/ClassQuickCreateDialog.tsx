@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { toast } from 'sonner';
 import { classesAPI } from '../lib/api';
+import { cn } from '../lib/utils';
 
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
@@ -78,16 +79,34 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
             />
           </div>
 
-          <div className="space-y-2">
-            <Label data-testid="class-quick-color-label">Color</Label>
+          <div
+            className="space-y-2"
+            role="radiogroup"
+            aria-labelledby="class-quick-color-label"
+          >
+            {/* Group heading — not a <Label> because it doesn't label a
+                single form control. */}
+            <span
+              id="class-quick-color-label"
+              data-testid="class-quick-color-label"
+              className="text-sm font-medium leading-none"
+            >
+              Color
+            </span>
             <div className="flex flex-wrap gap-2" data-testid="class-quick-color-grid">
               {CLASS_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
+                  role="radio"
+                  aria-checked={form.color === color}
                   data-testid={`class-quick-color-${color}`}
                   onClick={() => setForm((prev) => ({ ...prev, color }))}
-                  className={`h-8 w-8 rounded-full transition-transform ${form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105'}`}
+                  className={cn(
+                    'h-8 w-8 rounded-full transition-transform',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
+                    form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105',
+                  )}
                   style={{ backgroundColor: color }}
                   aria-label={`Select ${color} for class`}
                 />

@@ -87,11 +87,11 @@ export default function ResetPasswordPage() {
           )}
           {tokenState === 'invalid' && (
             <div className="space-y-4">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 font-medium">
+              <div className="p-3 bg-danger-soft border border-danger/30 rounded-lg" role="alert">
+                <p className="text-sm text-danger font-medium">
                   Invalid or expired reset link
                 </p>
-                <p className="text-xs text-red-500 mt-1">
+                <p className="text-xs text-danger mt-1">
                   Reset links expire after 1 hour. Request a new one to continue.
                 </p>
               </div>

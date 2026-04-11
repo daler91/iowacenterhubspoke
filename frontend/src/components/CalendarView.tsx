@@ -14,7 +14,7 @@ import RelocateConflictDialog from './RelocateConflictDialog';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import MobileCalendar from './MobileCalendar';
-import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
 import BulkActionBar from './BulkActionBar';
@@ -24,7 +24,7 @@ import useSelectionMode from '../hooks/useSelectionMode';
 import type { CalendarOutletContext, Schedule } from '../lib/types';
 
 export default function CalendarView() {
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobile = useIsMobile();
   const {
     locations,
     classes,
@@ -206,10 +206,10 @@ export default function CalendarView() {
               <Link to="/locations" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (locations || []).length > 0
-                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
               )}>
-                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
                   <p className="text-xs text-slate-500">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
@@ -218,10 +218,10 @@ export default function CalendarView() {
               <Link to="/employees" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (employees || []).length > 0
-                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
               )}>
-                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
                   <p className="text-xs text-slate-500">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
@@ -230,10 +230,10 @@ export default function CalendarView() {
               <Link to="/classes" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (classes || []).length > 0
-                  ? 'border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800'
+                  ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
               )}>
-                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-green-600' : 'text-amber-600')} />
+                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
                   <p className="text-xs text-slate-500">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
@@ -285,9 +285,9 @@ export default function CalendarView() {
       />
 
       {fetchErrors?.schedules && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error">
-          <p className="text-sm text-red-700">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button onClick={() => fetchSchedules()} className="text-sm font-medium text-red-700 hover:text-red-800 underline">Retry</button>
+        <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
+          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger hover:underline">Retry</button>
         </div>
       )}
 

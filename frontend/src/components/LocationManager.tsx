@@ -202,7 +202,7 @@ export default function LocationManager() {
                     size="sm"
                     data-testid={`delete-location-${loc.id}`}
                     onClick={() => handleDelete(loc.id)}
-                    className="text-slate-400 hover:text-red-600"
+                    className="text-slate-400 hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

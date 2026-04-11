@@ -306,8 +306,8 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes, isToday, curren
           style={{ top: `${minutesToTop(currentTimeMinutes)}px` }}
         >
           <div className="flex items-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shrink-0" />
-            <div className="flex-1 h-[2px] bg-red-500" />
+            <div className="w-2.5 h-2.5 rounded-full bg-danger -ml-1 shrink-0" />
+            <div className="flex-1 h-[2px] bg-danger" />
           </div>
         </div>
       )}

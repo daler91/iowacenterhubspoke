@@ -347,7 +347,7 @@ export default function ProjectBoard() {
             className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
           >
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-spoke" />
             Completed ({board.columns.complete.length})
           </button>
           {showCompleted && (
@@ -367,7 +367,7 @@ export default function ProjectBoard() {
                       {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
                     </Badge>
                     {project.task_total ? (
-                      <span className="text-[10px] text-green-600">{project.task_completed}/{project.task_total} tasks</span>
+                      <span className="text-[10px] text-spoke">{project.task_completed}/{project.task_total} tasks</span>
                     ) : null}
                   </div>
                 </Card>

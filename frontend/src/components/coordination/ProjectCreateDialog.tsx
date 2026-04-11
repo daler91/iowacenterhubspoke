@@ -146,20 +146,24 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
         </DialogHeader>
         <div className="space-y-4 mt-2">
           <div>
-            <Label>Title *</Label>
+            <Label htmlFor="project-title">Title *</Label>
             <Input
+              id="project-title"
               value={title}
               onChange={e => setTitle(e.target.value)}
               onBlur={() => markTouched('title')}
               placeholder="e.g. AI for Small Business Workshop"
-              className={cn(showError('title', title) && 'border-red-500 focus:ring-red-500')}
+              className={cn(showError('title', title) && 'border-danger focus:ring-danger')}
+              aria-invalid={showError('title', title)}
+              aria-describedby={showError('title', title) ? 'project-title-error' : undefined}
             />
-            {showError('title', title) && <p className="text-xs text-red-500 mt-1">Title is required</p>}
+            {showError('title', title) && <p id="project-title-error" className="text-xs text-danger mt-1">Title is required</p>}
           </div>
           <div>
-            <Label>Template</Label>
+            <Label htmlFor="project-template">Template</Label>
             <p className="text-xs text-slate-400 mb-1">Templates pre-fill tasks for your project. You can customize them afterward.</p>
             <SearchableSelect
+              id="project-template"
               options={templates.map(t => ({ value: t.id, label: `${t.name} (${t.default_tasks.length} tasks)` }))}
               value={templateId}
               onValueChange={setTemplateId}
@@ -168,8 +172,9 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
             />
           </div>
           <div>
-            <Label>Event Format *</Label>
+            <Label htmlFor="project-event-format">Event Format *</Label>
             <SearchableSelect
+              id="project-event-format"
               options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
               value={eventFormat}
               onValueChange={setEventFormat}
@@ -178,19 +183,21 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
             />
           </div>
           <div>
-            <Label>Partner Organization *</Label>
+            <Label htmlFor="project-partner">Partner Organization *</Label>
             <SearchableSelect
+              id="project-partner"
               options={partnerOrgs.map(org => ({ value: org.id, label: org.name, sublabel: org.community }))}
               value={partnerOrgId}
               onValueChange={(v) => { setPartnerOrgId(v); markTouched('partnerOrgId'); }}
               placeholder="Select partner..."
               searchPlaceholder="Search partners..."
             />
-            {showError('partnerOrgId', partnerOrgId) && <p className="text-xs text-red-500 mt-1">Partner organization is required</p>}
+            {showError('partnerOrgId', partnerOrgId) && <p className="text-xs text-danger mt-1">Partner organization is required</p>}
           </div>
           <div>
-            <Label>Class</Label>
+            <Label htmlFor="project-class">Class</Label>
             <SearchableSelect
+              id="project-class"
               options={classes.map(c => ({ value: c.id, label: c.name }))}
               value={classId}
               onValueChange={setClassId}
@@ -199,8 +206,9 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
             />
           </div>
           <div>
-            <Label>Link to Existing Schedule (optional)</Label>
+            <Label htmlFor="project-schedule">Link to Existing Schedule (optional)</Label>
             <SearchableSelect
+              id="project-schedule"
               options={schedules.map(s => ({ value: s.id, label: `${s.date} — ${s.class_name || 'Unclassified'}`, sublabel: s.location_name || '' }))}
               value={scheduleId}
               onValueChange={handleScheduleSelect}
@@ -209,20 +217,23 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
             />
           </div>
           <div>
-            <Label>Event Date *</Label>
+            <Label htmlFor="project-event-date">Event Date *</Label>
             <Input
+              id="project-event-date"
               type="date"
               value={eventDate}
               onChange={e => setEventDate(e.target.value)}
               onBlur={() => markTouched('eventDate')}
-              className={cn(showError('eventDate', eventDate) && 'border-red-500 focus:ring-red-500')}
+              className={cn(showError('eventDate', eventDate) && 'border-danger focus:ring-danger')}
+              aria-invalid={showError('eventDate', eventDate)}
+              aria-describedby={showError('eventDate', eventDate) ? 'project-event-date-error' : undefined}
             />
-            {showError('eventDate', eventDate) && <p className="text-xs text-red-500 mt-1">Event date is required</p>}
+            {showError('eventDate', eventDate) && <p id="project-event-date-error" className="text-xs text-danger mt-1">Event date is required</p>}
           </div>
           <TooltipProvider>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="flex items-center gap-1">
+                <Label htmlFor="project-community" className="flex items-center gap-1">
                   Community
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -234,6 +245,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   </Tooltip>
                 </Label>
                 <Input
+                  id="project-community"
                   value={community}
                   disabled
                   className="bg-slate-50 dark:bg-slate-800 text-slate-500"
@@ -241,7 +253,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                 />
               </div>
               <div>
-                <Label className="flex items-center gap-1">
+                <Label htmlFor="project-venue" className="flex items-center gap-1">
                   Venue
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -253,6 +265,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   </Tooltip>
                 </Label>
                 <Input
+                  id="project-venue"
                   value={venueName}
                   disabled
                   className="bg-slate-50 dark:bg-slate-800 text-slate-500"
@@ -282,8 +295,9 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                     A schedule will be created at the partner&apos;s location.
                   </p>
                   <div>
-                    <Label className="text-xs">Employees *</Label>
+                    <Label htmlFor="project-employees" className="text-xs">Employees *</Label>
                     <EmployeeMultiSelect
+                      id="project-employees"
                       employees={employees}
                       selectedIds={selectedEmployeeIds}
                       onSelectionChange={setSelectedEmployeeIds}
@@ -291,12 +305,12 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">Start Time</Label>
-                      <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                      <Label htmlFor="project-start-time" className="text-xs">Start Time</Label>
+                      <Input id="project-start-time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
                     </div>
                     <div>
-                      <Label className="text-xs">End Time</Label>
-                      <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                      <Label htmlFor="project-end-time" className="text-xs">End Time</Label>
+                      <Input id="project-end-time" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
                     </div>
                   </div>
                 </div>

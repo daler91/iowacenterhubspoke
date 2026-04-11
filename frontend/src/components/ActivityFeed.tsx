@@ -8,10 +8,10 @@ import { ScrollArea } from './ui/scroll-area';
 
 const ACTION_CONFIG = {
   schedule_created: { icon: CalendarPlus, color: 'text-indigo-600', bg: 'bg-indigo-50', label: 'Scheduled' },
-  schedule_deleted: { icon: Trash2, color: 'text-red-500', bg: 'bg-red-50', label: 'Removed' },
+  schedule_deleted: { icon: Trash2, color: 'text-danger', bg: 'bg-danger-soft', label: 'Removed' },
   employee_created: { icon: UserPlus, color: 'text-teal-600', bg: 'bg-teal-50', label: 'New Employee' },
-  location_created: { icon: MapPinPlus, color: 'text-green-600', bg: 'bg-green-50', label: 'New Location' },
-  status_completed: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: 'Completed' },
+  location_created: { icon: MapPinPlus, color: 'text-spoke', bg: 'bg-spoke-soft', label: 'New Location' },
+  status_completed: { icon: CheckCircle2, color: 'text-spoke', bg: 'bg-spoke-soft', label: 'Completed' },
   status_in_progress: { icon: PlayCircle, color: 'text-amber-600', bg: 'bg-amber-50', label: 'In Progress' },
   status_upcoming: { icon: Clock, color: 'text-indigo-500', bg: 'bg-indigo-50', label: 'Reset' },
 };

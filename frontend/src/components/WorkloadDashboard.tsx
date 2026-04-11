@@ -185,8 +185,8 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         </div>
         <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+            <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-spoke" />
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Completed</span>
           </div>
@@ -290,7 +290,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
                 <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / Math.max(...scopedWorkload.map((item) => item.display_drive_hours), 1)) * 100, 100)}%` }} />
               </div>
               <div className="flex gap-2 mt-3">
-                <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
+                <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
                 <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{employeeWorkload.upcoming} upcoming</Badge>
               </div>
             </div>

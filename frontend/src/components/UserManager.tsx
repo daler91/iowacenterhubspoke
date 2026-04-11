@@ -214,7 +214,7 @@ export default function UserManager() {
                       <Button
                         size="sm"
                         onClick={() => handleApprove(u.id)}
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="bg-spoke hover:bg-spoke/90 text-white"
                       >
                         <CheckCircle className="w-4 h-4 mr-1" />
                         Approve
@@ -223,7 +223,7 @@ export default function UserManager() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleReject(u.id)}
-                        className="border-red-300 text-red-600 hover:bg-red-50"
+                        className="border-danger/30 text-danger hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4 mr-1" />
                         Reject
@@ -261,7 +261,7 @@ export default function UserManager() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleRevokeInvitation(inv.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-danger hover:text-danger hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4" />
                       </Button>
@@ -325,7 +325,7 @@ export default function UserManager() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDelete(u.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            className="text-danger hover:text-danger hover:bg-danger-soft"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

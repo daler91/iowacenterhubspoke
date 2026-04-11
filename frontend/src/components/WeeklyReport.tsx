@@ -10,7 +10,7 @@ import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, User
 import { toast } from 'sonner';
 
 const STATUS_CLASSES = {
-  completed: 'bg-green-50 text-green-700',
+  completed: 'bg-spoke-soft text-spoke',
   in_progress: 'bg-amber-50 text-amber-700',
 };
 
@@ -185,7 +185,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{emp.classes} classes</Badge>
                   <Badge className="bg-teal-50 text-teal-700 border-0 text-[10px]">{emp.class_hours}h class</Badge>
                   <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px]">{emp.drive_hours}h drive</Badge>
-                  <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{emp.completed} done</Badge>
+                  <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{emp.completed} done</Badge>
                 </div>
               </div>
 

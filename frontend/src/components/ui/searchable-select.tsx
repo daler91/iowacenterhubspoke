@@ -11,6 +11,7 @@ export interface SearchableSelectOption {
 }
 
 interface SearchableSelectProps {
+  readonly id?: string;
   readonly options: SearchableSelectOption[];
   readonly value: string;
   readonly onValueChange: (value: string) => void;
@@ -21,6 +22,7 @@ interface SearchableSelectProps {
 }
 
 export function SearchableSelect({
+  id,
   options,
   value,
   onValueChange,
@@ -36,6 +38,7 @@ export function SearchableSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          id={id}
           type="button"
           className={cn(
             'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 dark:bg-gray-900 dark:border-gray-700',

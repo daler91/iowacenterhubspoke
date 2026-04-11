@@ -180,7 +180,7 @@ export default function EmployeeManager() {
                     size="sm"
                     data-testid={`delete-employee-${emp.id}`}
                     onClick={() => handleDelete(emp.id)}
-                    className="text-slate-400 hover:text-red-600"
+                    className="text-slate-400 hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -251,7 +251,12 @@ export default function EmployeeManager() {
               role="radiogroup"
               aria-labelledby="employee-color-label"
             >
-              <Label id="employee-color-label">Calendar Color</Label>
+              {/* Group heading for the radiogroup — a <span>, not a <Label>,
+                  because this text isn't associated with a single form
+                  control (jsx-a11y's label-has-associated-control rule). */}
+              <span id="employee-color-label" className="text-sm font-medium leading-none">
+                Calendar Color
+              </span>
               <div className="flex gap-2 flex-wrap">
                 {COLORS.map(c => (
                   <button

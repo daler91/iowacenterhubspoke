@@ -50,9 +50,9 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
         </div>
       )}
       {task.at_risk && (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800">
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-          <span className="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">At Risk</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-danger-soft border border-danger/30">
+          <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
+          <span className="text-xs font-bold text-danger uppercase tracking-wide">At Risk</span>
         </div>
       )}
       {/* Toggle buttons */}
@@ -74,8 +74,8 @@ function TaskFlagControls({ task, onToggle }: Readonly<{
           className={cn(
             'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
             task.at_risk
-              ? 'border-red-400 text-red-700 bg-red-100 font-semibold'
-              : 'border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-600',
+              ? 'border-danger text-danger bg-danger-soft font-semibold'
+              : 'border-slate-200 text-slate-400 hover:border-danger/30 hover:text-danger',
           )}
         >
           <AlertTriangle className="w-3 h-3 inline mr-0.5" />
@@ -488,7 +488,7 @@ export default function TaskDetailModal({
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="text-slate-400 hover:text-red-500"
+                          className="text-slate-400 hover:text-danger"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -526,7 +526,7 @@ export default function TaskDetailModal({
                 <Button
                   variant="ghost"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs h-7"
+                  className="text-danger hover:text-danger hover:bg-danger-soft text-xs h-7"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Task
                 </Button>

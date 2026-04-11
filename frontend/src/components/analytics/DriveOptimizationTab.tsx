@@ -32,14 +32,24 @@ export default function DriveOptimizationTab() {
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">From</Label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background" />
+          <Label htmlFor="drive-opt-date-from" className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">From</Label>
+          <input
+            id="drive-opt-date-from"
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="flex h-10 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background"
+          />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">To</Label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background" />
+          <Label htmlFor="drive-opt-date-to" className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">To</Label>
+          <input
+            id="drive-opt-date-to"
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="flex h-10 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background"
+          />
         </div>
       </div>
 
@@ -50,7 +60,7 @@ export default function DriveOptimizationTab() {
           label="Avg / Schedule" value={`${summary.avg_per_schedule || 0}h`} />
         <SummaryCard icon={TrendingUp} iconBg="bg-indigo-50" iconColor="text-indigo-600"
           label="Highest Driver" value={summary.highest_driver || 'N/A'} />
-        <SummaryCard icon={Zap} iconBg="bg-green-50" iconColor="text-green-600"
+        <SummaryCard icon={Zap} iconBg="bg-spoke-soft" iconColor="text-spoke"
           label="Potential Savings" value={`${summary.potential_savings_hours || 0}h`} />
       </div>
 
@@ -92,7 +102,7 @@ export default function DriveOptimizationTab() {
               <tbody>
                 {suggestions.map((s: any) => {
                   let savingsBadgeClass = 'bg-slate-50 text-slate-600';
-                  if (s.savings_mins >= 120) savingsBadgeClass = 'bg-green-50 text-green-700';
+                  if (s.savings_mins >= 120) savingsBadgeClass = 'bg-spoke-soft text-spoke';
                   else if (s.savings_mins >= 60) savingsBadgeClass = 'bg-amber-50 text-amber-700';
 
                   return (

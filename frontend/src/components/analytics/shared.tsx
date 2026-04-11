@@ -22,11 +22,12 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Rea
 }
 
 export function FilterSelect({ label, value, onChange, options }: Readonly<FilterSelectProps>) {
+  const selectId = `filter-select-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="min-w-[160px] space-y-2">
-      <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>
+      <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="bg-white">
+        <SelectTrigger id={selectId} className="bg-white">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

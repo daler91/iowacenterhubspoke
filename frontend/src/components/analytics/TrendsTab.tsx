@@ -55,8 +55,8 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
   }, [trends]);
 
   const trendConfig: Record<string, { icon: typeof TrendingUp; bg: string; color: string; label: string }> = {
-    up: { icon: TrendingUp, bg: 'bg-green-50', color: 'text-green-600', label: 'Growing' },
-    down: { icon: TrendingDown, bg: 'bg-red-50', color: 'text-red-600', label: 'Declining' },
+    up: { icon: TrendingUp, bg: 'bg-spoke-soft', color: 'text-spoke', label: 'Growing' },
+    down: { icon: TrendingDown, bg: 'bg-danger-soft', color: 'text-danger', label: 'Declining' },
     flat: { icon: TrendingUp, bg: 'bg-slate-50', color: 'text-slate-600', label: 'Stable' },
   };
   const currentTrend = trendConfig[summary.trend] || trendConfig.flat;

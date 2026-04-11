@@ -18,20 +18,25 @@ export type ScheduleStatus = typeof SCHEDULE_STATUS[keyof typeof SCHEDULE_STATUS
 export const COLORS = {
   DEFAULT_EMPLOYEE: '#4F46E5',
   DEFAULT_CLASS: '#0F766E',
+  // Kanban column status colors map to the semantic design tokens:
+  //   upcoming     → hub (indigo)
+  //   in_progress  → warn (amber)
+  //   completed    → spoke (teal)
+  // All three come from frontend/tailwind.config.js + index.css HSL vars.
   STATUS: {
-    UPCOMING: 'bg-indigo-500',
-    IN_PROGRESS: 'bg-amber-500',
-    COMPLETED: 'bg-green-500',
+    UPCOMING: 'bg-hub',
+    IN_PROGRESS: 'bg-warn',
+    COMPLETED: 'bg-spoke',
   },
   STATUS_LIGHT: {
-    UPCOMING: 'bg-indigo-50',
-    IN_PROGRESS: 'bg-amber-50',
-    COMPLETED: 'bg-green-50',
+    UPCOMING: 'bg-hub-soft',
+    IN_PROGRESS: 'bg-warn-soft',
+    COMPLETED: 'bg-spoke-soft',
   },
   STATUS_TEXT: {
-    UPCOMING: 'text-indigo-700',
-    IN_PROGRESS: 'text-amber-700',
-    COMPLETED: 'text-green-700',
+    UPCOMING: 'text-hub',
+    IN_PROGRESS: 'text-warn',
+    COMPLETED: 'text-spoke',
   }
 } as const;
 

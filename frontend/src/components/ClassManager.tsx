@@ -168,7 +168,7 @@ export default function ClassManager() {
                     size="sm"
                     data-testid={`delete-class-${classItem.id}`}
                     onClick={() => setDeleteTarget(classItem)}
-                    className="text-slate-400 hover:text-red-600"
+                    className="text-slate-400 hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -200,7 +200,7 @@ export default function ClassManager() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { handleDelete(deleteTarget?.id); setDeleteTarget(null); }}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-danger hover:bg-danger/90 text-white"
             >
               Delete
             </AlertDialogAction>
@@ -250,7 +250,16 @@ export default function ClassManager() {
               role="radiogroup"
               aria-labelledby="class-color-label"
             >
-              <Label id="class-color-label" data-testid="class-color-label">Color</Label>
+              {/* Group heading for the radiogroup — a <span>, not a <Label>,
+                  because this text isn't associated with a single form
+                  control. */}
+              <span
+                id="class-color-label"
+                data-testid="class-color-label"
+                className="text-sm font-medium leading-none"
+              >
+                Color
+              </span>
               <div className="flex flex-wrap gap-2 items-center" data-testid="class-color-grid">
                 {CLASS_COLORS.map((color) => (
                   <button

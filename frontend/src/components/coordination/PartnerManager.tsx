@@ -105,16 +105,17 @@ export default function PartnerManager() {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label>Organization Name *</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <Label htmlFor="partner-name">Organization Name *</Label>
+              <Input id="partner-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
             <div>
-              <Label>Community *</Label>
-              <Input value={form.community} onChange={e => setForm({ ...form, community: e.target.value })} placeholder="e.g. Carroll, Fort Dodge" />
+              <Label htmlFor="partner-community">Community *</Label>
+              <Input id="partner-community" value={form.community} onChange={e => setForm({ ...form, community: e.target.value })} placeholder="e.g. Carroll, Fort Dodge" />
             </div>
             <div>
-              <Label>Status</Label>
+              <Label htmlFor="partner-status">Status</Label>
               <select
+                id="partner-status"
                 value={form.status}
                 onChange={e => setForm({ ...form, status: e.target.value })}
                 className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
@@ -126,8 +127,8 @@ export default function PartnerManager() {
               </select>
             </div>
             <div>
-              <Label>Notes</Label>
-              <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+              <Label htmlFor="partner-notes">Notes</Label>
+              <Input id="partner-notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
