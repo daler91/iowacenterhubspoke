@@ -135,24 +135,24 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-indigo-50 rounded-lg p-4 text-center">
-              <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
+              <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-indigo-700 font-display">{report.totals.classes}</p>
-              <p className="text-xs text-indigo-500">Total Classes</p>
+              <p className="text-xs text-indigo-700">Total Classes</p>
             </div>
             <div className="bg-teal-50 rounded-lg p-4 text-center">
-              <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" />
+              <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-teal-700 font-display">{report.totals.class_hours}h</p>
-              <p className="text-xs text-teal-500">Class Hours</p>
+              <p className="text-xs text-teal-700">Class Hours</p>
             </div>
             <div className="bg-amber-50 rounded-lg p-4 text-center">
-              <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+              <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-amber-700 font-display">{report.totals.drive_hours}h</p>
-              <p className="text-xs text-amber-500">Drive Hours</p>
+              <p className="text-xs text-amber-700">Drive Hours</p>
             </div>
             <div className="bg-violet-50 rounded-lg p-4 text-center">
-              <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" />
+              <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" aria-hidden="true" />
               <p className="text-2xl font-bold text-violet-700 font-display">{report.totals.employees_active}</p>
-              <p className="text-xs text-violet-500">Active Employees</p>
+              <p className="text-xs text-violet-700">Active Employees</p>
             </div>
           </div>
 

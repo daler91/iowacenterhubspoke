@@ -20,7 +20,7 @@ export function RecurrenceOptions({
   const endModeButtonClass = (mode: string) =>
     `rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 ${
       recurrence_end_mode === mode
-        ? 'border-hub/40 bg-hub-soft text-hub'
+        ? 'border-hub/40 bg-hub-soft text-hub-strong'
         : 'border-gray-200 bg-white text-slate-500 hover:bg-gray-50'
     }`;
 

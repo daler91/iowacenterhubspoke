@@ -70,7 +70,7 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
         // sidebar can own width/padding/active-state styling.
         'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
         isActive
-          ? 'bg-hub-soft text-hub hover:bg-hub-soft shadow-sm'
+          ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft shadow-sm'
           : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
         collapsed && 'justify-center px-0',
       )}
@@ -119,7 +119,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         className={cn(
           'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
           isSettingsActive
-            ? 'bg-hub-soft text-hub hover:bg-hub-soft'
+            ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft'
             : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
           collapsed && 'justify-center px-0',
         )}

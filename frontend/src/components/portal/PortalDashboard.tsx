@@ -361,7 +361,7 @@ export default function PortalDashboard() {
                   'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                   activeProject === project.id
-                    ? 'bg-hub-soft text-hub'
+                    ? 'bg-hub-soft text-hub-strong'
                     : 'bg-gray-100 text-slate-500 hover:bg-gray-200',
                 )}
               >

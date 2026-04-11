@@ -108,7 +108,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
           {project.schedule_id && (
             <Badge
               variant="secondary"
-              className="text-[10px] px-1.5 py-0 bg-hub-soft text-hub"
+              className="text-[10px] px-1.5 py-0 bg-hub-soft text-hub-strong"
               title="Linked to a schedule on the Delivery Pipeline"
             >
               On Calendar
@@ -325,7 +325,7 @@ export default function ProjectBoard() {
                       {!searchQuery && phase === 'planning' && (
                         <button
                           onClick={() => setShowCreate(true)}
-                          className="text-xs text-indigo-500 hover:text-indigo-600 mt-1"
+                          className="text-xs text-hub-strong hover:text-hub mt-1"
                         >
                           Create your first project
                         </button>

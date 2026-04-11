@@ -7,5 +7,5 @@
 export function getScheduleStatusStyle(status?: string): string {
   if (status === 'completed') return 'bg-spoke-soft text-spoke';
   if (status === 'in_progress') return 'bg-warn-soft text-warn';
-  return 'bg-hub-soft text-hub';
+  return 'bg-hub-soft text-hub-strong';
 }

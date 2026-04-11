@@ -30,15 +30,7 @@ for (const { path, name } of ROUTES) {
     // Wait for lazy-loaded chunks and async data to settle before scanning.
     await page.waitForLoadState('networkidle');
 
-    const results = await new AxeBuilder({ page })
-      .include('body')
-      // `color-contrast` is disabled for now because the `text-slate-400`
-      // token fails WCAG AA on `bg-gray-50` (contrast 2.45:1) and is
-      // used in ~195 places. Re-enabling it requires a global token
-      // sweep (text-slate-400 → text-slate-500) that is out of scope
-      // for this infrastructure PR. Tracked as a follow-up.
-      .disableRules(['color-contrast'])
-      .analyze();
+    const results = await new AxeBuilder({ page }).include('body').analyze();
 
     const blocking = results.violations.filter(
       v => v.impact === 'critical' || v.impact === 'serious',

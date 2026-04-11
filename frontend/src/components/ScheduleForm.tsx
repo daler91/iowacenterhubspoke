@@ -30,7 +30,7 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 }
 
 function stepStyle(i: number, current: number): string {
-  if (i === current) return 'bg-hub-soft text-hub';
+  if (i === current) return 'bg-hub-soft text-hub-strong';
   if (i < current) return 'bg-spoke-soft text-spoke';
   return 'bg-gray-100 dark:bg-gray-800 text-muted-foreground';
 }
