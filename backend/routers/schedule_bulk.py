@@ -246,8 +246,10 @@ async def bulk_update_location(
                 "location_id": data.location_id,
                 "location_name": location["city_name"],
                 "drive_time_minutes": new_drive_time,
-                "travel_override_minutes": None,
-            }
+            },
+            # Strip the legacy override so bulk-relocated schedules reset to
+            # the new location's default drive time (matches old behaviour).
+            "$unset": {"travel_override_minutes": ""},
         },
     )
     updated_count = result.modified_count

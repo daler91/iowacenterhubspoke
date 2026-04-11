@@ -162,6 +162,12 @@ async def lifespan(app: FastAPI):
         raise
 
     await _run_startup_migrations()
+    from migrations.runner import run_pending as run_pending_migrations
+    try:
+        await run_pending_migrations(db)
+    except Exception as e:
+        logger.error("Migration runner failed; refusing to start", exc_info=e)
+        raise
     await _ensure_indexes()
     await _seed_default_locations()
 
@@ -491,6 +497,35 @@ async def health_check_legacy(request: Request):
     return await health_check(request)
 
 app.include_router(legacy_router)
+
+# RFC 8594 (Sunset) + draft Deprecation header advertise the planned removal
+# of the legacy ``/api/*`` mount. Clients that still call it see the warning
+# on every response; we also log the first hit per path so we can track
+# real-world traffic before the hard removal in a future release.
+_LEGACY_SUNSET = "Wed, 01 Jul 2026 00:00:00 GMT"
+_LEGACY_WARNED_PATHS: set[str] = set()
+
+
+@app.middleware("http")
+async def legacy_api_deprecation_middleware(request: Request, call_next):
+    path = request.url.path
+    is_legacy = (
+        path.startswith("/api/")
+        and not path.startswith("/api/v1/")
+        and not path.startswith("/api/docs")
+    )
+    response = await call_next(request)
+    if is_legacy:
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = _LEGACY_SUNSET
+        response.headers["Link"] = '</api/v1/>; rel="successor-version"'
+        if path not in _LEGACY_WARNED_PATHS:
+            _LEGACY_WARNED_PATHS.add(path)
+            logger.warning(
+                "Legacy /api/ route hit: %s — migrate clients to /api/v1/",
+                path,
+            )
+    return response
 
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"

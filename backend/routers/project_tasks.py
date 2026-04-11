@@ -3,13 +3,14 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Annotated, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
 from core.auth import CurrentUser
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from core.upload import stream_upload_to_disk
 from services.activity import log_activity
 from core.logger import get_logger
@@ -409,19 +410,18 @@ async def list_task_comments(
     project_id: str,
     task_id: str,
     user: CurrentUser,
-    skip: int = 0,
-    limit: int = 50,
+    pagination: PaginationParams = Depends(pagination_params),
 ):
     await _verify_task(project_id, task_id)
     total = await db.task_comments.count_documents({"task_id": task_id})
     comments = (
         await db.task_comments.find({"task_id": task_id}, {"_id": 0})
         .sort("created_at", 1)
-        .skip(skip)
-        .limit(limit)
-        .to_list(limit)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
     )
-    return {"items": comments, "total": total, "skip": skip, "limit": limit}
+    return paginated_response(comments, total, pagination)
 
 
 @router.post(

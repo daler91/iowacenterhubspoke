@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from database import db
 from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from services.activity import log_activity
 from services.drive_time import get_drive_time_between_locations, get_drive_time_from_hub
 from core.logger import get_logger
@@ -19,12 +20,20 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 
 
 @router.get("", summary="List all locations")
-async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
+async def get_locations(
+    user: CurrentUser,
+    pagination: PaginationParams = Depends(pagination_params),
+):
     """Return paginated list of active (non-deleted) locations."""
     query = {"deleted_at": None}
     total = await db.locations.count_documents(query)
-    locations = await db.locations.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
-    return {"items": locations, "total": total, "skip": skip, "limit": limit}
+    locations = (
+        await db.locations.find(query, {"_id": 0})
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(locations, total, pagination)
 
 
 @router.get(

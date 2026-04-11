@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from database import db
 from models.coordination_schemas import MessageCreate
 from core.auth import CurrentUser
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -36,15 +37,20 @@ async def list_messages(
     project_id: str,
     user: CurrentUser,
     channel: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 50,
+    pagination: PaginationParams = Depends(pagination_params),
 ):
     query: dict = {"project_id": project_id}
     if channel:
         query["channel"] = channel
     total = await db.messages.count_documents(query)
-    messages = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
-    return {"items": messages, "total": total, "skip": skip, "limit": limit}
+    messages = (
+        await db.messages.find(query, {"_id": 0})
+        .sort("created_at", 1)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(messages, total, pagination)
 
 
 @router.post(

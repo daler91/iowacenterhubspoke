@@ -349,7 +349,6 @@ async def import_schedules_commit(
                 "start_time": item.start_time,
                 "end_time": item.end_time,
                 "notes": item.notes,
-                "travel_override_minutes": None,
                 "status": STATUS_UPCOMING,
                 "recurrence": "none",
                 "recurrence_end_date": None,

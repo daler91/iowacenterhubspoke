@@ -2,13 +2,14 @@ import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from database import db
 from models.coordination_schemas import (
     PartnerOrgCreate, PartnerOrgUpdate,
     PartnerContactCreate, PartnerContactUpdate,
 )
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -26,8 +27,7 @@ async def list_partner_orgs(
     user: CurrentUser,
     community: Optional[str] = None,
     status: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(pagination_params),
 ):
     query = {"deleted_at": None}
     if community:
@@ -35,8 +35,13 @@ async def list_partner_orgs(
     if status:
         query["status"] = status
     total = await db.partner_orgs.count_documents(query)
-    items = await db.partner_orgs.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
-    return {"items": items, "total": total, "skip": skip, "limit": limit}
+    items = (
+        await db.partner_orgs.find(query, {"_id": 0})
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(items, total, pagination)
 
 
 @router.post("", summary="Create a partner organization")

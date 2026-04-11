@@ -93,7 +93,6 @@ def _build_schedule_doc(
         "town_to_town": town_to_town,
         "town_to_town_warning": town_to_town_warning,
         "town_to_town_drive_minutes": town_to_town_drive_minutes,
-        "travel_override_minutes": data.travel_override_minutes,
         "drive_to_override_minutes": data.drive_to_override_minutes,
         "drive_from_override_minutes": data.drive_from_override_minutes,
         "notes": data.notes,

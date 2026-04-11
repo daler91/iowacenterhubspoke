@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from database import db
 from models.schemas import (
@@ -14,6 +14,7 @@ from models.schemas import (
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired
+from core.pagination import PaginationParams, pagination_params
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
 from core.constants import (
@@ -42,8 +43,6 @@ router = APIRouter(tags=["schedules"])
 
 # --- List / Get ---
 
-MAX_SCHEDULE_LIMIT = 200
-
 
 @router.get("/", summary="List schedules")
 async def get_schedules(
@@ -51,11 +50,8 @@ async def get_schedules(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(pagination_params),
 ):
-    limit = max(1, min(limit, MAX_SCHEDULE_LIMIT))
-    skip = max(0, skip)
     query = {"deleted_at": None}
     if date_from and date_to:
         query["date"] = {"$gte": date_from, "$lte": date_to}
@@ -70,9 +66,9 @@ async def get_schedules(
     schedules = (
         await db.schedules.find(query, {"_id": 0})
         .sort([("date", 1), ("start_time", 1)])
-        .skip(skip)
-        .limit(limit)
-        .to_list(limit)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
     )
     # Enrich with linked project summaries
     schedule_ids = [s["id"] for s in schedules]
@@ -91,7 +87,12 @@ async def get_schedules(
                     "title": proj.get("title", ""),
                     "phase": proj.get("phase", "planning"),
                 }
-    return {"items": schedules, "total": total, "skip": skip, "limit": limit}
+    return {
+        "items": schedules,
+        "total": total,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+    }
 
 
 @router.get(
@@ -137,8 +138,9 @@ async def _get_location_update(location_id: str, update_data: dict):
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     update_data["location_name"] = location["city_name"]
-    if "travel_override_minutes" not in update_data:
-        update_data["drive_time_minutes"] = location["drive_time_minutes"]
+    # `_handle_drive_overrides` may replace this with the per-leg override
+    # below; absent an override the location's default drive time wins.
+    update_data["drive_time_minutes"] = location["drive_time_minutes"]
 
 
 async def _get_class_update(class_id: str, update_data: dict):

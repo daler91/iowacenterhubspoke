@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from database import db
 from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 from core.queue import get_redis_pool
@@ -17,13 +18,21 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 
 
 @router.get("", summary="List all employees")
-async def get_employees(user: CurrentUser, skip: int = 0, limit: int = 100):
+async def get_employees(
+    user: CurrentUser,
+    pagination: PaginationParams = Depends(pagination_params),
+):
     """Return paginated list of active employees."""
     query = {"deleted_at": None}
     total = await db.employees.count_documents(query)
     projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
-    employees = await db.employees.find(query, projection).skip(skip).limit(limit).to_list(limit)
-    return {"items": employees, "total": total, "skip": skip, "limit": limit}
+    employees = (
+        await db.employees.find(query, projection)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(employees, total, pagination)
 
 
 @router.get(

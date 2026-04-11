@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import PaginationParams, pagination_params, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 from core.constants import DEFAULT_CLASS_COLOR
@@ -55,12 +56,21 @@ async def sync_class_snapshot_background(class_id: str):
 
 
 @router.get("", summary="List all class types")
-async def get_classes(user: CurrentUser, skip: int = 0, limit: int = 200):
+async def get_classes(
+    user: CurrentUser,
+    pagination: PaginationParams = Depends(pagination_params),
+):
     """Return paginated list of active class types, sorted by name."""
     query = {"deleted_at": None}
     total = await db.classes.count_documents(query)
-    classes = await db.classes.find(query, {"_id": 0}).sort("name", 1).skip(skip).limit(limit).to_list(limit)
-    return {"items": classes, "total": total, "skip": skip, "limit": limit}
+    classes = (
+        await db.classes.find(query, {"_id": 0})
+        .sort("name", 1)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(classes, total, pagination)
 
 
 @router.get(

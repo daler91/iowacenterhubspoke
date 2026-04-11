@@ -157,7 +157,6 @@ async function seed() {
         drive_time_minutes: location.drive_time_minutes,
         town_to_town,
         town_to_town_warning: town_to_town ? `Town-to-Town Travel Detected: Verify drive time manually.` : null,
-        travel_override_minutes: null,
         notes,
         status,
         recurrence: null,
