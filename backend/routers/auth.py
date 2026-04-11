@@ -185,9 +185,10 @@ async def _find_valid_reset_token(token: str):
     summary="Request a password reset link",
 )
 @limiter.limit("3/minute")
-async def forgot_password(request: Request, data: ForgotPasswordRequest):  # NOSONAR(S3516) anti-enumeration: response is intentionally invariant
+async def forgot_password(request: Request, data: ForgotPasswordRequest):  # NOSONAR(S3516)
     """Generate a password reset token and email it. Always returns the same
-    generic response to avoid leaking which emails are registered."""
+    generic response to avoid leaking which emails are registered
+    (anti-enumeration — intentional invariant response)."""
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user:
         return _GENERIC_FORGOT_RESPONSE
@@ -256,8 +257,11 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
             "password_changed_at": now.isoformat(),
         }},
     )
-    await db.password_resets.update_one(
-        {"id": row["id"]},
+    # Invalidate ALL outstanding reset tokens for this user, not just the one
+    # that was submitted. Otherwise a second leaked link could still be used
+    # to reset the password again after a successful reset.
+    await db.password_resets.update_many(
+        {"user_id": row["user_id"], "used_at": None},
         {"$set": {"used_at": now.isoformat()}},
     )
     logger.info(

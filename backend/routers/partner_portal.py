@@ -4,7 +4,7 @@ import os
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Annotated, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import (
@@ -12,6 +12,7 @@ from models.coordination_schemas import (
 )
 from core.logger import get_logger
 from core.portal_auth import PortalContext, validate_portal_token
+from core.rate_limit import limiter
 from core.upload import stream_upload_to_disk
 
 logger = get_logger(__name__)
@@ -37,8 +38,11 @@ def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
 
 # ── Auth Endpoints ────────────────────────────────────────────────────
 
+# Rate-limited to curb email spam and enumeration-by-timing. The response is
+# intentionally invariant whether or not the contact exists (anti-enumeration).
 @router.post("/auth/request-link", summary="Request a magic link for partner access")
-async def request_magic_link(data: PortalAuthRequest):  # NOSONAR(S3516) anti-enumeration: response is intentionally invariant
+@limiter.limit("3/minute")
+async def request_magic_link(request: Request, data: PortalAuthRequest):  # NOSONAR(S3516)
     generic_response = {
         "message": "If that email is registered, a link has been sent.",
     }

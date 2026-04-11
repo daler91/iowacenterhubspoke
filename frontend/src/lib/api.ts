@@ -25,6 +25,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Public auth routes that should NOT trigger a 401 → /login redirect.
+// A user who lands on one of these pages is already signed out by design
+// (e.g. following a password-reset link from an email).
+const PUBLIC_AUTH_PATHS = ['/login', '/forgot-password', '/reset-password'];
+
+function isOnPublicAuthRoute(): boolean {
+  const path = globalThis.location.pathname;
+  return PUBLIC_AUTH_PATHS.some(p => path === p || path.startsWith(`${p}/`));
+}
+
 let isRedirectingTo401 = false;
 api.interceptors.response.use(
   (response) => {
@@ -34,7 +44,7 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401 && !isRedirectingTo401) {
-      if (globalThis.location.pathname === '/login') {
+      if (isOnPublicAuthRoute()) {
         return Promise.reject(error);
       }
       isRedirectingTo401 = true;
