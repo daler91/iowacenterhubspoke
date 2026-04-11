@@ -38,17 +38,40 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
-  // The card root is a `div[role=button]` because it contains nested action
-  // buttons (Edit details / Move) and a `<button>` in a `<button>` is
-  // invalid HTML. Explicit role + tabIndex are set here so:
-  //   - Sonar / jsx-a11y lints see the focus semantics statically.
-  //   - In drag mode @dnd-kit's `attributes` spread overrides with the
-  //     same values, and its KeyboardSensor fires on Space/Enter for
-  //     drag pickup.
-  //   - In selection mode the drag listeners/attributes are NOT spread
-  //     (so dragging is disabled), but the element stays focusable via
-  //     the base tabIndex/role, and `onKeyDown` handles Space/Enter to
-  //     toggle selection from the keyboard.
+  // Capture dnd-kit's own onKeyDown BEFORE the spread so we can chain it
+  // — otherwise our custom onKeyDown (spread last) silently overrides
+  // the KeyboardSensor activator and drag pickup stops working.
+  const dndKeyDown = selectionMode ? undefined : listeners?.onKeyDown;
+
+  const handleKeyDown = (e) => {
+    if (selectionMode) {
+      // Selection mode: we own Enter/Space → toggle.
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleItem?.(schedule.id);
+      }
+      return;
+    }
+    // Drag mode: Enter opens the edit dialog (non-native <div role=button>
+    // doesn't auto-fire click on Enter, so we do it manually). Space is
+    // reserved for dnd-kit's drag pickup, which we delegate to below.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEdit?.(schedule);
+      return;
+    }
+    // Everything else (Space for drag pickup, arrows for drag-move,
+    // Escape for cancel) goes to dnd-kit's KeyboardSensor.
+    dndKeyDown?.(e);
+  };
+
+  // The card root is a `div[role=button]` because it contains nested
+  // action buttons (Edit details / Move) and a `<button>` in a `<button>`
+  // is invalid HTML. Explicit role + tabIndex keep it keyboard-focusable
+  // in both drag mode and selection mode. The spread of `listeners` is
+  // conditional on drag mode so dnd-kit's drag handlers are skipped when
+  // bulk-select is active, but our chained `onKeyDown` above preserves
+  // dnd-kit's keyboard activator otherwise.
   return (
     <div
       ref={setNodeRef}
@@ -63,16 +86,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           onEdit?.(schedule);
         }
       }}
-      onKeyDown={(e) => {
-        // In selection mode we own Space/Enter (toggle select). In drag
-        // mode we let @dnd-kit's KeyboardSensor handle Space/Enter for
-        // drag pickup — but still let Enter fall through to open the
-        // edit dialog when not yet dragging.
-        if (selectionMode && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          toggleItem?.(schedule.id);
-        }
-      }}
+      onKeyDown={handleKeyDown}
       className={cn(
         "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",

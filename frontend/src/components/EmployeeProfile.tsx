@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Clock, Car, MapPin, BookOpen,
-  CheckCircle2, CalendarDays, Mail, Phone, ArrowLeft
+  MapPin, Mail, Phone, ArrowLeft,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
@@ -10,7 +9,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { EntityLink } from './ui/entity-link';
 import { PageShell } from './ui/page-shell';
-import { ProfileStatsGrid } from './ui/profile-stats-grid';
+import { ScheduleStatsGrid } from './ui/schedule-stats-grid';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 import { getScheduleStatusStyle } from '../lib/schedule-status';
@@ -112,35 +111,16 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
           </Card>
 
           {/* Stats grid */}
-          <ProfileStatsGrid
-            stats={[
-              {
-                icon: <BookOpen className="w-5 h-5 text-hub" aria-hidden="true" />,
-                value: data.total_classes,
-                label: 'Total Classes',
-                testId: 'profile-total-classes',
-              },
-              {
-                icon: <Clock className="w-5 h-5 text-spoke" aria-hidden="true" />,
-                value: `${(data.total_class_minutes / 60).toFixed(1)}h`,
-                label: 'Class Time',
-              },
-              {
-                icon: <Car className="w-5 h-5 text-warn" aria-hidden="true" />,
-                value: `${(data.total_drive_minutes / 60).toFixed(1)}h`,
-                label: 'Drive Time',
-              },
-              {
-                icon: <CheckCircle2 className="w-5 h-5 text-spoke" aria-hidden="true" />,
-                value: data.completed,
-                label: 'Completed',
-              },
-              {
-                icon: <CalendarDays className="w-5 h-5 text-ownership-partner" aria-hidden="true" />,
-                value: data.upcoming,
-                label: 'Upcoming',
-              },
-            ]}
+          <ScheduleStatsGrid
+            totalLabel="Total Classes"
+            totalTestId="profile-total-classes"
+            data={{
+              total: data.total_classes,
+              total_class_minutes: data.total_class_minutes,
+              total_drive_minutes: data.total_drive_minutes,
+              completed: data.completed,
+              upcoming: data.upcoming,
+            }}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

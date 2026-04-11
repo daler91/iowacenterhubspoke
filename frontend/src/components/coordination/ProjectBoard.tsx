@@ -55,6 +55,21 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
     : 0;
   const hasOverdue = (project.partner_overdue ?? 0) > 0;
 
+  // Capture dnd-kit's onKeyDown BEFORE the spread so we can chain it.
+  // Our custom `onKeyDown` below (spread last) would otherwise silently
+  // override @dnd-kit's KeyboardSensor activator and break drag pickup.
+  const dndKeyDown = listeners?.onKeyDown;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Enter → navigate to project details. Space (and arrows/Escape) is
+    // reserved for @dnd-kit's drag pickup, which we delegate to below.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      navigate(`/coordination/projects/${project.id}`);
+      return;
+    }
+    dndKeyDown?.(e);
+  };
+
   // Drag ref + listeners attach directly to the Card so @dnd-kit's
   // KeyboardSensor sees focus/keypress on the element users actually tab
   // to. @dnd-kit's attributes include `role=button` + `tabIndex=0` so the
@@ -72,14 +87,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
         )}
         style={transformStyle}
         onClick={() => navigate(`/coordination/projects/${project.id}`)}
-        onKeyDown={(e) => {
-          // Enter activates the navigation; Space is reserved for @dnd-kit
-          // keyboard drag pickup.
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            navigate(`/coordination/projects/${project.id}`);
-          }
-        }}
+        onKeyDown={handleKeyDown}
       >
         <div className="flex items-start justify-between mb-1.5">
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 flex-1">

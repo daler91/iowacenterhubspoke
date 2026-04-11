@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Clock, Car, MapPin, BookOpen,
-  CheckCircle2, CalendarDays, Users, Filter
+  ArrowLeft, Car, MapPin, Users, Filter,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -24,7 +23,7 @@ import { EntityLink } from './ui/entity-link';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { PageShell } from './ui/page-shell';
-import { ProfileStatsGrid } from './ui/profile-stats-grid';
+import { ScheduleStatsGrid } from './ui/schedule-stats-grid';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
 import { getScheduleStatusStyle } from '../lib/schedule-status';
@@ -165,35 +164,16 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           </Card>
 
           {/* Stats grid */}
-          <ProfileStatsGrid
-            stats={[
-              {
-                icon: <BookOpen className="w-5 h-5 text-hub" aria-hidden="true" />,
-                value: data.total_schedules,
-                label: 'Total Schedules',
-                testId: 'profile-total-schedules',
-              },
-              {
-                icon: <Clock className="w-5 h-5 text-spoke" aria-hidden="true" />,
-                value: `${(data.total_class_minutes / 60).toFixed(1)}h`,
-                label: 'Class Time',
-              },
-              {
-                icon: <Car className="w-5 h-5 text-warn" aria-hidden="true" />,
-                value: `${(data.total_drive_minutes / 60).toFixed(1)}h`,
-                label: 'Drive Time',
-              },
-              {
-                icon: <CheckCircle2 className="w-5 h-5 text-spoke" aria-hidden="true" />,
-                value: data.completed,
-                label: 'Completed',
-              },
-              {
-                icon: <CalendarDays className="w-5 h-5 text-ownership-partner" aria-hidden="true" />,
-                value: data.upcoming,
-                label: 'Upcoming',
-              },
-            ]}
+          <ScheduleStatsGrid
+            totalLabel="Total Schedules"
+            totalTestId="profile-total-schedules"
+            data={{
+              total: data.total_schedules,
+              total_class_minutes: data.total_class_minutes,
+              total_drive_minutes: data.total_drive_minutes,
+              completed: data.completed,
+              upcoming: data.upcoming,
+            }}
           />
 
           {/* Charts row */}
