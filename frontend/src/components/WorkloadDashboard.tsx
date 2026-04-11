@@ -109,7 +109,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">
       <div className="flex items-end justify-between gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-slate-800 font-display">
           Workload Overview
         </h2>
         <div className="min-w-[240px] space-y-2">
@@ -157,7 +157,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Total Classes</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="workload-total-classes">
+          <p className="text-3xl font-bold text-slate-800 font-display" data-testid="workload-total-classes">
             {totals.classes}
           </p>
         </div>
@@ -168,7 +168,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Class Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.classHours.toFixed(1)}h
           </p>
         </div>
@@ -179,7 +179,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Drive Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.driveHours.toFixed(1)}h
           </p>
         </div>
@@ -190,7 +190,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Completed</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.completed}
           </p>
         </div>
@@ -198,7 +198,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Hours by Employee
           </h3>
           {chartData.length > 0 ? (
@@ -224,7 +224,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Class Distribution
           </h3>
           {pieData.length > 0 ? (

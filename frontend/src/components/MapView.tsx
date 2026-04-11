@@ -33,7 +33,7 @@ export default function MapView() {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="map-view-fallback">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Map View</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
           <p className="text-sm text-slate-500 mt-1">Google Maps API key not configured</p>
         </div>
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-12 text-center">
@@ -47,7 +47,7 @@ export default function MapView() {
   return (
     <div className="space-y-6 animate-slide-in" data-testid="map-view">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Map View</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
         <p className="text-sm text-slate-500 mt-1">Hub and Spoke locations across Iowa</p>
       </div>
 

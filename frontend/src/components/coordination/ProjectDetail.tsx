@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
-  PointerSensor, useSensor, useSensors,
+  PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDroppable, useDraggable,
 } from '@dnd-kit/core';
 import { Card } from '../ui/card';
@@ -98,16 +98,16 @@ function TaskCard({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn('touch-none', isDragging && 'opacity-50')}
-    >
+    <>
       <Card
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        style={style}
         className={cn(
-          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group',
+          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group touch-none',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
+          isDragging && 'opacity-50',
           task.completed && 'opacity-45',
           task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-950/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
           task.at_risk && !task.spotlight && 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
@@ -229,7 +229,7 @@ function TaskCard({
         onConfirm={handleDelete}
         taskTitle={task.title}
       />
-    </div>
+    </>
   );
 }
 
@@ -344,7 +344,10 @@ export default function ProjectDetail() {
     }
   }, [project?.schedule_id]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const tasksByPhase = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -395,7 +398,7 @@ export default function ProjectDetail() {
           { label: project.title },
         ]} />
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             {project.title}
           </h1>
           <Badge className={cn('text-xs', PHASE_COLORS[project.phase], 'text-white')}>

@@ -120,7 +120,7 @@ function PageShellEmpty({
 }) {
   return (
     <div
-      className="text-center py-16 px-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800"
+      className="text-center py-16 px-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800"
       data-testid="page-shell-empty"
     >
       <div className="text-slate-300 dark:text-slate-600 flex justify-center mb-4">
@@ -148,7 +148,7 @@ function PageShellError({
 }) {
   return (
     <div
-      className="p-6 border border-danger/30 bg-danger-soft rounded-xl"
+      className="p-6 border border-danger/30 bg-danger-soft rounded-lg"
       data-testid="page-shell-error"
       role="alert"
     >

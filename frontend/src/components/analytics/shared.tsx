@@ -14,7 +14,7 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Rea
         </div>
         <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+      <p className="text-2xl font-bold text-slate-800 font-display">
         {value}
       </p>
     </div>

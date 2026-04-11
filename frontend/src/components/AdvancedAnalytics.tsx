@@ -21,7 +21,7 @@ export default function AdvancedAnalytics(props: Readonly<AdvancedAnalyticsProps
   return (
     <div className="space-y-6 animate-slide-in" data-testid="advanced-analytics">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-slate-800">
           Advanced Analytics
         </h2>
         <p className="text-sm text-slate-500 mt-1">

@@ -7,6 +7,15 @@ module.exports = {
   ],
   theme: {
   	extend: {
+  		// Typography: Inter for body (set on <body> in index.css), Manrope
+  		// for headings (set on h1-h6 in index.css). The `font-display`
+  		// utility exposes Manrope for non-heading display elements — large
+  		// metric readouts, stat cards, etc. — so they don't have to use
+  		// inline `style={{ fontFamily: 'Manrope' }}`.
+  		fontFamily: {
+  			display: ['Manrope', 'sans-serif'],
+  			sans: ['Inter', 'sans-serif'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

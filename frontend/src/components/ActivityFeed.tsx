@@ -29,7 +29,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Activity Feed</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Activity Feed</h2>
           <p className="text-sm text-slate-500 mt-1">Recent actions and updates</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
@@ -51,7 +51,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
   return (
     <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Activity Feed</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Activity Feed</h2>
         <p className="text-sm text-slate-500 mt-1">Recent actions and updates across the team</p>
       </div>
 

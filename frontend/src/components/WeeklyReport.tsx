@@ -75,7 +75,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
     <div className="space-y-6 animate-slide-in" data-testid="weekly-report">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Weekly Summary</h2>
+          <h2 className="text-2xl font-bold text-slate-800 font-display">Weekly Summary</h2>
           <p className="text-sm text-slate-500 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -127,7 +127,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       {report && !loading && !error && (
         <div ref={reportRef} className="space-y-6 bg-white rounded-xl border border-gray-200 p-6">
           <div className="border-b border-gray-100 pb-4 mb-2">
-            <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <h3 className="text-lg font-bold text-slate-800 font-display">
               Weekly Summary: {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
             </h3>
           </div>
@@ -135,22 +135,22 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-indigo-50 rounded-xl p-4 text-center">
               <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-indigo-700" style={{ fontFamily: 'Manrope, sans-serif' }}>{report.totals.classes}</p>
+              <p className="text-2xl font-bold text-indigo-700 font-display">{report.totals.classes}</p>
               <p className="text-xs text-indigo-500">Total Classes</p>
             </div>
             <div className="bg-teal-50 rounded-xl p-4 text-center">
               <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-teal-700" style={{ fontFamily: 'Manrope, sans-serif' }}>{report.totals.class_hours}h</p>
+              <p className="text-2xl font-bold text-teal-700 font-display">{report.totals.class_hours}h</p>
               <p className="text-xs text-teal-500">Class Hours</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-4 text-center">
               <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-amber-700" style={{ fontFamily: 'Manrope, sans-serif' }}>{report.totals.drive_hours}h</p>
+              <p className="text-2xl font-bold text-amber-700 font-display">{report.totals.drive_hours}h</p>
               <p className="text-xs text-amber-500">Drive Hours</p>
             </div>
             <div className="bg-violet-50 rounded-xl p-4 text-center">
               <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-violet-700" style={{ fontFamily: 'Manrope, sans-serif' }}>{report.totals.employees_active}</p>
+              <p className="text-2xl font-bold text-violet-700 font-display">{report.totals.employees_active}</p>
               <p className="text-xs text-violet-500">Active Employees</p>
             </div>
           </div>

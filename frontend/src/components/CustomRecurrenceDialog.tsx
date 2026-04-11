@@ -99,7 +99,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] bg-white" data-testid="custom-recurrence-dialog">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>Custom recurrence</DialogTitle>
+          <DialogTitle>Custom recurrence</DialogTitle>
           <DialogDescription>
             Build a more flexible repeat rule inspired by calendar event tools.
           </DialogDescription>

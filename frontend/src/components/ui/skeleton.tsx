@@ -32,7 +32,7 @@ function SkeletonList({ rows = 6, className }: SkeletonVariantProps) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={`skeleton-row-${i}`}
-          className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-4"
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-4"
         >
           <Skeleton className="w-10 h-10 rounded-full shrink-0" />
           <div className="flex-1 space-y-2">
@@ -59,7 +59,7 @@ function SkeletonCards({ rows = 4, className }: SkeletonVariantProps) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={`skeleton-card-${i}`}
-          className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 space-y-3"
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6 space-y-3"
         >
           <Skeleton className="h-3 w-1/3" />
           <Skeleton className="h-8 w-2/3" />
@@ -86,7 +86,7 @@ function SkeletonChart({ className }: { readonly className?: string }) {
   return (
     <div
       className={cn(
-        "bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 space-y-4",
+        "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6 space-y-4",
         className,
       )}
       data-testid="skeleton-chart"

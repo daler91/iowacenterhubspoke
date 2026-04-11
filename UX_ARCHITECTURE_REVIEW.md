@@ -174,6 +174,43 @@ Not addressed in this review (intentionally):
 
 ---
 
-## Next Action
+## Execution status
 
-On approval, implementation should begin with **Tier A (A1–A5) in order**. Tier A is designed to land as a single PR that touches the shell, tokens, lint rules, and primitives — so every subsequent Tier B/C PR benefits from the new foundation.
+All three tiers of this review have been implemented on branch
+`claude/ux-architecture-review-yJOXn`:
+
+- **Tier A** foundation — commit `3c9bf09`. PageShell/PageHeader primitives, semantic color tokens + HSL vars, Skeleton variants, per-route ErrorBoundary with resetKey, icon-only aria-labels.
+- **Tier B** polish — commit `7d2a050`. Kanban visual differentiation (indigo vs teal accents + "On Calendar" cross-link badge), breadcrumbs on every top-level page, partner portal responsive overhaul, schedule form wizard a11y pass, Sidebar → Button primitive.
+- **Tier C** hygiene — this commit. Radii normalized to `rounded-lg` across button/card/input/select/textarea/page-shell, inline `fontFamily: 'Manrope'` eliminated (`font-display` utility added), `useMediaQuery` extended with Tailwind breakpoint helpers (`useBreakpoint` / `useIsMobile`), `KeyboardSensor` wired into all 5 drag surfaces (KanbanBoard, ProjectBoard, ProjectDetail, CalendarWeek, CalendarDay) with drag refs moved onto focusable elements and visible focus rings, testid regression check script + CI wire-up, Label htmlFor backfill on EmployeeManager/LocationManager dialogs.
+
+### Tier C static a11y sweep — numbers after landing
+
+| Metric | Tier A baseline | After Tier C |
+|---|---|---|
+| `aria-label` occurrences | 11 | 32 |
+| `sr-only` occurrences | 6 | 14 |
+| `role=` occurrences | ~5 | 28 |
+| `focus-visible:` classes | ~0 | 27 |
+| `data-testid` total | ~229 | 223 (baseline locked in CI) |
+| Raw `bg-blue/purple/red` drift in `components/` | 32 | 0 |
+| Inline `fontFamily: 'Manrope'` | 60+ | 0 |
+| `KeyboardSensor` installed on drag surfaces | 0/5 | 5/5 |
+| `htmlFor` on Label | 36 | 46 |
+| Button primitive radius drift | `rounded-md` | `rounded-lg` |
+| Card primitive radius drift | `rounded-xl` | `rounded-lg` |
+
+### What still needs a runtime pass
+
+The static sweep gets the code 90% of the way, but these items require actually running the app against real tools:
+
+1. **axe-core per route.** Playwright + `@axe-core/playwright` will catch contrast ratios (AA/AAA), ARIA hierarchy violations, and heading order that static grep can't see. Target: 0 critical / 0 serious on the top 8 routes: `/calendar`, `/kanban`, `/insights`, `/map`, `/locations`, `/employees`, `/coordination`, `/coordination/board`.
+2. **Manual keyboard walkthrough.** Tab through each route top-to-bottom. Verify (a) focus ring visible on every interactive element, (b) no keyboard trap in modals, (c) drag pickup with Space works on both kanbans after Tier C's KeyboardSensor wiring.
+3. **Mobile viewport real-device test** on iPhone 12 (390×844) and small Android (360×800). The portal overhaul from Tier B should have no horizontal body scroll and the tab bar should scroll horizontally only.
+4. **Dialog form sweep.** The Tier C htmlFor backfill covered EmployeeManager and LocationManager. `ClassManager` and `UserManager` dialogs still have 47 floating `<Label>` elements that would fail an axe run — picked up in C2's testid baseline so any regression is visible, but the actual fix is a mechanical follow-up.
+
+### Residual work beyond Tier C
+
+- **ESLint flat config** with `eslint-plugin-jsx-a11y` — not installed yet; the testid baseline script is a stopgap until a real lint config lands. This is a separate workstream because it would introduce dozens of existing warnings that need triage.
+- **Remaining floating `<Label>` (no `htmlFor`)** in ClassManager and UserManager dialogs (~47 across the codebase).
+- **`rounded-xl` on raw `<div>` cards in feature files** (CalendarView StatsStrip, CommunityDashboard community cards, etc.) — those bypass the Card primitive and use their own radius. Migrating them to the Card primitive (or at least `rounded-lg`) is a follow-up.
+- **`useMediaQuery` call sites** — only 1 existing site currently uses `useMediaQuery('(max-width: 768px)')`; should migrate to `useIsMobile()` for consistency when next touched.

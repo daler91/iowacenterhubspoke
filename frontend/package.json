@@ -65,7 +65,8 @@
     "start": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests",
+    "check-testids": "node scripts/check-testids.js"
   },
   "browserslist": {
     "production": [

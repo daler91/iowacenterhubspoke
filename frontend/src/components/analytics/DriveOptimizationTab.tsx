@@ -55,7 +55,7 @@ export default function DriveOptimizationTab() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">
           Drive Hours by Employee
         </h3>
         {isLoading && <LoadingChart />}
@@ -74,7 +74,7 @@ export default function DriveOptimizationTab() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">
           Optimization Suggestions
         </h3>
         {suggestions.length > 0 ? (

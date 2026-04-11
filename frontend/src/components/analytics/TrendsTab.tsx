@@ -98,7 +98,7 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">
           Trends Over Time
         </h3>
         {isLoading && <LoadingChart />}

@@ -210,7 +210,7 @@ export default function ClassManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-form-dialog">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <DialogTitle>
               {editing ? 'Edit Class' : 'Add Class'}
             </DialogTitle>
             <DialogDescription>

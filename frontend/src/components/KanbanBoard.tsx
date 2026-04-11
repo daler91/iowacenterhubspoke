@@ -15,7 +15,7 @@ import BulkActionBar from './BulkActionBar';
 import useSelectionMode from '../hooks/useSelectionMode';
 import {
   DndContext, closestCenter, type DragEndEvent,
-  PointerSensor, useSensor, useSensors,
+  PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDroppable, useDraggable,
 } from '@dnd-kit/core';
 
@@ -31,22 +31,23 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
     data: { schedule },
     disabled: selectionMode,
   });
-  const style = transform
+  const transformStyle = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
   const classColor = schedule.class_color || COLORS.DEFAULT_CLASS;
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
+  // Drag ref + listeners attach directly to the focusable card root so the
+  // @dnd-kit KeyboardSensor fires when a keyboard user tabs to this card
+  // and presses Space. Using `div[role=button]` rather than `<button>`
+  // because the card contains nested action buttons (Edit details / Move)
+  // and a button-in-button is invalid HTML. @dnd-kit's `attributes` spread
+  // already adds `role=button` + `tabIndex=0` so keyboard focus works.
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...(selectionMode ? {} : { ...listeners, ...attributes })}
-      className={cn('touch-none', isDragging && 'opacity-50')}
-    >
-    <button
-      type="button"
       data-testid={`kanban-card-${schedule.id}`}
       onClick={() => {
         if (selectionMode) {
@@ -56,22 +57,21 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         }
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        // Only fire the edit shortcut in selection mode; in drag mode we
+        // let @dnd-kit KeyboardSensor handle Space/Enter for pickup.
+        if (selectionMode && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          if (selectionMode) {
-            toggleItem?.(schedule.id);
-          } else {
-            onEdit?.(schedule);
-          }
+          toggleItem?.(schedule.id);
         }
       }}
       className={cn(
-        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full",
+        "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
         selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 scale-95",
         selected && "ring-2 ring-indigo-500 ring-offset-1"
       )}
-      style={{ borderLeftColor: classColor }}
+      style={{ borderLeftColor: classColor, ...transformStyle }}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -164,7 +164,6 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           </div>
         </div>
       )}
-    </button>
     </div>
   );
 }
@@ -233,7 +232,10 @@ export default function KanbanBoard() {
     }
   };
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;

@@ -322,10 +322,9 @@ export default function TaskDetailModal({
                     if (title !== task.title) saveField('title', title);
                   }}
                   className={cn(
-                    'text-xl font-bold border-0 p-0 h-auto shadow-none focus-visible:ring-0',
+                    'text-xl font-bold font-display border-0 p-0 h-auto shadow-none focus-visible:ring-0',
                     task.completed && 'line-through opacity-50',
                   )}
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
                 />
               </div>
 

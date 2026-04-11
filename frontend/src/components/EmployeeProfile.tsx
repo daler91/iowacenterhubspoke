@@ -85,7 +85,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
             {employee.name?.charAt(0)?.toUpperCase()}
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <h2 className="text-2xl font-bold text-slate-800 font-display">
               {employee.name}
             </h2>
             <div className="flex items-center gap-4 mt-1">
@@ -110,35 +110,35 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
           <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="profile-total-classes">
+          <p className="text-2xl font-bold text-slate-800 font-display" data-testid="profile-total-classes">
             {total_classes}
           </p>
           <p className="text-xs text-slate-500">Total Classes</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
           <Clock className="w-5 h-5 text-teal-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-2xl font-bold text-slate-800 font-display">
             {(total_class_minutes / 60).toFixed(1)}h
           </p>
           <p className="text-xs text-slate-500">Class Time</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
           <Car className="w-5 h-5 text-amber-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-2xl font-bold text-slate-800 font-display">
             {(total_drive_minutes / 60).toFixed(1)}h
           </p>
           <p className="text-xs text-slate-500">Drive Time</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
           <CheckCircle2 className="w-5 h-5 text-green-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-2xl font-bold text-slate-800 font-display">
             {completed}
           </p>
           <p className="text-xs text-slate-500">Completed</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
           <CalendarDays className="w-5 h-5 text-violet-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-2xl font-bold text-slate-800 font-display">
             {upcoming}
           </p>
           <p className="text-xs text-slate-500">Upcoming</p>
@@ -148,7 +148,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Location breakdown */}
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Locations Visited
           </h3>
           {location_breakdown?.length > 0 ? (
@@ -170,7 +170,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
 
         {/* Recent schedules */}
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Recent Assignments
           </h3>
           <ScrollArea className="max-h-[250px]">

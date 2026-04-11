@@ -46,7 +46,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-quick-create-dialog">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>Add New Class</DialogTitle>
+          <DialogTitle>Add New Class</DialogTitle>
           <DialogDescription>
             Create a class type without leaving the schedule flow.
           </DialogDescription>

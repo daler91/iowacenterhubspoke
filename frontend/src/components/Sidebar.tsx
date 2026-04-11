@@ -101,7 +101,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
           <MapPin className="w-5 h-5 text-white" />
         </div>
         {!collapsed && (
-          <span className="font-bold text-lg text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <span className="font-bold text-lg text-slate-900 dark:text-white font-display">
             HubSpoke
           </span>
         )}

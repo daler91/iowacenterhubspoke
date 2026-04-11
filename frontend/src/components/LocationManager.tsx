@@ -248,7 +248,7 @@ export default function LocationManager() {
           }}
         >
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <DialogTitle>
               {editing ? 'Edit Location' : 'Add Location'}
             </DialogTitle>
             <DialogDescription>
@@ -261,8 +261,9 @@ export default function LocationManager() {
             <APIProvider apiKey={MAPS_KEY} libraries={['places']}>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>City Name</Label>
+                  <Label htmlFor="location-city-autocomplete">City Name</Label>
                   <PlacesAutocomplete
+                    id="location-city-autocomplete"
                     value={form.city_name}
                     onChange={(val) => setForm({ ...form, city_name: val })}
                     onSelect={handlePlaceSelect}
@@ -274,9 +275,10 @@ export default function LocationManager() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Drive Time from Hub (minutes)</Label>
+                  <Label htmlFor="location-drive-time-input">Drive Time from Hub (minutes)</Label>
                   <div className="relative">
                     <Input
+                      id="location-drive-time-input"
                       type="number"
                       data-testid="location-drive-time-input"
                       placeholder="e.g. 45"
@@ -287,15 +289,16 @@ export default function LocationManager() {
                     />
                     {calculatingDrive && (
                       <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" aria-label="Calculating drive time" />
                       </div>
                     )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Latitude</Label>
+                    <Label htmlFor="location-lat-input">Latitude</Label>
                     <Input
+                      id="location-lat-input"
                       type="number"
                       step="any"
                       data-testid="location-lat-input"
@@ -306,8 +309,9 @@ export default function LocationManager() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Longitude</Label>
+                    <Label htmlFor="location-lng-input">Longitude</Label>
                     <Input
+                      id="location-lng-input"
                       type="number"
                       step="any"
                       data-testid="location-lng-input"
@@ -333,8 +337,9 @@ export default function LocationManager() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>City Name</Label>
+                <Label htmlFor="location-city-input-manual">City Name</Label>
                 <Input
+                  id="location-city-input-manual"
                   data-testid="location-city-input"
                   placeholder="e.g. Ames"
                   value={form.city_name}
@@ -344,8 +349,9 @@ export default function LocationManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Drive Time from Hub (minutes)</Label>
+                <Label htmlFor="location-drive-time-input-manual">Drive Time from Hub (minutes)</Label>
                 <Input
+                  id="location-drive-time-input-manual"
                   type="number"
                   data-testid="location-drive-time-input"
                   placeholder="e.g. 45"
@@ -357,8 +363,9 @@ export default function LocationManager() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Latitude (optional)</Label>
+                  <Label htmlFor="location-lat-input-manual">Latitude (optional)</Label>
                   <Input
+                    id="location-lat-input-manual"
                     type="number"
                     step="any"
                     data-testid="location-lat-input"
@@ -369,8 +376,9 @@ export default function LocationManager() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Longitude (optional)</Label>
+                  <Label htmlFor="location-lng-input-manual">Longitude (optional)</Label>
                   <Input
+                    id="location-lng-input-manual"
                     type="number"
                     step="any"
                     data-testid="location-lng-input"

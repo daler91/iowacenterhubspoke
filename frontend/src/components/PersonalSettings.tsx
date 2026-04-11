@@ -264,7 +264,7 @@ export default function PersonalSettings() {
     <div className="space-y-6 animate-slide-in max-w-2xl">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>Settings</h2>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white font-display">Settings</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your account and calendar connections</p>
       </div>
 
@@ -272,7 +272,7 @@ export default function PersonalSettings() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <User className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>Profile</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Profile</h3>
         </div>
         <div className="grid gap-3">
           <div className="flex items-center gap-3">
@@ -296,7 +296,7 @@ export default function PersonalSettings() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <Lock className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>Change Password</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Change Password</h3>
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
@@ -343,7 +343,7 @@ export default function PersonalSettings() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <Calendar className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>Calendar Connections</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Calendar Connections</h3>
         </div>
 
         {renderCalendarContent()}

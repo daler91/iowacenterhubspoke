@@ -39,7 +39,7 @@ export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionCha
           data-testid="schedule-employee-select"
           aria-haspopup="listbox"
           aria-expanded={open}
-          className="flex min-h-[40px] w-full items-center justify-between rounded-md border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selectedEmployees.length === 0 && (

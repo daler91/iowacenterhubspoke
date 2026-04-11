@@ -9,6 +9,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -185,6 +186,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               data-testid={`class-block-${schedule.id}`}
               className={cn(
                 "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1",
                 (() => {
                   if (selectionMode) return "cursor-pointer";
                   if (canEdit) return "cursor-grab";
@@ -373,7 +375,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
   );
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -477,9 +480,9 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
             <div key={day.toISOString()} className="p-3 text-center border-r border-gray-100 last:border-r-0">
               <p className="text-xs font-medium text-slate-400 uppercase">{format(day, 'EEE')}</p>
               <p className={cn(
-                "text-lg font-bold mt-0.5",
+                "text-lg font-bold mt-0.5 font-display",
                 isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-800"
-              )} style={{ fontFamily: 'Manrope, sans-serif' }}>
+              )}>
                 {format(day, 'd')}
               </p>
             </div>

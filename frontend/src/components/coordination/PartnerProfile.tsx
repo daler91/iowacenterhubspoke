@@ -112,7 +112,7 @@ export default function PartnerProfile() {
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {partnerOrg.name}
         </h1>
         <DropdownMenu>

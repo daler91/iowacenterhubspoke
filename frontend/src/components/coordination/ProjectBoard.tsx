@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
-  PointerSensor, useSensor, useSensors,
+  PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDroppable, useDraggable,
 } from '@dnd-kit/core';
 import { Card } from '../ui/card';
@@ -46,7 +46,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
     id: project.id,
     data: { project },
   });
-  const style = transform
+  const transformStyle = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
 
@@ -55,20 +55,31 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
     : 0;
   const hasOverdue = (project.partner_overdue ?? 0) > 0;
 
+  // Drag ref + listeners attach directly to the Card so @dnd-kit's
+  // KeyboardSensor sees focus/keypress on the element users actually tab
+  // to. @dnd-kit's attributes include `role=button` + `tabIndex=0` so the
+  // Card becomes keyboard-focusable.
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn('touch-none', isDragging && 'opacity-50')}
-    >
       <Card
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
         className={cn(
-          'p-3 mb-2 cursor-pointer hover:shadow-md transition-shadow border',
+          'p-3 mb-2 cursor-pointer hover:shadow-md transition-shadow border touch-none',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
           hasOverdue && 'border-warn',
+          isDragging && 'opacity-50',
         )}
+        style={transformStyle}
         onClick={() => navigate(`/coordination/projects/${project.id}`)}
+        onKeyDown={(e) => {
+          // Enter activates the navigation; Space is reserved for @dnd-kit
+          // keyboard drag pickup.
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            navigate(`/coordination/projects/${project.id}`);
+          }
+        }}
       >
         <div className="flex items-start justify-between mb-1.5">
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 flex-1">
@@ -111,7 +122,6 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
           </div>
         ) : null}
       </Card>
-    </div>
   );
 }
 
@@ -133,7 +143,10 @@ export default function ProjectBoard() {
     ...(classFilter && { class_id: classFilter }),
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const communities = useMemo(() => {
     if (!board?.columns) return [];
