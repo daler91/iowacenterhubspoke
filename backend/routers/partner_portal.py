@@ -1,8 +1,7 @@
 import uuid
-import secrets
 import os
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
@@ -12,6 +11,7 @@ from models.coordination_schemas import (
 )
 from core.logger import get_logger
 from core.portal_auth import PortalContext, validate_portal_token
+from core.queue import get_redis_pool
 from core.rate_limit import limiter
 from core.upload import stream_upload_to_disk
 
@@ -20,7 +20,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/portal", tags=["portal"])
 
 UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
-TOKEN_EXPIRY_DAYS = 7
 
 PROJECT_NOT_FOUND = "Project not found"
 TASK_NOT_FOUND = "Task not found"
@@ -40,55 +39,22 @@ def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
 
 # Rate-limited to curb email spam and enumeration-by-timing. The response is
 # intentionally invariant whether or not the contact exists (anti-enumeration).
+# The DB lookup, token creation, and SMTP send are all dispatched to a
+# background worker so request timing is identical regardless of input.
 @router.post("/auth/request-link", summary="Request a magic link for partner access")
 @limiter.limit("3/minute")
 async def request_magic_link(request: Request, data: PortalAuthRequest):  # NOSONAR(S3516)
     generic_response = {
         "message": "If that email is registered, a link has been sent.",
     }
-    contact = await db.partner_contacts.find_one(
-        {"email": data.email, "deleted_at": None}, {"_id": 0}
-    )
-    if not contact:
-        # Return success even if not found (prevent email enumeration)
-        return generic_response
-
-    token = secrets.token_urlsafe(48)
-    now = datetime.now(timezone.utc)
-    expires = now + timedelta(days=TOKEN_EXPIRY_DAYS)
-
-    doc = {
-        "id": str(uuid.uuid4()),
-        "contact_id": contact["id"],
-        "token": token,
-        "expires_at": expires.isoformat(),
-        "created_at": now.isoformat(),
-        "last_used_at": None,
-    }
-    await db.portal_tokens.insert_one(doc)
-    logger.info("Portal token created for contact %s", contact["id"])
-
-    # Send the magic link email. Failures are logged but not surfaced to the
-    # caller — we always return the generic response to avoid enumeration.
-    try:
-        from services.email import send_portal_invite, resolve_app_url
-        org = await db.partner_orgs.find_one(
-            {"id": contact["partner_org_id"], "deleted_at": None},
-            {"_id": 0, "name": 1},
-        )
-        portal_url = f"{resolve_app_url()}/portal/{token}"
-        await send_portal_invite(
-            to=contact["email"],
-            contact_name=contact.get("name", "there"),
-            org_name=(org or {}).get("name", "Partner"),
-            portal_url=portal_url,
-        )
-    except Exception as e:
+    pool = await get_redis_pool()
+    if pool:
+        await pool.enqueue_job("send_partner_magic_link_email_job", data.email)
+    else:
         logger.warning(
-            "Failed to send portal magic-link email to %s: %s",
-            contact["email"], e,
+            "Redis unavailable — partner magic-link email for %s was not queued",
+            data.email,
         )
-
     return generic_response
 
 
