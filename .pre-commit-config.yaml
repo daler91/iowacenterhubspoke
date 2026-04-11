@@ -1,0 +1,45 @@
+# Pre-commit hooks — install with ``pre-commit install`` after cloning.
+#
+# These run locally before each commit and in CI to catch the most common
+# regressions: linter violations, syntax errors, mixed line endings, and
+# trailing whitespace. Each hook is scoped to the directory whose tooling
+# can actually consume it (no point running ``ruff`` against ``frontend/``).
+#
+# Adding a new hook? Please keep the runtime fast — pre-commit must stay
+# under a couple of seconds for routine commits or contributors will start
+# bypassing it with ``--no-verify``.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # Backend — flake8 mirrors the CI rule in ``.github/workflows/ci.yml``
+  # so a contributor sees the same failure locally that CI would report.
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        files: ^backend/
+        exclude: ^backend/(__pycache__|tests)/
+        args:
+          - --max-line-length=120
+          - --exclude=__pycache__,tests
+
+  # Frontend — eslint scoped to src/ matches the ``npm run lint`` script.
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: eslint (frontend/src)
+        entry: bash -c 'cd frontend && npx eslint --no-warn-ignored'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: true

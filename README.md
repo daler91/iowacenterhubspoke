@@ -223,6 +223,16 @@ docker run -p 8080:8080 \
   iowa-center
 ```
 
+## Documentation
+
+| Doc | What it covers |
+|-----|----------------|
+| [`docs/migrations.md`](docs/migrations.md) | Auto-applying schema migration runner — operator notes, idempotency contract, how to add a new migration. |
+| [`docs/repository-pattern.md`](docs/repository-pattern.md) | `SoftDeleteRepository` migration recipe for converting routers off raw `{"deleted_at": None}` queries. |
+| [`docs/tech-debt-followups.md`](docs/tech-debt-followups.md) | Tracker for the remaining items from the April 2026 tech-debt remediation. |
+| [`docs/OUTLOOK_SETUP.md`](docs/OUTLOOK_SETUP.md) | Outlook calendar OAuth setup. |
+| [`docs/archive/`](docs/archive/) | Archived ad-hoc audits and historical reviews. Kept for context only — see the live docs above for current state. |
+
 ## License
 
 Private — Iowa Center internal use.
