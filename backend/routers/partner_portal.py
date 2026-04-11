@@ -11,7 +11,7 @@ from models.coordination_schemas import (
 )
 from core.logger import get_logger
 from core.portal_auth import PortalContext, validate_portal_token
-from core.queue import get_redis_pool
+from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
 from core.upload import stream_upload_to_disk
 
@@ -41,20 +41,15 @@ def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
 # intentionally invariant whether or not the contact exists (anti-enumeration).
 # The DB lookup, token creation, and SMTP send are all dispatched to a
 # background worker so request timing is identical regardless of input.
+# `safe_enqueue_job` never raises, so Redis hiccups still return the generic
+# response instead of a 500.
 @router.post("/auth/request-link", summary="Request a magic link for partner access")
 @limiter.limit("3/minute")
 async def request_magic_link(request: Request, data: PortalAuthRequest):  # NOSONAR(S3516)
     generic_response = {
         "message": "If that email is registered, a link has been sent.",
     }
-    pool = await get_redis_pool()
-    if pool:
-        await pool.enqueue_job("send_partner_magic_link_email_job", data.email)
-    else:
-        logger.warning(
-            "Redis unavailable — partner magic-link email for %s was not queued",
-            data.email,
-        )
+    await safe_enqueue_job("send_partner_magic_link_email_job", data.email)
     return generic_response
 
 

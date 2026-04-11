@@ -10,7 +10,7 @@ from models.schemas import (
 from core.auth import hash_password, verify_password, create_token, CurrentUser
 from core.constants import ROLE_VIEWER, ROLE_ADMIN, USER_STATUS_PENDING, USER_STATUS_APPROVED, USER_STATUS_REJECTED
 from fastapi import Request
-from core.queue import get_redis_pool
+from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
 from core.logger import get_logger, user_var
 
@@ -190,15 +190,10 @@ async def forgot_password(request: Request, data: ForgotPasswordRequest):  # NOS
     The DB lookup, token creation, and SMTP send are all dispatched to
     a background worker so request timing is identical whether or not
     the email is registered (anti-enumeration — intentional invariant
-    response and constant-time handler)."""
-    pool = await get_redis_pool()
-    if pool:
-        await pool.enqueue_job("send_password_reset_email_job", data.email)
-    else:
-        logger.warning(
-            "Redis unavailable — password reset email for %s was not queued",
-            data.email,
-        )
+    response and constant-time handler). `safe_enqueue_job` never
+    raises, so even a transient Redis failure still returns the generic
+    response rather than leaking a 500."""
+    await safe_enqueue_job("send_password_reset_email_job", data.email)
     return _GENERIC_FORGOT_RESPONSE
 
 
