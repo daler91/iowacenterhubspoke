@@ -133,7 +133,7 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
         )}
         {!isLoading && combined.length === 0 && <EmptyState message="Not enough data to generate forecast. Need at least 2 weeks of history." />}
         {forecast.length > 0 && (
-          <p className="text-xs text-slate-400 mt-3">
+          <p className="text-xs text-muted-foreground mt-3">
             Forecast based on linear trend from last 12 weeks of historical data. Dashed area indicates projected values.
           </p>
         )}

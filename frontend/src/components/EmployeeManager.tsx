@@ -129,13 +129,13 @@ export default function EmployeeManager() {
                 <div className="flex items-center gap-3 mt-1">
                   {emp.email && (
                     <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-slate-400" />
+                      <Mail className="w-3 h-3 text-muted-foreground" />
                       <span className="text-xs text-slate-500">{emp.email}</span>
                     </div>
                   )}
                   {emp.phone && (
                     <div className="flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-slate-400" />
+                      <Phone className="w-3 h-3 text-muted-foreground" />
                       <span className="text-xs text-slate-500">{emp.phone}</span>
                     </div>
                   )}
@@ -160,7 +160,7 @@ export default function EmployeeManager() {
                 size="sm"
                 data-testid={`view-employee-${emp.id}`}
                 onClick={() => { onViewProfile?.(emp.id); }}
-                className="text-slate-400 hover:text-teal-600"
+                className="text-muted-foreground hover:text-teal-600"
               >
                 <Eye className="w-4 h-4" />
               </Button>
@@ -171,7 +171,7 @@ export default function EmployeeManager() {
                     size="sm"
                     data-testid={`edit-employee-${emp.id}`}
                     onClick={() => openEdit(emp)}
-                    className="text-slate-400 hover:text-indigo-600"
+                    className="text-muted-foreground hover:text-indigo-600"
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -180,7 +180,7 @@ export default function EmployeeManager() {
                     size="sm"
                     data-testid={`delete-employee-${emp.id}`}
                     onClick={() => handleDelete(emp.id)}
-                    className="text-slate-400 hover:text-danger"
+                    className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -191,7 +191,7 @@ export default function EmployeeManager() {
         ))}
 
         {(!employees || employees.length === 0) && (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No employees yet</p>
             <p className="text-sm">Add your first team member</p>

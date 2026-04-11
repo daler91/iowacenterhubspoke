@@ -16,7 +16,7 @@ export default function ScheduleFilters({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Filter:</span>
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter:</span>
       <Select value={filterEmployee} onValueChange={setFilterEmployee}>
         <SelectTrigger className="w-[180px] h-9 text-xs bg-white" data-testid="filter-employee" aria-label="Filter by employee">
           <SelectValue placeholder="All employees" />
@@ -67,7 +67,7 @@ export default function ScheduleFilters({
           variant="ghost"
           size="sm"
           onClick={() => { setFilterEmployee('all'); setFilterLocation('all'); setFilterClass?.('all'); }}
-          className="text-xs text-slate-400"
+          className="text-xs text-muted-foreground"
           data-testid="clear-filters"
         >
           Clear filters

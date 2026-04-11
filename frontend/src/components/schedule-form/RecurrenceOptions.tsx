@@ -69,7 +69,7 @@ export function RecurrenceOptions({
             <div className="space-y-2">
               <p
                 id="schedule-end-mode-label"
-                className="text-xs uppercase tracking-[0.18em] text-slate-400"
+                className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
               >
                 Ends
               </p>
@@ -140,7 +140,7 @@ export function RecurrenceOptions({
             )}
 
             {recurrence_end_mode === 'never' && (
-              <p className="text-xs text-slate-400" data-testid="schedule-recurrence-never-note">
+              <p className="text-xs text-muted-foreground" data-testid="schedule-recurrence-never-note">
                 Never creates the next 52 occurrences for now.
               </p>
             )}

@@ -161,7 +161,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
           </div>
           <div>
             <Label htmlFor="project-template">Template</Label>
-            <p className="text-xs text-slate-400 mb-1">Templates pre-fill tasks for your project. You can customize them afterward.</p>
+            <p className="text-xs text-muted-foreground mb-1">Templates pre-fill tasks for your project. You can customize them afterward.</p>
             <SearchableSelect
               id="project-template"
               options={templates.map(t => ({ value: t.id, label: `${t.name} (${t.default_tasks.length} tasks)` }))}
@@ -237,7 +237,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   Community
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                      <Info className="w-3 h-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs">Auto-populated from the selected Partner Organization. Change the partner above to update.</p>
@@ -257,7 +257,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   Venue
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                      <Info className="w-3 h-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs">Auto-populated from the selected Partner Organization. Change the partner above to update.</p>

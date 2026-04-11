@@ -32,7 +32,7 @@ export default function DriveOptimizationTab() {
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-2">
-          <Label htmlFor="drive-opt-date-from" className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">From</Label>
+          <Label htmlFor="drive-opt-date-from" className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">From</Label>
           <input
             id="drive-opt-date-from"
             type="date"
@@ -42,7 +42,7 @@ export default function DriveOptimizationTab() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="drive-opt-date-to" className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">To</Label>
+          <Label htmlFor="drive-opt-date-to" className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">To</Label>
           <input
             id="drive-opt-date-to"
             type="date"
@@ -92,11 +92,11 @@ export default function DriveOptimizationTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Date</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Swap</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Locations</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Savings</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Reason</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Swap</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Locations</th>
+                  <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Savings</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,7 +111,7 @@ export default function DriveOptimizationTab() {
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1.5 text-slate-700">
                         <span className="font-medium">{s.employee_a.split(' ')[0]}</span>
-                        <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" />
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-medium">{s.employee_b.split(' ')[0]}</span>
                       </div>
                     </td>

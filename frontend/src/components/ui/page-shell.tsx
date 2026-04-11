@@ -123,14 +123,14 @@ function PageShellEmpty({
       className="text-center py-16 px-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800"
       data-testid="page-shell-empty"
     >
-      <div className="text-slate-300 dark:text-slate-600 flex justify-center mb-4">
+      <div className="text-muted-foreground flex justify-center mb-4">
         {icon ?? <Inbox className="w-12 h-12" aria-hidden="true" />}
       </div>
       <p className="font-medium text-slate-700 dark:text-slate-200">
         {title ?? 'Nothing here yet'}
       </p>
       {description && (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+        <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1 max-w-md mx-auto">
           {description}
         </p>
       )}
@@ -161,7 +161,7 @@ function PageShellError({
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
             Something went wrong loading this page.
           </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
             {error?.message || 'An unexpected error occurred.'}
           </p>
           {onRetry && (

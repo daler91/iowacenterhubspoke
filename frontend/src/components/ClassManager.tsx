@@ -148,7 +148,7 @@ export default function ClassManager() {
                 size="sm"
                 data-testid={`view-class-${classItem.id}`}
                 onClick={() => onViewProfile(classItem.id)}
-                className="text-slate-400 hover:text-teal-600"
+                className="text-muted-foreground hover:text-teal-600"
               >
                 <Eye className="w-4 h-4" />
               </Button>
@@ -159,7 +159,7 @@ export default function ClassManager() {
                     size="sm"
                     data-testid={`edit-class-${classItem.id}`}
                     onClick={() => openEdit(classItem)}
-                    className="text-slate-400 hover:text-indigo-600"
+                    className="text-muted-foreground hover:text-indigo-600"
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -168,7 +168,7 @@ export default function ClassManager() {
                     size="sm"
                     data-testid={`delete-class-${classItem.id}`}
                     onClick={() => setDeleteTarget(classItem)}
-                    className="text-slate-400 hover:text-danger"
+                    className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -179,7 +179,7 @@ export default function ClassManager() {
         ))}
 
         {(!classes || classes.length === 0) && (
-          <div className="text-center py-12 text-slate-400" data-testid="classes-empty-state">
+          <div className="text-center py-12 text-muted-foreground" data-testid="classes-empty-state">
             <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No class types yet</p>
             <p className="text-sm">Create your first class series to start scheduling by class.</p>
@@ -279,7 +279,7 @@ export default function ClassManager() {
                   />
                 ))}
                 <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-slate-300 hover:border-slate-400 cursor-pointer transition-colors flex items-center justify-center group">
-                  <Plus className="w-3 h-3 text-slate-400 group-hover:text-slate-500" aria-hidden="true" />
+                  <Plus className="w-3 h-3 text-muted-foreground group-hover:text-slate-500" aria-hidden="true" />
                   <input
                     type="color"
                     value={form.color}

@@ -19,7 +19,7 @@ const COLORS = [
 export default function DashboardTrendChart({ trends }: Props) {
   if (!trends.months.length) {
     return (
-      <p className="text-sm text-slate-400 text-center py-8">
+      <p className="text-sm text-muted-foreground text-center py-8">
         No trend data available
       </p>
     );

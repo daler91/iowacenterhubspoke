@@ -146,7 +146,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
             <Clock className="w-3 h-3" />
             <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Car className="w-3 h-3" />
             <span>{schedule.drive_time_minutes}m drive each way</span>
           </div>
@@ -160,7 +160,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
             </div>
           )}
           {schedule.notes && (
-            <p className="text-[11px] text-slate-400 italic truncate">{schedule.notes}</p>
+            <p className="text-[11px] text-muted-foreground italic truncate">{schedule.notes}</p>
           )}
         </div>
       </button>
@@ -357,8 +357,8 @@ export default function KanbanBoard() {
                   ))}
                   {items.length === 0 && (
                     <div className="text-center py-8">
-                      <CalendarDays className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-                      <p className="text-sm text-slate-400">
+                      <CalendarDays className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
                         {col.id === SCHEDULE_STATUS.UPCOMING ? 'No upcoming classes. Schedule one from the Calendar.' : `No ${col.label.toLowerCase()} classes`}
                       </p>
                     </div>

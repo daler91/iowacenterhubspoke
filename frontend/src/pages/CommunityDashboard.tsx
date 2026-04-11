@@ -73,7 +73,7 @@ export default function CommunityDashboard() {
         <Card className="p-4 mb-6 border-warn/30 bg-warn-soft">
           <div className="flex items-center gap-3 text-sm">
             <CalendarDays className="w-5 h-5 text-warn shrink-0" aria-hidden="true" />
-            <p className="text-slate-700 dark:text-slate-300">
+            <p className="text-slate-700 dark:text-muted-foreground">
               <strong>{dashboard.orphan_completed_schedules}</strong> completed schedule{dashboard.orphan_completed_schedules > 1 ? 's' : ''} {dashboard.orphan_completed_schedules > 1 ? 'have' : 'has'} no linked project — outcomes are not being tracked.
             </p>
           </div>
@@ -94,7 +94,7 @@ export default function CommunityDashboard() {
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{cb.class_name || 'Unknown'}</p>
                 </div>
                 <p className="text-lg font-bold text-slate-800 dark:text-white">{cb.delivered}</p>
-                <p className="text-[10px] text-slate-400">{cb.attendance} attended &middot; {cb.warm_leads} leads</p>
+                <p className="text-[10px] text-muted-foreground">{cb.attendance} attended &middot; {cb.warm_leads} leads</p>
               </Card>
             ))}
           </div>
@@ -114,11 +114,11 @@ export default function CommunityDashboard() {
             <div className="flex gap-4 text-sm mb-3">
               <div>
                 <span className="text-2xl font-bold text-spoke">{community.delivered}</span>
-                <p className="text-[10px] text-slate-400">Delivered</p>
+                <p className="text-[10px] text-muted-foreground">Delivered</p>
               </div>
               <div>
                 <span className="text-2xl font-bold text-hub">{community.upcoming}</span>
-                <p className="text-[10px] text-slate-400">Upcoming</p>
+                <p className="text-[10px] text-muted-foreground">Upcoming</p>
               </div>
             </div>
             {/* Phase bar */}
@@ -140,7 +140,7 @@ export default function CommunityDashboard() {
           </Card>
         ))}
         {dashboard.communities.length === 0 && (
-          <p className="text-sm text-slate-400 col-span-full text-center py-4">
+          <p className="text-sm text-muted-foreground col-span-full text-center py-4">
             No community data yet. Create your first project to get started.
           </p>
         )}
@@ -180,7 +180,7 @@ export default function CommunityDashboard() {
               ))}
               {dashboard.upcoming_projects.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     No upcoming classes
                   </td>
                 </tr>

@@ -165,11 +165,11 @@ export default function LocationManager() {
                 <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800">{loc.city_name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   <div className="flex items-center gap-1">
-                    <Car className="w-3 h-3 text-slate-400" />
+                    <Car className="w-3 h-3 text-muted-foreground" />
                     <span className="text-xs text-slate-500">{loc.drive_time_minutes} min from Hub</span>
                   </div>
                   {loc.latitude && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-muted-foreground">
                       {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
                     </span>
                   )}
@@ -182,7 +182,7 @@ export default function LocationManager() {
                 size="sm"
                 data-testid={`view-location-${loc.id}`}
                 onClick={() => onViewProfile(loc.id)}
-                className="text-slate-400 hover:text-teal-600"
+                className="text-muted-foreground hover:text-teal-600"
               >
                 <Eye className="w-4 h-4" />
               </Button>
@@ -193,7 +193,7 @@ export default function LocationManager() {
                     size="sm"
                     data-testid={`edit-location-${loc.id}`}
                     onClick={() => openEdit(loc)}
-                    className="text-slate-400 hover:text-indigo-600"
+                    className="text-muted-foreground hover:text-indigo-600"
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -202,7 +202,7 @@ export default function LocationManager() {
                     size="sm"
                     data-testid={`delete-location-${loc.id}`}
                     onClick={() => handleDelete(loc.id)}
-                    className="text-slate-400 hover:text-danger"
+                    className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -213,7 +213,7 @@ export default function LocationManager() {
         ))}
 
         {(!locations || locations.length === 0) && (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-muted-foreground">
             <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No locations yet</p>
             <p className="text-sm">Add your first spoke location</p>
@@ -270,7 +270,7 @@ export default function LocationManager() {
                     placeholder="Search for a city..."
                     disabled={loading}
                   />
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted-foreground">
                     Select from suggestions to auto-fill coordinates and drive time
                   </p>
                 </div>

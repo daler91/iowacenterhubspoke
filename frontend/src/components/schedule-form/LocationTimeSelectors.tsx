@@ -62,7 +62,7 @@ export function LocationTimeSelectors({
             id="schedule-location-drive"
             className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
           >
-            <Car className="w-4 h-4 text-slate-400" aria-hidden="true" />
+            <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <span className="text-xs text-slate-500">
               Estimated drive: <span className="font-semibold text-slate-700">{selectedLocation.drive_time_minutes} min</span> each way from Hub
             </span>

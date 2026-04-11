@@ -59,11 +59,11 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-600">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-400" />
+                        <Clock className="w-4 h-4 text-muted-foreground" />
                         <span>{schedule.start_time} - {schedule.end_time}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-slate-400" />
+                        <Users className="w-4 h-4 text-muted-foreground" />
                         {schedule.employees?.length > 0 ? (
                           schedule.employees.map((emp, i) => (
                             <span key={emp.id}>
@@ -76,7 +76,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                         )}
                       </div>
                       <div className="flex items-center gap-2 sm:col-span-2">
-                        <MapPin className="w-4 h-4 text-slate-400" />
+                        <MapPin className="w-4 h-4 text-muted-foreground" />
                         <EntityLink type="location" id={schedule.location_id} className="text-slate-600">{location.city_name}</EntityLink>
                       </div>
                     </div>

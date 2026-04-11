@@ -231,7 +231,7 @@ export default function PortalDashboard() {
               </Card>
             ))}
             {dashboardData.projects.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">No upcoming classes</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No upcoming classes</p>
             )}
           </div>
         </div>
@@ -268,11 +268,11 @@ export default function PortalDashboard() {
                             {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <p className={cn('text-sm', task.completed && 'line-through text-slate-400')}>
+                            <p className={cn('text-sm', task.completed && 'line-through text-muted-foreground')}>
                               {task.title}
                             </p>
                           </div>
-                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger font-semibold' : 'text-slate-400')}>
+                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger font-semibold' : 'text-muted-foreground')}>
                             {new Date(task.due_date).toLocaleDateString()}
                           </span>
                           <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
@@ -287,7 +287,7 @@ export default function PortalDashboard() {
             );
           })}
           {Object.values(allTasks).flat().length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-8">No tasks assigned to you</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
       )}
@@ -304,10 +304,10 @@ export default function PortalDashboard() {
                 <div className="space-y-2">
                   {docs.map(doc => (
                     <Card key={doc.id} className="p-3 flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-slate-400 shrink-0" />
+                      <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{doc.filename}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-muted-foreground">
                           {doc.file_type.toUpperCase()} &middot; {new Date(doc.uploaded_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -340,7 +340,7 @@ export default function PortalDashboard() {
             );
           })}
           {Object.values(documents).flat().length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-8">No shared documents</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No shared documents</p>
           )}
         </div>
       )}
@@ -390,17 +390,17 @@ export default function PortalDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-sm font-medium">{msg.sender_name}</span>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[10px] text-muted-foreground">
                           {new Date(msg.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 break-words">{msg.body}</p>
+                      <p className="text-sm text-slate-700 dark:text-muted-foreground mt-0.5 break-words">{msg.body}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-400 text-center py-8">No messages yet</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No messages yet</p>
             )}
           </Card>
 

@@ -97,10 +97,10 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
             <AlertTriangle className="w-4 h-4 text-warn shrink-0 ml-1" aria-label="Has overdue tasks" />
           )}
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+        <p className="text-xs text-muted-foreground mb-1">
           {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">{project.community}</p>
+        <p className="text-xs text-muted-foreground mb-2">{project.community}</p>
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
@@ -117,7 +117,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
         </div>
         {project.task_total ? (
           <div>
-            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
               <span>{project.task_completed}/{project.task_total} tasks</span>
               <span>{progress}%</span>
             </div>
@@ -249,7 +249,7 @@ export default function ProjectBoard() {
           stays usable on tablets without horizontal overflow. */}
       <div className="flex items-center gap-3 flex-wrap mb-6">
         <div className="relative w-full sm:w-48">
-          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <label htmlFor="project-search" className="sr-only">Search projects</label>
           <Input
             id="project-search"
@@ -310,7 +310,7 @@ export default function ProjectBoard() {
                   <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {PHASE_LABELS[phase]}
                   </h3>
-                  <span className="text-xs text-slate-400 ml-auto">{projects.length}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{projects.length}</span>
                 </div>
                 <div className="space-y-0">
                   {projects.map(project => (
@@ -318,8 +318,8 @@ export default function ProjectBoard() {
                   ))}
                   {projects.length === 0 && (
                     <div className="text-center py-8">
-                      <FolderOpen className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-                      <p className="text-xs text-slate-400">
+                      <FolderOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">
                         {searchQuery ? 'No matching projects' : `No projects in ${PHASE_LABELS[phase]}`}
                       </p>
                       {!searchQuery && phase === 'planning' && (
@@ -344,7 +344,7 @@ export default function ProjectBoard() {
         <div className="mt-6">
           <button
             onClick={() => setShowCompleted(!showCompleted)}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-muted-foreground hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
           >
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             <CheckCircle2 className="w-4 h-4 text-spoke" />
@@ -359,7 +359,7 @@ export default function ProjectBoard() {
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
                 >
                   <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 line-clamp-1">{project.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {new Date(project.event_date).toLocaleDateString()} &middot; {project.community}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
@@ -397,14 +397,14 @@ export default function ProjectBoard() {
           </DialogHeader>
           {phaseGateWarning && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-slate-600 dark:text-muted-foreground">
                 <strong>{phaseGateWarning.completionPercentage}%</strong> of tasks in{' '}
                 <strong>{PHASE_LABELS[phaseGateWarning.currentPhase]}</strong> are complete.
                 The following tasks are still open:
               </p>
               <ul className="max-h-48 overflow-y-auto space-y-1 text-sm">
                 {phaseGateWarning.incompleteTasks.map(t => (
-                  <li key={t.id} className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                  <li key={t.id} className="flex items-center gap-2 text-slate-700 dark:text-muted-foreground">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
                     {t.title}
                   </li>

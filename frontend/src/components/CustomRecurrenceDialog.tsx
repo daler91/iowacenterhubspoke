@@ -244,7 +244,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
             </div>
           </div>
 
-          <p className="text-xs text-slate-400" data-testid="custom-repeat-note">
+          <p className="text-xs text-muted-foreground" data-testid="custom-repeat-note">
             Never-ending rules create the next 52 occurrences for now so scheduling stays manageable.
           </p>
         </div>

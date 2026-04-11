@@ -106,7 +106,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1 mt-1">
-                  <Car className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                  <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                   <span className="text-sm text-slate-500">{location.drive_time_minutes} min from Hub</span>
                 </div>
               </div>
@@ -149,7 +149,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                     size="sm"
                     data-testid="location-profile-clear-dates"
                     onClick={() => { setDateFrom(''); setDateTo(''); }}
-                    className="text-xs text-slate-400 hover:text-slate-600"
+                    className="text-xs text-muted-foreground hover:text-slate-600"
                   >
                     Clear
                   </Button>
@@ -194,7 +194,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
                   No employee data yet
                 </div>
               )}
@@ -217,7 +217,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
                   No class data yet
                 </div>
               )}
@@ -247,7 +247,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                       ) : (
                         <span className="text-sm font-medium text-slate-700">Unassigned</span>
                       )}
-                      <p className="text-xs text-slate-400">{s.class_name} | {s.date} | {s.start_time}-{s.end_time}</p>
+                      <p className="text-xs text-muted-foreground">{s.class_name} | {s.date} | {s.start_time}-{s.end_time}</p>
                     </div>
                     <Badge className={`border-0 text-[10px] ${getScheduleStatusStyle(s.status)}`}>
                       {(s.status || 'upcoming').replace('_', ' ')}
@@ -255,7 +255,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                   </div>
                 ))}
                 {(!data.recent_schedules || data.recent_schedules.length === 0) && (
-                  <p className="text-sm text-slate-400 text-center py-8">No assignments yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-8">No assignments yet</p>
                 )}
               </div>
             </ScrollArea>

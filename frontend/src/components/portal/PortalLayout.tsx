@@ -44,7 +44,7 @@ export default function PortalLayout({ org, contact, activeTab, onTabChange, chi
             >
               {contact.name.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 hidden sm:inline">
+            <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-muted-foreground hidden sm:inline">
               {contact.name}
             </span>
             <span className="sr-only">Signed in as {contact.name}</span>

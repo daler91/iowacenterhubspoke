@@ -32,7 +32,7 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 function stepStyle(i: number, current: number): string {
   if (i === current) return 'bg-hub-soft text-hub';
   if (i < current) return 'bg-spoke-soft text-spoke';
-  return 'bg-gray-100 dark:bg-gray-800 text-slate-400';
+  return 'bg-gray-100 dark:bg-gray-800 text-muted-foreground';
 }
 
 function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: number) => void }>) {
@@ -279,7 +279,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           <DialogHeader>
             <DialogTitle>Delete All Future Schedules?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-muted-foreground">
             This will delete all future schedules in this recurring series. Past schedules will be preserved.
           </p>
           <DialogFooter className="gap-2">

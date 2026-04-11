@@ -40,7 +40,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/50">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-          <div key={d} className="p-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
+          <div key={d} className="p-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {d}
           </div>
         ))}
@@ -72,12 +72,12 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
                       "text-sm font-medium",
                       today && "bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center",
                       !today && inMonth && "text-slate-700",
-                      !today && !inMonth && "text-slate-300"
+                      !today && !inMonth && "text-muted-foreground"
                     )}>
                       {format(day, 'd')}
                     </span>
                     {daySchedules.length > 0 && (
-                      <span className="text-[10px] text-slate-400 font-medium">
+                      <span className="text-[10px] text-muted-foreground font-medium">
                         {daySchedules.length}
                       </span>
                     )}
@@ -97,7 +97,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
                       </div>
                     ))}
                     {daySchedules.length > 3 && (
-                      <p className="text-[10px] text-slate-400 font-medium">+{daySchedules.length - 3} more</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">+{daySchedules.length - 3} more</p>
                     )}
                   </div>
                 </button>

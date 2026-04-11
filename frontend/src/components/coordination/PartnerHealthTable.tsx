@@ -121,7 +121,7 @@ export default function PartnerHealthTable() {
                     {p.completion_rate}%
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-400 text-xs">
+                <td className="px-4 py-3 text-muted-foreground text-xs">
                   {p.last_active
                     ? new Date(p.last_active).toLocaleDateString()
                     : 'Never'}
@@ -130,7 +130,7 @@ export default function PartnerHealthTable() {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                   No partner data
                 </td>
               </tr>
