@@ -611,12 +611,12 @@ elif (_static_dir / "assets").exists():
         static_root = _static_dir.resolve()
         normalized_path = os.path.normpath(full_path)
 
-        # Reject absolute and traversal-like paths before filesystem access.
+            file_path.relative_to(static_root)
+        except (OSError, RuntimeError, ValueError):
         path_parts = [part for part in normalized_path.split(os.sep) if part not in ("", ".")]
         if os.path.isabs(normalized_path) or any(part == ".." for part in path_parts):
-            return FileResponse(str(static_root / "index.html"))
-
-        try:
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
             file_path = (static_root / normalized_path).resolve()
         except (OSError, RuntimeError):
             return FileResponse(str(static_root / "index.html"))
