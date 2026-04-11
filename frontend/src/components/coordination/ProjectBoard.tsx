@@ -325,7 +325,7 @@ export default function ProjectBoard() {
                       {!searchQuery && phase === 'planning' && (
                         <button
                           onClick={() => setShowCreate(true)}
-                          className="text-xs text-hub-strong hover:text-hub mt-1"
+                          className="text-xs text-hub-strong hover:underline mt-1"
                         >
                           Create your first project
                         </button>
