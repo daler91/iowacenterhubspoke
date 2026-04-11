@@ -52,20 +52,37 @@ export default function NotificationsPanel() {
   const activeNotifications = safeNotifications.filter(n => !dismissed.has(n.id));
   const warningCount = activeNotifications.filter(n => n.severity === 'warning').length;
 
+  // Build the accessible bell label once so the JSX stays free of
+  // nested ternaries / nested template literals (Sonar S3358 / S4624).
+  let bellLabel = 'Notifications';
+  if (activeNotifications.length > 0) {
+    bellLabel = `Notifications, ${activeNotifications.length} active`;
+    if (warningCount > 0) {
+      bellLabel += `, ${warningCount} alerts`;
+    }
+  }
+
   return (
     <div className="relative" ref={ref} data-testid="notifications-panel">
       {/* Bell button */}
       <button
+        type="button"
         data-testid="notifications-bell"
         onClick={() => setOpen(!open)}
+        aria-label={bellLabel}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-500" />
+        <Bell className="w-5 h-5 text-slate-500" aria-hidden="true" />
         {activeNotifications.length > 0 && (
-          <span className={cn(
-            "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1",
-            warningCount > 0 ? "bg-amber-500" : "bg-indigo-600"
-          )}>
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1",
+              warningCount > 0 ? "bg-amber-500" : "bg-indigo-600"
+            )}
+          >
             {activeNotifications.length}
           </span>
         )}

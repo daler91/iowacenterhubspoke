@@ -10,7 +10,7 @@ import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, User
 import { toast } from 'sonner';
 
 const STATUS_CLASSES = {
-  completed: 'bg-green-50 text-green-700',
+  completed: 'bg-spoke-soft text-spoke',
   in_progress: 'bg-amber-50 text-amber-700',
 };
 
@@ -80,14 +80,14 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           <p className="text-sm text-slate-500 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev">
-            <ChevronLeft className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev" aria-label="Previous week">
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </Button>
           <span className="text-sm font-medium text-slate-700 min-w-[180px] text-center">
             {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
           </span>
-          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next">
-            <ChevronRight className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next" aria-label="Next week">
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Button variant="outline" size="sm" onClick={exportPDF} data-testid="report-export-pdf">
             <FileDown className="w-4 h-4 mr-1" /> Export PDF
@@ -185,7 +185,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{emp.classes} classes</Badge>
                   <Badge className="bg-teal-50 text-teal-700 border-0 text-[10px]">{emp.class_hours}h class</Badge>
                   <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px]">{emp.drive_hours}h drive</Badge>
-                  <Badge className="bg-green-50 text-green-700 border-0 text-[10px]">{emp.completed} done</Badge>
+                  <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{emp.completed} done</Badge>
                 </div>
               </div>
 

@@ -274,7 +274,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
             <AlertDialogAction
               disabled={loading}
               onClick={(e) => { e.preventDefault(); confirmAction?.onConfirm(); }}
-              className={confirmAction?.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : ''}
+              className={confirmAction?.type === 'delete' ? 'bg-danger hover:bg-danger/90' : ''}
             >
               {(() => {
                 let buttonLabel;

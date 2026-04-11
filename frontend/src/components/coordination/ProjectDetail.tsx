@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
@@ -110,13 +110,13 @@ function TaskCard({
           isDragging && 'opacity-50',
           task.completed && 'opacity-45',
           task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-950/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
-          task.at_risk && !task.spotlight && 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
+          task.at_risk && !task.spotlight && 'border-l-4 border-l-danger bg-danger-soft border-danger/30 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
         )}
         onClick={onOpen}
       >
         {/* At-risk banner */}
         {task.at_risk && (
-          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-[10px] font-semibold">
+          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-semibold">
             <AlertTriangle className="w-3.5 h-3.5" />
             AT RISK
           </div>
@@ -138,13 +138,13 @@ function TaskCard({
                 {task.spotlight ? 'Remove Spotlight' : 'Spotlight Task'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleToggleFlag('at_risk')}>
-                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-red-500')} />
+                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-danger')} />
                 {task.at_risk ? 'Remove At Risk' : 'Mark at Risk'}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setShowDeleteConfirm(true)}
-                className="text-red-600 focus:text-red-600"
+                className="text-danger focus:text-danger"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-2" />
                 Delete Task
@@ -176,7 +176,7 @@ function TaskCard({
                 >
                   <span className={cn('w-2.5 h-2.5 rounded-full mr-2 shrink-0', TASK_STATUS_COLORS[s])} />
                   {TASK_STATUS_LABELS[s]}
-                  {status === s && <Check className="w-3 h-3 ml-auto text-green-600" />}
+                  {status === s && <Check className="w-3 h-3 ml-auto text-spoke" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -201,7 +201,7 @@ function TaskCard({
               </Badge>
               <span className={cn(
                 'text-[10px]',
-                isOverdue ? 'text-red-500 font-semibold' : 'text-slate-400',
+                isOverdue ? 'text-danger font-semibold' : 'text-slate-400',
               )}>
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
@@ -243,6 +243,14 @@ function AddTaskInline({
   const [owner, setOwner] = useState<'internal' | 'partner' | 'both'>('internal');
   const [dueDate, setDueDate] = useState(defaultDueDate || new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  // Focus the title input imperatively after the user reveals it by
+  // clicking "+ Add task". We do this via ref rather than the
+  // `autoFocus` prop so jsx-a11y/no-autofocus stays happy — the focus
+  // still happens at the right moment (right after the input mounts).
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (open) titleInputRef.current?.focus();
+  }, [open]);
 
   const handleAdd = async () => {
     if (!title.trim()) return;
@@ -281,12 +289,12 @@ function AddTaskInline({
     <div className="space-y-1.5 mt-1">
       <div className="flex items-center gap-1">
         <Input
+          ref={titleInputRef}
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="Task title"
           className="text-sm h-8"
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          autoFocus
         />
         <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
           <Check className="w-3.5 h-3.5" />

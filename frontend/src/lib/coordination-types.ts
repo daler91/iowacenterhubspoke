@@ -116,7 +116,6 @@ export interface Project {
   venue_details?: VenueDetails;
   location_id?: string;
   location_name?: string;
-  partner_org_name?: string;
   partner_org_status?: string;
   partner_org_venue_details?: VenueDetails;
   schedule_warning?: string;

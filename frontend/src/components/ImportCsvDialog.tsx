@@ -33,23 +33,23 @@ function PreviewResults({ file, previewData, onReset }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg border bg-green-50 border-green-200">
-          <div className="flex items-center text-green-700 mb-2">
+        <div className="p-4 rounded-lg border bg-spoke-soft border-spoke/30">
+          <div className="flex items-center text-spoke mb-2">
             <CheckCircle2 className="h-5 w-5 mr-2" />
             <span className="font-semibold">Valid Rows ({previewData.valid_rows.length})</span>
           </div>
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-spoke">
             These schedules are ready to be imported into the system.
           </p>
         </div>
 
         <div className={cn(
           "p-4 rounded-lg border",
-          hasErrors ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
+          hasErrors ? "bg-danger-soft border-danger/30" : "bg-gray-50 border-gray-200"
         )}>
           <div className={cn(
             "flex items-center mb-2",
-            hasErrors ? "text-red-700" : "text-gray-700"
+            hasErrors ? "text-danger" : "text-gray-700"
           )}>
             {hasErrors ? (
               <XCircle className="h-5 w-5 mr-2" />
@@ -60,7 +60,7 @@ function PreviewResults({ file, previewData, onReset }) {
           </div>
           <p className={cn(
             "text-sm",
-            hasErrors ? "text-red-600" : "text-gray-600"
+            hasErrors ? "text-danger" : "text-gray-600"
           )}>
             Rows with errors will be skipped during import.
           </p>
@@ -69,14 +69,14 @@ function PreviewResults({ file, previewData, onReset }) {
 
       {hasErrors && (
         <div className="border rounded-md mt-4 max-h-[300px] overflow-y-auto">
-          <div className="bg-red-50 px-4 py-2 border-b border-red-100 font-medium text-red-800 text-sm sticky top-0">
+          <div className="bg-danger-soft px-4 py-2 border-b border-danger/20 font-medium text-danger text-sm sticky top-0">
             Error Details
           </div>
-          <ul className="divide-y divide-red-100 text-sm">
+          <ul className="divide-y divide-danger/20 text-sm">
             {previewData.errors.slice(0, 50).map((err) => (
               <li key={`row-${err.row}`} className="p-3 bg-white">
                 <div className="font-medium text-gray-900 mb-1">Row {err.row}</div>
-                <ul className="list-disc list-inside text-red-600 space-y-1 ml-1">
+                <ul className="list-disc list-inside text-danger space-y-1 ml-1">
                   {err.errors.map((e) => <li key={`${err.row}-${e}`}>{e}</li>)}
                 </ul>
               </li>

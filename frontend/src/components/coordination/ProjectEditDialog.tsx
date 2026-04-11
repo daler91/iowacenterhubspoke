@@ -80,16 +80,18 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
         </DialogHeader>
         <div className="space-y-4 mt-2">
           <div>
-            <Label>Title *</Label>
+            <Label htmlFor="project-edit-title">Title *</Label>
             <Input
+              id="project-edit-title"
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="Project title"
             />
           </div>
           <div>
-            <Label>Event Format *</Label>
+            <Label htmlFor="project-edit-event-format">Event Format *</Label>
             <SearchableSelect
+              id="project-edit-event-format"
               options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
               value={eventFormat}
               onValueChange={setEventFormat}
@@ -98,8 +100,9 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
             />
           </div>
           <div>
-            <Label>Partner Organization *</Label>
+            <Label htmlFor="project-edit-partner">Partner Organization *</Label>
             <SearchableSelect
+              id="project-edit-partner"
               options={partnerOrgs.map(org => ({ value: org.id, label: org.name, sublabel: org.community }))}
               value={partnerOrgId}
               onValueChange={setPartnerOrgId}
@@ -108,8 +111,9 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
             />
           </div>
           <div>
-            <Label>Class</Label>
+            <Label htmlFor="project-edit-class">Class</Label>
             <SearchableSelect
+              id="project-edit-class"
               options={classes.map(c => ({ value: c.id, label: c.name }))}
               value={classId}
               onValueChange={setClassId}
@@ -118,8 +122,9 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
             />
           </div>
           <div>
-            <Label>Event Date *</Label>
+            <Label htmlFor="project-edit-event-date">Event Date *</Label>
             <Input
+              id="project-edit-event-date"
               type="date"
               value={eventDate}
               onChange={e => setEventDate(e.target.value)}
@@ -127,16 +132,18 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-slate-500">Community (auto-derived)</Label>
+              <Label htmlFor="project-edit-community" className="text-xs text-slate-500">Community (auto-derived)</Label>
               <Input
+                id="project-edit-community"
                 value={community}
                 disabled
                 className="bg-slate-50 dark:bg-slate-800 text-slate-500"
               />
             </div>
             <div>
-              <Label className="text-xs text-slate-500">Venue (auto-derived)</Label>
+              <Label htmlFor="project-edit-venue" className="text-xs text-slate-500">Venue (auto-derived)</Label>
               <Input
+                id="project-edit-venue"
                 value={venueName}
                 disabled
                 className="bg-slate-50 dark:bg-slate-800 text-slate-500"

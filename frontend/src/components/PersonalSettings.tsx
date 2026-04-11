@@ -197,7 +197,7 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleGoogleDisconnect}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="text-danger hover:text-danger hover:bg-danger-soft"
               >
                 <Unlink className="w-4 h-4 mr-2" />
                 Disconnect
@@ -303,8 +303,9 @@ export default function PersonalSettings() {
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
-            <Label>Current Password</Label>
+            <Label htmlFor="current-password">Current Password</Label>
             <Input
+              id="current-password"
               type="password"
               value={passwordForm.current_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
@@ -313,8 +314,9 @@ export default function PersonalSettings() {
             />
           </div>
           <div className="space-y-2">
-            <Label>New Password</Label>
+            <Label htmlFor="new-password">New Password</Label>
             <Input
+              id="new-password"
               type="password"
               value={passwordForm.new_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
@@ -323,8 +325,9 @@ export default function PersonalSettings() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Confirm New Password</Label>
+            <Label htmlFor="confirm-password">Confirm New Password</Label>
             <Input
+              id="confirm-password"
               type="password"
               value={passwordForm.confirm_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}

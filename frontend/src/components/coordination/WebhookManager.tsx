@@ -110,7 +110,7 @@ export default function WebhookManager() {
                     <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>
                   ))}
                   {sub.failure_count > 0 && (
-                    <Badge className="text-[10px] bg-red-100 text-red-600">
+                    <Badge className="text-[10px] bg-danger-soft text-danger">
                       {sub.failure_count} failures
                     </Badge>
                   )}
@@ -125,7 +125,7 @@ export default function WebhookManager() {
                 <Button size="sm" variant="ghost" onClick={() => handleTest(sub.id)} title="Send test">
                   <Play className="w-3.5 h-3.5" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-red-500" title="Delete">
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-danger" title="Delete">
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -166,11 +166,11 @@ export default function WebhookManager() {
           ) : (
             <div className="space-y-4 mt-2">
               <div>
-                <Label>URL *</Label>
-                <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://hooks.example.com/..." />
+                <Label htmlFor="webhook-url">URL *</Label>
+                <Input id="webhook-url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://hooks.example.com/..." />
               </div>
-              <div>
-                <Label>Events *</Label>
+              <fieldset>
+                <legend className="text-sm font-medium leading-none">Events *</legend>
                 <div className="grid grid-cols-2 gap-1.5 mt-1.5 max-h-48 overflow-y-auto">
                   {availableEvents.map(event => (
                     <label key={event} className="flex items-center gap-1.5 text-xs cursor-pointer">
@@ -184,7 +184,7 @@ export default function WebhookManager() {
                     </label>
                   ))}
                 </div>
-              </div>
+              </fieldset>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
                 <Button onClick={handleCreate} disabled={creating} className="bg-indigo-600 hover:bg-indigo-700 text-white">

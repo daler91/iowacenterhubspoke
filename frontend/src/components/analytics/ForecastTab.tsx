@@ -81,8 +81,8 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
         {growthRate !== null && (
           <SummaryCard
             icon={Number(growthRate) >= 0 ? TrendingUp : TrendingDown}
-            iconBg={Number(growthRate) >= 0 ? 'bg-green-50' : 'bg-red-50'}
-            iconColor={Number(growthRate) >= 0 ? 'text-green-600' : 'text-red-600'}
+            iconBg={Number(growthRate) >= 0 ? 'bg-spoke-soft' : 'bg-danger-soft'}
+            iconColor={Number(growthRate) >= 0 ? 'text-spoke' : 'text-danger'}
             label="Growth Rate" value={`${growthRate}%`} />
         )}
       </div>

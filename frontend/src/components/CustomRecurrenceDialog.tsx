@@ -135,8 +135,17 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
           </div>
 
           {draft.frequency === 'week' && (
-            <div className="space-y-2">
-              <Label data-testid="custom-repeat-days-label">Repeat on</Label>
+            <fieldset className="space-y-2 border-0 p-0 m-0">
+              {/* Use a semantic <fieldset>/<legend> for the weekday toggle
+                  group instead of role="group" — Sonar/axe prefer native
+                  HTML landmarks over ARIA roles when available. */}
+              <legend
+                id="custom-repeat-days-label"
+                data-testid="custom-repeat-days-label"
+                className="text-sm font-medium leading-none mb-2"
+              >
+                Repeat on
+              </legend>
               <div className="flex gap-2 flex-wrap" data-testid="custom-repeat-days">
                 {WEEKDAYS.map((day, index) => {
                   const active = draft.weekdays.includes(day.value);
@@ -144,6 +153,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                     <button
                       key={`${day.label}-${index}`}
                       type="button"
+                      aria-pressed={active}
                       data-testid={`custom-repeat-day-${day.value}`}
                       onClick={() => toggleWeekday(day.value)}
                       className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
@@ -153,14 +163,27 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                   );
                 })}
               </div>
-            </div>
+            </fieldset>
           )}
 
-          <div className="space-y-3">
-            <Label data-testid="custom-repeat-ends-label">Ends</Label>
+          <div
+            className="space-y-3"
+            role="radiogroup"
+            aria-labelledby="custom-repeat-ends-label"
+          >
+            {/* Group heading for the end-mode radio choices. */}
+            <span
+              id="custom-repeat-ends-label"
+              data-testid="custom-repeat-ends-label"
+              className="text-sm font-medium leading-none"
+            >
+              Ends
+            </span>
             <div className="grid gap-3">
               <button
                 type="button"
+                role="radio"
+                aria-checked={draft.end_mode === 'never'}
                 data-testid="custom-repeat-end-never"
                 onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'never' }))}
                 className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left ${draft.end_mode === 'never' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}
@@ -172,6 +195,8 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
               <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={draft.end_mode === 'on_date'}
                   data-testid="custom-repeat-end-date"
                   onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'on_date' }))}
                   className="flex items-center gap-3 w-full text-left"
@@ -193,6 +218,8 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
               <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={draft.end_mode === 'after_occurrences'}
                   data-testid="custom-repeat-end-after"
                   onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'after_occurrences' }))}
                   className="flex items-center gap-3 w-full text-left"
