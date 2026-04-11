@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
-  PointerSensor, useSensor, useSensors,
+  PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDroppable, useDraggable,
 } from '@dnd-kit/core';
 import { Card } from '../ui/card';
@@ -43,7 +43,7 @@ function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children:
     <div
       ref={setNodeRef}
       className={cn(
-        'flex-1 min-w-[260px] rounded-xl p-3 transition-colors',
+        'flex-1 min-w-[260px] rounded-lg p-3 transition-colors',
         isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-gray-50 dark:bg-gray-900/50',
       )}
     >
@@ -98,16 +98,16 @@ function TaskCard({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn('touch-none', isDragging && 'opacity-50')}
-    >
+    <>
       <Card
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        style={style}
         className={cn(
-          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group',
+          'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group touch-none',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
+          isDragging && 'opacity-50',
           task.completed && 'opacity-45',
           task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-950/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
           task.at_risk && !task.spotlight && 'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
@@ -229,7 +229,7 @@ function TaskCard({
         onConfirm={handleDelete}
         taskTitle={task.title}
       />
-    </div>
+    </>
   );
 }
 
@@ -300,9 +300,9 @@ function AddTaskInline({
         <div className="flex gap-0.5">
           {(['internal', 'partner', 'both'] as const).map(o => {
             const ACTIVE_STYLES: Record<string, string> = {
-              internal: 'bg-blue-100 border-blue-300 text-blue-700',
-              partner: 'bg-purple-100 border-purple-300 text-purple-700',
-              both: 'bg-orange-100 border-orange-300 text-orange-700',
+              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal',
+              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner',
+              both: 'bg-warn-soft border-warn/40 text-warn',
             };
             const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-slate-200 text-slate-400 hover:border-slate-300';
             return (
@@ -344,7 +344,10 @@ export default function ProjectDetail() {
     }
   }, [project?.schedule_id]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const tasksByPhase = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -373,9 +376,12 @@ export default function ProjectDetail() {
 
   if (projectLoading || tasksLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <output
+        className="flex items-center justify-center h-64"
+        aria-label="Loading project"
+      >
+        <span className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
+      </output>
     );
   }
 
@@ -395,7 +401,7 @@ export default function ProjectDetail() {
           { label: project.title },
         ]} />
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             {project.title}
           </h1>
           <Badge className={cn('text-xs', PHASE_COLORS[project.phase], 'text-white')}>
@@ -540,13 +546,13 @@ export default function ProjectDetail() {
       <div className="mt-4 flex items-center gap-4 text-xs text-slate-400 flex-wrap">
         <span className="font-medium text-slate-500 mr-1">Owner:</span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-blue-100" /> You (Internal)
+          <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> You (Internal)
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-purple-100" /> Partner
+          <span className="w-2.5 h-2.5 rounded bg-ownership-partner-soft" aria-hidden="true" /> Partner
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-orange-100" /> Both
+          <span className="w-2.5 h-2.5 rounded bg-warn-soft" aria-hidden="true" /> Both
         </span>
         <span className="mx-2 text-slate-200">|</span>
         <span className="font-medium text-slate-500 mr-1">Status:</span>

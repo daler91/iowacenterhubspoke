@@ -4,7 +4,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Users, CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail } from 'lucide-react';
+import { PageShell } from './ui/page-shell';
+import { CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -18,15 +19,15 @@ const ROLES = [
 ];
 
 const STATUS_STYLES = {
-  pending: 'bg-amber-100 text-amber-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
+  pending: 'bg-warn-soft text-warn',
+  approved: 'bg-spoke-soft text-spoke',
+  rejected: 'bg-danger-soft text-danger',
 };
 
 const INVITE_STATUS_STYLES = {
-  pending: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-green-100 text-green-700',
-  revoked: 'bg-red-100 text-red-700',
+  pending: 'bg-info-soft text-info',
+  accepted: 'bg-spoke-soft text-spoke',
+  revoked: 'bg-danger-soft text-danger',
 };
 
 export default function UserManager() {
@@ -155,9 +156,14 @@ export default function UserManager() {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-500">
-        You do not have permission to view this page.
-      </div>
+      <PageShell
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]}
+        title="User Management"
+        status={{
+          kind: 'error',
+          error: new Error('You do not have permission to view this page.'),
+        }}
+      />
     );
   }
 
@@ -166,41 +172,33 @@ export default function UserManager() {
   const pendingInvitations = invitations.filter(i => i.status === 'pending');
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-            <Users className="w-5 h-5 text-indigo-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              User Management
-            </h1>
-            <p className="text-sm text-slate-500">{users.length} total users</p>
-          </div>
-        </div>
+    <>
+    <PageShell
+      breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]}
+      title="User Management"
+      subtitle={`${users.length} total users`}
+      status={loading ? { kind: 'loading', variant: 'rows' } : { kind: 'ready' }}
+      actions={
         <Button
           onClick={() => setInviteDialogOpen(true)}
           className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
         >
-          <UserPlus className="w-4 h-4 mr-2" />
+          <UserPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           Invite User
         </Button>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <>
+      }
+    >
+      {/* While loading, PageShell substitutes skeleton rows and these
+          children are skipped. The Dialog is hoisted outside PageShell
+          below so it stays mounted during loading. */}
+      <>
           {pendingUsers.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-500" />
                 <h2 className="text-lg font-semibold text-slate-800">Pending Approval ({pendingUsers.length})</h2>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
                   <div key={u.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
@@ -240,14 +238,14 @@ export default function UserManager() {
           {pendingInvitations.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-blue-500" />
+                <Mail className="w-4 h-4 text-info" aria-hidden="true" />
                 <h2 className="text-lg font-semibold text-slate-800">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
                   <div key={inv.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info font-semibold text-sm">
                         {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
@@ -276,7 +274,7 @@ export default function UserManager() {
 
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-800">All Users</h2>
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -345,9 +343,10 @@ export default function UserManager() {
             </div>
           </div>
         </>
-      )}
+    </PageShell>
 
-      {/* Invite User Dialog */}
+      {/* Invite User Dialog — hoisted outside PageShell so it stays mounted
+          during the loading state. */}
       <Dialog open={inviteDialogOpen} onOpenChange={closeInviteDialog}>
         <DialogContent className="sm:max-w-[440px] bg-white">
           <DialogHeader>
@@ -362,9 +361,10 @@ export default function UserManager() {
           {generatedLink ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Invitation Link</Label>
+                <Label htmlFor="invite-generated-link">Invitation Link</Label>
                 <div className="flex gap-2">
                   <Input
+                    id="invite-generated-link"
                     readOnly
                     value={generatedLink}
                     className="h-10 bg-gray-50 text-sm font-mono"
@@ -372,9 +372,10 @@ export default function UserManager() {
                   <Button
                     type="button"
                     onClick={handleCopyLink}
+                    aria-label="Copy invitation link"
                     className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -416,12 +417,12 @@ export default function UserManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label htmlFor="invite-role">Role</Label>
                 <Select
                   value={inviteForm.role}
                   onValueChange={(value) => setInviteForm({ ...inviteForm, role: value })}
                 >
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger id="invite-role" className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -444,6 +445,6 @@ export default function UserManager() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

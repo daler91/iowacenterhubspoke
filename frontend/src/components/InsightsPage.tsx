@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { PageShell } from './ui/page-shell';
+import { SkeletonChart } from './ui/skeleton';
 import { FileText, BarChart3, TrendingUp, Activity } from 'lucide-react';
 
 const WorkloadDashboard = lazy(() => import('./WorkloadDashboard'));
@@ -24,40 +26,32 @@ export default function InsightsPage() {
     setSearchParams({ tab: value }, { replace: true });
   };
 
-  const spinner = (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  const tabFallback = <SkeletonChart />;
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="insights-page">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Insights
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Reports, workload analysis, trends, and activity history.
-        </p>
-      </div>
-
+    <PageShell
+      testId="insights-page"
+      breadcrumbs={[{ label: 'Insights' }]}
+      title="Insights"
+      subtitle="Reports, workload analysis, trends, and activity history."
+    >
       <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="bg-slate-100/80 dark:bg-gray-800/50">
           {TABS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900">
-              <Icon className="w-4 h-4 mr-1.5" /> {label}
+              <Icon className="w-4 h-4 mr-1.5" aria-hidden="true" /> {label}
             </TabsTrigger>
           ))}
         </TabsList>
 
         <TabsContent value="summary" className="mt-6">
-          <Suspense fallback={spinner}>
+          <Suspense fallback={tabFallback}>
             <WeeklyReport classes={context.classes as unknown[]} />
           </Suspense>
         </TabsContent>
 
         <TabsContent value="workload" className="mt-6">
-          <Suspense fallback={spinner}>
+          <Suspense fallback={tabFallback}>
             <WorkloadDashboard
               workloadData={context.workloadData as unknown[]}
               classes={context.classes as unknown[]}
@@ -66,7 +60,7 @@ export default function InsightsPage() {
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
-          <Suspense fallback={spinner}>
+          <Suspense fallback={tabFallback}>
             <AdvancedAnalytics
               employees={context.employees as unknown[]}
               locations={context.locations as unknown[]}
@@ -76,11 +70,11 @@ export default function InsightsPage() {
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
-          <Suspense fallback={spinner}>
+          <Suspense fallback={tabFallback}>
             <ActivityFeed activities={context.activities as unknown[]} />
           </Suspense>
         </TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }

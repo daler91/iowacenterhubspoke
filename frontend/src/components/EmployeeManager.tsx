@@ -3,10 +3,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { PageShell } from './ui/page-shell';
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { cn } from '../lib/utils';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
@@ -89,32 +91,31 @@ export default function EmployeeManager() {
   else if (editing) saveLabel = 'Update Employee';
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="employee-manager">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Employees</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage team members and their scheduling colors</p>
-        </div>
-        {isAdmin && (
+    <PageShell
+      testId="employee-manager"
+      breadcrumbs={[{ label: 'Manage' }, { label: 'Employees' }]}
+      title="Employees"
+      subtitle="Manage team members and their scheduling colors"
+      actions={
+        isAdmin ? (
           <Button
             data-testid="add-employee-btn"
             onClick={openNew}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Employee
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {/* Employee list */}
       <div className="grid gap-3">
         {(employees || []).map(emp => (
           <div
             key={emp.id}
             data-testid={`employee-card-${emp.id}`}
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-4">
               <div
@@ -146,8 +147,8 @@ export default function EmployeeManager() {
                   )}
                   {emp.outlook_calendar_connected && (
                     <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-blue-500" />
-                      <span className="text-xs text-blue-600">Outlook Calendar</span>
+                      <Mail className="w-3 h-3 text-info" aria-hidden="true" />
+                      <span className="text-xs text-info">Outlook Calendar</span>
                     </div>
                   )}
                 </div>
@@ -202,7 +203,7 @@ export default function EmployeeManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[440px] bg-white" data-testid="employee-form-dialog">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <DialogTitle>
               {editing ? 'Edit Employee' : 'Add Employee'}
             </DialogTitle>
             <DialogDescription>
@@ -211,8 +212,9 @@ export default function EmployeeManager() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Full Name</Label>
+              <Label htmlFor="employee-name-input">Full Name</Label>
               <Input
+                id="employee-name-input"
                 data-testid="employee-name-input"
                 placeholder="John Smith"
                 value={form.name}
@@ -222,8 +224,9 @@ export default function EmployeeManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Email (optional)</Label>
+              <Label htmlFor="employee-email-input">Email (optional)</Label>
               <Input
+                id="employee-email-input"
                 type="email"
                 data-testid="employee-email-input"
                 placeholder="john@company.com"
@@ -233,8 +236,9 @@ export default function EmployeeManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Phone (optional)</Label>
+              <Label htmlFor="employee-phone-input">Phone (optional)</Label>
               <Input
+                id="employee-phone-input"
                 data-testid="employee-phone-input"
                 placeholder="(515) 555-0123"
                 value={form.phone}
@@ -242,16 +246,27 @@ export default function EmployeeManager() {
                 className="bg-gray-50/50"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Calendar Color</Label>
+            <div
+              className="space-y-2"
+              role="radiogroup"
+              aria-labelledby="employee-color-label"
+            >
+              <Label id="employee-color-label">Calendar Color</Label>
               <div className="flex gap-2 flex-wrap">
                 {COLORS.map(c => (
                   <button
                     key={c}
                     type="button"
+                    role="radio"
+                    aria-checked={form.color === c}
+                    aria-label={`Color swatch ${c}`}
                     data-testid={`color-${c}`}
                     onClick={() => setForm({ ...form, color: c })}
-                    className={`w-8 h-8 rounded-full transition-all ${form.color === c ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : 'hover:scale-105'}`}
+                    className={cn(
+                      'w-8 h-8 rounded-full transition-all',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
+                      form.color === c ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : 'hover:scale-105',
+                    )}
                     style={{ backgroundColor: c }}
                   />
                 ))}
@@ -270,7 +285,7 @@ export default function EmployeeManager() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

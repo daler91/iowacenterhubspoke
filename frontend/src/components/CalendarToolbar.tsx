@@ -53,7 +53,7 @@ export default function CalendarToolbar({
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center">
             {dateLabel}
           </h2>
           <Button

@@ -89,11 +89,11 @@ export default function LoginPage() {
             <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
               <MapPin className="w-6 h-6 text-white" />
             </div>
-            <span className="text-white text-xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <span className="text-white text-xl font-bold font-display">
               HubSpoke
             </span>
           </div>
-          <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6 font-display">
             Smart Employee<br />Scheduling
           </h1>
           <p className="text-indigo-100 text-lg max-w-md leading-relaxed">
@@ -142,9 +142,9 @@ export default function LoginPage() {
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-white" />
               </div>
-              <span className="font-bold text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>HubSpoke</span>
+              <span className="font-bold text-lg font-display">HubSpoke</span>
             </div>
-            <CardTitle className="text-2xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <CardTitle className="text-2xl font-bold font-display">
               {pageTitle}
             </CardTitle>
             <CardDescription>

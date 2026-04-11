@@ -1,5 +1,5 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "./components/ui/sonner";
@@ -7,6 +7,17 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+/**
+ * Wraps a route element in an ErrorBoundary keyed on the current path so a
+ * render error on one page is scoped to that route and clears when the user
+ * navigates away. Use this for every page element instead of a single
+ * shell-level boundary.
+ */
+function RouteBoundary({ children }: Readonly<{ children: ReactNode }>) {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+}
 
 function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   const { user, loading } = useAuth();
@@ -71,36 +82,42 @@ function AppRoutes() {
           } />
           <Route path="/" element={
             <ProtectedRoute>
+              {/* Shell-level ErrorBoundary catches exceptions from shell
+                  components rendered by DashboardPage OUTSIDE the
+                  <Outlet /> — Sidebar, top-bar, NotificationsPanel,
+                  ScheduleForm modal, StatModal. Per-route RouteBoundary
+                  wrappers below cover errors inside the Outlet and
+                  reset on navigation, so this is defense in depth. */}
               <ErrorBoundary>
                 <DashboardPage />
               </ErrorBoundary>
             </ProtectedRoute>
           }>
             <Route index element={<Navigate to="/calendar" replace />} />
-            <Route path="calendar" element={<CalendarView />} />
-            <Route path="kanban" element={<KanbanBoard />} />
-            <Route path="insights" element={<InsightsPage />} />
+            <Route path="calendar" element={<RouteBoundary><CalendarView /></RouteBoundary>} />
+            <Route path="kanban" element={<RouteBoundary><KanbanBoard /></RouteBoundary>} />
+            <Route path="insights" element={<RouteBoundary><InsightsPage /></RouteBoundary>} />
             <Route path="workload" element={<Navigate to="/insights?tab=workload" replace />} />
             <Route path="report" element={<Navigate to="/insights?tab=summary" replace />} />
             <Route path="analytics" element={<Navigate to="/insights?tab=analytics" replace />} />
             <Route path="activity" element={<Navigate to="/insights?tab=activity" replace />} />
-            <Route path="map" element={<MapView />} />
-            <Route path="locations" element={<LocationManager />} />
-            <Route path="classes" element={<ClassManager />} />
-            <Route path="employees" element={<EmployeeManager />} />
-            <Route path="employees/:id" element={<EmployeeProfile />} />
-            <Route path="locations/:id" element={<LocationProfile />} />
-            <Route path="classes/:id" element={<ClassProfile />} />
-            <Route path="users" element={<UserManager />} />
-            <Route path="settings" element={<PersonalSettings />} />
-            <Route path="coordination" element={<CommunityDashboard />} />
-            <Route path="coordination/board" element={<ProjectBoard />} />
-            <Route path="coordination/projects/:id" element={<ProjectDetail />} />
-            <Route path="coordination/partners" element={<PartnerManager />} />
-            <Route path="coordination/partners/:id" element={<PartnerProfile />} />
-            <Route path="coordination/webhooks" element={<WebhookManager />} />
+            <Route path="map" element={<RouteBoundary><MapView /></RouteBoundary>} />
+            <Route path="locations" element={<RouteBoundary><LocationManager /></RouteBoundary>} />
+            <Route path="classes" element={<RouteBoundary><ClassManager /></RouteBoundary>} />
+            <Route path="employees" element={<RouteBoundary><EmployeeManager /></RouteBoundary>} />
+            <Route path="employees/:id" element={<RouteBoundary><EmployeeProfile /></RouteBoundary>} />
+            <Route path="locations/:id" element={<RouteBoundary><LocationProfile /></RouteBoundary>} />
+            <Route path="classes/:id" element={<RouteBoundary><ClassProfile /></RouteBoundary>} />
+            <Route path="users" element={<RouteBoundary><UserManager /></RouteBoundary>} />
+            <Route path="settings" element={<RouteBoundary><PersonalSettings /></RouteBoundary>} />
+            <Route path="coordination" element={<RouteBoundary><CommunityDashboard /></RouteBoundary>} />
+            <Route path="coordination/board" element={<RouteBoundary><ProjectBoard /></RouteBoundary>} />
+            <Route path="coordination/projects/:id" element={<RouteBoundary><ProjectDetail /></RouteBoundary>} />
+            <Route path="coordination/partners" element={<RouteBoundary><PartnerManager /></RouteBoundary>} />
+            <Route path="coordination/partners/:id" element={<RouteBoundary><PartnerProfile /></RouteBoundary>} />
+            <Route path="coordination/webhooks" element={<RouteBoundary><WebhookManager /></RouteBoundary>} />
           </Route>
-          <Route path="/portal/:token" element={<PortalDashboard />} />
+          <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -7,6 +7,15 @@ module.exports = {
   ],
   theme: {
   	extend: {
+  		// Typography: Inter for body (set on <body> in index.css), Manrope
+  		// for headings (set on h1-h6 in index.css). The `font-display`
+  		// utility exposes Manrope for non-heading display elements — large
+  		// metric readouts, stat cards, etc. — so they don't have to use
+  		// inline `style={{ fontFamily: 'Manrope' }}`.
+  		fontFamily: {
+  			display: ['Manrope', 'sans-serif'],
+  			sans: ['Inter', 'sans-serif'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -52,6 +61,40 @@ module.exports = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			// Brand semantic tokens — use these instead of raw Tailwind
+  			// color classes (bg-blue-*, bg-purple-*, etc). They follow the
+  			// Hub Indigo / Spoke Teal / Warning Amber palette from
+  			// design_guidelines.json and are dark-mode aware.
+  			hub: {
+  				DEFAULT: 'hsl(var(--hub))',
+  				soft: 'hsl(var(--hub-soft))',
+  				strong: 'hsl(var(--hub-strong))'
+  			},
+  			spoke: {
+  				DEFAULT: 'hsl(var(--spoke))',
+  				soft: 'hsl(var(--spoke-soft))'
+  			},
+  			warn: {
+  				DEFAULT: 'hsl(var(--warn))',
+  				soft: 'hsl(var(--warn-soft))'
+  			},
+  			info: {
+  				DEFAULT: 'hsl(var(--info))',
+  				soft: 'hsl(var(--info-soft))'
+  			},
+  			progress: 'hsl(var(--progress))',
+  			danger: {
+  				DEFAULT: 'hsl(var(--danger))',
+  				soft: 'hsl(var(--danger-soft))'
+  			},
+  			'ownership-internal': {
+  				DEFAULT: 'hsl(var(--ownership-internal))',
+  				soft: 'hsl(var(--ownership-internal-soft))'
+  			},
+  			'ownership-partner': {
+  				DEFAULT: 'hsl(var(--ownership-partner))',
+  				soft: 'hsl(var(--ownership-partner-soft))'
   			}
   		},
   		keyframes: {

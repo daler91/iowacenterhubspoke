@@ -7,14 +7,14 @@ export const fetcher = <T,>(apiFn: (params: T) => Promise<{ data: unknown }>, pa
 
 export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Readonly<SummaryCardProps>) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
+    <div className="bg-white rounded-lg border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-2">
         <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
         <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+      <p className="text-2xl font-bold text-slate-800 font-display">
         {value}
       </p>
     </div>
@@ -41,12 +41,15 @@ export function FilterSelect({ label, value, onChange, options }: Readonly<Filte
 
 export function LoadingChart() {
   return (
-    <div className="h-[320px] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-2">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-slate-400">Loading analytics...</p>
-      </div>
-    </div>
+    <output
+      className="h-[320px] flex items-center justify-center"
+      aria-label="Loading analytics"
+    >
+      <span className="flex flex-col items-center gap-2">
+        <span className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-slate-400">Loading analytics...</span>
+      </span>
+    </output>
   );
 }
 

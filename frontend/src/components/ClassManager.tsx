@@ -7,8 +7,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { PageShell } from './ui/page-shell';
 import { classesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { cn } from '../lib/utils';
 
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
 
@@ -95,32 +97,34 @@ export default function ClassManager() {
   }
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="class-manager">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Classes</h2>
-          <p className="text-sm text-slate-500 mt-1" data-testid="class-manager-subtitle">
-            Track class series, colors, and on-the-fly scheduling options.
-          </p>
-        </div>
-        {isAdmin && (
+    <PageShell
+      testId="class-manager"
+      breadcrumbs={[{ label: 'Manage' }, { label: 'Classes' }]}
+      title="Classes"
+      subtitle={
+        <span data-testid="class-manager-subtitle">
+          Track class series, colors, and on-the-fly scheduling options.
+        </span>
+      }
+      actions={
+        isAdmin ? (
           <Button
             data-testid="add-class-button"
             onClick={openNew}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Class
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       <div className="grid gap-3">
         {(classes || []).map((classItem) => (
           <div
             key={classItem.id}
             data-testid={`class-card-${classItem.id}`}
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg border border-gray-100 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
           >
             <div className="flex items-start gap-4 min-w-0">
               <div
@@ -207,7 +211,7 @@ export default function ClassManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-form-dialog">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <DialogTitle>
               {editing ? 'Edit Class' : 'Add Class'}
             </DialogTitle>
             <DialogDescription>
@@ -241,22 +245,32 @@ export default function ClassManager() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label data-testid="class-color-label">Color</Label>
+            <div
+              className="space-y-2"
+              role="radiogroup"
+              aria-labelledby="class-color-label"
+            >
+              <Label id="class-color-label" data-testid="class-color-label">Color</Label>
               <div className="flex flex-wrap gap-2 items-center" data-testid="class-color-grid">
                 {CLASS_COLORS.map((color) => (
                   <button
                     key={color}
                     type="button"
+                    role="radio"
+                    aria-checked={form.color === color}
                     data-testid={`class-color-${color}`}
                     onClick={() => setForm((prev) => ({ ...prev, color }))}
-                    className={`h-8 w-8 rounded-full transition-transform ${form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105'}`}
+                    className={cn(
+                      'h-8 w-8 rounded-full transition-transform',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
+                      form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105',
+                    )}
                     style={{ backgroundColor: color }}
                     aria-label={`Use ${color} for class`}
                   />
                 ))}
                 <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-slate-300 hover:border-slate-400 cursor-pointer transition-colors flex items-center justify-center group">
-                  <Plus className="w-3 h-3 text-slate-400 group-hover:text-slate-500" />
+                  <Plus className="w-3 h-3 text-slate-400 group-hover:text-slate-500" aria-hidden="true" />
                   <input
                     type="color"
                     value={form.color}
@@ -269,6 +283,7 @@ export default function ClassManager() {
                   <div
                     className="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-slate-900 scale-110"
                     style={{ backgroundColor: form.color }}
+                    aria-hidden="true"
                   />
                 )}
               </div>
@@ -287,7 +302,7 @@ export default function ClassManager() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

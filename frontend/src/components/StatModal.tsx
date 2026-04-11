@@ -46,7 +46,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 const dateText = isToday ? 'Today' : format(new Date(schedule.date), 'MMM d, yyyy');
 
                 return (
-                  <div key={schedule.id} className="flex flex-col p-4 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div key={schedule.id} className="flex flex-col p-4 border rounded-lg hover:bg-slate-50 transition-colors">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: displayClass.color }} />
@@ -92,7 +92,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.map((emp) => (
-                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium" style={{ backgroundColor: emp.color }}>
                       {(emp.name || '?').charAt(0)}
                     </div>
@@ -112,7 +112,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 gap-3">
                 {data.map((loc) => (
-                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
                       <MapPin className="w-5 h-5 text-amber-600" />
                     </div>
@@ -132,7 +132,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.map((classItem) => (
-                  <div key={classItem.id} className="flex items-start gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div key={classItem.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ backgroundColor: classItem.color || '#0F766E' }}>
                       <BookOpen className="w-5 h-5" />
                     </div>

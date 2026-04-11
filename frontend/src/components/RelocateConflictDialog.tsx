@@ -32,7 +32,7 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
     <Dialog open={data !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[480px] bg-white" data-testid="relocate-conflict-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
             Schedule Conflict Detected
           </DialogTitle>

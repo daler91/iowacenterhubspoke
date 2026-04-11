@@ -99,7 +99,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] bg-white" data-testid="custom-recurrence-dialog">
         <DialogHeader>
-          <DialogTitle style={{ fontFamily: 'Manrope, sans-serif' }}>Custom recurrence</DialogTitle>
+          <DialogTitle>Custom recurrence</DialogTitle>
           <DialogDescription>
             Build a more flexible repeat rule inspired by calendar event tools.
           </DialogDescription>
@@ -163,13 +163,13 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                 type="button"
                 data-testid="custom-repeat-end-never"
                 onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'never' }))}
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left ${draft.end_mode === 'never' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}
+                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left ${draft.end_mode === 'never' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}
               >
                 <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'never' ? 'border-4 border-indigo-600' : 'border-gray-300'}`} />
                 <span className="text-sm font-medium text-slate-700">Never</span>
               </button>
 
-              <div className={`rounded-xl border px-4 py-3 ${draft.end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
                 <button
                   type="button"
                   data-testid="custom-repeat-end-date"
@@ -190,7 +190,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                 )}
               </div>
 
-              <div className={`rounded-xl border px-4 py-3 ${draft.end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
                 <button
                   type="button"
                   data-testid="custom-repeat-end-after"

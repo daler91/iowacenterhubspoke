@@ -17,13 +17,24 @@ export function RecurrenceOptions({
     recurrence_end_date = '',
     recurrence_occurrences = '',
   } = form;
+  const endModeButtonClass = (mode: string) =>
+    `rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 ${
+      recurrence_end_mode === mode
+        ? 'border-hub/40 bg-hub-soft text-hub'
+        : 'border-gray-200 bg-white text-slate-500 hover:bg-gray-50'
+    }`;
+
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-slate-700">Repeat</Label>
+      <Label htmlFor="schedule-recurrence-select" className="text-sm font-medium text-slate-700">Repeat</Label>
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <Select value={recurrence} onValueChange={onRecurrenceChange}>
-            <SelectTrigger data-testid="schedule-recurrence-select" className="h-10 bg-gray-50/50 flex-1">
+            <SelectTrigger
+              id="schedule-recurrence-select"
+              data-testid="schedule-recurrence-select"
+              className="h-10 bg-gray-50/50 flex-1"
+            >
               <SelectValue placeholder="No repeat" />
             </SelectTrigger>
             <SelectContent>
@@ -49,31 +60,47 @@ export function RecurrenceOptions({
         </div>
 
         {recurrence !== 'none' && recurrence !== 'custom' && (
-          <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3 space-y-3" data-testid="schedule-repeat-settings">
+          // Outer container is presentational; the inner radiogroup owns
+          // the ARIA grouping so a wrapper role="group" would be redundant.
+          <div
+            className="rounded-lg border border-gray-100 bg-slate-50/70 p-3 space-y-3"
+            data-testid="schedule-repeat-settings"
+          >
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.18em] text-slate-400">Ends</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <p
+                id="schedule-end-mode-label"
+                className="text-xs uppercase tracking-[0.18em] text-slate-400"
+              >
+                Ends
+              </p>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="schedule-end-mode-label">
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={recurrence_end_mode === 'never'}
                   data-testid="repeat-end-never"
                   onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'never' }))}
-                  className={`rounded-lg border px-3 py-2 text-xs font-medium ${recurrence_end_mode === 'never' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                  className={endModeButtonClass('never')}
                 >
                   Never
                 </button>
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={recurrence_end_mode === 'on_date'}
                   data-testid="repeat-end-on-date"
                   onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'on_date' }))}
-                  className={`rounded-lg border px-3 py-2 text-xs font-medium ${recurrence_end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                  className={endModeButtonClass('on_date')}
                 >
                   On date
                 </button>
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={recurrence_end_mode === 'after_occurrences'}
                   data-testid="repeat-end-after-count"
                   onClick={() => setForm((prev) => ({ ...prev, recurrence_end_mode: 'after_occurrences' }))}
-                  className={`rounded-lg border px-3 py-2 text-xs font-medium ${recurrence_end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-slate-500'}`}
+                  className={endModeButtonClass('after_occurrences')}
                 >
                   After
                 </button>
@@ -81,19 +108,25 @@ export function RecurrenceOptions({
             </div>
 
             {recurrence_end_mode === 'on_date' && (
-              <Input
-                type="date"
-                data-testid="schedule-recurrence-end"
-                value={recurrence_end_date}
-                onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })}
-                className="h-10 bg-white"
-                placeholder="End date"
-              />
+              <div className="space-y-1">
+                <Label htmlFor="schedule-recurrence-end" className="sr-only">Recurrence end date</Label>
+                <Input
+                  id="schedule-recurrence-end"
+                  type="date"
+                  data-testid="schedule-recurrence-end"
+                  value={recurrence_end_date}
+                  onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })}
+                  className="h-10 bg-white"
+                  placeholder="End date"
+                />
+              </div>
             )}
 
             {recurrence_end_mode === 'after_occurrences' && (
               <div className="flex items-center gap-3">
+                <Label htmlFor="schedule-recurrence-occurrences" className="sr-only">Number of occurrences</Label>
                 <Input
+                  id="schedule-recurrence-occurrences"
                   type="number"
                   min="1"
                   data-testid="schedule-recurrence-occurrences"
@@ -115,8 +148,8 @@ export function RecurrenceOptions({
         )}
 
         {recurrence === 'custom' && (
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3" data-testid="schedule-custom-recurrence-summary">
-            <p className="text-xs uppercase tracking-[0.18em] text-indigo-400">Custom rule</p>
+          <div className="rounded-lg border border-hub/20 bg-hub-soft p-3" data-testid="schedule-custom-recurrence-summary">
+            <p className="text-xs uppercase tracking-[0.18em] text-hub">Custom rule</p>
             <p className="mt-1 text-sm font-medium text-slate-700">
               {formatCustomRecurrenceSummary(customRecurrence)}
             </p>

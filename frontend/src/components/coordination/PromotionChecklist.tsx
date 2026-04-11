@@ -105,7 +105,7 @@ export default function PromotionChecklist({ projectId }: Props) {
         </div>
         <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
-            className="h-full bg-green-500 rounded-full transition-all"
+            className="h-full bg-progress rounded-full transition-all"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -122,28 +122,34 @@ export default function PromotionChecklist({ projectId }: Props) {
                 <span className="flex-1 text-sm">{item.label}</span>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => handleToggle(item.id, 'internal')}
+                    aria-label={`Mark "${item.label}" internal side ${item.internal_done ? 'incomplete' : 'done'}`}
+                    aria-pressed={item.internal_done}
                     className={cn(
                       'w-6 h-6 rounded border-2 flex items-center justify-center text-xs transition-colors',
                       item.internal_done
-                        ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'border-blue-300 hover:border-blue-400',
+                        ? 'bg-ownership-internal border-ownership-internal text-white'
+                        : 'border-ownership-internal/40 hover:border-ownership-internal/70',
                     )}
                     title="Internal"
                   >
-                    {item.internal_done && <Check className="w-3 h-3" />}
+                    {item.internal_done && <Check className="w-3 h-3" aria-hidden="true" />}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleToggle(item.id, 'partner')}
+                    aria-label={`Mark "${item.label}" partner side ${item.partner_done ? 'incomplete' : 'done'}`}
+                    aria-pressed={item.partner_done}
                     className={cn(
                       'w-6 h-6 rounded border-2 flex items-center justify-center text-xs transition-colors',
                       item.partner_done
-                        ? 'bg-purple-500 border-purple-500 text-white'
-                        : 'border-purple-300 hover:border-purple-400',
+                        ? 'bg-ownership-partner border-ownership-partner text-white'
+                        : 'border-ownership-partner/40 hover:border-ownership-partner/70',
                     )}
                     title="Partner"
                   >
-                    {item.partner_done && <Check className="w-3 h-3" />}
+                    {item.partner_done && <Check className="w-3 h-3" aria-hidden="true" />}
                   </button>
                 </div>
               </div>
@@ -155,10 +161,10 @@ export default function PromotionChecklist({ projectId }: Props) {
       {/* Legend */}
       <div className="mt-2 flex gap-3 text-[10px] text-slate-400">
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-blue-100" /> Internal
+          <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> Internal
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-purple-100" /> Partner
+          <span className="w-2.5 h-2.5 rounded bg-ownership-partner-soft" aria-hidden="true" /> Partner
         </span>
       </div>
 

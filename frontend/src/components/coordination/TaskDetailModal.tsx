@@ -130,7 +130,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
               <div key={cmt.id} className="flex gap-2 mb-3">
                 <div className={cn(
                   'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
-                  cmt.sender_type === 'partner' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700',
+                  cmt.sender_type === 'partner'
+                    ? 'bg-ownership-partner-soft text-ownership-partner'
+                    : 'bg-ownership-internal-soft text-ownership-internal',
                 )}>
                   {(cmt.sender_name || '?').charAt(0).toUpperCase()}
                 </div>
@@ -299,9 +301,12 @@ export default function TaskDetailModal({
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="w-7 h-7 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          </div>
+          <output
+            className="flex items-center justify-center h-full"
+            aria-label="Loading task"
+          >
+            <span className="w-7 h-7 border-2 border-hub border-t-transparent rounded-full animate-spin" />
+          </output>
         ) : (
           <div className="flex h-full">
             {/* ── Left: Task Info ──────────────────────────────── */}
@@ -320,10 +325,9 @@ export default function TaskDetailModal({
                     if (title !== task.title) saveField('title', title);
                   }}
                   className={cn(
-                    'text-xl font-bold border-0 p-0 h-auto shadow-none focus-visible:ring-0',
+                    'text-xl font-bold font-display border-0 p-0 h-auto shadow-none focus-visible:ring-0',
                     task.completed && 'line-through opacity-50',
                   )}
-                  style={{ fontFamily: 'Manrope, sans-serif' }}
                 />
               </div>
 
@@ -416,7 +420,7 @@ export default function TaskDetailModal({
                 {/* Description */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-400" />
+                    <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Description</span>
                   </div>
                   <textarea

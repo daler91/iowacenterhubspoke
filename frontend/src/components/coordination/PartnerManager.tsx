@@ -6,6 +6,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { PageShell } from '../ui/page-shell';
 import { Plus, Search } from 'lucide-react';
 import { usePartnerOrgs } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
@@ -45,28 +46,24 @@ export default function PartnerManager() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Partner Organizations
-        </h1>
+    <PageShell
+      testId="partner-manager"
+      breadcrumbs={[{ label: 'Coordination' }, { label: 'Partners' }]}
+      title="Partner Organizations"
+      subtitle="Host organizations and contacts across Iowa communities"
+      status={isLoading ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
+      actions={
         <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-          <Plus className="w-4 h-4 mr-1" /> Add Partner
+          <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> Add Partner
         </Button>
-      </div>
-
+      }
+    >
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+        <label htmlFor="partner-search" className="sr-only">Search partners</label>
         <Input
+          id="partner-search"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search partners..."
@@ -99,7 +96,8 @@ export default function PartnerManager() {
         )}
       </div>
 
-      {/* Create Dialog */}
+      {/* Create Dialog — kept inside PageShell body, but it only mounts when
+          isLoading is false so the dialog can't flash during skeleton. */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -140,6 +138,6 @@ export default function PartnerManager() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

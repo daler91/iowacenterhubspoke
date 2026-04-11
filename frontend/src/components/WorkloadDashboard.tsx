@@ -109,7 +109,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">
       <div className="flex items-end justify-between gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-slate-800 font-display">
           Workload Overview
         </h2>
         <div className="min-w-[240px] space-y-2">
@@ -150,55 +150,55 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center">
               <BookOpen className="w-5 h-5 text-indigo-600" />
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Total Classes</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }} data-testid="workload-total-classes">
+          <p className="text-3xl font-bold text-slate-800 font-display" data-testid="workload-total-classes">
             {totals.classes}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 text-teal-600" />
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Class Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.classHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center">
               <Car className="w-5 h-5 text-amber-600" />
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Drive Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.driveHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
             <span className="text-xs text-slate-400 uppercase font-medium tracking-wider">Completed</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-3xl font-bold text-slate-800 font-display">
             {totals.completed}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-100 p-6">
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Hours by Employee
           </h3>
           {chartData.length > 0 ? (
@@ -223,8 +223,8 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <div className="bg-white rounded-lg border border-gray-100 p-6">
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Class Distribution
           </h3>
           {pieData.length > 0 ? (
@@ -259,7 +259,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {scopedWorkload.map((employeeWorkload) => (
-          <div key={employeeWorkload.employee_id} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
+          <div key={employeeWorkload.employee_id} className="bg-white rounded-lg border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
             <div className="flex items-center gap-3 mb-4">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"

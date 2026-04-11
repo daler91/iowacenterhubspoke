@@ -33,10 +33,10 @@ export default function MapView() {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="map-view-fallback">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Map View</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
           <p className="text-sm text-slate-500 mt-1">Google Maps API key not configured</p>
         </div>
-        <div className="bg-gray-50 rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-12 text-center">
           <MapPin className="w-16 h-16 mx-auto text-gray-300 mb-4" />
           <p className="text-slate-500">Add a Google Maps API key to enable the map view</p>
         </div>
@@ -47,11 +47,11 @@ export default function MapView() {
   return (
     <div className="space-y-6 animate-slide-in" data-testid="map-view">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Map View</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
         <p className="text-sm text-slate-500 mt-1">Hub and Spoke locations across Iowa</p>
       </div>
 
-      <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ height: '500px' }}>
+      <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm" style={{ height: '500px' }}>
         <APIProvider apiKey={MAPS_KEY}>
           <Map
             style={{ width: '100%', height: '100%' }}
@@ -124,7 +124,7 @@ export default function MapView() {
 
       {/* Location legend */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
             <MapPin className="w-4 h-4 text-white" />
           </div>
@@ -137,7 +137,7 @@ export default function MapView() {
           <button
             key={loc.id}
             type="button"
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow text-left"
+            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow text-left"
             onClick={() => navigate(`/locations/${loc.id}`)}
           >
             <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">

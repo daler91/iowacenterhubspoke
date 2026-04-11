@@ -6,25 +6,26 @@ import { ChevronsUpDown, X } from 'lucide-react';
 import type { Employee } from '../../lib/types';
 
 interface EmployeeMultiSelectProps {
+  readonly id?: string;
   readonly employees: Employee[];
   readonly selectedIds: string[];
   readonly onSelectionChange: (ids: string[]) => void;
 }
 
-export function EmployeeMultiSelect({ employees, selectedIds, onSelectionChange }: Readonly<EmployeeMultiSelectProps>) {
+export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionChange }: Readonly<EmployeeMultiSelectProps>) {
   const [open, setOpen] = useState(false);
 
-  const toggle = (id: string) => {
+  const toggle = (innerId: string) => {
     onSelectionChange(
-      selectedIds.includes(id)
-        ? selectedIds.filter(x => x !== id)
-        : [...selectedIds, id]
+      selectedIds.includes(innerId)
+        ? selectedIds.filter(x => x !== innerId)
+        : [...selectedIds, innerId]
     );
   };
 
-  const removeEmployee = (id: string, e: React.MouseEvent) => {
+  const removeEmployee = (innerId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    onSelectionChange(selectedIds.filter(x => x !== id));
+    onSelectionChange(selectedIds.filter(x => x !== innerId));
   };
 
   const selectedEmployees = (employees || []).filter(e => selectedIds.includes(e.id));
@@ -34,8 +35,11 @@ export function EmployeeMultiSelect({ employees, selectedIds, onSelectionChange 
       <PopoverTrigger asChild>
         <button
           type="button"
+          id={id}
           data-testid="schedule-employee-select"
-          className="flex min-h-[40px] w-full items-center justify-between rounded-md border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selectedEmployees.length === 0 && (

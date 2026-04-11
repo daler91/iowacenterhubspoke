@@ -8,6 +8,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -159,6 +160,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
         type="button"
         className={cn(
           "schedule-block class-block appearance-none border-0 p-0 text-left",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1",
           (() => {
             if (selectionMode) return "cursor-pointer";
             if (canEdit) return "cursor-grab";
@@ -298,7 +300,8 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
   const [dropIndicatorMinutes, setDropIndicatorMinutes] = useState(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
   );
 
   const handleDragStart = useCallback((event) => {
@@ -356,11 +359,11 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-gray-50/50">
           <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
-          <p className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p className="text-2xl font-bold text-slate-800 font-display">
             {format(currentDate, 'MMMM d, yyyy')}
           </p>
           {daySchedules.length > 0 && (

@@ -88,7 +88,7 @@ export default function WebhookManager() {
   return (
     <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           Webhooks
         </h1>
         <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
