@@ -29,11 +29,11 @@ interface Funnel {
 }
 
 const STATUSES = [
-  { value: 'attended', label: 'Attended', color: 'bg-blue-100 text-blue-700' },
-  { value: 'contacted', label: 'Contacted', color: 'bg-amber-100 text-amber-700' },
-  { value: 'consultation', label: 'Consultation', color: 'bg-purple-100 text-purple-700' },
-  { value: 'converted', label: 'Converted', color: 'bg-green-100 text-green-700' },
-  { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-600' },
+  { value: 'attended', label: 'Attended', color: 'bg-info-soft text-info' },
+  { value: 'contacted', label: 'Contacted', color: 'bg-warn-soft text-warn' },
+  { value: 'consultation', label: 'Consultation', color: 'bg-ownership-partner-soft text-ownership-partner' },
+  { value: 'converted', label: 'Converted', color: 'bg-spoke-soft text-spoke' },
+  { value: 'lost', label: 'Lost', color: 'bg-danger-soft text-danger' },
 ];
 
 interface Props {

@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { PageShell } from './ui/page-shell';
 import { classesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -95,26 +96,28 @@ export default function ClassManager() {
   }
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="class-manager">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Classes</h2>
-          <p className="text-sm text-slate-500 mt-1" data-testid="class-manager-subtitle">
-            Track class series, colors, and on-the-fly scheduling options.
-          </p>
-        </div>
-        {isAdmin && (
+    <PageShell
+      testId="class-manager"
+      breadcrumbs={[{ label: 'Manage' }, { label: 'Classes' }]}
+      title="Classes"
+      subtitle={
+        <span data-testid="class-manager-subtitle">
+          Track class series, colors, and on-the-fly scheduling options.
+        </span>
+      }
+      actions={
+        isAdmin ? (
           <Button
             data-testid="add-class-button"
             onClick={openNew}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Class
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       <div className="grid gap-3">
         {(classes || []).map((classItem) => (
           <div
@@ -287,7 +290,7 @@ export default function ClassManager() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

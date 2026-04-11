@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { PageShell } from './ui/page-shell';
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
@@ -89,25 +90,24 @@ export default function EmployeeManager() {
   else if (editing) saveLabel = 'Update Employee';
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="employee-manager">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Employees</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage team members and their scheduling colors</p>
-        </div>
-        {isAdmin && (
+    <PageShell
+      testId="employee-manager"
+      breadcrumbs={[{ label: 'Manage' }, { label: 'Employees' }]}
+      title="Employees"
+      subtitle="Manage team members and their scheduling colors"
+      actions={
+        isAdmin ? (
           <Button
             data-testid="add-employee-btn"
             onClick={openNew}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Employee
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {/* Employee list */}
       <div className="grid gap-3">
         {(employees || []).map(emp => (
@@ -146,8 +146,8 @@ export default function EmployeeManager() {
                   )}
                   {emp.outlook_calendar_connected && (
                     <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-blue-500" />
-                      <span className="text-xs text-blue-600">Outlook Calendar</span>
+                      <Mail className="w-3 h-3 text-info" aria-hidden="true" />
+                      <span className="text-xs text-info">Outlook Calendar</span>
                     </div>
                   )}
                 </div>
@@ -270,7 +270,7 @@ export default function EmployeeManager() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

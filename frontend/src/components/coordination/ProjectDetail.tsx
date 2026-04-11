@@ -300,9 +300,9 @@ function AddTaskInline({
         <div className="flex gap-0.5">
           {(['internal', 'partner', 'both'] as const).map(o => {
             const ACTIVE_STYLES: Record<string, string> = {
-              internal: 'bg-blue-100 border-blue-300 text-blue-700',
-              partner: 'bg-purple-100 border-purple-300 text-purple-700',
-              both: 'bg-orange-100 border-orange-300 text-orange-700',
+              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal',
+              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner',
+              both: 'bg-warn-soft border-warn/40 text-warn',
             };
             const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-slate-200 text-slate-400 hover:border-slate-300';
             return (
@@ -540,13 +540,13 @@ export default function ProjectDetail() {
       <div className="mt-4 flex items-center gap-4 text-xs text-slate-400 flex-wrap">
         <span className="font-medium text-slate-500 mr-1">Owner:</span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-blue-100" /> You (Internal)
+          <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> You (Internal)
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-purple-100" /> Partner
+          <span className="w-2.5 h-2.5 rounded bg-ownership-partner-soft" aria-hidden="true" /> Partner
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-orange-100" /> Both
+          <span className="w-2.5 h-2.5 rounded bg-warn-soft" aria-hidden="true" /> Both
         </span>
         <span className="mx-2 text-slate-200">|</span>
         <span className="font-medium text-slate-500 mr-1">Status:</span>

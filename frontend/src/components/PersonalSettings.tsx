@@ -214,11 +214,11 @@ export default function PersonalSettings() {
         {outlookEnabled && (
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
             <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-blue-500" />
+              <Mail className="w-5 h-5 text-info" aria-hidden="true" />
               <div>
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Outlook Calendar</p>
                 {employee.outlook_calendar_connected ? (
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                  <p className="text-xs text-info">
                     Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
                   </p>
                 ) : (
@@ -231,16 +231,16 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleOutlookDisconnect}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="text-danger hover:text-danger hover:bg-danger-soft"
               >
-                <Unlink className="w-4 h-4 mr-2" />
+                <Unlink className="w-4 h-4 mr-2" aria-hidden="true" />
                 Disconnect
               </Button>
             ) : (
               <Button
                 size="sm"
                 onClick={handleOutlookConnect}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-info hover:bg-info/90 text-white"
               >
                 Connect
               </Button>

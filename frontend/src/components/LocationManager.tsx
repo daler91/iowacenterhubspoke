@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { PageShell } from './ui/page-shell';
 import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
@@ -119,25 +120,24 @@ export default function LocationManager() {
   }
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="location-manager">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>Locations</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage spoke locations and drive times from Hub</p>
-        </div>
-        {isAdmin && (
+    <PageShell
+      testId="location-manager"
+      breadcrumbs={[{ label: 'Manage' }, { label: 'Locations' }]}
+      title="Locations"
+      subtitle="Manage spoke locations and drive times from Hub"
+      actions={
+        isAdmin ? (
           <Button
             data-testid="add-location-btn"
             onClick={openNew}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Location
           </Button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {/* Hub Info */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -395,7 +395,7 @@ export default function LocationManager() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

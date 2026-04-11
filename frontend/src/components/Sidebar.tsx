@@ -64,7 +64,10 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
     return (
       <button
         key={item.id}
+        type="button"
         data-testid={`nav-${item.id}`}
+        aria-label={collapsed ? item.label : undefined}
+        aria-current={isActive ? 'page' : undefined}
         title={collapsed ? item.tooltip || item.label : item.tooltip}
         onClick={() => {
           navigate(item.path);
@@ -77,7 +80,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
           collapsed && 'justify-center px-0',
         )}
       >
-        <Icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400')} />
+        <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400')} />
         {!collapsed && <span>{item.label}</span>}
       </button>
     );
@@ -161,7 +164,10 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
           </div>
         )}
         <button
+          type="button"
           data-testid="settings-btn"
+          aria-label={collapsed ? 'Settings' : undefined}
+          aria-current={location.pathname === '/settings' ? 'page' : undefined}
           onClick={() => navigate('/settings')}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
@@ -171,11 +177,14 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
             collapsed && "justify-center"
           )}
         >
-          <Settings className={cn("w-5 h-5 shrink-0", location.pathname === '/settings' ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400")} />
+          <Settings aria-hidden="true" className={cn("w-5 h-5 shrink-0", location.pathname === '/settings' ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400")} />
           {!collapsed && <span>Settings</span>}
         </button>
         <button
+          type="button"
           data-testid="theme-toggle"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-pressed={theme === 'dark'}
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all",
@@ -183,31 +192,37 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
           )}
         >
           {theme === 'dark'
-            ? <Sun className="w-5 h-5 shrink-0" />
-            : <Moon className="w-5 h-5 shrink-0" />
+            ? <Sun aria-hidden="true" className="w-5 h-5 shrink-0" />
+            : <Moon aria-hidden="true" className="w-5 h-5 shrink-0" />
           }
           {!collapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
         <button
+          type="button"
           data-testid="logout-btn"
+          aria-label={collapsed ? 'Sign out' : undefined}
           onClick={logout}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all",
             collapsed && "justify-center"
           )}
         >
-          <LogOut className="w-5 h-5 shrink-0" />
+          <LogOut aria-hidden="true" className="w-5 h-5 shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
 
       {/* Collapse toggle */}
       <button
+        type="button"
         data-testid="sidebar-toggle"
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
+        aria-controls="app-sidebar"
         onClick={onToggle}
         className="absolute top-1/2 -right-3 w-6 h-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all z-40"
       >
-        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+        {collapsed ? <ChevronRight aria-hidden="true" className="w-3 h-3" /> : <ChevronLeft aria-hidden="true" className="w-3 h-3" />}
       </button>
     </div>
   );

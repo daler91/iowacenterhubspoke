@@ -8,7 +8,6 @@ import Sidebar from '../components/Sidebar';
 import ScheduleForm from '../components/ScheduleForm';
 import StatModal from '../components/StatModal';
 import NotificationsPanel from '../components/NotificationsPanel';
-import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function DashboardPage() {
   const location = useLocation();
@@ -66,10 +65,13 @@ export default function DashboardPage() {
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
-      <div className={cn(
-        "fixed top-0 left-0 h-full md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0",
-        mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      <div
+        id="app-sidebar"
+        className={cn(
+          "fixed top-0 left-0 h-full md:relative z-50 md:z-auto transition-transform duration-300 md:translate-x-0",
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -80,11 +82,15 @@ export default function DashboardPage() {
         {/* Top bar with hamburger + notifications */}
         <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0" data-testid="top-bar">
           <button
+            type="button"
+            aria-label={mobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileSidebarOpen}
+            aria-controls="app-sidebar"
             className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             data-testid="mobile-menu-btn"
           >
-            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path className="text-slate-600 dark:text-slate-300" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
@@ -93,15 +99,16 @@ export default function DashboardPage() {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <ErrorBoundary>
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            }>
-              <Outlet context={contextValue} />
-            </Suspense>
-          </ErrorBoundary>
+          {/* Per-route ErrorBoundary is wired in App.tsx via RouteBoundary so
+              an error on one page stays scoped to that page and clears on
+              navigation. */}
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-64">
+              <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <Outlet context={contextValue} />
+          </Suspense>
         </main>
       </div>
 
