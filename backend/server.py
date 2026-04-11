@@ -608,7 +608,9 @@ elif (_static_dir / "assets").exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        file_path = _static_dir / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
-        return FileResponse(str(_static_dir / "index.html"))
+        static_root = _static_dir.resolve()
+        static_app = StaticFiles(directory=str(static_root))
+        safe_path, stat_result = static_app.lookup_path(full_path)
+        if stat_result is not None and os.path.isfile(safe_path):
+            return FileResponse(safe_path)
+        return FileResponse(str(static_root / "index.html"))
