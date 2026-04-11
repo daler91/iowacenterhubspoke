@@ -35,7 +35,7 @@ from routers import (  # noqa: E402
     auth, locations, employees, classes, schedules, reports,
     system, analytics, users, google_oauth, outlook_oauth,
     partner_orgs, projects, project_tasks, project_docs,
-    project_messages, partner_portal,
+    project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
@@ -446,7 +446,7 @@ api_router.include_router(projects.router)
 api_router.include_router(project_tasks.router)
 api_router.include_router(project_docs.router)
 api_router.include_router(project_messages.router)
-api_router.include_router(partner_portal.router)
+api_router.include_router(portal.router)
 api_router.include_router(projects.templates_router)
 api_router.include_router(exports.router)
 api_router.include_router(event_outcomes.router)
