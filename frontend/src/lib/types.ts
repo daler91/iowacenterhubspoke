@@ -1,5 +1,74 @@
 import type { Role, ScheduleStatus } from './constants';
 
+// ---------------------------------------------------------------------------
+// API request / response shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared query-string base for every list endpoint. All routers now use the
+ * centralized ``core.pagination.PaginationParams`` dependency, so ``skip`` is
+ * ``>= 0`` and ``limit`` is clamped to 1..200 server-side.
+ */
+export interface ApiListParams {
+  skip?: number;
+  limit?: number;
+  [key: string]: unknown;
+}
+
+export interface LocationCreate {
+  city_name: string;
+  drive_time_minutes: number;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+export type LocationUpdate = Partial<LocationCreate> & { deleted_at?: string | null };
+
+export interface EmployeeCreate {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  color?: string | null;
+}
+export type EmployeeUpdate = Partial<EmployeeCreate> & { deleted_at?: string | null };
+
+export interface ClassCreate {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+}
+export type ClassUpdate = Partial<ClassCreate> & { deleted_at?: string | null };
+
+/**
+ * Wire format for creating or editing a schedule. Mirrors
+ * ``ScheduleCreate`` / ``ScheduleUpdate`` in ``backend/models/schemas.py``
+ * after the Phase 2 removal of ``travel_override_minutes``.
+ */
+export interface ScheduleInput {
+  employee_ids: string[];
+  location_id: string;
+  class_id?: string | null;
+  date: string;
+  start_time: string;
+  end_time: string;
+  notes?: string | null;
+  drive_to_override_minutes?: number | null;
+  drive_from_override_minutes?: number | null;
+  recurrence?: string | null;
+  recurrence_end_date?: string | null;
+  recurrence_end_mode?: string | null;
+  recurrence_occurrences?: number | null;
+  custom_recurrence?: Record<string, unknown> | null;
+  force?: boolean;
+  force_outlook?: boolean;
+  force_google?: boolean;
+}
+
+export interface UserInvitePayload {
+  email: string;
+  name?: string | null;
+  role: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -88,6 +157,32 @@ export interface ActivityLog {
   entity_id: string;
   user_name: string;
   timestamp: string;
+}
+
+/**
+ * Superset outlet context assembled in ``pages/DashboardPage.tsx`` and
+ * handed to every route component via ``<Outlet context={...}/>``. Page
+ * components that need a strict subset can narrow to
+ * ``CalendarOutletContext`` or ``AnalyticsOutletContext`` below.
+ */
+export interface DashboardOutletContext {
+  locations: Location[];
+  employees: Employee[];
+  classes: ClassType[];
+  schedules: Schedule[];
+  stats: DashboardStats | null;
+  activities: ActivityLog[];
+  workloadData: Array<Record<string, unknown>>;
+  fetchLocations: () => void;
+  fetchEmployees: () => void;
+  fetchSchedules: (optimisticData?: unknown, options?: { revalidate?: boolean }) => void;
+  fetchActivities: () => void;
+  fetchWorkload: () => void;
+  handleClassRefresh: () => void;
+  handleScheduleSaved: () => void;
+  fetchErrors?: Record<string, string>;
+  onEditSchedule: (schedule: Schedule) => void;
+  onStatClick?: (stat: string, title?: string) => void;
 }
 
 export interface CalendarOutletContext {

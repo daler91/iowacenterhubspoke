@@ -1,4 +1,14 @@
 import axios from 'axios';
+import type {
+  ApiListParams,
+  ClassCreate,
+  ClassUpdate,
+  EmployeeCreate,
+  EmployeeUpdate,
+  LocationCreate,
+  LocationUpdate,
+  UserInvitePayload,
+} from './types';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
 const API_BASE = `${BACKEND_URL}/api/v1`;
@@ -93,9 +103,9 @@ export const authAPI = {
 
 // Locations
 export const locationsAPI = {
-  getAll: (params?: Record<string, unknown>) => api.get('/locations', { params }),
-  create: (data: Record<string, unknown>) => api.post('/locations', data),
-  update: (id: string, data: Record<string, unknown>) => api.put(`/locations/${id}`, data),
+  getAll: (params?: ApiListParams) => api.get('/locations', { params }),
+  create: (data: LocationCreate) => api.post('/locations', data),
+  update: (id: string, data: LocationUpdate) => api.put(`/locations/${id}`, data),
   delete: (id: string) => api.delete(`/locations/${id}`),
   getDriveTime: (fromId: string, toId: string) =>
     api.get('/locations/drive-time', { params: { from_id: fromId, to_id: toId } }),
@@ -105,9 +115,9 @@ export const locationsAPI = {
 
 // Employees
 export const employeesAPI = {
-  getAll: (params?: Record<string, unknown>) => api.get('/employees', { params }),
-  create: (data: Record<string, unknown>) => api.post('/employees', data),
-  update: (id: string, data: Record<string, unknown>) => api.put(`/employees/${id}`, data),
+  getAll: (params?: ApiListParams) => api.get('/employees', { params }),
+  create: (data: EmployeeCreate) => api.post('/employees', data),
+  update: (id: string, data: EmployeeUpdate) => api.put(`/employees/${id}`, data),
   delete: (id: string) => api.delete(`/employees/${id}`),
   googleAuthorize: (id: string) => api.get(`/google/authorize/${id}`),
   googleDisconnect: (id: string) => api.delete(`/google/${id}/disconnect`),
@@ -117,15 +127,22 @@ export const employeesAPI = {
 
 // Classes
 export const classesAPI = {
-  getAll: (params?: Record<string, unknown>) => api.get('/classes', { params }),
-  create: (data: Record<string, unknown>) => api.post('/classes', data),
-  update: (id: string, data: Record<string, unknown>) => api.put(`/classes/${id}`, data),
+  getAll: (params?: ApiListParams) => api.get('/classes', { params }),
+  create: (data: ClassCreate) => api.post('/classes', data),
+  update: (id: string, data: ClassUpdate) => api.put(`/classes/${id}`, data),
   delete: (id: string) => api.delete(`/classes/${id}`),
 };
 
 // Schedules
+//
+// Schedule payloads are dynamic (the form merges ``buildPayload`` output
+// with recurrence / override / force flags), so the public ``create`` /
+// ``update`` / ``relocate`` / ``checkConflicts`` / ``updateSeries`` take a
+// loose ``ScheduleRequestPayload`` object. The canonical shape lives in
+// ``ScheduleInput`` in ``types.ts`` — see that type for the field list.
+export type ScheduleRequestPayload = Record<string, unknown>;
 export const schedulesAPI = {
-  exportCsv: (params?: Record<string, unknown>) =>
+  exportCsv: (params?: ApiListParams) =>
     api.get('/schedules/export', { params, responseType: 'blob' }),
   importPreview: (file: File) => {
     const formData = new FormData();
@@ -136,13 +153,13 @@ export const schedulesAPI = {
   },
   importCommit: (data: unknown) => api.post('/schedules/import', data),
 
-  getAll: (params?: Record<string, unknown>) => api.get('/schedules/', { params }),
-  create: (data: Record<string, unknown>) => api.post('/schedules/', data),
-  update: (id: string, data: Record<string, unknown>) => api.put(`/schedules/${id}`, data),
+  getAll: (params?: ApiListParams) => api.get('/schedules/', { params }),
+  create: (data: ScheduleRequestPayload) => api.post('/schedules/', data),
+  update: (id: string, data: ScheduleRequestPayload) => api.put(`/schedules/${id}`, data),
   delete: (id: string) => api.delete(`/schedules/${id}`),
   updateStatus: (id: string, status: string) => api.put(`/schedules/${id}/status`, { status }),
-  relocate: (id: string, data: Record<string, unknown>) => api.put(`/schedules/${id}/relocate`, data),
-  checkConflicts: (data: Record<string, unknown>) => api.post('/schedules/check-conflicts', data),
+  relocate: (id: string, data: ScheduleRequestPayload) => api.put(`/schedules/${id}/relocate`, data),
+  checkConflicts: (data: ScheduleRequestPayload) => api.post('/schedules/check-conflicts', data),
   bulkDelete: (ids: string[]) => api.post('/schedules/bulk-delete', { ids }),
   bulkUpdateStatus: (ids: string[], status: string) => api.put('/schedules/bulk-status', { ids, status }),
   bulkReassign: (ids: string[], employee_ids: string[], force?: boolean) =>
@@ -151,7 +168,7 @@ export const schedulesAPI = {
     api.put('/schedules/bulk-location', { ids, location_id, force: force ?? false }),
   bulkUpdateClass: (ids: string[], class_id: string) => api.put('/schedules/bulk-class', { ids, class_id }),
   deleteSeries: (seriesId: string) => api.delete(`/schedules/series/${seriesId}`),
-  updateSeries: (seriesId: string, data: Record<string, unknown>) =>
+  updateSeries: (seriesId: string, data: ScheduleRequestPayload) =>
     api.put(`/schedules/series/${seriesId}`, data),
 };
 
@@ -181,15 +198,24 @@ export const workloadAPI = {
 };
 
 // Reports
+export interface WeeklySummaryParams extends ApiListParams {
+  week_start?: string;
+  week_end?: string;
+}
 export const reportsAPI = {
-  weeklySummary: (params?: Record<string, unknown>) => api.get('/reports/weekly-summary', { params }),
+  weeklySummary: (params?: WeeklySummaryParams) => api.get('/reports/weekly-summary', { params }),
 };
 
 // Analytics
+export interface AnalyticsParams extends ApiListParams {
+  period?: string;
+  start_date?: string;
+  end_date?: string;
+}
 export const analyticsAPI = {
-  trends: (params?: Record<string, unknown>) => api.get('/analytics/trends', { params }),
-  forecast: (params?: Record<string, unknown>) => api.get('/analytics/forecast', { params }),
-  driveOptimization: (params?: Record<string, unknown>) => api.get('/analytics/drive-optimization', { params }),
+  trends: (params?: AnalyticsParams) => api.get('/analytics/trends', { params }),
+  forecast: (params?: AnalyticsParams) => api.get('/analytics/forecast', { params }),
+  driveOptimization: (params?: AnalyticsParams) => api.get('/analytics/drive-optimization', { params }),
 };
 
 // Users (admin)
@@ -199,7 +225,7 @@ export const usersAPI = {
   reject: (userId: string) => api.put(`/users/${userId}/reject`),
   updateRole: (userId: string, role: string) => api.put(`/users/${userId}/role`, { role }),
   delete: (userId: string) => api.delete(`/users/${userId}`),
-  invite: (data: Record<string, unknown>) => api.post('/users/invite', data),
+  invite: (data: UserInvitePayload) => api.post('/users/invite', data),
   getInvitations: () => api.get('/users/invitations'),
   revokeInvitation: (id: string) => api.delete(`/users/invitations/${id}`),
 };
