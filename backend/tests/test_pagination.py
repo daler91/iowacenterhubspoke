@@ -33,14 +33,14 @@ for _poisoned in (
     sys.modules.pop(_poisoned, None)
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.pagination import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
+    Paginated,
     PaginationParams,
-    pagination_params,
     paginated_response,
 )
 
@@ -50,7 +50,7 @@ def client() -> TestClient:
     app = FastAPI()
 
     @app.get("/items")
-    async def list_items(pagination: PaginationParams = Depends(pagination_params)):
+    async def list_items(pagination: Paginated):
         return paginated_response(
             [{"id": i} for i in range(pagination.limit)],
             total=1000,

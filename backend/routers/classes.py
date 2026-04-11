@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from typing import Optional
 from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
-from core.pagination import PaginationParams, pagination_params
+from core.pagination import Paginated
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from core.logger import get_logger
@@ -59,10 +59,7 @@ async def sync_class_snapshot_background(class_id: str):
 
 
 @router.get("", summary="List all class types")
-async def get_classes(
-    user: CurrentUser,
-    pagination: PaginationParams = Depends(pagination_params),
-):
+async def get_classes(user: CurrentUser, pagination: Paginated):
     """Return paginated list of active class types, sorted by name."""
     return await classes_repo.paginated_response(
         {}, pagination, sort=[("name", 1)],

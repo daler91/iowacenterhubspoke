@@ -151,6 +151,16 @@ async def _seed_default_locations():
         logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
 
+async def _safe_aclose(redis_client) -> None:
+    """Best-effort close of a Redis client. Never raises."""
+    if redis_client is None:
+        return
+    try:
+        await redis_client.aclose()
+    except Exception:  # pragma: no cover - best-effort cleanup
+        pass
+
+
 async def _ensure_redis_client(app: FastAPI):
     """Lazily (re)create ``app.state.redis`` if it is missing.
 
@@ -158,14 +168,23 @@ async def _ensure_redis_client(app: FastAPI):
     when the app booted, ``app.state.redis`` is ``None``; this function
     attempts to build a fresh client on the next probe so a transient
     outage at deploy time heals itself without a container restart.
-    Closes any partial client on failure so a broken state doesn't linger.
+
+    Leak note: ``redis.asyncio.from_url`` allocates a connection pool
+    synchronously — if the subsequent ``ping()`` fails we MUST close that
+    freshly-created client or every failing probe accumulates a leaked
+    pool (file descriptors + memory) until the process degrades. This is
+    the Codex P2 fix: track ``client_`` outside the try so the except
+    branch can explicitly ``aclose()`` it.
     """
     if getattr(app.state, "redis", None) is not None:
         return app.state.redis
 
+    # Import lazily to keep the redis.asyncio surface off the hot import path.
+    import redis.asyncio as _async_redis
+    redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
+
+    client_ = None
     try:
-        import redis.asyncio as _async_redis
-        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
         client_ = _async_redis.from_url(
             redis_url,
             socket_connect_timeout=2,
@@ -174,14 +193,11 @@ async def _ensure_redis_client(app: FastAPI):
         await client_.ping()
     except Exception as e:
         logger.warning("Redis unavailable; health check will report degraded: %s", e)
-        # Drop any partial client so the next probe retries from scratch
-        # rather than reusing a half-initialized connection.
-        existing = getattr(app.state, "redis", None)
-        if existing is not None:
-            try:
-                await existing.aclose()
-            except Exception:  # pragma: no cover - best-effort cleanup
-                pass
+        # Close the just-created client whose pool would otherwise leak.
+        await _safe_aclose(client_)
+        # Drop any stale cached client as well (should normally be None
+        # by the time we reach this branch).
+        await _safe_aclose(getattr(app.state, "redis", None))
         app.state.redis = None
         return None
 
@@ -206,10 +222,7 @@ async def _probe_redis(app: FastAPI) -> bool:
         except Exception:
             # Cached client is stale — drop it and fall through to the
             # reconnect path below.
-            try:
-                await client_.aclose()
-            except Exception:  # pragma: no cover - best-effort cleanup
-                pass
+            await _safe_aclose(client_)
             app.state.redis = None
 
     fresh = await _ensure_redis_client(app)
@@ -267,11 +280,7 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
-    if getattr(app.state, "redis", None) is not None:
-        try:
-            await app.state.redis.aclose()
-        except Exception:  # pragma: no cover - best-effort shutdown
-            pass
+    await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
 
 

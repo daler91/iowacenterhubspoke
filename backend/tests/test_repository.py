@@ -34,20 +34,35 @@ from core.repository import SoftDeleteRepository  # noqa: E402
 
 
 # ---------- Fake Mongo -----------------------------------------------------
+#
+# ``_matches`` used to be a single function with nested for + isinstance +
+# per-operator branches, which SonarPython scored at cognitive complexity 20
+# (vs the 15 cap). Flattened here into one dispatcher plus per-operator
+# helpers — each helper does exactly one thing so the branching budget
+# collapses.
+
+def _operator_matches(op: str, actual: Any, arg: Any) -> bool:
+    if op == "$ne":
+        return actual != arg
+    if op == "$in":
+        return actual in arg
+    # Unknown operators: treat as "not matched" so a typo in a test's query
+    # surfaces as a failing assertion rather than a silent pass.
+    return False
+
+
+def _dict_matches(actual: Any, ops: Dict[str, Any]) -> bool:
+    return all(_operator_matches(op, actual, arg) for op, arg in ops.items())
+
+
+def _value_matches(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, dict):
+        return _dict_matches(actual, expected)
+    return actual == expected
+
 
 def _matches(doc: Dict[str, Any], query: Dict[str, Any]) -> bool:
-    for key, value in query.items():
-        actual = doc.get(key)
-        if isinstance(value, dict):
-            for op, arg in value.items():
-                if op == "$ne" and actual == arg:
-                    return False
-                if op == "$in" and actual not in arg:
-                    return False
-        else:
-            if actual != value:
-                return False
-    return True
+    return all(_value_matches(doc.get(k), v) for k, v in query.items())
 
 
 @dataclass
@@ -75,7 +90,7 @@ class _FakeCursor:
         self._limit = n
         return self
 
-    async def to_list(self, _length):
+    async def to_list(self, _length):  # NOSONAR — mirrors Motor cursor API
         results = list(self._docs)
         if self._sort:
             for field, direction in reversed(self._sort):
@@ -94,7 +109,7 @@ class _FakeCollection:
     def __init__(self, seed: Optional[List[Dict[str, Any]]] = None):
         self.docs: List[Dict[str, Any]] = list(seed or [])
 
-    async def find_one(self, query=None, projection=None):
+    async def find_one(self, query=None, projection=None):  # NOSONAR — mirrors Motor collection API
         query = query or {}
         for doc in self.docs:
             if _matches(doc, query):
@@ -110,11 +125,11 @@ class _FakeCollection:
         ]
         return _FakeCursor(matched)
 
-    async def count_documents(self, query=None):
+    async def count_documents(self, query=None):  # NOSONAR — mirrors Motor collection API
         query = query or {}
         return sum(1 for doc in self.docs if _matches(doc, query))
 
-    async def update_one(self, filter_query, update):
+    async def update_one(self, filter_query, update):  # NOSONAR — mirrors Motor collection API
         for doc in self.docs:
             if _matches(doc, filter_query):
                 set_ops = update.get("$set", {})

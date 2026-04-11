@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import MessageCreate
 from core.auth import CurrentUser
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -36,8 +36,8 @@ async def list_channels(project_id: str, user: CurrentUser):
 async def list_messages(
     project_id: str,
     user: CurrentUser,
+    pagination: Paginated,
     channel: Optional[str] = None,
-    pagination: PaginationParams = Depends(pagination_params),
 ):
     query: dict = {"project_id": project_id}
     if channel:

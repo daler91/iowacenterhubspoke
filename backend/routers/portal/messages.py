@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from core.logger import get_logger
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from core.portal_auth import PortalContext
 from database import db
 from models.coordination_schemas import MessageCreate
@@ -36,8 +36,8 @@ async def _require_partner_project(project_id: str, ctx: dict) -> dict:
 async def portal_project_messages(
     project_id: str,
     ctx: PortalContext,
+    pagination: Paginated,
     channel: Optional[str] = None,
-    pagination: PaginationParams = Depends(pagination_params),
 ):
     await _require_partner_project(project_id, ctx)
 

@@ -35,9 +35,9 @@ Example::
 """
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
+from typing import Annotated, Any, Iterable, Mapping
 
-from fastapi import Query
+from fastapi import Depends, Query
 
 MAX_PAGE_SIZE = 200
 # Intentionally equal to MAX_PAGE_SIZE — see module docstring. The important
@@ -84,17 +84,22 @@ def pagination_params(
         description=f"Number of items to return (max {MAX_PAGE_SIZE})",
     ),
 ) -> PaginationParams:
-    """FastAPI dependency factory — import this, not the dataclass, from routers.
-
-    Usage::
-
-        from fastapi import Depends
-        from core.pagination import PaginationParams, pagination_params
-
-        @router.get("/items")
-        async def list_items(
-            pagination: PaginationParams = Depends(pagination_params),
-        ):
-            ...
+    """FastAPI dependency function. Prefer the ``Paginated`` type alias below
+    at call sites — it's ``Annotated[PaginationParams, Depends(...)]`` wired
+    up so a handler signature reads ``pagination: Paginated`` with no
+    default-argument footgun.
     """
     return PaginationParams(skip=skip, limit=limit)
+
+
+# Type alias used at router call sites. Mirrors the ``CurrentUser`` pattern
+# in ``core/auth.py`` so every handler is a one-liner dependency:
+#
+#     @router.get("/items")
+#     async def list_items(pagination: Paginated):
+#         ...
+#
+# The ``Annotated`` form is the modern FastAPI style (see
+# https://fastapi.tiangolo.com/tutorial/dependencies/#share-annotated-dependencies)
+# and avoids the ``default=Depends(...)`` pattern SonarCloud flags.
+Paginated = Annotated[PaginationParams, Depends(pagination_params)]

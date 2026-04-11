@@ -49,13 +49,13 @@ class _FakeRedisClient:
         self.ping_calls = 0
         self.close_calls = 0
 
-    async def ping(self):
+    async def ping(self):  # NOSONAR — mirrors redis.asyncio client API
         self.ping_calls += 1
         if self._ping_result is True:
             return True
         raise ConnectionError("simulated redis outage")
 
-    async def aclose(self):
+    async def aclose(self):  # NOSONAR — mirrors redis.asyncio client API
         self.close_calls += 1
 
 
@@ -96,19 +96,20 @@ def server_helpers(monkeypatch):
     server_path = pathlib.Path(__file__).parent.parent / "server.py"
     source = server_path.read_text()
 
-    # Extract the helper functions plus their one external dep (logger) so
-    # we can exec them against a minimal globals dict.
+    # Extract the helper function block (``_safe_aclose``, plus
+    # ``_ensure_redis_client`` / ``_probe_redis``) out of ``server.py`` so we
+    # can exec them into an isolated namespace. Starts at the first line
+    # that begins one of the helpers and stops at the lifespan context
+    # manager decorator.
     helper_src = []
     capture = False
     for line in source.splitlines():
-        if line.startswith("async def _ensure_redis_client"):
+        if line.startswith("async def _safe_aclose"):
             capture = True
         if capture:
-            helper_src.append(line)
             if line.startswith("@asynccontextmanager"):
-                capture = False
-                helper_src.pop()  # don't include the decorator line
                 break
+            helper_src.append(line)
 
     module_globals: dict = {
         "__name__": "server_helpers_under_test",
@@ -143,6 +144,33 @@ def test_ensure_client_returns_none_when_ping_fails(server_helpers, monkeypatch)
 
     assert result is None
     assert app.state.redis is None
+    # Regression for Codex P2: the just-created client must be closed on the
+    # exception path, otherwise every failing probe leaks a connection pool.
+    assert fake.close_calls == 1
+
+
+def test_ensure_client_closes_freshly_created_pool_on_repeated_failures(
+    server_helpers, monkeypatch,
+):
+    """If Redis is down for multiple probes in a row, each ``from_url`` call
+    must be followed by an ``aclose`` so file descriptors and memory aren't
+    leaked one pool per probe."""
+    created: list[_FakeRedisClient] = []
+
+    def _factory():
+        client_ = _FakeRedisClient(ping_result=False)
+        created.append(client_)
+        return client_
+
+    _install_fake_redis_module(monkeypatch, _factory)
+
+    app = _FakeApp()
+    for _ in range(3):
+        assert _run(server_helpers["_ensure_redis_client"](app)) is None
+
+    assert len(created) == 3
+    # Every client we built was explicitly closed — no leaked pools.
+    assert all(c.close_calls == 1 for c in created)
 
 
 def test_probe_reuses_healthy_cached_client(server_helpers, monkeypatch):
@@ -152,10 +180,10 @@ def test_probe_reuses_healthy_cached_client(server_helpers, monkeypatch):
 
     # Bomb redis.asyncio.from_url — we should NOT hit it when the cached
     # client is healthy.
-    _install_fake_redis_module(
-        monkeypatch,
-        lambda: (_ for _ in ()).throw(AssertionError("should not reconnect")),
-    )
+    def _should_not_reconnect():
+        raise AssertionError("probe should not reconnect when cached client is healthy")
+
+    _install_fake_redis_module(monkeypatch, _should_not_reconnect)
 
     assert _run(server_helpers["_probe_redis"](app)) is True
     assert fake.ping_calls == 1

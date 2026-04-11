@@ -1,12 +1,12 @@
 import uuid
 import secrets
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import WebhookCreate, WebhookUpdate
 from core.auth import AdminRequired
 from core.constants import WEBHOOK_EVENTS
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from services.webhooks import deliver_webhook, validate_webhook_url
 from core.logger import get_logger
 
@@ -122,7 +122,7 @@ async def delete_webhook(webhook_id: str, user: AdminRequired):
 async def get_webhook_logs(
     webhook_id: str,
     user: AdminRequired,
-    pagination: PaginationParams = Depends(pagination_params),
+    pagination: Paginated,
 ):
     total = await db.webhook_logs.count_documents(
         {"subscription_id": webhook_id},

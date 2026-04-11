@@ -12,7 +12,6 @@ import {
   minutesToTimeStr,
   timeToMinutes,
 } from './calendar/layout';
-import type { OverlapInfo } from './calendar/layout';
 import {
   DndContext,
   DragOverlay,

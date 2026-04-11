@@ -3,14 +3,14 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
 from core.auth import CurrentUser
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from core.upload import stream_upload_to_disk
 from services.activity import log_activity
 from core.logger import get_logger
@@ -410,7 +410,7 @@ async def list_task_comments(
     project_id: str,
     task_id: str,
     user: CurrentUser,
-    pagination: PaginationParams = Depends(pagination_params),
+    pagination: Paginated,
 ):
     await _verify_task(project_id, task_id)
     total = await db.task_comments.count_documents({"task_id": task_id})

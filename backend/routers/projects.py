@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
 from core.auth import CurrentUser
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -257,13 +257,13 @@ def _build_trends(projects: list, period_days: int) -> dict:
 @router.get("", summary="List projects")
 async def list_projects(
     user: CurrentUser,
+    pagination: Paginated,
     community: Optional[str] = None,
     phase: Optional[str] = None,
     event_format: Optional[str] = None,
     partner_org_id: Optional[str] = None,
     class_id: Optional[str] = None,
     schedule_id: Optional[str] = None,
-    pagination: PaginationParams = Depends(pagination_params),
 ):
     query = {"deleted_at": None}
     if community:

@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from database import db
 from models.schemas import (
@@ -14,7 +14,7 @@ from models.schemas import (
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired
-from core.pagination import PaginationParams, pagination_params
+from core.pagination import Paginated
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
 from core.constants import (
@@ -46,10 +46,10 @@ router = APIRouter(tags=["schedules"])
 @router.get("/", summary="List schedules")
 async def get_schedules(
     user: CurrentUser,
+    pagination: Paginated,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
-    pagination: PaginationParams = Depends(pagination_params),
 ):
     query = {"deleted_at": None}
     if date_from and date_to:

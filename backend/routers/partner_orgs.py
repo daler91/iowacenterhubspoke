@@ -2,14 +2,14 @@ import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import (
     PartnerOrgCreate, PartnerOrgUpdate,
     PartnerContactCreate, PartnerContactUpdate,
 )
 from core.auth import CurrentUser, AdminRequired
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -25,9 +25,9 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 @router.get("", summary="List partner organizations")
 async def list_partner_orgs(
     user: CurrentUser,
+    pagination: Paginated,
     community: Optional[str] = None,
     status: Optional[str] = None,
-    pagination: PaginationParams = Depends(pagination_params),
 ):
     query = {"deleted_at": None}
     if community:

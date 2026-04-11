@@ -9,8 +9,10 @@ require ``pytest-asyncio`` (which is not in ``backend/requirements.txt``).
 """
 
 import asyncio
+import io
 import os
 import sys
+from typing import Optional
 from unittest.mock import MagicMock
 
 # Mirror the stub pattern used by sibling tests so the module loads without
@@ -24,7 +26,8 @@ os.environ.setdefault("DB_NAME", "test_db")
 os.environ.setdefault("JWT_SECRET", "test_secret")
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
+from starlette.datastructures import Headers
 
 from core.upload import (
     MAX_UPLOAD_BYTES,
@@ -32,22 +35,16 @@ from core.upload import (
 )
 
 
-class _FakeUploadFile:
-    """Minimal UploadFile stand-in exposing the attributes the helper touches."""
+def _make_upload_file(payload: bytes, content_type: Optional[str] = "text/csv") -> UploadFile:
+    """Build a real ``fastapi.UploadFile`` around an in-memory byte buffer.
 
-    def __init__(self, payload: bytes, content_type: str = "text/csv"):
-        self._buf = payload
-        self._pos = 0
-        self.content_type = content_type
-
-    async def read(self, size: int = -1) -> bytes:
-        if size is None or size < 0:
-            chunk = self._buf[self._pos:]
-            self._pos = len(self._buf)
-            return chunk
-        chunk = self._buf[self._pos:self._pos + size]
-        self._pos += len(chunk)
-        return chunk
+    Using the real class (rather than a lookalike) keeps the tests honest:
+    ``stream_upload_to_bytes`` is called with the exact type production code
+    passes in, including starlette's ``Headers`` accessor that ``UploadFile``
+    uses to derive ``content_type``.
+    """
+    headers = Headers({"content-type": content_type}) if content_type is not None else None
+    return UploadFile(file=io.BytesIO(payload), filename="test.csv", headers=headers)
 
 
 def _run(coro):
@@ -60,20 +57,20 @@ def _run(coro):
 
 def test_stream_upload_to_bytes_returns_payload_under_cap():
     payload = b"date,start_time,end_time,employee_email,location_name,class_name\n"
-    file = _FakeUploadFile(payload)
+    file = _make_upload_file(payload)
     assert _run(stream_upload_to_bytes(file)) == payload
 
 
 def test_stream_upload_to_bytes_rejects_oversized_payload():
     oversized = b"x" * (MAX_UPLOAD_BYTES + 1)
-    file = _FakeUploadFile(oversized)
+    file = _make_upload_file(oversized)
     with pytest.raises(HTTPException) as exc:
         _run(stream_upload_to_bytes(file))
     assert exc.value.status_code == 413
 
 
 def test_stream_upload_to_bytes_rejects_disallowed_content_type():
-    file = _FakeUploadFile(b"anything", content_type="application/x-msdownload")
+    file = _make_upload_file(b"anything", content_type="application/x-msdownload")
     with pytest.raises(HTTPException) as exc:
         _run(stream_upload_to_bytes(file))
     assert exc.value.status_code == 400
@@ -82,5 +79,5 @@ def test_stream_upload_to_bytes_rejects_disallowed_content_type():
 def test_stream_upload_to_bytes_allows_missing_content_type():
     # UploadFile may report no content_type (some clients); the helper must
     # still allow the upload so long as it stays under the size cap.
-    file = _FakeUploadFile(b"hello", content_type=None)
+    file = _make_upload_file(b"hello", content_type=None)
     assert _run(stream_upload_to_bytes(file)) == b"hello"

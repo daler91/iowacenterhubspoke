@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from core.logger import get_logger
-from core.pagination import PaginationParams, pagination_params, paginated_response
+from core.pagination import Paginated, paginated_response
 from core.portal_auth import PortalContext
 from core.upload import stream_upload_to_disk
 from database import db
@@ -166,7 +166,7 @@ async def portal_upload_task_attachment(
 )
 async def portal_task_comments(
     project_id: str, task_id: str, ctx: PortalContext,
-    pagination: PaginationParams = Depends(pagination_params),
+    pagination: Paginated,
 ):
     await _require_partner_project(project_id, ctx)
     total = await db.task_comments.count_documents({"task_id": task_id})

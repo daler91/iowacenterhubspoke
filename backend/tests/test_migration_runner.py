@@ -55,7 +55,7 @@ class _FakeCollection:
             results.append(doc)
         return _FakeCursor(results)
 
-    async def update_one(self, filter_query, update, upsert=False):
+    async def update_one(self, filter_query, update, upsert=False):  # NOSONAR — mirrors Motor collection API
         target_id = filter_query.get("id")
         for doc in self.docs:
             if doc.get("id") == target_id:
@@ -94,11 +94,11 @@ def _replace_registry(monkeypatch):
     """
     calls: List[str] = []
 
-    async def mig_a(db):
+    async def mig_a(db):  # NOSONAR — must stay async to satisfy the MigrationFn contract
         calls.append("a")
         return 7
 
-    async def mig_b(db):
+    async def mig_b(db):  # NOSONAR — must stay async to satisfy the MigrationFn contract
         calls.append("b")
         return 3
 
@@ -152,7 +152,7 @@ def test_partial_run_resumes_pending_only(_replace_registry):
 
 
 def test_failure_is_recorded_and_reraised(monkeypatch):
-    async def bad(db):
+    async def bad(db):  # NOSONAR — must stay async to satisfy the MigrationFn contract
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
