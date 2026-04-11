@@ -52,6 +52,16 @@ export default function NotificationsPanel() {
   const activeNotifications = safeNotifications.filter(n => !dismissed.has(n.id));
   const warningCount = activeNotifications.filter(n => n.severity === 'warning').length;
 
+  // Build the accessible bell label once so the JSX stays free of
+  // nested ternaries / nested template literals (Sonar S3358 / S4624).
+  let bellLabel = 'Notifications';
+  if (activeNotifications.length > 0) {
+    bellLabel = `Notifications, ${activeNotifications.length} active`;
+    if (warningCount > 0) {
+      bellLabel += `, ${warningCount} alerts`;
+    }
+  }
+
   return (
     <div className="relative" ref={ref} data-testid="notifications-panel">
       {/* Bell button */}
@@ -59,11 +69,7 @@ export default function NotificationsPanel() {
         type="button"
         data-testid="notifications-bell"
         onClick={() => setOpen(!open)}
-        aria-label={
-          activeNotifications.length > 0
-            ? `Notifications, ${activeNotifications.length} active${warningCount > 0 ? `, ${warningCount} alerts` : ''}`
-            : 'Notifications'
-        }
+        aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
