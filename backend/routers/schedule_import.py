@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from database import db
 from models.schemas import ScheduleImportItem, ErrorResponse
 from core.auth import AdminRequired
+from core.upload import stream_upload_to_bytes
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
 from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT
@@ -240,7 +241,7 @@ async def import_schedules_preview(
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
 
-    content = await file.read()
+    content = await stream_upload_to_bytes(file)
     reader = _parse_csv_content(content)
     emp_by_email, loc_by_name, class_by_name = await _build_lookup_maps()
 

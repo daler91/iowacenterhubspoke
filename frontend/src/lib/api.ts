@@ -28,27 +28,44 @@ api.interceptors.request.use((config) => {
 // Public auth routes that should NOT trigger a 401 → /login redirect.
 // A user who lands on one of these pages is already signed out by design
 // (e.g. following a password-reset link from an email).
-const PUBLIC_AUTH_PATHS = ['/login', '/forgot-password', '/reset-password'];
+export const PUBLIC_AUTH_PATHS = ['/login', '/forgot-password', '/reset-password'];
 
-function isOnPublicAuthRoute(): boolean {
-  const path = globalThis.location.pathname;
-  return PUBLIC_AUTH_PATHS.some(p => path === p || path.startsWith(`${p}/`));
+export function isPublicAuthPath(pathname: string): boolean {
+  return PUBLIC_AUTH_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-let isRedirectingTo401 = false;
+// Debounce the login redirect so concurrent 401s don't thrash the history,
+// but auto-expire the guard after ~3s. An earlier boolean flag was only
+// cleared on a *successful* response — if the next request after a 401 was
+// a 500 or network error, every subsequent 401 got silently swallowed.
+export const REDIRECT_DEBOUNCE_MS = 3000;
+
+/**
+ * Pure decision helper for the 401 interceptor: returns true when we
+ * should navigate to /login given the current path and the last redirect
+ * timestamp. Exported for unit tests — the interceptor below wires it up
+ * to real globals.
+ */
+export function shouldRedirectOn401(
+  pathname: string,
+  now: number,
+  lastRedirectAt: number,
+  debounceMs: number = REDIRECT_DEBOUNCE_MS,
+): boolean {
+  if (isPublicAuthPath(pathname)) return false;
+  return now - lastRedirectAt >= debounceMs;
+}
+
+let lastRedirectAt = 0;
 api.interceptors.response.use(
-  (response) => {
-    // Reset the redirect guard on any successful response (user is authenticated)
-    isRedirectingTo401 = false;
-    return response;
-  },
+  (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isRedirectingTo401) {
-      if (isOnPublicAuthRoute()) {
-        return Promise.reject(error);
+    if (error.response?.status === 401) {
+      const now = Date.now();
+      if (shouldRedirectOn401(globalThis.location.pathname, now, lastRedirectAt)) {
+        lastRedirectAt = now;
+        globalThis.location.href = '/login';
       }
-      isRedirectingTo401 = true;
-      globalThis.location.href = '/login';
     }
     return Promise.reject(error);
   }

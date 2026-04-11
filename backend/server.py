@@ -168,6 +168,24 @@ async def lifespan(app: FastAPI):
     from services.seed_templates import seed_project_templates
     await seed_project_templates()
 
+    # Initialize a single Redis client for the health check and other
+    # short-lived probes. Reusing one pooled client avoids per-request TLS
+    # handshakes and lazy imports inside the async event loop.
+    app.state.redis = None
+    try:
+        import redis.asyncio as _async_redis
+        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
+        app.state.redis = _async_redis.from_url(
+            redis_url,
+            socket_connect_timeout=2,
+            max_connections=5,
+        )
+        # Probe once so misconfigured REDIS_URL surfaces at startup.
+        await app.state.redis.ping()
+        logger.info("Connected to Redis")
+    except Exception as e:
+        logger.warning("Redis unavailable at startup; health check will report degraded: %s", e)
+
     yield
 
     # ---- Shutdown ----
@@ -180,6 +198,11 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
+    if getattr(app.state, "redis", None) is not None:
+        try:
+            await app.state.redis.aclose()
+        except Exception:  # pragma: no cover - best-effort shutdown
+            pass
     client.close()
 
 
@@ -426,7 +449,7 @@ api_router.include_router(webhooks.router)
 
 
 @api_router.get("/health", tags=["system"])
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint for load balancers and deployment monitoring."""
     checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
     try:
@@ -435,15 +458,16 @@ async def health_check():
         checks["mongo"] = "unavailable"
         checks["status"] = "degraded"
 
-    try:
-        import redis.asyncio as _async_redis
-        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
-        r = _async_redis.from_url(redis_url, socket_connect_timeout=2)
-        await r.ping()
-        await r.aclose()
-    except Exception:
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is None:
         checks["redis"] = "unavailable"
         checks["status"] = "degraded"
+    else:
+        try:
+            await redis_client.ping()
+        except Exception:
+            checks["redis"] = "unavailable"
+            checks["status"] = "degraded"
 
     status_code = 200 if checks["status"] == "healthy" else 503
     return JSONResponse(content=checks, status_code=status_code)
@@ -462,9 +486,9 @@ for sub_router in [auth.router, locations.router, employees.router, classes.rout
 
 
 @legacy_router.get("/health", tags=["system"], include_in_schema=False)
-async def health_check_legacy():
+async def health_check_legacy(request: Request):
     """Backward-compat health check at /api/health."""
-    return await health_check()
+    return await health_check(request)
 
 app.include_router(legacy_router)
 

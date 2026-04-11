@@ -95,6 +95,10 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
 
 
 # ── Password-change timestamp cache ──────────────────────────────────
+# In-process only. Multi-worker deployments will see stale reads for up to
+# ``_PWD_CACHE_TTL`` seconds per worker after a password change. Password
+# change/reset handlers call ``invalidate_pwd_cache(user_id)`` to clear the
+# local entry immediately so the issuing worker cannot revalidate an old JWT.
 _pwd_change_cache: dict[str, tuple[float, float | None]] = {}  # user_id -> (cached_at, changed_ts)
 _PWD_CACHE_TTL = 300  # 5 minutes
 
@@ -112,6 +116,16 @@ async def _get_pwd_changed_ts(user_id: str) -> float | None:
         changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
     _pwd_change_cache[user_id] = (now, changed_ts)
     return changed_ts
+
+
+def invalidate_pwd_cache(user_id: str) -> None:
+    """Drop the cached password-change timestamp for ``user_id``.
+
+    Called from the auth router immediately after a ``password_changed_at``
+    write so subsequent requests in the same process do not serve a stale
+    cache entry and let the old JWT ride another ``_PWD_CACHE_TTL`` seconds.
+    """
+    _pwd_change_cache.pop(user_id, None)
 
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]
