@@ -621,8 +621,12 @@ elif (_static_dir / "assets").exists():
         except (OSError, RuntimeError):
             return FileResponse(str(static_root / "index.html"))
 
-        if str(file_path).startswith(str(static_root) + os.sep) or file_path == static_root:
-            if file_path.exists() and file_path.is_file():
-                return FileResponse(str(file_path))
+        try:
+            file_path.relative_to(static_root)
+        except ValueError:
+            return FileResponse(str(static_root / "index.html"))
+
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
 
         return FileResponse(str(static_root / "index.html"))
