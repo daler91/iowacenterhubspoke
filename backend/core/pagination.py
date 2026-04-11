@@ -6,12 +6,28 @@ latency and memory hazard on read-heavy dashboards, so every list endpoint
 should accept a shared ``PaginationParams`` dependency that enforces a sane
 maximum and returns a consistent response envelope.
 
+``DEFAULT_PAGE_SIZE`` is deliberately set to match ``MAX_PAGE_SIZE`` so that
+**migrated endpoints behave identically to their prior defaults** for
+unpaginated callers. Historically every router used a default in the range
+100-200 (e.g. ``classes.py`` defaulted to 200, the others to 100), and the
+frontend ``useDashboardData`` hook invokes ``getAll()`` with no params and
+expects to receive every record. Setting the default below the prior per
+-router maximum would silently truncate those dashboards for deployments
+with 51+ records in any collection. The upper bound still stops clients
+from requesting arbitrarily large pages.
+
+Routers that want a narrower default for their own UX can build a local
+dependency with a different default ``limit`` and opt into it via
+``Depends(...)``; this module's dependency stays at the permissive default.
+
 Example::
 
-    from core.pagination import PaginationParams, paginated_response
+    from core.pagination import PaginationParams, pagination_params, paginated_response
 
     @router.get("/items")
-    async def list_items(pagination: PaginationParams = Depends()):
+    async def list_items(
+        pagination: PaginationParams = Depends(pagination_params),
+    ):
         cursor = db.items.find({"deleted_at": None}).skip(pagination.skip).limit(pagination.limit)
         items = await cursor.to_list(pagination.limit)
         total = await db.items.count_documents({"deleted_at": None})
@@ -23,8 +39,12 @@ from typing import Any, Iterable, Mapping
 
 from fastapi import Query
 
-DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
+# Intentionally equal to MAX_PAGE_SIZE — see module docstring. The important
+# behavior delta from the pre-pagination era is not a smaller default but
+# the *bounded* max, which was previously missing on every router except
+# schedule_crud.
+DEFAULT_PAGE_SIZE = MAX_PAGE_SIZE
 
 
 @dataclass

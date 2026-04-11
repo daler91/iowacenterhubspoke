@@ -18,6 +18,20 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
 os.environ.setdefault("JWT_SECRET", "test_secret")
 
+# A sibling test (`test_drive_time_unit.py`) mocks ``httpx`` via
+# ``sys.modules.setdefault``. If that test runs first in the same pytest
+# session, ``starlette.testclient`` fails to import with a cryptic
+# "metaclass conflict" because its ``WebSocketDenialResponse`` inherits
+# from classes that transitively depend on the real ``httpx`` types.
+# Drop the mock (and any already-imported starlette/fastapi test clients)
+# so the real modules load fresh below.
+for _poisoned in (
+    "httpx",
+    "starlette.testclient",
+    "fastapi.testclient",
+):
+    sys.modules.pop(_poisoned, None)
+
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient

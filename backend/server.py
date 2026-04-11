@@ -151,6 +151,77 @@ async def _seed_default_locations():
         logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
 
+async def _ensure_redis_client(app: FastAPI):
+    """Lazily (re)create ``app.state.redis`` if it is missing.
+
+    Called at startup and from the health check. If Redis was unreachable
+    when the app booted, ``app.state.redis`` is ``None``; this function
+    attempts to build a fresh client on the next probe so a transient
+    outage at deploy time heals itself without a container restart.
+    Closes any partial client on failure so a broken state doesn't linger.
+    """
+    if getattr(app.state, "redis", None) is not None:
+        return app.state.redis
+
+    try:
+        import redis.asyncio as _async_redis
+        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
+        client_ = _async_redis.from_url(
+            redis_url,
+            socket_connect_timeout=2,
+            max_connections=5,
+        )
+        await client_.ping()
+    except Exception as e:
+        logger.warning("Redis unavailable; health check will report degraded: %s", e)
+        # Drop any partial client so the next probe retries from scratch
+        # rather than reusing a half-initialized connection.
+        existing = getattr(app.state, "redis", None)
+        if existing is not None:
+            try:
+                await existing.aclose()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
+        app.state.redis = None
+        return None
+
+    app.state.redis = client_
+    logger.info("Connected to Redis")
+    return client_
+
+
+async def _probe_redis(app: FastAPI) -> bool:
+    """Ping the cached Redis client, reconnecting on failure.
+
+    Returns ``True`` if Redis responded to a ping; ``False`` otherwise.
+    On a ping failure we discard the cached client and attempt one
+    reconnect so a Redis restart after app boot doesn't leave the health
+    check permanently degraded until the service is itself restarted.
+    """
+    client_ = getattr(app.state, "redis", None)
+    if client_ is not None:
+        try:
+            await client_.ping()
+            return True
+        except Exception:
+            # Cached client is stale — drop it and fall through to the
+            # reconnect path below.
+            try:
+                await client_.aclose()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
+            app.state.redis = None
+
+    fresh = await _ensure_redis_client(app)
+    if fresh is None:
+        return False
+    try:
+        await fresh.ping()
+        return True
+    except Exception:
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ---- Startup ----
@@ -176,21 +247,13 @@ async def lifespan(app: FastAPI):
 
     # Initialize a single Redis client for the health check and other
     # short-lived probes. Reusing one pooled client avoids per-request TLS
-    # handshakes and lazy imports inside the async event loop.
+    # handshakes and lazy imports inside the async event loop. If Redis is
+    # down at startup we log a warning and leave ``app.state.redis`` unset;
+    # the health check lazily retries via ``_ensure_redis_client`` on the
+    # next probe so transient boot-time outages heal themselves without a
+    # container restart.
     app.state.redis = None
-    try:
-        import redis.asyncio as _async_redis
-        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
-        app.state.redis = _async_redis.from_url(
-            redis_url,
-            socket_connect_timeout=2,
-            max_connections=5,
-        )
-        # Probe once so misconfigured REDIS_URL surfaces at startup.
-        await app.state.redis.ping()
-        logger.info("Connected to Redis")
-    except Exception as e:
-        logger.warning("Redis unavailable at startup; health check will report degraded: %s", e)
+    await _ensure_redis_client(app)
 
     yield
 
@@ -456,7 +519,13 @@ api_router.include_router(webhooks.router)
 
 @api_router.get("/health", tags=["system"])
 async def health_check(request: Request):
-    """Health check endpoint for load balancers and deployment monitoring."""
+    """Health check endpoint for load balancers and deployment monitoring.
+
+    ``_probe_redis`` lazily reconnects a cached Redis client that's gone
+    stale (or was never created because Redis was down at startup), so a
+    transient Redis outage does not pin ``/health`` to 503 until the next
+    container restart.
+    """
     checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
     try:
         await client.admin.command("ping")
@@ -464,16 +533,9 @@ async def health_check(request: Request):
         checks["mongo"] = "unavailable"
         checks["status"] = "degraded"
 
-    redis_client = getattr(request.app.state, "redis", None)
-    if redis_client is None:
+    if not await _probe_redis(request.app):
         checks["redis"] = "unavailable"
         checks["status"] = "degraded"
-    else:
-        try:
-            await redis_client.ping()
-        except Exception:
-            checks["redis"] = "unavailable"
-            checks["status"] = "degraded"
 
     status_code = 200 if checks["status"] == "healthy" else 503
     return JSONResponse(content=checks, status_code=status_code)
