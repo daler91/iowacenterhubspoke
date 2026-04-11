@@ -609,8 +609,15 @@ elif (_static_dir / "assets").exists():
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         static_root = _static_dir.resolve()
+        normalized_path = os.path.normpath(full_path)
+
+        # Reject absolute and traversal-like paths before filesystem access.
+        path_parts = [part for part in normalized_path.split(os.sep) if part not in ("", ".")]
+        if os.path.isabs(normalized_path) or any(part == ".." for part in path_parts):
+            return FileResponse(str(static_root / "index.html"))
+
         try:
-            file_path = (static_root / full_path).resolve()
+            file_path = (static_root / normalized_path).resolve()
         except (OSError, RuntimeError):
             return FileResponse(str(static_root / "index.html"))
 
