@@ -74,7 +74,15 @@ function AppRoutes() {
           } />
           <Route path="/" element={
             <ProtectedRoute>
-              <DashboardPage />
+              {/* Shell-level ErrorBoundary catches exceptions from shell
+                  components rendered by DashboardPage OUTSIDE the
+                  <Outlet /> — Sidebar, top-bar, NotificationsPanel,
+                  ScheduleForm modal, StatModal. Per-route RouteBoundary
+                  wrappers below cover errors inside the Outlet and
+                  reset on navigation, so this is defense in depth. */}
+              <ErrorBoundary>
+                <DashboardPage />
+              </ErrorBoundary>
             </ProtectedRoute>
           }>
             <Route index element={<Navigate to="/calendar" replace />} />

@@ -150,13 +150,12 @@ export default function PersonalSettings() {
   const renderCalendarContent = () => {
     if (employeeLoading) {
       return (
-        <div
+        <output
           className="flex items-center justify-center py-8"
-          role="status"
           aria-label="Loading calendar connections"
         >
-          <div className="w-6 h-6 border-2 border-hub border-t-transparent rounded-full animate-spin" />
-        </div>
+          <span className="w-6 h-6 border-2 border-hub border-t-transparent rounded-full animate-spin" />
+        </output>
       );
     }
 

@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 
 function Skeleton({
@@ -18,6 +19,11 @@ function Skeleton({
  * matches what appears when data is ready — that's the whole point of
  * skeletons vs a spinner. If you add a new common layout, add a matching
  * variant here rather than hand-rolling one in a feature file.
+ *
+ * Implementation note: each variant generates stable UUIDs for its row
+ * keys instead of using array indices so `no-array-index-key` lint rules
+ * stay happy. The UUIDs are memoized on `rows` so re-renders keep stable
+ * keys as long as the count hasn't changed.
  */
 
 interface SkeletonVariantProps {
@@ -25,13 +31,21 @@ interface SkeletonVariantProps {
   readonly className?: string;
 }
 
+function useStableIds(count: number): string[] {
+  return useMemo(
+    () => Array.from({ length: count }, () => crypto.randomUUID()),
+    [count],
+  );
+}
+
 /** Stack of row skeletons — good default for list views (managers). */
 function SkeletonList({ rows = 6, className }: SkeletonVariantProps) {
+  const ids = useStableIds(rows);
   return (
     <div className={cn("space-y-3", className)} data-testid="skeleton-list">
-      {Array.from({ length: rows }).map((_, i) => (
+      {ids.map((id) => (
         <div
-          key={`skeleton-row-${i}`}
+          key={id}
           className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-4"
         >
           <Skeleton className="w-10 h-10 rounded-full shrink-0" />
@@ -48,6 +62,7 @@ function SkeletonList({ rows = 6, className }: SkeletonVariantProps) {
 
 /** Grid of card skeletons — good for dashboards. */
 function SkeletonCards({ rows = 4, className }: SkeletonVariantProps) {
+  const ids = useStableIds(rows);
   return (
     <div
       className={cn(
@@ -56,9 +71,9 @@ function SkeletonCards({ rows = 4, className }: SkeletonVariantProps) {
       )}
       data-testid="skeleton-cards"
     >
-      {Array.from({ length: rows }).map((_, i) => (
+      {ids.map((id) => (
         <div
-          key={`skeleton-card-${i}`}
+          key={id}
           className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6 space-y-3"
         >
           <Skeleton className="h-3 w-1/3" />
@@ -72,10 +87,11 @@ function SkeletonCards({ rows = 4, className }: SkeletonVariantProps) {
 
 /** Table-row skeletons — good for tables (UserManager etc). */
 function SkeletonRows({ rows = 5, className }: SkeletonVariantProps) {
+  const ids = useStableIds(rows);
   return (
     <div className={cn("space-y-2", className)} data-testid="skeleton-rows">
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={`skeleton-r-${i}`} className="h-10 w-full" />
+      {ids.map((id) => (
+        <Skeleton key={id} className="h-10 w-full" />
       ))}
     </div>
   );

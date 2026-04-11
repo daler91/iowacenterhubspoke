@@ -301,13 +301,12 @@ export default function TaskDetailModal({
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
-          <div
+          <output
             className="flex items-center justify-center h-full"
-            role="status"
             aria-label="Loading task"
           >
-            <div className="w-7 h-7 border-2 border-hub border-t-transparent rounded-full animate-spin" />
-          </div>
+            <span className="w-7 h-7 border-2 border-hub border-t-transparent rounded-full animate-spin" />
+          </output>
         ) : (
           <div className="flex h-full">
             {/* ── Left: Task Info ──────────────────────────────── */}

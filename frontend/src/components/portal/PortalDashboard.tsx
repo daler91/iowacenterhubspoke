@@ -157,11 +157,9 @@ export default function PortalDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div
-          className="w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin"
-          role="status"
-          aria-label="Loading portal"
-        />
+        <output aria-label="Loading portal">
+          <span className="block w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin" />
+        </output>
       </div>
     );
   }

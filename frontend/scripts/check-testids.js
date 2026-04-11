@@ -19,8 +19,8 @@
  * fine; bumping them down requires a justification in the commit
  * message because it means test coverage regressed.
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
@@ -30,7 +30,7 @@ function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, out);
-    else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) {
+    else if (entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx')) {
       out.push(full);
     }
   }

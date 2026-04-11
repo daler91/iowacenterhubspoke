@@ -41,16 +41,15 @@ export function FilterSelect({ label, value, onChange, options }: Readonly<Filte
 
 export function LoadingChart() {
   return (
-    <div
+    <output
       className="h-[320px] flex items-center justify-center"
-      role="status"
       aria-label="Loading analytics"
     >
-      <div className="flex flex-col items-center gap-2">
-        <div className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-slate-400">Loading analytics...</p>
-      </div>
-    </div>
+      <span className="flex flex-col items-center gap-2">
+        <span className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-slate-400">Loading analytics...</span>
+      </span>
+    </output>
   );
 }
 

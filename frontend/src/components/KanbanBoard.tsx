@@ -38,15 +38,22 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
   const className = schedule.class_name || 'Unassigned Class';
   const selected = selectionMode && isSelected?.(schedule.id);
 
-  // Drag ref + listeners attach directly to the focusable card root so the
-  // @dnd-kit KeyboardSensor fires when a keyboard user tabs to this card
-  // and presses Space. Using `div[role=button]` rather than `<button>`
-  // because the card contains nested action buttons (Edit details / Move)
-  // and a button-in-button is invalid HTML. @dnd-kit's `attributes` spread
-  // already adds `role=button` + `tabIndex=0` so keyboard focus works.
+  // The card root is a `div[role=button]` because it contains nested action
+  // buttons (Edit details / Move) and a `<button>` in a `<button>` is
+  // invalid HTML. Explicit role + tabIndex are set here so:
+  //   - Sonar / jsx-a11y lints see the focus semantics statically.
+  //   - In drag mode @dnd-kit's `attributes` spread overrides with the
+  //     same values, and its KeyboardSensor fires on Space/Enter for
+  //     drag pickup.
+  //   - In selection mode the drag listeners/attributes are NOT spread
+  //     (so dragging is disabled), but the element stays focusable via
+  //     the base tabIndex/role, and `onKeyDown` handles Space/Enter to
+  //     toggle selection from the keyboard.
   return (
     <div
       ref={setNodeRef}
+      role="button"
+      tabIndex={0}
       {...(selectionMode ? {} : { ...listeners, ...attributes })}
       data-testid={`kanban-card-${schedule.id}`}
       onClick={() => {
@@ -57,8 +64,10 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         }
       }}
       onKeyDown={(e) => {
-        // Only fire the edit shortcut in selection mode; in drag mode we
-        // let @dnd-kit KeyboardSensor handle Space/Enter for pickup.
+        // In selection mode we own Space/Enter (toggle select). In drag
+        // mode we let @dnd-kit's KeyboardSensor handle Space/Enter for
+        // drag pickup — but still let Enter fall through to open the
+        // edit dialog when not yet dragging.
         if (selectionMode && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           toggleItem?.(schedule.id);

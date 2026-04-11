@@ -60,11 +60,11 @@ export function RecurrenceOptions({
         </div>
 
         {recurrence !== 'none' && recurrence !== 'custom' && (
+          // Outer container is presentational; the inner radiogroup owns
+          // the ARIA grouping so a wrapper role="group" would be redundant.
           <div
             className="rounded-lg border border-gray-100 bg-slate-50/70 p-3 space-y-3"
             data-testid="schedule-repeat-settings"
-            role="group"
-            aria-labelledby="schedule-end-mode-label"
           >
             <div className="space-y-2">
               <p

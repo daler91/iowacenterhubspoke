@@ -49,6 +49,38 @@ const NAV_SECTIONS = [
   },
 ];
 
+/**
+ * Sidebar nav item. Extracted from the `Sidebar` function body so its
+ * conditional rendering doesn't inflate the parent's cognitive
+ * complexity (SonarCloud S3776 counter).
+ */
+function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
+  const Icon = item.icon;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      data-testid={`nav-${item.id}`}
+      aria-label={collapsed ? item.label : undefined}
+      aria-current={isActive ? 'page' : undefined}
+      title={collapsed ? item.tooltip || item.label : item.tooltip}
+      onClick={onNavigate}
+      className={cn(
+        // Reset the Button primitive's default horizontal layout so the
+        // sidebar can own width/padding/active-state styling.
+        'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+        isActive
+          ? 'bg-hub-soft text-hub hover:bg-hub-soft shadow-sm'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+        collapsed && 'justify-center px-0',
+      )}
+    >
+      <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-slate-400')} />
+      {!collapsed && <span>{item.label}</span>}
+    </Button>
+  );
+}
+
 export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -57,35 +89,15 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   const filterItems = (items) => items.filter(item => !item.adminOnly || user?.role === 'admin');
   const flatNavItems = NAV_SECTIONS.flatMap((section) => filterItems(section.items));
 
-  const renderNavItem = (item) => {
-    const Icon = item.icon;
-    const isActive = location.pathname === item.path;
-
-    return (
-      <Button
-        key={item.id}
-        type="button"
-        variant="ghost"
-        data-testid={`nav-${item.id}`}
-        aria-label={collapsed ? item.label : undefined}
-        aria-current={isActive ? 'page' : undefined}
-        title={collapsed ? item.tooltip || item.label : item.tooltip}
-        onClick={() => { navigate(item.path); }}
-        className={cn(
-          // Reset the Button primitive's default horizontal layout so the
-          // sidebar can own width/padding/active-state styling.
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
-          isActive
-            ? 'bg-hub-soft text-hub hover:bg-hub-soft shadow-sm'
-            : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
-          collapsed && 'justify-center px-0',
-        )}
-      >
-        <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-slate-400')} />
-        {!collapsed && <span>{item.label}</span>}
-      </Button>
-    );
-  };
+  const renderNavItem = (item) => (
+    <SidebarNavItem
+      key={item.id}
+      item={item}
+      collapsed={collapsed}
+      isActive={location.pathname === item.path}
+      onNavigate={() => navigate(item.path)}
+    />
+  );
 
   return (
     <div

@@ -12,8 +12,10 @@ import { EntityLink } from './ui/entity-link';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { PageShell } from './ui/page-shell';
+import { ProfileStatsGrid } from './ui/profile-stats-grid';
 import { ScrollArea } from './ui/scroll-area';
 import api from '../lib/api';
+import { getScheduleStatusStyle } from '../lib/schedule-status';
 
 export default function ClassProfile({ classId: propId, onBack: propOnBack } = {}) {
   const params = useParams();
@@ -69,12 +71,6 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
 
   const class_info = data?.class_info;
   const hasDateFilter = dateFrom || dateTo;
-
-  const getStatusStyle = (s) => {
-    if (s === 'completed') return 'bg-spoke-soft text-spoke';
-    if (s === 'in_progress') return 'bg-warn-soft text-warn';
-    return 'bg-hub-soft text-hub';
-  };
 
   return (
     <PageShell
@@ -144,53 +140,44 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                 )}
               </div>
               {loading && (
-                <div
-                  className="w-4 h-4 border-2 border-hub border-t-transparent rounded-full animate-spin"
-                  role="status"
-                  aria-label="Refreshing"
-                />
+                <output aria-label="Refreshing">
+                  <span className="block w-4 h-4 border-2 border-hub border-t-transparent rounded-full animate-spin" />
+                </output>
               )}
             </div>
           </Card>
 
           {/* Stats grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="p-4 text-center">
-              <BookOpen className="w-5 h-5 text-hub mx-auto mb-2" aria-hidden="true" />
-              <p className="text-2xl font-bold text-slate-800 font-display" data-testid="profile-total-schedules">
-                {data.total_schedules}
-              </p>
-              <p className="text-xs text-slate-500">Total Schedules</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <Clock className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
-              <p className="text-2xl font-bold text-slate-800 font-display">
-                {(data.total_class_minutes / 60).toFixed(1)}h
-              </p>
-              <p className="text-xs text-slate-500">Class Time</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <Car className="w-5 h-5 text-warn mx-auto mb-2" aria-hidden="true" />
-              <p className="text-2xl font-bold text-slate-800 font-display">
-                {(data.total_drive_minutes / 60).toFixed(1)}h
-              </p>
-              <p className="text-xs text-slate-500">Drive Time</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <CheckCircle2 className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
-              <p className="text-2xl font-bold text-slate-800 font-display">
-                {data.completed}
-              </p>
-              <p className="text-xs text-slate-500">Completed</p>
-            </Card>
-            <Card className="p-4 text-center">
-              <CalendarDays className="w-5 h-5 text-ownership-partner mx-auto mb-2" aria-hidden="true" />
-              <p className="text-2xl font-bold text-slate-800 font-display">
-                {data.upcoming}
-              </p>
-              <p className="text-xs text-slate-500">Upcoming</p>
-            </Card>
-          </div>
+          <ProfileStatsGrid
+            stats={[
+              {
+                icon: <BookOpen className="w-5 h-5 text-hub" aria-hidden="true" />,
+                value: data.total_schedules,
+                label: 'Total Schedules',
+                testId: 'profile-total-schedules',
+              },
+              {
+                icon: <Clock className="w-5 h-5 text-spoke" aria-hidden="true" />,
+                value: `${(data.total_class_minutes / 60).toFixed(1)}h`,
+                label: 'Class Time',
+              },
+              {
+                icon: <Car className="w-5 h-5 text-warn" aria-hidden="true" />,
+                value: `${(data.total_drive_minutes / 60).toFixed(1)}h`,
+                label: 'Drive Time',
+              },
+              {
+                icon: <CheckCircle2 className="w-5 h-5 text-spoke" aria-hidden="true" />,
+                value: data.completed,
+                label: 'Completed',
+              },
+              {
+                icon: <CalendarDays className="w-5 h-5 text-ownership-partner" aria-hidden="true" />,
+                value: data.upcoming,
+                label: 'Upcoming',
+              },
+            ]}
+          />
 
           {/* Business Outcomes (from linked projects) */}
           {(data.projects_delivered > 0 || data.total_attendance > 0) && (
@@ -291,7 +278,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                       )}
                       <p className="text-xs text-slate-400"><EntityLink type="location" id={s.location_id} className="text-slate-400">{s.location_name}</EntityLink> | {s.date} | {s.start_time}-{s.end_time}</p>
                     </div>
-                    <Badge className={`border-0 text-[10px] ${getStatusStyle(s.status)}`}>
+                    <Badge className={`border-0 text-[10px] ${getScheduleStatusStyle(s.status)}`}>
                       {(s.status || 'upcoming').replace('_', ' ')}
                     </Badge>
                   </div>
