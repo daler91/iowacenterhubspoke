@@ -52,86 +52,90 @@ const EMPTY_BOARD = {
   },
 };
 
+// Fixed timestamp so all test fixtures share one literal (keeps the
+// mock data stable and avoids Sonar S1192 duplication flags).
+const FIXED_DATE = '2026-01-01T00:00:00Z';
+const TEST_ORG_ID = 'org_test_1';
+
 // Minimal PartnerOrg + PartnerContact for the portal verify response.
 const FAKE_ORG = {
-  id: 'org_test_1',
+  id: TEST_ORG_ID,
   name: 'Test Partner Org',
   community: 'Test Community',
   venue_details: {},
   co_branding: '',
   status: 'active',
   notes: '',
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
+  created_at: FIXED_DATE,
+  updated_at: FIXED_DATE,
 };
 const FAKE_CONTACT = {
   id: 'contact_test_1',
-  partner_org_id: 'org_test_1',
+  partner_org_id: TEST_ORG_ID,
   name: 'Test Contact',
   email: 'contact@example.com',
   phone: '',
   role: 'primary',
   is_primary: true,
-  created_at: '2026-01-01T00:00:00Z',
+  created_at: FIXED_DATE,
 };
 
 /**
- * Resolve the mock response body for a given API path. Returns an empty
- * array by default — most list-like endpoints in this app tolerate
- * either `[]` or `{items: []}`, and empty object lookups return
- * `undefined` without throwing.
+ * Exact-path → body map for endpoints that need a specific response.
+ * Using a lookup table keeps `resolveMock` below Sonar's cognitive
+ * complexity threshold (S3776) that a long `if` chain would blow.
+ */
+const EXACT_RESPONSES: Record<string, unknown> = {
+  '/auth/me': FAKE_USER,
+  '/auth/logout': { ok: true },
+  '/projects/dashboard': EMPTY_COORDINATION_DASHBOARD,
+  '/projects/board': EMPTY_BOARD,
+  '/coordination/partner-health': { partners: [] },
+  '/coordination/summary': {},
+  '/coordination/by-community': [],
+  '/portal/dashboard': {
+    upcoming_classes: 0,
+    open_tasks: 0,
+    overdue_tasks: 0,
+    classes_hosted: 0,
+    projects: [],
+  },
+  '/system/config': { hub_lat: 41.5868, hub_lng: -93.6250 },
+  '/dashboard/stats': {
+    total_schedules: 0,
+    upcoming_schedules: 0,
+    total_locations: 0,
+    total_employees: 0,
+  },
+  '/activity-logs': { items: [] },
+  '/workload': { employees: [] },
+};
+
+/**
+ * Prefix → body map for endpoints whose URL carries path parameters
+ * (e.g. `/portal/auth/verify/:token`) or query-style suffixes.
+ */
+const PREFIX_RESPONSES: ReadonlyArray<readonly [string, unknown]> = [
+  ['/portal/auth/verify/', { org: FAKE_ORG, contact: FAKE_CONTACT }],
+  ['/analytics/trends', { series: [] }],
+  ['/analytics/forecast', { forecast: [] }],
+  ['/analytics/drive-optimization', { routes: [] }],
+  ['/reports/weekly-summary', { totals: {}, rows: [] }],
+];
+
+/**
+ * Resolve the mock response body for a given API path. Returns an
+ * empty array by default — most list-like endpoints tolerate `[]`
+ * (they feed through the `extractItems` helper in
+ * `hooks/useCoordinationData.ts`) and empty-object property lookups
+ * return `undefined` without throwing.
  */
 function resolveMock(path: string): unknown {
-  // Auth
-  if (path === '/auth/me') return FAKE_USER;
-  if (path === '/auth/logout') return { ok: true };
-
-  // Coordination — full shapes so the pages actually render
-  if (path === '/projects/dashboard') return EMPTY_COORDINATION_DASHBOARD;
-  if (path === '/projects/board') return EMPTY_BOARD;
-  if (path === '/coordination/partner-health') return { partners: [] };
-  if (path === '/coordination/summary') return {};
-  if (path === '/coordination/by-community') return [];
-
-  // Portal — full shapes so PortalDashboard renders instead of
-  // "Access Denied"
-  if (path.startsWith('/portal/auth/verify/')) {
-    return { org: FAKE_ORG, contact: FAKE_CONTACT };
+  const exact = EXACT_RESPONSES[path];
+  if (exact !== undefined) return exact;
+  for (const [prefix, body] of PREFIX_RESPONSES) {
+    if (path.startsWith(prefix)) return body;
   }
-  if (path === '/portal/dashboard') {
-    return {
-      upcoming_classes: 0,
-      open_tasks: 0,
-      overdue_tasks: 0,
-      classes_hosted: 0,
-      projects: [],
-    };
-  }
-
-  // System + dashboard stats — object shapes
-  if (path === '/system/config') return { hub_lat: 41.5868, hub_lng: -93.6250 };
-  if (path === '/dashboard/stats') {
-    return {
-      total_schedules: 0,
-      upcoming_schedules: 0,
-      total_locations: 0,
-      total_employees: 0,
-    };
-  }
-
-  // Activity + workload + notifications — object wrappers
-  if (path === '/activity-logs') return { items: [] };
-  if (path === '/workload') return { employees: [] };
-
-  // Analytics + reports — keyed object shapes
-  if (path.startsWith('/analytics/trends')) return { series: [] };
-  if (path.startsWith('/analytics/forecast')) return { forecast: [] };
-  if (path.startsWith('/analytics/drive-optimization')) return { routes: [] };
-  if (path.startsWith('/reports/weekly-summary')) return { totals: {}, rows: [] };
-
-  // Default: empty list. Covers /locations, /employees, /classes,
-  // /schedules, /users, /users/invitations, /notifications, /projects,
-  // /partner-orgs, /project-templates, /portal/projects, etc.
   return [];
 }
 
