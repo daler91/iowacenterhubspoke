@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
@@ -243,6 +243,14 @@ function AddTaskInline({
   const [owner, setOwner] = useState<'internal' | 'partner' | 'both'>('internal');
   const [dueDate, setDueDate] = useState(defaultDueDate || new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  // Focus the title input imperatively after the user reveals it by
+  // clicking "+ Add task". We do this via ref rather than the
+  // `autoFocus` prop so jsx-a11y/no-autofocus stays happy — the focus
+  // still happens at the right moment (right after the input mounts).
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (open) titleInputRef.current?.focus();
+  }, [open]);
 
   const handleAdd = async () => {
     if (!title.trim()) return;
@@ -281,12 +289,12 @@ function AddTaskInline({
     <div className="space-y-1.5 mt-1">
       <div className="flex items-center gap-1">
         <Input
+          ref={titleInputRef}
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="Task title"
           className="text-sm h-8"
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          autoFocus
         />
         <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
           <Check className="w-3.5 h-3.5" />

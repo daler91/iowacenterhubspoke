@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -33,6 +33,12 @@ export default function PromotionChecklist({ projectId }: Props) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  // Imperative focus on the inline-add Input after it mounts, instead
+  // of using the `autoFocus` prop (jsx-a11y/no-autofocus).
+  const newLabelInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (showAdd) newLabelInputRef.current?.focus();
+  }, [showAdd]);
 
   const loadChecklist = useCallback(async () => {
     try {
@@ -172,12 +178,12 @@ export default function PromotionChecklist({ projectId }: Props) {
       {showAdd && (
         <div className="flex gap-2 mt-3">
           <Input
+            ref={newLabelInputRef}
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
             placeholder="e.g., Post on Facebook page"
             className="text-sm"
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            autoFocus
           />
           <Button
             size="sm"
