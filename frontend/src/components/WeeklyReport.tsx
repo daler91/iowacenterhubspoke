@@ -80,14 +80,14 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           <p className="text-sm text-slate-500 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev">
-            <ChevronLeft className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev" aria-label="Previous week">
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </Button>
           <span className="text-sm font-medium text-slate-700 min-w-[180px] text-center">
             {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
           </span>
-          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next">
-            <ChevronRight className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next" aria-label="Next week">
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Button variant="outline" size="sm" onClick={exportPDF} data-testid="report-export-pdf">
             <FileDown className="w-4 h-4 mr-1" /> Export PDF

@@ -135,20 +135,17 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
           </div>
 
           {draft.frequency === 'week' && (
-            <div
-              className="space-y-2"
-              role="group"
-              aria-labelledby="custom-repeat-days-label"
-            >
-              {/* Group heading — not a <Label>; weekday buttons are a toggle
-                  group, not a single form control. */}
-              <span
+            <fieldset className="space-y-2 border-0 p-0 m-0">
+              {/* Use a semantic <fieldset>/<legend> for the weekday toggle
+                  group instead of role="group" — Sonar/axe prefer native
+                  HTML landmarks over ARIA roles when available. */}
+              <legend
                 id="custom-repeat-days-label"
                 data-testid="custom-repeat-days-label"
-                className="text-sm font-medium leading-none"
+                className="text-sm font-medium leading-none mb-2"
               >
                 Repeat on
-              </span>
+              </legend>
               <div className="flex gap-2 flex-wrap" data-testid="custom-repeat-days">
                 {WEEKDAYS.map((day, index) => {
                   const active = draft.weekdays.includes(day.value);
@@ -166,7 +163,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                   );
                 })}
               </div>
-            </div>
+            </fieldset>
           )}
 
           <div

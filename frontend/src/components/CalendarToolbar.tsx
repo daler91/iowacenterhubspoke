@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Button } from './ui/button';
 import { ChevronLeft, ChevronRight, FileDown, ListChecks, Download, Upload, Printer } from 'lucide-react';
 
@@ -49,9 +49,10 @@ export default function CalendarToolbar({
             size="sm"
             data-testid="calendar-prev"
             onClick={() => onNavigate('prev')}
+            aria-label="Previous period"
             className="border-gray-200"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </Button>
           <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center">
             {dateLabel}
@@ -61,9 +62,10 @@ export default function CalendarToolbar({
             size="sm"
             data-testid="calendar-next"
             onClick={() => onNavigate('next')}
+            aria-label="Next period"
             className="border-gray-200"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Button
             variant="outline"
@@ -91,13 +93,17 @@ export default function CalendarToolbar({
           </Button>
         )}
         {!isMobile && (
-          <Tabs value={calendarView} onValueChange={onViewChange}>
-            <TabsList className="bg-gray-100">
-              <TabsTrigger value="day" data-testid="view-day" className="text-xs">Day</TabsTrigger>
-              <TabsTrigger value="week" data-testid="view-week" className="text-xs">Week</TabsTrigger>
-              <TabsTrigger value="month" data-testid="view-month" className="text-xs">Month</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <ToggleGroup
+            type="single"
+            value={calendarView}
+            onValueChange={v => v && onViewChange(v)}
+            aria-label="Calendar view"
+            className="bg-gray-100 rounded-lg p-0.5"
+          >
+            <ToggleGroupItem value="day" data-testid="view-day" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Day</ToggleGroupItem>
+            <ToggleGroupItem value="week" data-testid="view-week" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Week</ToggleGroupItem>
+            <ToggleGroupItem value="month" data-testid="view-month" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Month</ToggleGroupItem>
+          </ToggleGroup>
         )}
         {isAdmin && (
           <>

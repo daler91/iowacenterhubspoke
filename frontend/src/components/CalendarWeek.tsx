@@ -489,8 +489,19 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
           ))}
         </div>
 
-        {/* Time grid */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+        {/* Time grid — `tabIndex={0}` + `<section aria-label>` lets
+            keyboard users scroll the grid. jsx-a11y warns about tabindex
+            on non-interactive elements, but axe's
+            scrollable-region-focusable rule (WCAG 2.1.1) explicitly
+            requires this — the two rules conflict and the WCAG rule
+            wins. Scoped disable for the scrollable section only. */}
+        {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
+        <section
+          className="overflow-y-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+          style={{ maxHeight: 'calc(100vh - 240px)' }}
+          tabIndex={0}
+          aria-label="Week schedule grid"
+        >
           <div className="grid grid-cols-8 relative">
             {/* Time labels column */}
             <div className="border-r border-gray-100">
@@ -532,7 +543,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               );
             })}
           </div>
-        </div>
+        </section>
+        {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
       </div>
 
       {/* Drag overlay — rendered in a portal, follows cursor */}

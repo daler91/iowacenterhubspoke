@@ -22,7 +22,7 @@ export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Rea
 }
 
 export function FilterSelect({ label, value, onChange, options }: Readonly<FilterSelectProps>) {
-  const selectId = `filter-select-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  const selectId = `filter-select-${label.replaceAll(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="min-w-[160px] space-y-2">
       <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{label}</Label>

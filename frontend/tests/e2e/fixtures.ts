@@ -100,7 +100,7 @@ const EXACT_RESPONSES: Record<string, unknown> = {
     classes_hosted: 0,
     projects: [],
   },
-  '/system/config': { hub_lat: 41.5868, hub_lng: -93.6250 },
+  '/system/config': { hub_lat: 41.5868, hub_lng: -93.625 },
   '/dashboard/stats': {
     total_schedules: 0,
     upcoming_schedules: 0,
@@ -144,8 +144,13 @@ function resolveMock(path: string): unknown {
  * Page with all `/api/v1/**` requests intercepted and a fake CSRF
  * cookie in place.
  */
+// Playwright's fixture callback convention names this second parameter
+// `use`. Sonar's `react-hooks/rules-of-hooks` rule misreads that as a
+// React Hook call and flags it; renaming to `provide` sidesteps the
+// false positive without changing Playwright semantics (the parameter
+// is positional).
 export const test = base.extend({
-  page: async ({ page }, use) => {
+  page: async ({ page }, provide) => {
     await page.context().addCookies([
       {
         name: 'csrf_token',
@@ -166,7 +171,7 @@ export const test = base.extend({
       });
     });
 
-    await use(page);
+    await provide(page);
   },
 });
 
