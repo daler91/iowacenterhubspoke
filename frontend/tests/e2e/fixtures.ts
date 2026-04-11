@@ -1,8 +1,8 @@
-import { test as base, type Page, type Route } from '@playwright/test';
+import { test as base, type Route } from '@playwright/test';
 
 /**
- * A Playwright fixture that intercepts every `/api/v1/**` request and
- * responds with deterministic, minimal mock data. This lets the e2e suite
+ * Playwright fixture that intercepts every `/api/v1/**` request and
+ * responds with deterministic, minimal mock data. Lets the e2e suite
  * run against the local Vite dev server **without** a backend — specs
  * focus on accessibility, keyboard, and responsive concerns that don't
  * need real data.
@@ -13,7 +13,7 @@ import { test as base, type Page, type Route } from '@playwright/test';
  *
  * The `page` fixture is already mocked when your spec receives it, so
  * you can navigate straight to a protected route like `/calendar` and
- * the app will render as the fake scheduler user.
+ * the app will render as a fake scheduler user.
  */
 
 const FAKE_USER = {
@@ -23,95 +23,145 @@ const FAKE_USER = {
   role: 'scheduler',
 };
 
-const EMPTY_LIST: unknown[] = [];
+// Minimal DashboardMetrics shape with empty arrays so CommunityDashboard
+// doesn't throw on `.communities.map()` / `.upcoming_projects.map()`.
+const EMPTY_COORDINATION_DASHBOARD = {
+  classes_delivered: 0,
+  total_attendance: 0,
+  warm_leads: 0,
+  active_partners: 0,
+  upcoming_classes: 0,
+  overdue_alert_count: 0,
+  orphan_completed_schedules: 0,
+  class_breakdown: [],
+  communities: [],
+  upcoming_projects: [],
+};
+
+// Minimal BoardData shape: keep all phase columns present so
+// ProjectBoard can `Object.values(columns).flat()` without crashing.
+const EMPTY_BOARD = {
+  columns: {
+    intake: [],
+    scoping: [],
+    scheduled: [],
+    promotion: [],
+    delivery: [],
+    wrap_up: [],
+    complete: [],
+  },
+};
+
+// Minimal PartnerOrg + PartnerContact for the portal verify response.
+const FAKE_ORG = {
+  id: 'org_test_1',
+  name: 'Test Partner Org',
+  community: 'Test Community',
+  venue_details: {},
+  co_branding: '',
+  status: 'active',
+  notes: '',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+const FAKE_CONTACT = {
+  id: 'contact_test_1',
+  partner_org_id: 'org_test_1',
+  name: 'Test Contact',
+  email: 'contact@example.com',
+  phone: '',
+  role: 'primary',
+  is_primary: true,
+  created_at: '2026-01-01T00:00:00Z',
+};
 
 /**
- * Maps a URL pathname (after the `/api/v1` prefix) to a JSON response
- * body. Order matters: the first matching prefix wins. Anything not in
- * this table falls back to `{}` so the frontend sees a successful but
- * empty response rather than a 404 that could trigger error UI.
+ * Resolve the mock response body for a given API path. Returns an empty
+ * array by default — most list-like endpoints in this app tolerate
+ * either `[]` or `{items: []}`, and empty object lookups return
+ * `undefined` without throwing.
  */
-const MOCK_ROUTES: Array<{ match: (path: string, method: string) => boolean; body: unknown }> = [
+function resolveMock(path: string): unknown {
   // Auth
-  { match: (p, m) => p === '/auth/me' && m === 'GET', body: FAKE_USER },
-  { match: (p, m) => p === '/auth/logout' && m === 'POST', body: { ok: true } },
+  if (path === '/auth/me') return FAKE_USER;
+  if (path === '/auth/logout') return { ok: true };
 
-  // Reference data — all empty lists so no real rows need to render
-  { match: (p, m) => p.startsWith('/locations') && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p.startsWith('/employees') && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p.startsWith('/classes') && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p.startsWith('/schedules') && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/users' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/users/invitations' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/notifications' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/activity-logs' && m === 'GET', body: { items: [] } },
-  { match: (p, m) => p === '/workload' && m === 'GET', body: { employees: [] } },
-  { match: (p, m) => p === '/dashboard/stats' && m === 'GET', body: {
-    total_schedules: 0,
-    upcoming_schedules: 0,
-    total_locations: 0,
-    total_employees: 0,
-  } },
-  { match: (p, m) => p === '/system/config' && m === 'GET', body: { hub_lat: 41.5868, hub_lng: -93.6250 } },
+  // Coordination — full shapes so the pages actually render
+  if (path === '/projects/dashboard') return EMPTY_COORDINATION_DASHBOARD;
+  if (path === '/projects/board') return EMPTY_BOARD;
+  if (path === '/coordination/partner-health') return { partners: [] };
+  if (path === '/coordination/summary') return {};
+  if (path === '/coordination/by-community') return [];
 
-  // Analytics
-  { match: (p, m) => p.startsWith('/analytics/trends') && m === 'GET', body: { series: [] } },
-  { match: (p, m) => p.startsWith('/analytics/forecast') && m === 'GET', body: { forecast: [] } },
-  { match: (p, m) => p.startsWith('/analytics/drive-optimization') && m === 'GET', body: { routes: [] } },
-  { match: (p, m) => p.startsWith('/reports/weekly-summary') && m === 'GET', body: { totals: {}, rows: [] } },
-
-  // Coordination
-  { match: (p, m) => p === '/coordination/projects' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/coordination/partners' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p === '/coordination/webhooks' && m === 'GET', body: EMPTY_LIST },
-  { match: (p, m) => p.startsWith('/coordination') && m === 'GET', body: EMPTY_LIST },
-
-  // Portal (unauthenticated token-based route)
-  { match: (p, m) => p.startsWith('/portal/') && m === 'GET', body: {
-    partner: { name: 'Test Partner' },
-    projects: [],
-    events: [],
-  } },
-];
-
-function resolveMock(path: string, method: string): unknown {
-  for (const entry of MOCK_ROUTES) {
-    if (entry.match(path, method)) return entry.body;
+  // Portal — full shapes so PortalDashboard renders instead of
+  // "Access Denied"
+  if (path.startsWith('/portal/auth/verify/')) {
+    return { org: FAKE_ORG, contact: FAKE_CONTACT };
   }
-  // Fallback: empty object. Prevents the app from treating the route as
-  // a 404 and rendering an error banner.
-  return {};
+  if (path === '/portal/dashboard') {
+    return {
+      upcoming_classes: 0,
+      open_tasks: 0,
+      overdue_tasks: 0,
+      classes_hosted: 0,
+      projects: [],
+    };
+  }
+
+  // System + dashboard stats — object shapes
+  if (path === '/system/config') return { hub_lat: 41.5868, hub_lng: -93.6250 };
+  if (path === '/dashboard/stats') {
+    return {
+      total_schedules: 0,
+      upcoming_schedules: 0,
+      total_locations: 0,
+      total_employees: 0,
+    };
+  }
+
+  // Activity + workload + notifications — object wrappers
+  if (path === '/activity-logs') return { items: [] };
+  if (path === '/workload') return { employees: [] };
+
+  // Analytics + reports — keyed object shapes
+  if (path.startsWith('/analytics/trends')) return { series: [] };
+  if (path.startsWith('/analytics/forecast')) return { forecast: [] };
+  if (path.startsWith('/analytics/drive-optimization')) return { routes: [] };
+  if (path.startsWith('/reports/weekly-summary')) return { totals: {}, rows: [] };
+
+  // Default: empty list. Covers /locations, /employees, /classes,
+  // /schedules, /users, /users/invitations, /notifications, /projects,
+  // /partner-orgs, /project-templates, /portal/projects, etc.
+  return [];
 }
 
-export async function installApiMocks(page: Page): Promise<void> {
-  // Set a fake csrf cookie so mutating request interceptors in the app
-  // don't bail out. The value is never validated server-side because
-  // we intercept everything.
-  await page.context().addCookies([
-    {
-      name: 'csrf_token',
-      value: 'test-csrf-token',
-      url: 'http://localhost:3000',
-    },
-  ]);
+/**
+ * Override the default `page` fixture so every test gets a pre-mocked
+ * Page with all `/api/v1/**` requests intercepted and a fake CSRF
+ * cookie in place.
+ */
+export const test = base.extend({
+  page: async ({ page }, use) => {
+    await page.context().addCookies([
+      {
+        name: 'csrf_token',
+        value: 'test-csrf-token',
+        url: 'http://localhost:3000',
+      },
+    ]);
 
-  await page.route('**/api/v1/**', async (route: Route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname.replace(/^.*\/api\/v1/, '');
-    const method = request.method();
-    const body = resolveMock(path, method);
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
+    await page.route('**/api/v1/**', async (route: Route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const path = url.pathname.replace(/^.*\/api\/v1/, '');
+      const body = resolveMock(path);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
     });
-  });
-}
 
-export const test = base.extend<{ mockedPage: Page }>({
-  mockedPage: async ({ page }, use) => {
-    await installApiMocks(page);
     await use(page);
   },
 });
