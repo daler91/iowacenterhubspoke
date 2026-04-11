@@ -17,38 +17,59 @@ const TABS = [
   { id: 'messages', label: 'Messages' },
 ];
 
+/**
+ * Shell for the partner portal (authenticated via magic link, no sidebar).
+ *
+ * Mobile-first: partners typically access via phone. Header stacks its
+ * org/contact blocks on narrow screens, the tab bar scrolls horizontally
+ * instead of overflowing, and content has fluid padding (16px phone →
+ * 24px tablet → 32px desktop).
+ */
 export default function PortalLayout({ org, contact, activeTab, onTabChange, children }: Props) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-5xl mx-auto flex items-start sm:items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
               {org.name}
             </h1>
-            <p className="text-sm text-slate-500">{org.community}</p>
+            <p className="text-xs sm:text-sm text-slate-500 truncate">{org.community}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-700 dark:text-purple-300 font-semibold text-sm">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div
+              className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm"
+              aria-hidden="true"
+            >
               {contact.name.charAt(0).toUpperCase()}
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{contact.name}</span>
+            <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 hidden sm:inline">
+              {contact.name}
+            </span>
+            <span className="sr-only">Signed in as {contact.name}</span>
           </div>
         </div>
       </header>
 
-      {/* Tab Bar */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6">
-        <div className="max-w-5xl mx-auto flex gap-1">
+      {/* Tab Bar — horizontally scrollable on phones so all four tabs
+          stay reachable without cramping. */}
+      <nav
+        aria-label="Portal sections"
+        className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6"
+      >
+        <div className="max-w-5xl mx-auto flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           {TABS.map(tab => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => onTabChange(tab.id)}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
               className={cn(
-                'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                'px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 rounded-t',
                 activeTab === tab.id
-                  ? 'border-indigo-600 text-indigo-600'
+                  ? 'border-hub text-hub'
                   : 'border-transparent text-slate-500 hover:text-slate-700',
               )}
             >
@@ -56,10 +77,10 @@ export default function PortalLayout({ org, contact, activeTab, onTabChange, chi
             </button>
           ))}
         </div>
-      </div>
+      </nav>
 
       {/* Content */}
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
         {children}
       </main>
     </div>

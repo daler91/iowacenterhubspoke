@@ -62,15 +62,17 @@ function DriveTimePill({ leg, onOverrideChange }) {
       <PopoverTrigger asChild>
         <button
           type="button"
+          aria-label={`Override drive time (currently ${leg.minutes} minutes${leg.is_overridden ? ', manually overridden' : ''})`}
           className={cn(
             "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors cursor-pointer",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
             leg.is_overridden
-              ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+              ? "bg-info-soft text-info border-info/30 hover:bg-info-soft/70"
               : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
           )}
         >
           {leg.minutes} min
-          <Pencil className="w-3 h-3 opacity-50" />
+          <Pencil className="w-3 h-3 opacity-50" aria-hidden="true" />
         </button>
       </PopoverTrigger>
       <PopoverContent

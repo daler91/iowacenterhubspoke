@@ -130,7 +130,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
               <div key={cmt.id} className="flex gap-2 mb-3">
                 <div className={cn(
                   'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
-                  cmt.sender_type === 'partner' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700',
+                  cmt.sender_type === 'partner'
+                    ? 'bg-ownership-partner-soft text-ownership-partner'
+                    : 'bg-ownership-internal-soft text-ownership-internal',
                 )}>
                   {(cmt.sender_name || '?').charAt(0).toUpperCase()}
                 </div>
@@ -416,7 +418,7 @@ export default function TaskDetailModal({
                 {/* Description */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-400" />
+                    <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Description</span>
                   </div>
                   <textarea

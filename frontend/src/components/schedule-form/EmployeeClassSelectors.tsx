@@ -22,8 +22,9 @@ export function EmployeeClassSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">Employees</Label>
+        <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-slate-700">Employees</Label>
         <EmployeeMultiSelect
+          id="schedule-employee-select"
           employees={employees || []}
           selectedIds={form.employee_ids || []}
           onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
@@ -32,32 +33,45 @@ export function EmployeeClassSelectors({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm font-medium text-slate-700">Class Type</Label>
-          <button
-            type="button"
-            data-testid="schedule-add-class-inline-button"
-            onClick={onAddClass}
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-          >
-            <PlusCircle className="w-3 h-3" />
-            Add New Class
-          </button>
+          <Label htmlFor="schedule-class-select" className="text-sm font-medium text-slate-700">Class Type</Label>
+          {onAddClass && (
+            <button
+              type="button"
+              data-testid="schedule-add-class-inline-button"
+              onClick={onAddClass}
+              className="text-xs font-medium text-hub hover:text-hub-strong flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 rounded"
+            >
+              <PlusCircle className="w-3 h-3" aria-hidden="true" />
+              Add New Class
+            </button>
+          )}
         </div>
         <Select value={form.class_id || undefined} onValueChange={handleClassSelection}>
-          <SelectTrigger data-testid="schedule-class-select" className="h-10 bg-gray-50/50">
+          <SelectTrigger
+            id="schedule-class-select"
+            data-testid="schedule-class-select"
+            className="h-10 bg-gray-50/50"
+            aria-describedby={selectedClass ? 'schedule-selected-class-preview' : undefined}
+          >
             <SelectValue placeholder="Select a class type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={CREATE_CLASS_VALUE} data-testid="schedule-class-add-new-option">
-              <div className="flex items-center gap-2 text-indigo-700">
-                <PlusCircle className="w-3.5 h-3.5" />
-                Add New Class...
-              </div>
-            </SelectItem>
+            {onAddClass && (
+              <SelectItem value={CREATE_CLASS_VALUE} data-testid="schedule-class-add-new-option">
+                <div className="flex items-center gap-2 text-hub">
+                  <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                  Add New Class...
+                </div>
+              </SelectItem>
+            )}
             {(classes || []).map(classItem => (
               <SelectItem key={classItem.id} value={classItem.id}>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classItem.color || COLORS.DEFAULT_CLASS }} />
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: classItem.color || COLORS.DEFAULT_CLASS }}
+                    aria-hidden="true"
+                  />
                   <span>{classItem.name}</span>
                 </div>
               </SelectItem>
@@ -66,8 +80,16 @@ export function EmployeeClassSelectors({
         </Select>
 
         {selectedClass && (
-          <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-emerald-50/60 px-3 py-2" data-testid="schedule-selected-class-preview">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: selectedClass.color || COLORS.DEFAULT_CLASS }}>
+          <div
+            id="schedule-selected-class-preview"
+            className="flex items-start gap-3 rounded-xl border border-gray-100 bg-spoke-soft px-3 py-2"
+            data-testid="schedule-selected-class-preview"
+          >
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0"
+              style={{ backgroundColor: selectedClass.color || COLORS.DEFAULT_CLASS }}
+              aria-hidden="true"
+            >
               <BookOpen className="w-4 h-4" />
             </div>
             <div className="min-w-0">

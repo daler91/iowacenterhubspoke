@@ -9,6 +9,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { PageShell } from '../ui/page-shell';
 import { Plus, AlertTriangle, Search, ChevronDown, ChevronRight, CheckCircle2, FolderOpen } from 'lucide-react';
 import { Input } from '../ui/input';
 import { useProjectBoard } from '../../hooks/useCoordinationData';
@@ -28,8 +29,10 @@ function DroppableColumn({ phase, children }: Readonly<{ phase: string; children
     <div
       ref={setNodeRef}
       className={cn(
+        // Teal accent on hover — visually distinct from the indigo Schedule
+        // Tracker kanban so the two boards don't blur together.
         'flex-1 min-w-[280px] rounded-xl p-3 transition-colors',
-        isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-gray-50 dark:bg-gray-900/50',
+        isOver ? 'bg-spoke-soft ring-2 ring-spoke/30' : 'bg-gray-50 dark:bg-gray-900/50',
       )}
     >
       {children}
@@ -63,7 +66,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
       <Card
         className={cn(
           'p-3 mb-2 cursor-pointer hover:shadow-md transition-shadow border',
-          hasOverdue && 'border-amber-400 dark:border-amber-600',
+          hasOverdue && 'border-warn',
         )}
         onClick={() => navigate(`/coordination/projects/${project.id}`)}
       >
@@ -72,7 +75,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
             {project.title}
           </h4>
           {hasOverdue && (
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 ml-1" />
+            <AlertTriangle className="w-4 h-4 text-warn shrink-0 ml-1" aria-label="Has overdue tasks" />
           )}
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -83,6 +86,15 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
           </Badge>
+          {project.schedule_id && (
+            <Badge
+              variant="secondary"
+              className="text-[10px] px-1.5 py-0 bg-hub-soft text-hub"
+              title="Linked to a schedule on the Schedule Tracker"
+            >
+              On Calendar
+            </Badge>
+          )}
         </div>
         {project.task_total ? (
           <div>
@@ -92,7 +104,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
             </div>
             <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-indigo-500 rounded-full transition-all"
+                className="h-full bg-spoke rounded-full transition-all"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -199,67 +211,62 @@ export default function ProjectBoard() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Project Board
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage partner coordination — track projects through planning, promotion, delivery, and follow-up</p>
+    <PageShell
+      testId="project-board"
+      breadcrumbs={[{ label: 'Coordination' }, { label: 'Projects' }]}
+      title="Project Board"
+      subtitle="Manage partner coordination — track projects through planning, promotion, delivery, and follow-up"
+      status={isLoading ? { kind: 'loading', variant: 'cards' } : { kind: 'ready' }}
+      actions={
+        <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> New Project
+        </Button>
+      }
+    >
+      {/* Filter toolbar — wraps to multiple rows on narrow screens so it
+          stays usable on tablets without horizontal overflow. */}
+      <div className="flex items-center gap-3 flex-wrap mb-6">
+        <div className="relative w-full sm:w-48">
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <label htmlFor="project-search" className="sr-only">Search projects</label>
+          <Input
+            id="project-search"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search projects..."
+            className="pl-8 h-10 text-sm"
+          />
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-48">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search projects..."
-              className="pl-8 h-10 text-sm"
-            />
-          </div>
-          <div className="w-44">
-            <SearchableSelect
-              options={communities.map(c => ({ value: c, label: c }))}
-              value={communityFilter}
-              onValueChange={setCommunityFilter}
-              placeholder="All Communities"
-              searchPlaceholder="Search communities..."
-              emptyMessage="No communities found."
-            />
-          </div>
-          <div className="w-40">
-            <SearchableSelect
-              options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
-              value={eventFormatFilter}
-              onValueChange={setEventFormatFilter}
-              placeholder="All Formats"
-              searchPlaceholder="Search formats..."
-              emptyMessage="No formats found."
-            />
-          </div>
-          <div className="w-40">
-            <SearchableSelect
-              options={classes.map(c => ({ value: c.id, label: c.name }))}
-              value={classFilter}
-              onValueChange={setClassFilter}
-              placeholder="All Classes"
-              searchPlaceholder="Search classes..."
-              emptyMessage="No classes found."
-            />
-          </div>
-          <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-            <Plus className="w-4 h-4 mr-1" /> New Project
-          </Button>
+        <div className="w-full sm:w-44">
+          <SearchableSelect
+            options={communities.map(c => ({ value: c, label: c }))}
+            value={communityFilter}
+            onValueChange={setCommunityFilter}
+            placeholder="All Communities"
+            searchPlaceholder="Search communities..."
+            emptyMessage="No communities found."
+          />
+        </div>
+        <div className="w-full sm:w-40">
+          <SearchableSelect
+            options={Object.entries(EVENT_FORMAT_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+            value={eventFormatFilter}
+            onValueChange={setEventFormatFilter}
+            placeholder="All Formats"
+            searchPlaceholder="Search formats..."
+            emptyMessage="No formats found."
+          />
+        </div>
+        <div className="w-full sm:w-40">
+          <SearchableSelect
+            options={classes.map(c => ({ value: c.id, label: c.name }))}
+            value={classFilter}
+            onValueChange={setClassFilter}
+            placeholder="All Classes"
+            searchPlaceholder="Search classes..."
+            emptyMessage="No classes found."
+          />
         </div>
       </div>
 
@@ -389,12 +396,12 @@ export default function ProjectBoard() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPhaseGateWarning(null)}>Cancel</Button>
-            <Button onClick={handleForceAdvance} className="bg-amber-600 hover:bg-amber-700 text-white">
+            <Button onClick={handleForceAdvance} className="bg-warn hover:bg-warn/90 text-white">
               Advance Anyway
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

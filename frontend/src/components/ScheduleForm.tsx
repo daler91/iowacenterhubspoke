@@ -30,25 +30,36 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 }
 
 function stepStyle(i: number, current: number): string {
-  if (i === current) return 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300';
-  if (i < current) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400';
+  if (i === current) return 'bg-hub-soft text-hub';
+  if (i < current) return 'bg-spoke-soft text-spoke';
   return 'bg-gray-100 dark:bg-gray-800 text-slate-400';
 }
 
 function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: number) => void }>) {
   return (
-    <div className="flex items-center gap-1" data-testid="wizard-steps">
+    <div
+      className="flex items-center gap-1"
+      data-testid="wizard-steps"
+      role="tablist"
+      aria-label="Schedule wizard steps"
+    >
       {STEPS.map((s, i) => (
         <button
           key={s.label}
           type="button"
+          role="tab"
+          id={`wizard-step-tab-${i}`}
+          aria-selected={i === step}
+          aria-controls={`wizard-step-panel-${i}`}
+          tabIndex={i === step ? 0 : -1}
           onClick={() => onStep(i)}
           className={cn(
             'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors text-center',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
             stepStyle(i, step),
           )}
         >
-          {s.label}
+          Step {i + 1}: {s.label}
         </button>
       ))}
     </div>
@@ -126,7 +137,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px] bg-white overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <DialogTitle className="text-xl font-bold">
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}
           </DialogTitle>
           <DialogDescription>
@@ -138,55 +149,77 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           {isWizard && <WizardSteps step={step} onStep={setStep} />}
 
           {editSchedule && hasSeries && (
-            <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
-              <Repeat className="w-4 h-4 text-indigo-500 shrink-0" />
+            <fieldset className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+              <legend className="sr-only">Series edit scope</legend>
+              <Repeat className="w-4 h-4 text-hub shrink-0" aria-hidden="true" />
               <div className="flex gap-4 text-sm">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="seriesAction" value="this" checked={seriesAction === 'this'}
-                    onChange={() => setSeriesAction('this')} className="accent-indigo-600" />
+                    onChange={() => setSeriesAction('this')} className="accent-hub" />
                   <span>This schedule only</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="seriesAction" value="future" checked={seriesAction === 'future'}
-                    onChange={() => setSeriesAction('future')} className="accent-indigo-600" />
+                    onChange={() => setSeriesAction('future')} className="accent-hub" />
                   <span>All future in series</span>
                 </label>
               </div>
-            </div>
+            </fieldset>
           )}
 
           {showStep(0) && (
-            <EmployeeClassSelectors
-              form={form}
-              setForm={setForm}
-              employees={employees}
-              classes={classes}
-              selectedClass={selectedClass}
-              onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
-            />
+            <section
+              id="wizard-step-panel-0"
+              role="tabpanel"
+              aria-labelledby="wizard-step-tab-0"
+              className="space-y-5"
+            >
+              <EmployeeClassSelectors
+                form={form}
+                setForm={setForm}
+                employees={employees}
+                classes={classes}
+                selectedClass={selectedClass}
+                onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
+              />
+            </section>
           )}
 
           {showStep(1) && (
-            <LocationTimeSelectors
-              form={form}
-              setForm={setForm}
-              locations={locations}
-              selectedLocation={selectedLocation}
-              onDateChange={handleDateChange}
-              previewConflicts={previewConflicts}
-              travelChain={travelChain}
-              onOverrideChange={handleOverrideChange}
-            />
+            <section
+              id="wizard-step-panel-1"
+              role="tabpanel"
+              aria-labelledby="wizard-step-tab-1"
+              className="space-y-5"
+            >
+              <LocationTimeSelectors
+                form={form}
+                setForm={setForm}
+                locations={locations}
+                selectedLocation={selectedLocation}
+                onDateChange={handleDateChange}
+                previewConflicts={previewConflicts}
+                travelChain={travelChain}
+                onOverrideChange={handleOverrideChange}
+              />
+            </section>
           )}
 
           {!editSchedule && showStep(2) && (
-            <RecurrenceOptions
-              form={form}
-              setForm={setForm}
-              customRecurrence={customRecurrence}
-              onRecurrenceChange={handleRecurrenceChange}
-              openCustomModal={() => setCustomRecurrenceOpen(true)}
-            />
+            <section
+              id="wizard-step-panel-2"
+              role="tabpanel"
+              aria-labelledby="wizard-step-tab-2"
+              className="space-y-5"
+            >
+              <RecurrenceOptions
+                form={form}
+                setForm={setForm}
+                customRecurrence={customRecurrence}
+                onRecurrenceChange={handleRecurrenceChange}
+                openCustomModal={() => setCustomRecurrenceOpen(true)}
+              />
+            </section>
           )}
 
           <DialogFooter className="flex gap-2 pt-4">
@@ -197,15 +230,15 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 data-testid="schedule-delete-btn"
                 onClick={() => hasSeries && seriesAction === 'future' ? setShowSeriesDeleteConfirm(true) : handleDelete()}
                 disabled={loading}
-                className="text-red-600 border-red-200 hover:bg-red-50"
+                className="text-danger border-danger/30 hover:bg-danger-soft"
               >
-                <Trash2 className="w-4 h-4 mr-1" />
+                <Trash2 className="w-4 h-4 mr-1" aria-hidden="true" />
                 {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}
               </Button>
             )}
             {isWizard && step > 0 && (
               <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
-                <ChevronLeft className="w-4 h-4 mr-1" /> Back
+                <ChevronLeft className="w-4 h-4 mr-1" aria-hidden="true" /> Back
               </Button>
             )}
             {showSubmit ? (
@@ -215,7 +248,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 disabled={loading}
                 className={cn(
                   'text-white flex-1',
-                  outlookOverride || googleOverride ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700',
+                  outlookOverride || googleOverride ? 'bg-warn hover:bg-warn/90' : 'bg-indigo-600 hover:bg-indigo-700',
                 )}
               >
                 {submitLabel}
@@ -252,7 +285,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowSeriesDeleteConfirm(false)}>Cancel</Button>
             <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-danger hover:bg-danger/90 text-white"
               onClick={async () => {
                 try {
                   await schedulesAPI.deleteSeries(editSchedule.series_id);

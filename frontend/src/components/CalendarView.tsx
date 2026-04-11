@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
+import { PageHeader } from './ui/page-header';
 import RelocateConflictDialog from './RelocateConflictDialog';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
@@ -191,11 +192,12 @@ export default function CalendarView() {
 
   return (
     <div className="space-y-5 animate-slide-in" data-testid="calendar-view">
-      <div className="space-y-2" data-testid="calendar-home-header">
-        <h2 className="text-3xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Scheduling Calendar
-        </h2>
-        <p className="text-slate-500">Your main planning view — focused on classes, travel time, and weekly flow.</p>
+      <div data-testid="calendar-home-header">
+        <PageHeader
+          breadcrumbs={[{ label: 'Planning' }, { label: 'Calendar' }]}
+          title="Scheduling Calendar"
+          subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
+        />
         {(schedules || []).length === 0 && (
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 space-y-4" data-testid="empty-state-guide">
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>

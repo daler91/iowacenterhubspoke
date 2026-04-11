@@ -4,6 +4,7 @@ import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, Li
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import { PageShell } from './ui/page-shell';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -170,8 +171,10 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
 
 function DroppableColumn({ id, children }: Readonly<{ id: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  // Indigo accent on hover — visually distinct from the teal-accented
+  // Project Board so the two kanbans don't blur together.
   return (
-    <div ref={setNodeRef} className={cn('transition-colors rounded-xl', isOver && 'bg-indigo-50/40')}>
+    <div ref={setNodeRef} className={cn('transition-colors rounded-xl', isOver && 'bg-hub-soft ring-2 ring-hub/20')}>
       {children}
     </div>
   );
@@ -268,14 +271,12 @@ export default function KanbanBoard() {
   };
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="kanban-board">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif' }}>
-            Schedule Tracker
-          </h2>
-          <p className="text-sm text-slate-500 mt-1" data-testid="kanban-subtitle">Track class delivery status — drag cards to mark progress from upcoming to completed</p>
-        </div>
+    <PageShell
+      testId="kanban-board"
+      breadcrumbs={[{ label: 'Planning' }, { label: 'Schedule Tracker' }]}
+      title="Schedule Tracker"
+      subtitle="Track class delivery status — drag cards to mark progress from upcoming to completed"
+      actions={
         <Button
           variant={selectionMode ? 'default' : 'outline'}
           size="sm"
@@ -283,15 +284,15 @@ export default function KanbanBoard() {
           onClick={toggleSelectionMode}
           className={selectionMode ? '' : 'border-gray-200'}
         >
-          <ListChecks className="w-4 h-4 mr-1" />
+          <ListChecks className="w-4 h-4 mr-1" aria-hidden="true" />
           Bulk Select
         </Button>
-      </div>
-
+      }
+    >
       {fetchErrors?.schedules && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error">
-          <p className="text-sm text-red-700">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button onClick={() => onRefresh()} className="text-sm font-medium text-red-700 hover:text-red-800 underline">Retry</button>
+        <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
+          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger hover:underline underline-offset-2">Retry</button>
         </div>
       )}
 
@@ -366,7 +367,7 @@ export default function KanbanBoard() {
           classes={classes}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

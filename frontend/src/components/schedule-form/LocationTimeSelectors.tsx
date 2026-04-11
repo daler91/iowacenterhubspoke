@@ -6,7 +6,11 @@ import { MapPin, Car, AlertTriangle, Calendar } from 'lucide-react';
 import { TravelChainPreview } from './TravelChainPreview';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
-const OUTLOOK_STATUS_COLORS = { busy: 'bg-red-100 text-red-700', tentative: 'bg-amber-100 text-amber-700', oof: 'bg-purple-100 text-purple-700' };
+const OUTLOOK_STATUS_COLORS = {
+  busy: 'bg-danger-soft text-danger',
+  tentative: 'bg-warn-soft text-warn',
+  oof: 'bg-ownership-partner-soft text-ownership-partner',
+};
 
 function formatOutlookTime(dateTime) {
   if (!dateTime) return '';
@@ -22,19 +26,28 @@ export function LocationTimeSelectors({
   travelChain,
   onOverrideChange,
 }) {
+  const hasConflicts =
+    (previewConflicts?.outlook_conflicts?.length ?? 0) > 0 ||
+    (previewConflicts?.google_conflicts?.length ?? 0) > 0 ||
+    (previewConflicts?.conflicts?.length ?? 0) > 0;
   return (
     <>
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">Location</Label>
+        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700">Location</Label>
         <Select value={form.location_id} onValueChange={(v) => setForm({ ...form, location_id: v })}>
-          <SelectTrigger data-testid="schedule-location-select" className="h-10 bg-gray-50/50">
+          <SelectTrigger
+            id="schedule-location-select"
+            data-testid="schedule-location-select"
+            className="h-10 bg-gray-50/50"
+            aria-describedby={selectedLocation ? 'schedule-location-drive' : undefined}
+          >
             <SelectValue placeholder="Select a location" />
           </SelectTrigger>
           <SelectContent>
             {(locations || []).map(loc => (
               <SelectItem key={loc.id} value={loc.id}>
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-3 h-3 text-teal-600" />
+                  <MapPin className="w-3 h-3 text-spoke" aria-hidden="true" />
                   {loc.city_name}
                   <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-gray-100 text-gray-600">
                     {loc.drive_time_minutes}m
@@ -45,8 +58,11 @@ export function LocationTimeSelectors({
           </SelectContent>
         </Select>
         {selectedLocation && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-            <Car className="w-4 h-4 text-slate-400" />
+          <div
+            id="schedule-location-drive"
+            className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
+          >
+            <Car className="w-4 h-4 text-slate-400" aria-hidden="true" />
             <span className="text-xs text-slate-500">
               Estimated drive: <span className="font-semibold text-slate-700">{selectedLocation.drive_time_minutes} min</span> each way from Hub
             </span>
@@ -56,108 +72,121 @@ export function LocationTimeSelectors({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700">Date</Label>
+          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700">Date</Label>
           <Input
+            id="schedule-date-input"
             type="date"
             data-testid="schedule-date-input"
             value={form.date}
             onChange={(e) => onDateChange(e.target.value)}
             className="h-10 bg-gray-50/50"
             required
+            aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700">Start Time</Label>
+          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700">Start Time</Label>
           <Input
+            id="schedule-start-time"
             type="time"
             data-testid="schedule-start-time"
             value={form.start_time}
             onChange={(e) => setForm({ ...form, start_time: e.target.value })}
             className="h-10 bg-gray-50/50"
             required
+            aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700">End Time</Label>
+          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700">End Time</Label>
           <Input
+            id="schedule-end-time"
             type="time"
             data-testid="schedule-end-time"
             value={form.end_time}
             onChange={(e) => setForm({ ...form, end_time: e.target.value })}
             className="h-10 bg-gray-50/50"
             required
+            aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
         </div>
       </div>
 
-      {/* Outlook calendar conflict preview */}
-      {previewConflicts?.outlook_conflicts?.length > 0 && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2" data-testid="outlook-conflict-banner">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-blue-600" />
-            <span className="text-xs font-semibold text-blue-700">
-              Outlook Calendar Conflicts
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.outlook_conflicts.map((c) => (
-              <Badge
-                key={`${c.status}-${c.start}-${c.end}`}
-                variant="secondary"
-                className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
-              >
-                {OUTLOOK_STATUS_LABELS[c.status] || c.status} {formatOutlookTime(c.start)}–{formatOutlookTime(c.end)}
-              </Badge>
-            ))}
-          </div>
-          <p className="text-[11px] text-blue-600">
-            This employee has Outlook calendar conflicts during this time.
-          </p>
-        </div>
-      )}
+      {/* Conflict preview region — announced to screen readers when
+          conflicts appear. All three conflict types share one aria region
+          so we don't flood with alerts. */}
+      {hasConflicts && (
+        <div id="schedule-conflicts-region" aria-live="polite" className="space-y-3">
+          {/* Outlook calendar conflict preview */}
+          {previewConflicts?.outlook_conflicts?.length > 0 && (
+            <div className="p-3 bg-info-soft border border-info/30 rounded-lg space-y-2" data-testid="outlook-conflict-banner" role="alert">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-info" aria-hidden="true" />
+                <span className="text-xs font-semibold text-info">
+                  Outlook Calendar Conflicts
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {previewConflicts.outlook_conflicts.map((c) => (
+                  <Badge
+                    key={`${c.status}-${c.start}-${c.end}`}
+                    variant="secondary"
+                    className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
+                  >
+                    {OUTLOOK_STATUS_LABELS[c.status] || c.status} {formatOutlookTime(c.start)}–{formatOutlookTime(c.end)}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-[11px] text-info">
+                This employee has Outlook calendar conflicts during this time.
+              </p>
+            </div>
+          )}
 
-      {/* Google Calendar conflict preview */}
-      {previewConflicts?.google_conflicts?.length > 0 && (
-        <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2" data-testid="google-conflict-banner">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-teal-600" />
-            <span className="text-xs font-semibold text-teal-700">
-              Google Calendar Conflicts
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.google_conflicts.map((c) => (
-              <Badge
-                key={`google-${c.start}-${c.end}`}
-                variant="secondary"
-                className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700"
-              >
-                Busy {formatOutlookTime(c.start)}&ndash;{formatOutlookTime(c.end)}
-              </Badge>
-            ))}
-          </div>
-          <p className="text-[11px] text-teal-600">
-            This employee has Google Calendar conflicts during this time.
-          </p>
-        </div>
-      )}
+          {/* Google Calendar conflict preview */}
+          {previewConflicts?.google_conflicts?.length > 0 && (
+            <div className="p-3 bg-spoke-soft border border-spoke/30 rounded-lg space-y-2" data-testid="google-conflict-banner" role="alert">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-spoke" aria-hidden="true" />
+                <span className="text-xs font-semibold text-spoke">
+                  Google Calendar Conflicts
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {previewConflicts.google_conflicts.map((c) => (
+                  <Badge
+                    key={`google-${c.start}-${c.end}`}
+                    variant="secondary"
+                    className="text-[10px] px-2 py-0.5 bg-danger-soft text-danger"
+                  >
+                    Busy {formatOutlookTime(c.start)}&ndash;{formatOutlookTime(c.end)}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-[11px] text-spoke">
+                This employee has Google Calendar conflicts during this time.
+              </p>
+            </div>
+          )}
 
-      {/* Internal schedule conflict preview */}
-      {previewConflicts?.conflicts?.length > 0 && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2" data-testid="internal-conflict-banner">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-xs font-semibold text-amber-700">
-              Schedule Conflicts
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {previewConflicts.conflicts.map((c) => (
-              <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700">
-                {c.location} ({c.time})
-              </Badge>
-            ))}
-          </div>
+          {/* Internal schedule conflict preview */}
+          {previewConflicts?.conflicts?.length > 0 && (
+            <div className="p-3 bg-warn-soft border border-warn/30 rounded-lg space-y-2" data-testid="internal-conflict-banner" role="alert">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-warn" aria-hidden="true" />
+                <span className="text-xs font-semibold text-warn">
+                  Schedule Conflicts
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {previewConflicts.conflicts.map((c) => (
+                  <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-warn-soft text-warn">
+                    {c.location} ({c.time})
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -165,8 +194,9 @@ export function LocationTimeSelectors({
       <TravelChainPreview travelChain={travelChain} onOverrideChange={onOverrideChange} />
 
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">Notes (optional)</Label>
+        <Label htmlFor="schedule-notes-input" className="text-sm font-medium text-slate-700">Notes (optional)</Label>
         <Input
+          id="schedule-notes-input"
           data-testid="schedule-notes-input"
           placeholder="Additional notes..."
           value={form.notes}

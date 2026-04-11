@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { PageShell } from '../components/ui/page-shell';
 import {
   GraduationCap, Users, Flame, Handshake, CalendarDays,
 } from 'lucide-react';
@@ -21,13 +22,13 @@ function MetricCard({
   return (
     <Card className="p-4 flex items-center gap-4">
       <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', color)}>
-        <Icon className="w-5 h-5 text-white" />
+        <Icon className="w-5 h-5 text-white" aria-hidden="true" />
       </div>
       <div>
         <p className="text-2xl font-bold text-slate-900 dark:text-white">
           {value}
           {alert !== undefined && alert > 0 && (
-            <span className="ml-2 text-xs font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+            <span className="ml-2 text-xs font-medium text-warn bg-warn-soft px-1.5 py-0.5 rounded">
               {alert} overdue
             </span>
           )}
@@ -42,43 +43,36 @@ export default function CommunityDashboard() {
   const navigate = useNavigate();
   const { dashboard, isLoading } = useCommunityDashboard();
 
-  if (isLoading || !dashboard) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Coordination Dashboard
-        </h1>
-        <ExportButton endpoint="/exports/projects" label="Export" />
-      </div>
-
+    <PageShell
+      testId="community-dashboard"
+      breadcrumbs={[{ label: 'Coordination' }, { label: 'Dashboard' }]}
+      title="Coordination Dashboard"
+      subtitle="Hub-wide view of class delivery, partner health, and community activity"
+      status={isLoading || !dashboard ? { kind: 'loading', variant: 'cards' } : { kind: 'ready' }}
+      actions={<ExportButton endpoint="/exports/projects" label="Export" />}
+    >
+      {dashboard && <>
       {/* Top Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <MetricCard icon={GraduationCap} label="Classes Delivered" value={dashboard.classes_delivered} color="bg-green-500" />
-        <MetricCard icon={Users} label="Total Attendance" value={dashboard.total_attendance} color="bg-blue-500" />
-        <MetricCard icon={Flame} label="Warm Leads" value={dashboard.warm_leads} color="bg-orange-500" />
-        <MetricCard icon={Handshake} label="Active Partners" value={dashboard.active_partners} color="bg-purple-500" />
+        <MetricCard icon={GraduationCap} label="Classes Delivered" value={dashboard.classes_delivered} color="bg-spoke" />
+        <MetricCard icon={Users} label="Total Attendance" value={dashboard.total_attendance} color="bg-info" />
+        <MetricCard icon={Flame} label="Warm Leads" value={dashboard.warm_leads} color="bg-warn" />
+        <MetricCard icon={Handshake} label="Active Partners" value={dashboard.active_partners} color="bg-ownership-partner" />
         <MetricCard
           icon={CalendarDays}
           label="Upcoming Classes"
           value={dashboard.upcoming_classes}
           alert={dashboard.overdue_alert_count}
-          color="bg-indigo-500"
+          color="bg-hub"
         />
       </div>
 
       {/* Orphan Alert */}
       {dashboard.orphan_completed_schedules > 0 && (
-        <Card className="p-4 mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+        <Card className="p-4 mb-6 border-warn/30 bg-warn-soft">
           <div className="flex items-center gap-3 text-sm">
-            <CalendarDays className="w-5 h-5 text-amber-600 shrink-0" />
+            <CalendarDays className="w-5 h-5 text-warn shrink-0" aria-hidden="true" />
             <p className="text-slate-700 dark:text-slate-300">
               <strong>{dashboard.orphan_completed_schedules}</strong> completed schedule{dashboard.orphan_completed_schedules > 1 ? 's' : ''} {dashboard.orphan_completed_schedules > 1 ? 'have' : 'has'} no linked project — outcomes are not being tracked.
             </p>
@@ -119,11 +113,11 @@ export default function CommunityDashboard() {
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{community.community}</h3>
             <div className="flex gap-4 text-sm mb-3">
               <div>
-                <span className="text-2xl font-bold text-green-600">{community.delivered}</span>
+                <span className="text-2xl font-bold text-spoke">{community.delivered}</span>
                 <p className="text-[10px] text-slate-400">Delivered</p>
               </div>
               <div>
-                <span className="text-2xl font-bold text-indigo-600">{community.upcoming}</span>
+                <span className="text-2xl font-bold text-hub">{community.upcoming}</span>
                 <p className="text-[10px] text-slate-400">Upcoming</p>
               </div>
             </div>
@@ -215,6 +209,7 @@ export default function CommunityDashboard() {
       <div className="mb-8">
         <PartnerHealthTable />
       </div>
-    </div>
+      </>}
+    </PageShell>
   );
 }

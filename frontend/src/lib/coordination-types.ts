@@ -27,19 +27,23 @@ export const PHASE_LABELS: Record<string, string> = {
   complete: 'Complete',
 };
 
+// Phase colors use semantic brand tokens (see frontend/src/index.css). Each
+// phase still gets a distinct hue for quick recognition, but they all flow
+// from the Hub Indigo / Spoke Teal / Warn Amber palette instead of raw
+// Tailwind colors.
 export const PHASE_COLORS: Record<string, string> = {
-  planning: 'bg-blue-500',
-  promotion: 'bg-amber-500',
-  delivery: 'bg-green-500',
-  follow_up: 'bg-purple-500',
+  planning: 'bg-info',
+  promotion: 'bg-warn',
+  delivery: 'bg-spoke',
+  follow_up: 'bg-ownership-partner',
   complete: 'bg-slate-400',
 };
 
 export const PHASE_DOT_COLORS: Record<string, string> = {
-  planning: 'bg-blue-400',
-  promotion: 'bg-amber-400',
-  delivery: 'bg-green-400',
-  follow_up: 'bg-purple-400',
+  planning: 'bg-info',
+  promotion: 'bg-warn',
+  delivery: 'bg-spoke',
+  follow_up: 'bg-ownership-partner',
   complete: 'bg-slate-300',
 };
 
@@ -51,9 +55,9 @@ export const EVENT_FORMAT_LABELS: Record<string, string> = {
 };
 
 export const OWNER_COLORS: Record<string, string> = {
-  internal: 'bg-blue-100 text-blue-700',
-  partner: 'bg-purple-100 text-purple-700',
-  both: 'bg-orange-100 text-orange-700',
+  internal: 'bg-ownership-internal-soft text-ownership-internal',
+  partner: 'bg-ownership-partner-soft text-ownership-partner',
+  both: 'bg-warn-soft text-warn',
 };
 
 export const OWNER_LABELS: Record<string, string> = {
@@ -64,9 +68,9 @@ export const OWNER_LABELS: Record<string, string> = {
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
   prospect: 'bg-slate-100 text-slate-600',
-  onboarding: 'bg-amber-100 text-amber-700',
-  active: 'bg-green-100 text-green-700',
-  inactive: 'bg-red-100 text-red-600',
+  onboarding: 'bg-warn-soft text-warn',
+  active: 'bg-spoke-soft text-spoke',
+  inactive: 'bg-danger-soft text-danger',
 };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
@@ -78,16 +82,16 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
   to_do: 'bg-slate-400',
-  in_progress: 'bg-blue-500',
-  completed: 'bg-green-500',
-  on_hold: 'bg-amber-500',
+  in_progress: 'bg-info',
+  completed: 'bg-spoke',
+  on_hold: 'bg-warn',
 };
 
 export const TASK_STATUS_RING_COLORS: Record<string, string> = {
   to_do: 'ring-slate-400',
-  in_progress: 'ring-blue-500',
-  completed: 'ring-green-500',
-  on_hold: 'ring-amber-500',
+  in_progress: 'ring-info',
+  completed: 'ring-spoke',
+  on_hold: 'ring-warn',
 };
 
 // ── Data Types ───────────────────────────────────────────────────────
