@@ -6,6 +6,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { useAuth } from '../lib/auth';
 import { COLORS, CALENDAR } from '../lib/constants';
 import {
+  computeOverlapLayout,
+  createScaleHelpers,
+  formatHourLabel,
+  minutesToTimeStr,
+  timeToMinutes,
+} from './calendar/layout';
+import {
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -18,102 +25,8 @@ import {
 
 const HOURS = Array.from({ length: CALENDAR.DISPLAY_HOURS }, (_, i) => i + CALENDAR.START_HOUR);
 const PX_PER_HOUR = CALENDAR.PX_PER_HOUR_WEEK;
-const SNAP_MINUTES = CALENDAR.SNAP_MINUTES;
 const START_HOUR = CALENDAR.START_HOUR;
-
-function formatHourLabel(hour) {
-  if (hour === 0) return '12 AM';
-  if (hour < 12) return `${hour} AM`;
-  if (hour === 12) return '12 PM';
-  return `${hour - 12} PM`;
-}
-
-function timeToMinutes(timeStr) {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function minutesToTop(minutes) {
-  return ((minutes - START_HOUR * 60) / 60) * PX_PER_HOUR;
-}
-
-function minutesToTimeStr(totalMinutes) {
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/** Snap pixel offset to nearest SNAP_MINUTES interval and return minutes from 6 AM */
-function snapYToMinutes(y) {
-  const rawMinutes = (y / PX_PER_HOUR) * 60;
-  const snappedMinutes = Math.round(rawMinutes / SNAP_MINUTES) * SNAP_MINUTES;
-  return Math.max(0, START_HOUR * 60 + snappedMinutes);
-}
-
-// ─── Overlap layout algorithm ─────────────────────────────────────────────
-interface OverlapInfo {
-  column: number;
-  totalColumns: number;
-}
-
-/** Assign each schedule to a column, return per-schedule column and total overlap count */
-function assignColumns(sorted: Array<{ id: string; start_time: string; end_time: string }>) {
-  const columns: Array<{ id: string; endMin: number }[]> = [];
-  const assignment: Record<string, number> = {};
-
-  for (const s of sorted) {
-    const startMin = timeToMinutes(s.start_time);
-    const col = columns.findIndex(c => (c.at(-1)?.endMin ?? Infinity) <= startMin);
-    if (col >= 0) {
-      columns[col].push({ id: s.id, endMin: timeToMinutes(s.end_time) });
-      assignment[s.id] = col;
-    } else {
-      columns.push([{ id: s.id, endMin: timeToMinutes(s.end_time) }]);
-      assignment[s.id] = columns.length - 1;
-    }
-  }
-  return { columns, assignment };
-}
-
-/** Count how many columns have items overlapping with the given time range */
-function countOverlapping(columns: Array<{ id: string; endMin: number }[]>, sStart: number, sEnd: number, sorted: Array<{ id: string; start_time: string }>) {
-  let count = 0;
-  for (const col of columns) {
-    const hasOverlap = col.some(item => {
-      const match = sorted.find(x => x.id === item.id);
-      if (!match) return false;
-      const iStart = timeToMinutes(match.start_time);
-      return iStart < sEnd && item.endMin > sStart;
-    });
-    if (hasOverlap) count++;
-  }
-  return count;
-}
-
-function computeOverlapLayout(schedules: Array<{ id: string; start_time: string; end_time: string }>): Record<string, OverlapInfo> {
-  if (schedules.length <= 1) {
-    const result: Record<string, OverlapInfo> = {};
-    for (const s of schedules) result[s.id] = { column: 0, totalColumns: 1 };
-    return result;
-  }
-
-  const sorted = [...schedules].sort((a, b) => {
-    const diff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
-    return diff === 0 ? timeToMinutes(b.end_time) - timeToMinutes(a.end_time) : diff;
-  });
-
-  const { columns, assignment } = assignColumns(sorted);
-  const result: Record<string, OverlapInfo> = {};
-
-  for (const s of sorted) {
-    const sStart = timeToMinutes(s.start_time);
-    const sEnd = timeToMinutes(s.end_time);
-    const maxOverlap = countOverlapping(columns, sStart, sEnd, sorted);
-    result[s.id] = { column: assignment[s.id], totalColumns: Math.max(maxOverlap, 1) };
-  }
-
-  return result;
-}
+const { minutesToTop, snapYToMinutes } = createScaleHelpers(PX_PER_HOUR);
 
 // ─── Draggable schedule block ─────────────────────────────────────────────
 const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo, overlapInfo }) {

@@ -150,6 +150,9 @@ async def sync_same_day_town_to_town(
             update["town_to_town"] = False
             update["town_to_town_warning"] = None
             update["town_to_town_drive_minutes"] = None
+        # ``travel_override_minutes`` was removed from the API surface but
+        # legacy schedule docs may still carry it; respect the stored value
+        # so we don't clobber a user's prior override on sibling resync.
         if not sib.get("travel_override_minutes"):
             loc = await db.locations.find_one(
                 {"id": sib["location_id"]}, {"_id": 0}

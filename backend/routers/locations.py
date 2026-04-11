@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import LocationCreate, LocationUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import Paginated
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.drive_time import get_drive_time_between_locations, get_drive_time_from_hub
 from core.logger import get_logger
@@ -17,14 +19,15 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 LOCATION_NOT_FOUND = "Location not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
+# Reference migration for the SoftDeleteRepository pattern — see
+# ``backend/core/repository.py`` module docstring for the upgrade guide.
+locations_repo = SoftDeleteRepository(db, "locations")
+
 
 @router.get("", summary="List all locations")
-async def get_locations(user: CurrentUser, skip: int = 0, limit: int = 100):
+async def get_locations(user: CurrentUser, pagination: Paginated):
     """Return paginated list of active (non-deleted) locations."""
-    query = {"deleted_at": None}
-    total = await db.locations.count_documents(query)
-    locations = await db.locations.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
-    return {"items": locations, "total": total, "skip": skip, "limit": limit}
+    return await locations_repo.paginated_response({}, pagination)
 
 
 @router.get(
@@ -52,7 +55,7 @@ async def get_drive_time_from_hub_endpoint(lat: float, lng: float, user: Current
     responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
 )
 async def get_location(location_id: str, user: CurrentUser):
-    location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
+    location = await locations_repo.get_by_id(location_id)
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     return location
@@ -133,11 +136,7 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
     responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
 )
 async def delete_location(location_id: str, user: AdminRequired):
-    result = await db.locations.update_one(
-        {"id": location_id, "deleted_at": None},
-        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    if result.matched_count == 0:
+    if not await locations_repo.soft_delete(location_id, deleted_by=user.get("name")):
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     logger.info(
         "Location soft-deleted",
@@ -160,7 +159,7 @@ async def get_location_stats(
     start_date: Optional[str] = None, end_date: Optional[str] = None,
 ):
     """Return schedule counts, drive/class hours, and breakdowns for a location."""
-    location = await db.locations.find_one({"id": location_id, "deleted_at": None}, {"_id": 0})
+    location = await locations_repo.get_by_id(location_id)
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
@@ -221,12 +220,12 @@ async def get_location_stats(
     responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
 )
 async def restore_location(location_id: str, user: AdminRequired):
-    result = await db.locations.update_one(
-        {"id": location_id},
-        {"$set": {"deleted_at": None}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
+    # ``restore`` returns False when the doc exists but isn't in a
+    # deleted state, so we verify existence first for the 404 path.
+    if not await locations_repo.restore(location_id):
+        existing = await db.locations.find_one({"id": location_id}, {"_id": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
     logger.info(
         "Location restored",
         extra={"entity": {"location_id": location_id}},

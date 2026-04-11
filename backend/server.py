@@ -35,7 +35,7 @@ from routers import (  # noqa: E402
     auth, locations, employees, classes, schedules, reports,
     system, analytics, users, google_oauth, outlook_oauth,
     partner_orgs, projects, project_tasks, project_docs,
-    project_messages, partner_portal,
+    project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
@@ -151,6 +151,90 @@ async def _seed_default_locations():
         logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
 
 
+async def _safe_aclose(redis_client) -> None:
+    """Best-effort close of a Redis client. Never raises."""
+    if redis_client is None:
+        return
+    try:
+        await redis_client.aclose()
+    except Exception:  # pragma: no cover - best-effort cleanup
+        pass
+
+
+async def _ensure_redis_client(app: FastAPI):
+    """Lazily (re)create ``app.state.redis`` if it is missing.
+
+    Called at startup and from the health check. If Redis was unreachable
+    when the app booted, ``app.state.redis`` is ``None``; this function
+    attempts to build a fresh client on the next probe so a transient
+    outage at deploy time heals itself without a container restart.
+
+    Leak note: ``redis.asyncio.from_url`` allocates a connection pool
+    synchronously — if the subsequent ``ping()`` fails we MUST close that
+    freshly-created client or every failing probe accumulates a leaked
+    pool (file descriptors + memory) until the process degrades. This is
+    the Codex P2 fix: track ``client_`` outside the try so the except
+    branch can explicitly ``aclose()`` it.
+    """
+    if getattr(app.state, "redis", None) is not None:
+        return app.state.redis
+
+    # Import lazily to keep the redis.asyncio surface off the hot import path.
+    import redis.asyncio as _async_redis
+    redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
+
+    client_ = None
+    try:
+        client_ = _async_redis.from_url(
+            redis_url,
+            socket_connect_timeout=2,
+            max_connections=5,
+        )
+        await client_.ping()
+    except Exception as e:
+        logger.warning("Redis unavailable; health check will report degraded: %s", e)
+        # Close the just-created client whose pool would otherwise leak.
+        await _safe_aclose(client_)
+        # Drop any stale cached client as well (should normally be None
+        # by the time we reach this branch).
+        await _safe_aclose(getattr(app.state, "redis", None))
+        app.state.redis = None
+        return None
+
+    app.state.redis = client_
+    logger.info("Connected to Redis")
+    return client_
+
+
+async def _probe_redis(app: FastAPI) -> bool:
+    """Ping the cached Redis client, reconnecting on failure.
+
+    Returns ``True`` if Redis responded to a ping; ``False`` otherwise.
+    On a ping failure we discard the cached client and attempt one
+    reconnect so a Redis restart after app boot doesn't leave the health
+    check permanently degraded until the service is itself restarted.
+    """
+    client_ = getattr(app.state, "redis", None)
+    if client_ is not None:
+        try:
+            await client_.ping()
+            return True
+        except Exception:
+            # Cached client is stale — drop it and fall through to the
+            # reconnect path below.
+            await _safe_aclose(client_)
+            app.state.redis = None
+
+    fresh = await _ensure_redis_client(app)
+    if fresh is None:
+        return False
+    try:
+        await fresh.ping()
+        return True
+    except Exception:
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ---- Startup ----
@@ -162,11 +246,27 @@ async def lifespan(app: FastAPI):
         raise
 
     await _run_startup_migrations()
+    from migrations.runner import run_pending as run_pending_migrations
+    try:
+        await run_pending_migrations(db)
+    except Exception as e:
+        logger.error("Migration runner failed; refusing to start", exc_info=e)
+        raise
     await _ensure_indexes()
     await _seed_default_locations()
 
     from services.seed_templates import seed_project_templates
     await seed_project_templates()
+
+    # Initialize a single Redis client for the health check and other
+    # short-lived probes. Reusing one pooled client avoids per-request TLS
+    # handshakes and lazy imports inside the async event loop. If Redis is
+    # down at startup we log a warning and leave ``app.state.redis`` unset;
+    # the health check lazily retries via ``_ensure_redis_client`` on the
+    # next probe so transient boot-time outages heal themselves without a
+    # container restart.
+    app.state.redis = None
+    await _ensure_redis_client(app)
 
     yield
 
@@ -180,6 +280,7 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
+    await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
 
 
@@ -417,7 +518,7 @@ api_router.include_router(projects.router)
 api_router.include_router(project_tasks.router)
 api_router.include_router(project_docs.router)
 api_router.include_router(project_messages.router)
-api_router.include_router(partner_portal.router)
+api_router.include_router(portal.router)
 api_router.include_router(projects.templates_router)
 api_router.include_router(exports.router)
 api_router.include_router(event_outcomes.router)
@@ -426,8 +527,14 @@ api_router.include_router(webhooks.router)
 
 
 @api_router.get("/health", tags=["system"])
-async def health_check():
-    """Health check endpoint for load balancers and deployment monitoring."""
+async def health_check(request: Request):
+    """Health check endpoint for load balancers and deployment monitoring.
+
+    ``_probe_redis`` lazily reconnects a cached Redis client that's gone
+    stale (or was never created because Redis was down at startup), so a
+    transient Redis outage does not pin ``/health`` to 503 until the next
+    container restart.
+    """
     checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
     try:
         await client.admin.command("ping")
@@ -435,13 +542,7 @@ async def health_check():
         checks["mongo"] = "unavailable"
         checks["status"] = "degraded"
 
-    try:
-        import redis.asyncio as _async_redis
-        redis_url = os.getenv("REDIS_URL", DEFAULT_REDIS_URL)
-        r = _async_redis.from_url(redis_url, socket_connect_timeout=2)
-        await r.ping()
-        await r.aclose()
-    except Exception:
+    if not await _probe_redis(request.app):
         checks["redis"] = "unavailable"
         checks["status"] = "degraded"
 
@@ -462,11 +563,40 @@ for sub_router in [auth.router, locations.router, employees.router, classes.rout
 
 
 @legacy_router.get("/health", tags=["system"], include_in_schema=False)
-async def health_check_legacy():
+async def health_check_legacy(request: Request):
     """Backward-compat health check at /api/health."""
-    return await health_check()
+    return await health_check(request)
 
 app.include_router(legacy_router)
+
+# RFC 8594 (Sunset) + draft Deprecation header advertise the planned removal
+# of the legacy ``/api/*`` mount. Clients that still call it see the warning
+# on every response; we also log the first hit per path so we can track
+# real-world traffic before the hard removal in a future release.
+_LEGACY_SUNSET = "Wed, 01 Jul 2026 00:00:00 GMT"
+_LEGACY_WARNED_PATHS: set[str] = set()
+
+
+@app.middleware("http")
+async def legacy_api_deprecation_middleware(request: Request, call_next):
+    path = request.url.path
+    is_legacy = (
+        path.startswith("/api/")
+        and not path.startswith("/api/v1/")
+        and not path.startswith("/api/docs")
+    )
+    response = await call_next(request)
+    if is_legacy:
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = _LEGACY_SUNSET
+        response.headers["Link"] = '</api/v1/>; rel="successor-version"'
+        if path not in _LEGACY_WARNED_PATHS:
+            _LEGACY_WARNED_PATHS.add(path)
+            logger.warning(
+                "Legacy /api/ route hit: %s — migrate clients to /api/v1/",
+                path,
+            )
+    return response
 
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"

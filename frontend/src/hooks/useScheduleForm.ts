@@ -16,7 +16,6 @@ interface ScheduleFormData {
   start_time: string;
   end_time: string;
   notes: string;
-  travel_override_minutes: number | null;
   drive_to_override_minutes: number | null;
   drive_from_override_minutes: number | null;
   recurrence: string;
@@ -62,7 +61,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     start_time: '09:00',
     end_time: '12:00',
     notes: '',
-    travel_override_minutes: null,
     drive_to_override_minutes: null,
     drive_from_override_minutes: null,
     recurrence: 'none',
@@ -91,7 +89,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
         start_time: editSchedule.start_time,
         end_time: editSchedule.end_time,
         notes: editSchedule.notes || '',
-        travel_override_minutes: editSchedule.travel_override_minutes || null,
         drive_to_override_minutes: editSchedule.drive_to_override_minutes || null,
         drive_from_override_minutes: editSchedule.drive_from_override_minutes || null,
         recurrence: 'none',
@@ -109,7 +106,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
         start_time: '09:00',
         end_time: '12:00',
         notes: '',
-        travel_override_minutes: null,
         drive_to_override_minutes: null,
         drive_from_override_minutes: null,
         recurrence: 'none',
@@ -135,7 +131,6 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       date: form.date,
       start_time: form.start_time,
       end_time: form.end_time,
-      travel_override_minutes: form.travel_override_minutes ? Number.parseInt(String(form.travel_override_minutes), 10) : null,
       drive_to_override_minutes: form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null,
       drive_from_override_minutes: form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null,
       schedule_id: editSchedule?.id || null,
@@ -155,7 +150,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       setTownToTown(null);
       setTravelChain(null);
     }
-  }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.travel_override_minutes, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
+  }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
   useEffect(() => {
     setOutlookOverride(false);
@@ -204,14 +199,12 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
   const buildPayload = () => {
     const isCustom = form.recurrence === 'custom';
     const isNone = form.recurrence === 'none';
-    const travelMinutes = form.travel_override_minutes ? Number.parseInt(String(form.travel_override_minutes), 10) : null;
     const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null;
     const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
     const classId = form.class_id || null;
     const payload: Record<string, unknown> = {
       ...form,
       class_id: classId,
-      travel_override_minutes: travelMinutes,
       drive_to_override_minutes: driveToOverride,
       drive_from_override_minutes: driveFromOverride,
     };

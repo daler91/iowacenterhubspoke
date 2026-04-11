@@ -10,6 +10,7 @@ from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
 from core.auth import CurrentUser
+from core.pagination import Paginated, paginated_response
 from core.upload import stream_upload_to_disk
 from services.activity import log_activity
 from core.logger import get_logger
@@ -409,19 +410,18 @@ async def list_task_comments(
     project_id: str,
     task_id: str,
     user: CurrentUser,
-    skip: int = 0,
-    limit: int = 50,
+    pagination: Paginated,
 ):
     await _verify_task(project_id, task_id)
     total = await db.task_comments.count_documents({"task_id": task_id})
     comments = (
         await db.task_comments.find({"task_id": task_id}, {"_id": 0})
         .sort("created_at", 1)
-        .skip(skip)
-        .limit(limit)
-        .to_list(limit)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
     )
-    return {"items": comments, "total": total, "skip": skip, "limit": limit}
+    return paginated_response(comments, total, pagination)
 
 
 @router.post(

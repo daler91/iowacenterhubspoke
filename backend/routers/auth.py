@@ -7,7 +7,7 @@ from models.schemas import (
     UserRegister, UserLogin, PasswordChange, ErrorResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
 )
-from core.auth import hash_password, verify_password, create_token, CurrentUser
+from core.auth import hash_password, verify_password, create_token, CurrentUser, invalidate_pwd_cache
 from core.constants import ROLE_VIEWER, ROLE_ADMIN, USER_STATUS_PENDING, USER_STATUS_APPROVED, USER_STATUS_REJECTED
 from fastapi import Request
 from core.queue import safe_enqueue_job
@@ -231,6 +231,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
             "password_changed_at": now.isoformat(),
         }},
     )
+    invalidate_pwd_cache(row["user_id"])
     # Invalidate ALL outstanding reset tokens for this user, not just the one
     # that was submitted. Otherwise a second leaked link could still be used
     # to reset the password again after a successful reset.
@@ -293,6 +294,7 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
             "password_changed_at": now.isoformat(),
         }}
     )
+    invalidate_pwd_cache(user['user_id'])
     logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Issue a new token (with iat after password_changed_at)

@@ -5,26 +5,23 @@ Converts:
   employee_name, employee_color -> employees: [{id, name, color}]
   outlook_event_id, google_calendar_event_id(s) -> calendar_events: {employee_id: {...}}
 
-Run with: python -m migrations.migrate_multi_employee
+Run via the migration runner (``migrations.runner.run_pending``). For ad-hoc
+execution against an arbitrary deployment use::
+
+    python -m migrations.migrate_multi_employee
 """
 
-import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-import os
+from core.logger import get_logger
 
-load_dotenv()
-
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "iowacenterhubspoke")
+logger = get_logger(__name__)
 
 
-async def migrate():
-    client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB_NAME]
+async def run(db) -> int:
+    """Apply the migration against an existing database handle.
 
-    # Find all schedules that still have the old employee_id field
-    # but don't yet have employee_ids
+    Idempotent: only touches schedules that still have the legacy
+    ``employee_id`` field and no ``employee_ids`` array.
+    """
     cursor = db.schedules.find(
         {"employee_id": {"$exists": True}, "employee_ids": {"$exists": False}},
         {"_id": 0},
@@ -39,7 +36,6 @@ async def migrate():
         if not emp_id:
             continue
 
-        # Build calendar_events from legacy fields
         calendar_events = {}
         outlook_eid = schedule.get("outlook_event_id")
         google_eid = schedule.get("google_calendar_event_id")
@@ -70,9 +66,7 @@ async def migrate():
         )
         count += 1
 
-    print(f"Migrated {count} schedule documents to multi-employee model.")
-
-    # Create new index
+    logger.info("Migrated %d schedule documents to multi-employee model", count)
     await db.schedules.create_index(
         [("employee_ids", 1), ("date", 1)],
         name="employee_ids_date",
@@ -81,10 +75,17 @@ async def migrate():
         [("employee_ids", 1), ("date", 1), ("deleted_at", 1)],
         name="employee_ids_date_deleted",
     )
-    print("Created employee_ids indexes.")
-
-    client.close()
+    return count
 
 
 if __name__ == "__main__":
-    asyncio.run(migrate())
+    import asyncio
+    import os
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    _client = AsyncIOMotorClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    _db = _client[os.environ.get("DB_NAME", "iowacenterhubspoke")]
+    asyncio.run(run(_db))
+    _client.close()

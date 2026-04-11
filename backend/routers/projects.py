@@ -6,6 +6,7 @@ from database import db
 from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
 from core.auth import CurrentUser
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
+from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -256,14 +257,13 @@ def _build_trends(projects: list, period_days: int) -> dict:
 @router.get("", summary="List projects")
 async def list_projects(
     user: CurrentUser,
+    pagination: Paginated,
     community: Optional[str] = None,
     phase: Optional[str] = None,
     event_format: Optional[str] = None,
     partner_org_id: Optional[str] = None,
     class_id: Optional[str] = None,
     schedule_id: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
 ):
     query = {"deleted_at": None}
     if community:
@@ -279,8 +279,14 @@ async def list_projects(
     if schedule_id:
         query["schedule_id"] = schedule_id
     total = await db.projects.count_documents(query)
-    items = await db.projects.find(query, {"_id": 0}).sort("event_date", -1).skip(skip).limit(limit).to_list(limit)
-    return {"items": items, "total": total, "skip": skip, "limit": limit}
+    items = (
+        await db.projects.find(query, {"_id": 0})
+        .sort("event_date", -1)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
+    )
+    return paginated_response(items, total, pagination)
 
 
 async def _clone_template_tasks(
@@ -347,7 +353,6 @@ async def _auto_create_schedule(
             location_id = location["id"]
             start_time = data.start_time
             end_time = data.end_time
-            travel_override_minutes = None
             drive_to_override_minutes = None
             drive_from_override_minutes = None
             notes = None

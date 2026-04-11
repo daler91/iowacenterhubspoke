@@ -5,6 +5,8 @@ from typing import Optional
 from database import db
 from models.schemas import ClassCreate, ClassUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
+from core.pagination import Paginated
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from core.logger import get_logger
 from core.constants import DEFAULT_CLASS_COLOR
@@ -16,6 +18,8 @@ router = APIRouter(prefix="/classes", tags=["classes"])
 
 CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+
+classes_repo = SoftDeleteRepository(db, "classes")
 
 
 def get_class_snapshot(class_doc: Optional[dict]) -> dict:
@@ -55,12 +59,11 @@ async def sync_class_snapshot_background(class_id: str):
 
 
 @router.get("", summary="List all class types")
-async def get_classes(user: CurrentUser, skip: int = 0, limit: int = 200):
+async def get_classes(user: CurrentUser, pagination: Paginated):
     """Return paginated list of active class types, sorted by name."""
-    query = {"deleted_at": None}
-    total = await db.classes.count_documents(query)
-    classes = await db.classes.find(query, {"_id": 0}).sort("name", 1).skip(skip).limit(limit).to_list(limit)
-    return {"items": classes, "total": total, "skip": skip, "limit": limit}
+    return await classes_repo.paginated_response(
+        {}, pagination, sort=[("name", 1)],
+    )
 
 
 @router.get(
@@ -69,7 +72,7 @@ async def get_classes(user: CurrentUser, skip: int = 0, limit: int = 200):
     responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
 )
 async def get_class(class_id: str, user: CurrentUser):
-    class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
+    class_doc = await classes_repo.get_by_id(class_id)
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
     return class_doc
@@ -131,7 +134,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
 )
 async def delete_class(class_id: str, user: AdminRequired):
     """Soft-delete a class type. Existing schedules retain the class name/color as archived data."""
-    class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
+    class_doc = await classes_repo.get_by_id(class_id)
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
@@ -144,10 +147,7 @@ async def delete_class(class_id: str, user: AdminRequired):
             "class_description": class_doc.get("description"),
         }}
     )
-    await db.classes.update_one(
-        {"id": class_id},
-        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
-    )
+    await classes_repo.soft_delete(class_id, deleted_by=user.get("name"))
     logger.info("Class soft-deleted", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_deleted", f"Class type '{class_doc['name']}' marked as deleted",
@@ -166,7 +166,7 @@ async def get_class_stats(
     start_date: Optional[str] = None, end_date: Optional[str] = None,
 ):
     """Return schedule counts, employee/location breakdowns, and recent schedules for a class type."""
-    class_doc = await db.classes.find_one({"id": class_id, "deleted_at": None}, {"_id": 0})
+    class_doc = await classes_repo.get_by_id(class_id)
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
@@ -239,12 +239,10 @@ async def get_class_stats(
     responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
 )
 async def restore_class(class_id: str, user: AdminRequired):
-    result = await db.classes.update_one(
-        {"id": class_id},
-        {"$set": {"deleted_at": None}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
+    if not await classes_repo.restore(class_id):
+        existing = await db.classes.find_one({"id": class_id}, {"_id": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
     logger.info("Class restored", extra={"entity": {"class_id": class_id}})
     await log_activity(
         "class_restored", f"Class with ID '{class_id}' restored",

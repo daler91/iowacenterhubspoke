@@ -1,43 +1,51 @@
-"""One-time migration: Rename class_type field to event_format in projects and project_templates.
+"""One-time migration: Rename class_type → event_format in projects and project_templates.
 
-This resolves terminology confusion between the scheduling "Class" entity (e.g. Financial Literacy)
-and the project delivery format (workshop, series, office_hours, onboarding).
+This resolves terminology confusion between the scheduling "Class" entity
+(e.g. Financial Literacy) and the project delivery format (workshop, series,
+office_hours, onboarding).
 
-Run with: python -m migrations.rename_class_type_to_event_format
+Run via the migration runner (``migrations.runner.run_pending``). For ad-hoc
+execution against an arbitrary deployment use::
+
+    python -m migrations.rename_class_type_to_event_format
 """
 
-import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-import os
+from core.logger import get_logger
 
-load_dotenv()
-
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "iowacenterhubspoke")
+logger = get_logger(__name__)
 
 
-async def migrate():
-    client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB_NAME]
+async def run(db) -> int:
+    """Apply the migration against an existing database handle.
 
-    # Rename class_type -> event_format in projects
-    result = await db.projects.update_many(
+    Idempotent: only touches documents that still have the ``class_type``
+    field. Returns the combined number of projects + templates updated.
+    """
+    projects_result = await db.projects.update_many(
         {"class_type": {"$exists": True}},
         {"$rename": {"class_type": "event_format"}},
     )
-    print(f"Projects updated: {result.modified_count}")
-
-    # Rename class_type -> event_format in project_templates
-    result = await db.project_templates.update_many(
+    templates_result = await db.project_templates.update_many(
         {"class_type": {"$exists": True}},
         {"$rename": {"class_type": "event_format"}},
     )
-    print(f"Project templates updated: {result.modified_count}")
-
-    client.close()
-    print("Migration complete.")
+    total = projects_result.modified_count + templates_result.modified_count
+    logger.info(
+        "Renamed class_type → event_format on %d projects and %d templates",
+        projects_result.modified_count,
+        templates_result.modified_count,
+    )
+    return total
 
 
 if __name__ == "__main__":
-    asyncio.run(migrate())
+    import asyncio
+    import os
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    _client = AsyncIOMotorClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    _db = _client[os.environ.get("DB_NAME", "iowacenterhubspoke")]
+    asyncio.run(run(_db))
+    _client.close()

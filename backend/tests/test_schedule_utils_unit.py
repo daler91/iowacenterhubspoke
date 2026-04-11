@@ -2,14 +2,17 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# Mock necessary modules to avoid missing dependencies
-mock_motor = MagicMock()
-mock_fastapi = MagicMock()
-mock_dotenv = MagicMock()
+# Stub heavy deps the production modules import, but only when the real
+# package is NOT already installed. Unconditionally clobbering these via
+# ``sys.modules[...] = MagicMock()`` poisons other tests in the same
+# session that need the real FastAPI/Motor — so prefer ``setdefault``.
+sys.modules.setdefault("motor", MagicMock())
+sys.modules.setdefault("motor.motor_asyncio", MagicMock())
+sys.modules.setdefault("dotenv", MagicMock())
 
 # We need a real-ish Pydantic for the schemas to load
 try:
-    from pydantic import BaseModel
+    from pydantic import BaseModel  # noqa: F401
 except ImportError:
     class BaseModel:
         def __init__(self, **kwargs):
@@ -17,16 +20,16 @@ except ImportError:
                 setattr(self, k, v)
     mock_pydantic = MagicMock()
     mock_pydantic.BaseModel = BaseModel
-    sys.modules["pydantic"] = mock_pydantic
+    sys.modules.setdefault("pydantic", mock_pydantic)
 
-sys.modules["motor"] = mock_motor
-sys.modules["motor.motor_asyncio"] = mock_motor
-sys.modules["fastapi"] = mock_fastapi
-sys.modules["dotenv"] = mock_dotenv
+try:  # pragma: no cover - only used when fastapi is missing in CI
+    import fastapi  # noqa: F401
+except ImportError:
+    sys.modules["fastapi"] = MagicMock()
 
-os.environ["MONGO_URL"] = "mongodb://localhost:27017"
-os.environ["DB_NAME"] = "test_db"
-os.environ["JWT_SECRET"] = "test_secret"
+os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
+os.environ.setdefault("DB_NAME", "test_db")
+os.environ.setdefault("JWT_SECRET", "test_secret")
 
 import pytest
 from datetime import date

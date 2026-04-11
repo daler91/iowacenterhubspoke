@@ -1,29 +1,27 @@
 """One-time migration: Add status, spotlight, at_risk fields to existing tasks.
 
-Existing tasks only have a boolean `completed` field. This migration adds:
-- status: derived from completed (True → "completed", False → "to_do")
-- spotlight: defaults to False
-- at_risk: defaults to False
+Existing tasks only have a boolean ``completed`` field. This migration adds:
 
-Run with: python -m migrations.add_task_status_fields
+- ``status`` — derived from ``completed`` (True → "completed", False → "to_do")
+- ``spotlight`` — defaults to False
+- ``at_risk`` — defaults to False
+
+Run via the migration runner (``migrations.runner.run_pending``). For ad-hoc
+execution against an arbitrary deployment use::
+
+    python -m migrations.add_task_status_fields
 """
 
-import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-import os
+from core.logger import get_logger
 
-load_dotenv()
-
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "iowacenterhubspoke")
+logger = get_logger(__name__)
 
 
-async def migrate():
-    client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB_NAME]
+async def run(db) -> int:
+    """Apply the migration against an existing database handle.
 
-    # Find tasks missing the status field
+    Idempotent: only touches tasks missing the ``status`` field.
+    """
     tasks = await db.tasks.find(
         {"status": {"$exists": False}},
         {"_id": 0, "id": 1, "completed": 1},
@@ -38,9 +36,18 @@ async def migrate():
         )
         updated += 1
 
-    print(f"Migrated {updated} tasks (added status/spotlight/at_risk fields).")
-    client.close()
+    logger.info("Migrated %d tasks (added status/spotlight/at_risk fields)", updated)
+    return updated
 
 
 if __name__ == "__main__":
-    asyncio.run(migrate())
+    import asyncio
+    import os
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    _client = AsyncIOMotorClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    _db = _client[os.environ.get("DB_NAME", "iowacenterhubspoke")]
+    asyncio.run(run(_db))
+    _client.close()

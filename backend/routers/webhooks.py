@@ -6,6 +6,7 @@ from database import db
 from models.coordination_schemas import WebhookCreate, WebhookUpdate
 from core.auth import AdminRequired
 from core.constants import WEBHOOK_EVENTS
+from core.pagination import Paginated, paginated_response
 from services.webhooks import deliver_webhook, validate_webhook_url
 from core.logger import get_logger
 
@@ -121,8 +122,7 @@ async def delete_webhook(webhook_id: str, user: AdminRequired):
 async def get_webhook_logs(
     webhook_id: str,
     user: AdminRequired,
-    skip: int = 0,
-    limit: int = 50,
+    pagination: Paginated,
 ):
     total = await db.webhook_logs.count_documents(
         {"subscription_id": webhook_id},
@@ -132,13 +132,11 @@ async def get_webhook_logs(
             {"subscription_id": webhook_id}, {"_id": 0},
         )
         .sort("sent_at", -1)
-        .skip(skip)
-        .limit(limit)
-        .to_list(limit)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
     )
-    return {
-        "items": logs, "total": total, "skip": skip, "limit": limit,
-    }
+    return paginated_response(logs, total, pagination)
 
 
 @router.post(

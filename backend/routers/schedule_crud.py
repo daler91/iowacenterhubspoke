@@ -14,6 +14,7 @@ from models.schemas import (
     ErrorResponse,
 )
 from core.auth import CurrentUser, SchedulerRequired
+from core.pagination import Paginated
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
 from core.constants import (
@@ -26,14 +27,13 @@ from core.constants import (
 from routers.schedule_helpers import (
     logger,
     SCHEDULE_NOT_FOUND,
-    LOCATION_NOT_FOUND,
-    CLASS_NOT_FOUND,
     NO_FIELDS_TO_UPDATE,
     _sync_same_day_town_to_town,
     _delete_calendar_events_for_all,
-    _enqueue_calendar_events_for_all,
-    _fetch_employees,
-    _build_employees_snapshot,
+    resolve_update_relations,
+    sync_town_to_town_if_needed,
+    sync_calendar_events_if_needed,
+    sync_relocate_calendar,
 )
 from routers.schedule_create import create_schedule as _create_schedule
 
@@ -42,20 +42,15 @@ router = APIRouter(tags=["schedules"])
 
 # --- List / Get ---
 
-MAX_SCHEDULE_LIMIT = 200
-
 
 @router.get("/", summary="List schedules")
 async def get_schedules(
     user: CurrentUser,
+    pagination: Paginated,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
 ):
-    limit = max(1, min(limit, MAX_SCHEDULE_LIMIT))
-    skip = max(0, skip)
     query = {"deleted_at": None}
     if date_from and date_to:
         query["date"] = {"$gte": date_from, "$lte": date_to}
@@ -70,9 +65,9 @@ async def get_schedules(
     schedules = (
         await db.schedules.find(query, {"_id": 0})
         .sort([("date", 1), ("start_time", 1)])
-        .skip(skip)
-        .limit(limit)
-        .to_list(limit)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .to_list(pagination.limit)
     )
     # Enrich with linked project summaries
     schedule_ids = [s["id"] for s in schedules]
@@ -91,7 +86,12 @@ async def get_schedules(
                     "title": proj.get("title", ""),
                     "phase": proj.get("phase", "planning"),
                 }
-    return {"items": schedules, "total": total, "skip": skip, "limit": limit}
+    return {
+        "items": schedules,
+        "total": total,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+    }
 
 
 @router.get(
@@ -132,106 +132,6 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
 
 # --- Update ---
 
-async def _get_location_update(location_id: str, update_data: dict):
-    location = await db.locations.find_one({"id": location_id}, {"_id": 0})
-    if not location:
-        raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
-    update_data["location_name"] = location["city_name"]
-    if "travel_override_minutes" not in update_data:
-        update_data["drive_time_minutes"] = location["drive_time_minutes"]
-
-
-async def _get_class_update(class_id: str, update_data: dict):
-    class_doc = await db.classes.find_one({"id": class_id}, {"_id": 0})
-    if not class_doc:
-        raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
-    update_data.update(
-        {
-            "class_name": class_doc["name"],
-            "class_color": class_doc.get("color", "#0F766E"),
-            "class_description": class_doc.get("description"),
-        }
-    )
-
-
-async def _handle_drive_overrides(schedule_id: str, update_data: dict):
-    location_id = update_data.get("location_id")
-    if not location_id:
-        existing = await db.schedules.find_one({"id": schedule_id}, {"_id": 0})
-        if existing:
-            location_id = existing.get("location_id")
-
-    loc = None
-    if location_id:
-        loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
-
-    if "drive_to_override_minutes" in update_data:
-        if update_data["drive_to_override_minutes"]:
-            update_data["drive_time_minutes"] = update_data["drive_to_override_minutes"]
-        elif loc:
-            update_data["drive_time_minutes"] = loc["drive_time_minutes"]
-
-
-async def _resolve_update_relations(schedule_id: str, update_data: dict):
-    """Resolve location, employee, class, and drive override relations for an update."""
-    if "location_id" in update_data:
-        await _get_location_update(update_data["location_id"], update_data)
-    if "employee_ids" in update_data:
-        employees = await _fetch_employees(update_data["employee_ids"])
-        update_data["employees"] = _build_employees_snapshot(employees)
-        update_data.pop("employee_id", None)
-        update_data.pop("employee_name", None)
-        update_data.pop("employee_color", None)
-    if "class_id" in update_data:
-        await _get_class_update(update_data["class_id"], update_data)
-    if "drive_to_override_minutes" in update_data or "drive_from_override_minutes" in update_data:
-        await _handle_drive_overrides(schedule_id, update_data)
-
-
-async def _sync_town_to_town_if_needed(schedule_id: str, update_data: dict):
-    """Recalculate town-to-town flags if relevant fields changed."""
-    recalc_fields = {"location_id", "date", "employee_ids"}
-    if not (recalc_fields & update_data.keys()):
-        return
-    updated_sched = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not updated_sched:
-        return
-    for emp_id in updated_sched.get("employee_ids", []):
-        await _sync_same_day_town_to_town(emp_id, updated_sched["date"])
-
-
-async def _sync_calendar_events_if_needed(
-    schedule_id: str, update_data: dict, old_schedule: dict
-):
-    """Delete old and create new calendar events if calendar-relevant fields changed."""
-    calendar_fields = {
-        "employee_ids", "location_id", "class_id", "date",
-        "start_time", "end_time", "notes",
-        "drive_to_override_minutes", "drive_from_override_minutes",
-        "drive_time_minutes",
-    }
-    if not (calendar_fields & update_data.keys()):
-        return
-    updated_sched = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
-    if not updated_sched:
-        return
-    await _delete_calendar_events_for_all(old_schedule)
-    employees = await _fetch_employees(updated_sched.get("employee_ids", []))
-    location = await db.locations.find_one(
-        {"id": updated_sched["location_id"], "deleted_at": None}, {"_id": 0}
-    )
-    class_doc = None
-    if updated_sched.get("class_id"):
-        class_doc = await db.classes.find_one(
-            {"id": updated_sched["class_id"], "deleted_at": None}, {"_id": 0}
-        )
-    if employees and location:
-        _enqueue_calendar_events_for_all(employees, location, class_doc, updated_sched)
-
 
 @router.put(
     "/{schedule_id}",
@@ -252,7 +152,7 @@ async def update_schedule(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
 
-    await _resolve_update_relations(schedule_id, update_data)
+    await resolve_update_relations(schedule_id, update_data)
 
     result = await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None}, {"$set": update_data}
@@ -260,8 +160,8 @@ async def update_schedule(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-    await _sync_town_to_town_if_needed(schedule_id, update_data)
-    await _sync_calendar_events_if_needed(schedule_id, update_data, old_schedule)
+    await sync_town_to_town_if_needed(schedule_id, update_data)
+    await sync_calendar_events_if_needed(schedule_id, update_data, old_schedule)
 
     # Sync date to linked project if date changed
     if "date" in update_data:
@@ -481,8 +381,7 @@ async def update_series(
         {"_id": 0, "id": 1},
     )
     if sample:
-        from routers.schedule_crud import _resolve_update_relations
-        await _resolve_update_relations(sample["id"], update_data)
+        await resolve_update_relations(sample["id"], update_data)
 
     result = await db.schedules.update_many(
         {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
@@ -515,24 +414,6 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
             status_code=409,
             detail={"message": "Conflict at new time", "conflicts": conflicts},
         )
-
-
-async def _sync_relocate_calendar(old_schedule: dict, updated: dict):
-    """Re-create calendar events after a relocate."""
-    if not updated:
-        return
-    await _delete_calendar_events_for_all(old_schedule)
-    employees = await _fetch_employees(updated.get("employee_ids", []))
-    location = await db.locations.find_one(
-        {"id": updated["location_id"], "deleted_at": None}, {"_id": 0}
-    )
-    class_doc = None
-    if updated.get("class_id"):
-        class_doc = await db.classes.find_one(
-            {"id": updated["class_id"], "deleted_at": None}, {"_id": 0}
-        )
-    if employees and location:
-        _enqueue_calendar_events_for_all(employees, location, class_doc, updated)
 
 
 @router.put(
@@ -573,7 +454,7 @@ async def relocate_schedule(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
 
-    await _sync_relocate_calendar(schedule, updated)
+    await sync_relocate_calendar(schedule, updated)
 
     await log_activity(
         "schedule_relocated",
