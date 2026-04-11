@@ -56,6 +56,12 @@ export const authAPI = {
   myEmployee: () => api.get('/auth/my-employee'),
   changePassword: (data: { current_password: string; new_password: string }) =>
     api.post('/auth/change-password', data),
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+  validateResetToken: (token: string) =>
+    api.get(`/auth/reset-password/${token}`),
+  resetPassword: (token: string, new_password: string) =>
+    api.post('/auth/reset-password', { token, new_password }),
 };
 
 // Locations
