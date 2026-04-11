@@ -61,7 +61,7 @@ export function RecurrenceOptions({
 
         {recurrence !== 'none' && recurrence !== 'custom' && (
           <div
-            className="rounded-xl border border-gray-100 bg-slate-50/70 p-3 space-y-3"
+            className="rounded-lg border border-gray-100 bg-slate-50/70 p-3 space-y-3"
             data-testid="schedule-repeat-settings"
             role="group"
             aria-labelledby="schedule-end-mode-label"
@@ -148,7 +148,7 @@ export function RecurrenceOptions({
         )}
 
         {recurrence === 'custom' && (
-          <div className="rounded-xl border border-hub/20 bg-hub-soft p-3" data-testid="schedule-custom-recurrence-summary">
+          <div className="rounded-lg border border-hub/20 bg-hub-soft p-3" data-testid="schedule-custom-recurrence-summary">
             <p className="text-xs uppercase tracking-[0.18em] text-hub">Custom rule</p>
             <p className="mt-1 text-sm font-medium text-slate-700">
               {formatCustomRecurrenceSummary(customRecurrence)}

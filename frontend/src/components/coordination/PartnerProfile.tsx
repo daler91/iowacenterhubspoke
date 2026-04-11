@@ -6,11 +6,11 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { PageShell } from '../ui/page-shell';
 import { Plus, User, MapPin, Calendar, ChevronDown, Send } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '../ui/dropdown-menu';
-import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import { usePartnerOrg } from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
 import {
@@ -64,26 +64,12 @@ export default function PartnerProfile() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!partnerOrg || !id) {
-    return <div className="p-6 text-slate-500">Partner organization not found</div>;
-  }
-
-  const orgId = id;
-
   const STATUSES = ['prospect', 'onboarding', 'active', 'inactive'] as const;
 
   const handleStatusChange = async (newStatus: string) => {
-    if (newStatus === partnerOrg.status) return;
+    if (!id || !partnerOrg || newStatus === partnerOrg.status) return;
     try {
-      await partnerOrgsAPI.update(orgId, { status: newStatus });
+      await partnerOrgsAPI.update(id, { status: newStatus });
       toast.success(`Status updated to ${newStatus}`);
       mutatePartnerOrg();
     } catch (err: unknown) {
@@ -102,42 +88,57 @@ export default function PartnerProfile() {
     }
   };
 
-  return (
-    <div className="p-6 max-w-4xl">
-      <PageBreadcrumb segments={[
-        { label: 'Coordination', path: '/coordination' },
-        { label: 'Partners', path: '/coordination/partners' },
-        { label: partnerOrg.name },
-      ]} />
+  let status: React.ComponentProps<typeof PageShell>['status'];
+  if (isLoading) status = { kind: 'loading', variant: 'cards' };
+  else if (!partnerOrg || !id) status = { kind: 'error', error: new Error('Partner organization not found') };
+  else status = { kind: 'ready' };
 
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-          {partnerOrg.name}
-        </h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 cursor-pointer">
-              <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
-                {partnerOrg.status}
-              </Badge>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {STATUSES.map(s => (
-              <DropdownMenuItem
-                key={s}
-                onClick={() => handleStatusChange(s)}
-                className={cn(s === partnerOrg.status && 'font-semibold bg-slate-50 dark:bg-slate-800')}
-              >
-                <Badge variant="outline" className={cn('text-xs mr-2', STATUS_BADGE_COLORS[s])}>{s}</Badge>
-                {s === partnerOrg.status && '(current)'}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+  const orgId = id;
+
+  const statusActions = partnerOrg ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Partner status: ${partnerOrg.status}. Click to change.`}
+          className="flex items-center gap-1 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1"
+        >
+          <Badge className={cn('text-xs', STATUS_BADGE_COLORS[partnerOrg.status])}>
+            {partnerOrg.status}
+          </Badge>
+          <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {STATUSES.map(s => (
+          <DropdownMenuItem
+            key={s}
+            onClick={() => handleStatusChange(s)}
+            className={cn(s === partnerOrg.status && 'font-semibold bg-slate-50 dark:bg-slate-800')}
+          >
+            <Badge variant="outline" className={cn('text-xs mr-2', STATUS_BADGE_COLORS[s])}>{s}</Badge>
+            {s === partnerOrg.status && '(current)'}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : undefined;
+
+  return (
+    <>
+    <PageShell
+      testId="partner-profile"
+      breadcrumbs={[
+        { label: 'Coordination' },
+        { label: 'Partners', path: '/coordination/partners' },
+        { label: partnerOrg?.name || 'Partner' },
+      ]}
+      title={partnerOrg?.name || 'Partner'}
+      actions={statusActions}
+      status={status}
+    >
+      {partnerOrg && orgId && (
+        <>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Org Details */}
@@ -273,8 +274,12 @@ export default function PartnerProfile() {
           <p className="text-sm text-slate-400 text-center py-4">No projects yet</p>
         )}
       </Card>
+        </>
+      )}
+    </PageShell>
 
-      {/* Add Contact Dialog */}
+      {/* Add Contact Dialog — hoisted outside PageShell so it stays
+          mounted during loading and error states. */}
       <Dialog open={showAddContact} onOpenChange={setShowAddContact}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -282,31 +287,32 @@ export default function PartnerProfile() {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label>Name *</Label>
-              <Input value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })} />
+              <Label htmlFor="contact-name">Name *</Label>
+              <Input id="contact-name" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })} />
             </div>
             <div>
-              <Label>Email *</Label>
-              <Input type="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })} />
+              <Label htmlFor="contact-email">Email *</Label>
+              <Input id="contact-email" type="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Phone</Label>
-                <Input value={contactForm.phone} onChange={e => setContactForm({ ...contactForm, phone: e.target.value })} />
+                <Label htmlFor="contact-phone">Phone</Label>
+                <Input id="contact-phone" value={contactForm.phone} onChange={e => setContactForm({ ...contactForm, phone: e.target.value })} />
               </div>
               <div>
-                <Label>Role</Label>
-                <Input value={contactForm.role} onChange={e => setContactForm({ ...contactForm, role: e.target.value })} placeholder="e.g. venue manager" />
+                <Label htmlFor="contact-role">Role</Label>
+                <Input id="contact-role" value={contactForm.role} onChange={e => setContactForm({ ...contactForm, role: e.target.value })} placeholder="e.g. venue manager" />
               </div>
             </div>
             <div className="flex items-center gap-2">
               <input
+                id="contact-is-primary"
                 type="checkbox"
                 checked={contactForm.is_primary}
                 onChange={e => setContactForm({ ...contactForm, is_primary: e.target.checked })}
                 className="rounded"
               />
-              <Label className="cursor-pointer">Primary contact</Label>
+              <Label htmlFor="contact-is-primary" className="cursor-pointer">Primary contact</Label>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowAddContact(false)}>Cancel</Button>
@@ -317,6 +323,6 @@ export default function PartnerProfile() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

@@ -32,7 +32,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
           <h2 className="text-2xl font-bold text-slate-800">Activity Feed</h2>
           <p className="text-sm text-slate-500 mt-1">Recent actions and updates</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-lg border border-gray-100 p-12 text-center">
           <Activity className="w-12 h-12 mx-auto text-gray-200 mb-3" />
           <p className="text-slate-400 text-sm">No activity yet. Start scheduling to see updates here.</p>
         </div>
@@ -55,7 +55,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
         <p className="text-sm text-slate-500 mt-1">Recent actions and updates across the team</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         <ScrollArea className="max-h-[calc(100vh-220px)]">
           <div className="divide-y divide-gray-50">
             {Object.entries(grouped).map(([date, items]) => (

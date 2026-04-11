@@ -82,7 +82,7 @@ export function EmployeeClassSelectors({
         {selectedClass && (
           <div
             id="schedule-selected-class-preview"
-            className="flex items-start gap-3 rounded-xl border border-gray-100 bg-spoke-soft px-3 py-2"
+            className="flex items-start gap-3 rounded-lg border border-gray-100 bg-spoke-soft px-3 py-2"
             data-testid="schedule-selected-class-preview"
           >
             <div

@@ -31,7 +31,7 @@ function DroppableColumn({ phase, children }: Readonly<{ phase: string; children
       className={cn(
         // Teal accent on hover — visually distinct from the indigo Schedule
         // Tracker kanban so the two boards don't blur together.
-        'flex-1 min-w-[280px] rounded-xl p-3 transition-colors',
+        'flex-1 min-w-[280px] rounded-lg p-3 transition-colors',
         isOver ? 'bg-spoke-soft ring-2 ring-spoke/30' : 'bg-gray-50 dark:bg-gray-900/50',
       )}
     >
@@ -101,7 +101,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
             <Badge
               variant="secondary"
               className="text-[10px] px-1.5 py-0 bg-hub-soft text-hub"
-              title="Linked to a schedule on the Schedule Tracker"
+              title="Linked to a schedule on the Delivery Pipeline"
             >
               On Calendar
             </Badge>

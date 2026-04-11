@@ -79,7 +79,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                     <button
                       type="button"
                       className={cn(
-                        "w-full text-left bg-white rounded-xl p-4 shadow-sm border border-gray-100 transition-all",
+                        "w-full text-left bg-white rounded-lg p-4 shadow-sm border border-gray-100 transition-all",
                         selectionMode ? "cursor-pointer" : "cursor-pointer active:scale-[0.98]",
                         selected && "ring-2 ring-indigo-500 border-transparent"
                       )}
@@ -184,7 +184,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
               </DrawerHeader>
 
               <div className="p-6 space-y-4">
-                <div className="bg-slate-50 p-4 rounded-xl space-y-3">
+                <div className="bg-slate-50 p-4 rounded-lg space-y-3">
                   <div className="flex items-start gap-3">
                     <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
                     <div>

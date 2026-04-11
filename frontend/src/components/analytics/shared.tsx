@@ -7,7 +7,7 @@ export const fetcher = <T,>(apiFn: (params: T) => Promise<{ data: unknown }>, pa
 
 export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Readonly<SummaryCardProps>) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
+    <div className="bg-white rounded-lg border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-2">
         <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
@@ -41,9 +41,13 @@ export function FilterSelect({ label, value, onChange, options }: Readonly<Filte
 
 export function LoadingChart() {
   return (
-    <div className="h-[320px] flex items-center justify-center">
+    <div
+      className="h-[320px] flex items-center justify-center"
+      role="status"
+      aria-label="Loading analytics"
+    >
       <div className="flex flex-col items-center gap-2">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
         <p className="text-sm text-slate-400">Loading analytics...</p>
       </div>
     </div>

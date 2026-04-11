@@ -198,7 +198,7 @@ export default function UserManager() {
                 <Clock className="w-4 h-4 text-amber-500" />
                 <h2 className="text-lg font-semibold text-slate-800">Pending Approval ({pendingUsers.length})</h2>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
                   <div key={u.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
@@ -241,7 +241,7 @@ export default function UserManager() {
                 <Mail className="w-4 h-4 text-info" aria-hidden="true" />
                 <h2 className="text-lg font-semibold text-slate-800">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
-              <div className="bg-info-soft border border-info/20 rounded-xl p-4 space-y-3">
+              <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
                   <div key={inv.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
@@ -274,7 +274,7 @@ export default function UserManager() {
 
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-800">All Users</h2>
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -361,9 +361,10 @@ export default function UserManager() {
           {generatedLink ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Invitation Link</Label>
+                <Label htmlFor="invite-generated-link">Invitation Link</Label>
                 <div className="flex gap-2">
                   <Input
+                    id="invite-generated-link"
                     readOnly
                     value={generatedLink}
                     className="h-10 bg-gray-50 text-sm font-mono"
@@ -371,9 +372,10 @@ export default function UserManager() {
                   <Button
                     type="button"
                     onClick={handleCopyLink}
+                    aria-label="Copy invitation link"
                     className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -415,12 +417,12 @@ export default function UserManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label htmlFor="invite-role">Role</Label>
                 <Select
                   value={inviteForm.role}
                   onValueChange={(value) => setInviteForm({ ...inviteForm, role: value })}
                 >
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger id="invite-role" className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

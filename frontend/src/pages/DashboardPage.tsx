@@ -103,8 +103,12 @@ export default function DashboardPage() {
               an error on one page stays scoped to that page and clears on
               navigation. */}
           <Suspense fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <div
+              className="flex items-center justify-center h-64"
+              role="status"
+              aria-label="Loading page"
+            >
+              <div className="w-8 h-8 border-2 border-hub border-t-transparent rounded-full animate-spin" />
             </div>
           }>
             <Outlet context={contextValue} />

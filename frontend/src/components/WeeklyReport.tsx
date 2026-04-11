@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { SkeletonChart } from './ui/skeleton';
 import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, Users, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -113,8 +114,8 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center py-20" data-testid="weekly-report-loading-state">
-          <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div data-testid="weekly-report-loading-state">
+          <SkeletonChart />
         </div>
       )}
 
@@ -125,7 +126,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       )}
 
       {report && !loading && !error && (
-        <div ref={reportRef} className="space-y-6 bg-white rounded-xl border border-gray-200 p-6">
+        <div ref={reportRef} className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
           <div className="border-b border-gray-100 pb-4 mb-2">
             <h3 className="text-lg font-bold text-slate-800 font-display">
               Weekly Summary: {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
@@ -133,22 +134,22 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-indigo-50 rounded-xl p-4 text-center">
+            <div className="bg-indigo-50 rounded-lg p-4 text-center">
               <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-indigo-700 font-display">{report.totals.classes}</p>
               <p className="text-xs text-indigo-500">Total Classes</p>
             </div>
-            <div className="bg-teal-50 rounded-xl p-4 text-center">
+            <div className="bg-teal-50 rounded-lg p-4 text-center">
               <Clock className="w-5 h-5 text-teal-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-teal-700 font-display">{report.totals.class_hours}h</p>
               <p className="text-xs text-teal-500">Class Hours</p>
             </div>
-            <div className="bg-amber-50 rounded-xl p-4 text-center">
+            <div className="bg-amber-50 rounded-lg p-4 text-center">
               <Car className="w-5 h-5 text-amber-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-amber-700 font-display">{report.totals.drive_hours}h</p>
               <p className="text-xs text-amber-500">Drive Hours</p>
             </div>
-            <div className="bg-violet-50 rounded-xl p-4 text-center">
+            <div className="bg-violet-50 rounded-lg p-4 text-center">
               <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-violet-700 font-display">{report.totals.employees_active}</p>
               <p className="text-xs text-violet-500">Active Employees</p>
@@ -169,7 +170,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           </div>
 
           {(report.employees || []).map((emp) => (
-            <div key={emp.employee_name} className="border border-gray-100 rounded-xl p-4" data-testid={`report-employee-${emp.employee_name}`}>
+            <div key={emp.employee_name} className="border border-gray-100 rounded-lg p-4" data-testid={`report-employee-${emp.employee_name}`}>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: emp.employee_color }}>

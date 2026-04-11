@@ -470,7 +470,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-week">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-week">
         {/* Header row */}
         <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50/50">
           <div className="p-3 text-xs font-medium text-slate-400 uppercase tracking-wider border-r border-gray-100">

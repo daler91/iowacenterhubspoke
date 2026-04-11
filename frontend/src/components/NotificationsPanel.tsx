@@ -73,7 +73,7 @@ export default function NotificationsPanel() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-12 w-[380px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 animate-slide-in" data-testid="notifications-dropdown">
+        <div className="absolute right-0 top-12 w-[380px] bg-white rounded-lg shadow-xl border border-gray-200 z-50 animate-slide-in" data-testid="notifications-dropdown">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-800">Notifications</h3>

@@ -150,7 +150,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center">
               <BookOpen className="w-5 h-5 text-indigo-600" />
@@ -161,7 +161,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             {totals.classes}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 text-teal-600" />
@@ -172,7 +172,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             {totals.classHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center">
               <Car className="w-5 h-5 text-amber-600" />
@@ -183,7 +183,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             {totals.driveHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-lg border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-green-600" />
@@ -197,7 +197,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-100 p-6">
           <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Hours by Employee
           </h3>
@@ -223,7 +223,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
+        <div className="bg-white rounded-lg border border-gray-100 p-6">
           <h3 className="text-sm font-semibold text-slate-800 mb-4 font-display">
             Class Distribution
           </h3>
@@ -259,7 +259,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {scopedWorkload.map((employeeWorkload) => (
-          <div key={employeeWorkload.employee_id} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
+          <div key={employeeWorkload.employee_id} className="bg-white rounded-lg border border-gray-100 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
             <div className="flex items-center gap-3 mb-4">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"

@@ -17,7 +17,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'calendar', path: '/calendar', label: 'Calendar', icon: CalendarDays, tooltip: 'Weekly, daily, monthly class calendar' },
       { id: 'map', path: '/map', label: 'Map View', icon: Map, tooltip: 'Geographic view of hub & spoke locations' },
-      { id: 'kanban', path: '/kanban', label: 'Schedule Tracker', icon: ListChecks, tooltip: 'Track class delivery status' },
+      { id: 'kanban', path: '/kanban', label: 'Delivery Pipeline', icon: ListChecks, tooltip: 'Track class delivery status' },
     ],
   },
   {

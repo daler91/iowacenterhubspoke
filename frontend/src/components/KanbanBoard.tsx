@@ -173,7 +173,7 @@ function DroppableColumn({ id, children }: Readonly<{ id: string; children: Reac
   // Indigo accent on hover — visually distinct from the teal-accented
   // Project Board so the two kanbans don't blur together.
   return (
-    <div ref={setNodeRef} className={cn('transition-colors rounded-xl', isOver && 'bg-hub-soft ring-2 ring-hub/20')}>
+    <div ref={setNodeRef} className={cn('transition-colors rounded-lg', isOver && 'bg-hub-soft ring-2 ring-hub/20')}>
       {children}
     </div>
   );
@@ -275,9 +275,9 @@ export default function KanbanBoard() {
   return (
     <PageShell
       testId="kanban-board"
-      breadcrumbs={[{ label: 'Planning' }, { label: 'Schedule Tracker' }]}
-      title="Schedule Tracker"
-      subtitle="Track class delivery status — drag cards to mark progress from upcoming to completed"
+      breadcrumbs={[{ label: 'Planning' }, { label: 'Delivery Pipeline' }]}
+      title="Delivery Pipeline"
+      subtitle="Track class delivery status — drag cards through upcoming, in progress, and completed"
       actions={
         <Button
           variant={selectionMode ? 'default' : 'outline'}
@@ -308,7 +308,7 @@ export default function KanbanBoard() {
               <section
                 aria-label={`${col.label} column`}
                 data-testid={`kanban-column-${col.id}`}
-                className="bg-gray-50/80 rounded-xl border border-gray-200 min-h-[400px]"
+                className="bg-gray-50/80 rounded-lg border border-gray-200 min-h-[400px]"
               >
                 {/* Column header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">

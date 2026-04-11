@@ -54,7 +54,7 @@ export default function DriveOptimizationTab() {
           label="Potential Savings" value={`${summary.potential_savings_hours || 0}h`} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 p-6">
+      <div className="bg-white rounded-lg border border-gray-100 p-6">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">
           Drive Hours by Employee
         </h3>
@@ -73,7 +73,7 @@ export default function DriveOptimizationTab() {
         {!isLoading && employeeDrive.length === 0 && <EmptyState message="No drive data for the selected period." />}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 p-6">
+      <div className="bg-white rounded-lg border border-gray-100 p-6">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">
           Optimization Suggestions
         </h3>

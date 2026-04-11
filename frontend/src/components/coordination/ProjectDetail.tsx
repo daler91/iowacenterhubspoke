@@ -43,7 +43,7 @@ function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children:
     <div
       ref={setNodeRef}
       className={cn(
-        'flex-1 min-w-[260px] rounded-xl p-3 transition-colors',
+        'flex-1 min-w-[260px] rounded-lg p-3 transition-colors',
         isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-gray-50 dark:bg-gray-900/50',
       )}
     >
@@ -376,8 +376,12 @@ export default function ProjectDetail() {
 
   if (projectLoading || tasksLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      <div
+        className="flex items-center justify-center h-64"
+        role="status"
+        aria-label="Loading project"
+      >
+        <div className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

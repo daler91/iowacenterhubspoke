@@ -150,8 +150,12 @@ export default function PersonalSettings() {
   const renderCalendarContent = () => {
     if (employeeLoading) {
       return (
-        <div className="flex items-center justify-center py-8">
-          <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div
+          className="flex items-center justify-center py-8"
+          role="status"
+          aria-label="Loading calendar connections"
+        >
+          <div className="w-6 h-6 border-2 border-hub border-t-transparent rounded-full animate-spin" />
         </div>
       );
     }
@@ -269,7 +273,7 @@ export default function PersonalSettings() {
       </div>
 
       {/* Profile Info */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <User className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Profile</h3>
@@ -293,7 +297,7 @@ export default function PersonalSettings() {
       </div>
 
       {/* Change Password */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <Lock className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Change Password</h3>
@@ -340,7 +344,7 @@ export default function PersonalSettings() {
       </div>
 
       {/* Calendar Connections */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <Calendar className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Calendar Connections</h3>

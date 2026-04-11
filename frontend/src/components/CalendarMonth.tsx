@@ -36,7 +36,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
   }, [schedules]);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-month">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-month">
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/50">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (

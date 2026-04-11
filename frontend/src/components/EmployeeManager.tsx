@@ -115,7 +115,7 @@ export default function EmployeeManager() {
           <div
             key={emp.id}
             data-testid={`employee-card-${emp.id}`}
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-4">
               <div

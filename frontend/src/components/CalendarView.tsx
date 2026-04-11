@@ -199,7 +199,7 @@ export default function CalendarView() {
           subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
         />
         {(schedules || []).length === 0 && (
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 space-y-4" data-testid="empty-state-guide">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
             <p className="text-sm text-slate-500">Before you can schedule classes, make sure you have the basics set up:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

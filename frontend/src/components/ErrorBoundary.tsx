@@ -64,7 +64,7 @@ class ErrorBoundary extends React.Component<
       }
       return (
         <div
-          className="p-6 m-4 border border-danger/30 bg-danger-soft rounded-xl"
+          className="p-6 m-4 border border-danger/30 bg-danger-soft rounded-lg"
           role="alert"
         >
           <div className="flex items-start gap-3">

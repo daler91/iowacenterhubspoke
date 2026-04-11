@@ -139,7 +139,7 @@ export default function LocationManager() {
       }
     >
       {/* Hub Info */}
-      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center gap-4">
+      <div className="bg-hub-soft border border-hub/20 rounded-lg p-4 flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
           <MapPin className="w-5 h-5 text-white" />
         </div>
@@ -155,7 +155,7 @@ export default function LocationManager() {
           <div
             key={loc.id}
             data-testid={`location-card-${loc.id}`}
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">

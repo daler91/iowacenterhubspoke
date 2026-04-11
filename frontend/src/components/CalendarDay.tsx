@@ -359,7 +359,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-gray-50/50">
           <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
