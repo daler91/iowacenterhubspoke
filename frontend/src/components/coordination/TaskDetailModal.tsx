@@ -289,10 +289,20 @@ export default function TaskDetailModal({
     setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
+      // Resync after success so server-computed fields (completed_at,
+      // completed_by) reflected in the footer are accurate. loadTask() no
+      // longer triggers the spinner from here — the open effect is the only
+      // place that flips `loading` to true.
+      await loadTask();
       onUpdated();
     } catch {
-      // Roll back optimistic update so the UI stays in sync with the backend.
-      setTask(prev => prev ? { ...prev, status: prevStatus, completed: prevCompleted } : prev);
+      // Roll back optimistic update, but only if the value we optimistically
+      // set is still the current one. If a newer status change has superseded
+      // us (user changed status twice on a slow link), do not clobber it.
+      setTask(prev => {
+        if (!prev || prev.status !== next) return prev;
+        return { ...prev, status: prevStatus, completed: prevCompleted };
+      });
       toast.error('Failed to update status');
     }
   };
@@ -312,8 +322,12 @@ export default function TaskDetailModal({
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
     } catch {
-      // Roll back optimistic update so the UI stays in sync with the backend.
-      setTask(prev => prev ? { ...prev, [field]: prevValue } : prev);
+      // Roll back only if our optimistic value is still current. If the user
+      // toggled again before this request failed, the newer value must win.
+      setTask(prev => {
+        if (!prev || prev[field] !== value) return prev;
+        return { ...prev, [field]: prevValue };
+      });
       toast.error('Failed to update');
     }
   };
