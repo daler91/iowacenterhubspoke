@@ -68,7 +68,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
             leg.is_overridden
               ? "bg-info-soft text-info border-info/30 hover:bg-info-soft/70"
-              : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+              : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:bg-slate-200 dark:hover:bg-gray-700"
           )}
         >
           {leg.minutes} min
@@ -85,7 +85,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
         }}
       >
         <div className="space-y-1.5">
-          <label htmlFor="override-drive-time" className="text-xs font-medium text-slate-700">
+          <label htmlFor="override-drive-time" className="text-xs font-medium text-slate-700 dark:text-gray-200">
             Override drive time
           </label>
           <Input
@@ -116,7 +116,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
               variant="ghost"
               size="sm"
               onClick={handleReset}
-              className="text-slate-500"
+              className="text-slate-500 dark:text-gray-400"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
               Reset
@@ -135,14 +135,14 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
   const { legs, total_drive_minutes } = travelChain;
 
   return (
-    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+    <div className="p-3 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-slate-600" />
-          <span className="text-xs font-semibold text-slate-700">Day Travel Plan</span>
+          <Car className="w-4 h-4 text-slate-600 dark:text-gray-300" />
+          <span className="text-xs font-semibold text-slate-700 dark:text-gray-200">Day Travel Plan</span>
         </div>
-        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-slate-200 text-slate-700">
+        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-slate-200 dark:bg-gray-700 text-slate-700 dark:text-gray-200">
           {formatDuration(total_drive_minutes)} total drive
         </Badge>
       </div>
@@ -230,7 +230,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-xs font-medium",
-                    leg.is_current ? "text-teal-700" : "text-slate-700"
+                    leg.is_current ? "text-teal-700" : "text-slate-700 dark:text-gray-200"
                   )}>
                     {leg.location_name}
                   </span>

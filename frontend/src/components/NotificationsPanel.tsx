@@ -72,9 +72,9 @@ export default function NotificationsPanel() {
         aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-500" aria-hidden="true" />
+        <Bell className="w-5 h-5 text-slate-500 dark:text-gray-400" aria-hidden="true" />
         {activeNotifications.length > 0 && (
           <span
             aria-hidden="true"
@@ -90,10 +90,10 @@ export default function NotificationsPanel() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-12 w-[380px] bg-white rounded-lg shadow-xl border border-gray-200 z-50 animate-slide-in" data-testid="notifications-dropdown">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="absolute right-0 top-12 w-[380px] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-800">Notifications</h3>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Notifications</h3>
               {warningCount > 0 && (
                 <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px]">
                   {warningCount} alerts
@@ -114,11 +114,11 @@ export default function NotificationsPanel() {
           <ScrollArea className="max-h-[400px]">
             {activeNotifications.length === 0 ? (
               <div className="p-8 text-center">
-                <Bell className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                <Bell className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-gray-800">
                 {activeNotifications.map(notification => {
                   const config = SEVERITY_CONFIG[notification.severity] || SEVERITY_CONFIG.info;
                   const Icon = config.icon;
@@ -131,8 +131,8 @@ export default function NotificationsPanel() {
                         {isIdle ? <UserX className={cn("w-4 h-4", config.color)} /> : <Icon className={cn("w-4 h-4", config.color)} />}
                       </div>
                       <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-slate-700">{notification.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{notification.description}</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-gray-200">{notification.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">{notification.description}</p>
                         {link && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
                       </div>
                     </>
@@ -142,7 +142,7 @@ export default function NotificationsPanel() {
                       {link ? (
                         <button
                           type="button"
-                          className="flex-1 p-4 hover:bg-gray-50/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
+                          className="flex-1 p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
                           onClick={() => { navigate(link); setOpen(false); }}
                         >
                           {content}

@@ -164,7 +164,7 @@ function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
   return (
     <div ref={setNodeRef} className="relative">
       {HOURS.map(hour => (
-        <div key={hour} className={cn("h-[80px] border-b border-gray-50 transition-colors", isOver && "bg-indigo-50/20")} />
+        <div key={hour} className={cn("h-[80px] border-b border-gray-50 dark:border-gray-800 transition-colors", isOver && "bg-indigo-50/20 dark:bg-indigo-950/20")} />
       ))}
 
       {/* Drop indicator */}
@@ -287,15 +287,15 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-day">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-day">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 bg-gray-50/50">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
-          <p className="text-2xl font-bold text-slate-800 font-display">
+          <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
             {format(currentDate, 'MMMM d, yyyy')}
           </p>
           {daySchedules.length > 0 && (
-            <p className="text-sm text-slate-500 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
           )}
         </div>
 
@@ -303,7 +303,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div className="grid grid-cols-[80px_1fr] relative">
             {/* Time labels */}
-            <div className="border-r border-gray-100">
+            <div className="border-r border-gray-100 dark:border-gray-800">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
                   <span className="text-xs text-muted-foreground font-medium">

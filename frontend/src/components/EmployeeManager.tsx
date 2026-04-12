@@ -119,7 +119,7 @@ export default function EmployeeManager() {
           <div
             key={emp.id}
             data-testid={`employee-card-${emp.id}`}
-            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-4">
               <div
@@ -129,18 +129,18 @@ export default function EmployeeManager() {
                 {emp.name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <EntityLink type="employee" id={emp.id} className="font-semibold text-slate-800">{emp.name}</EntityLink>
+                <EntityLink type="employee" id={emp.id} className="font-semibold text-slate-800 dark:text-gray-100">{emp.name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   {emp.email && (
                     <div className="flex items-center gap-1">
                       <Mail className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-slate-500">{emp.email}</span>
+                      <span className="text-xs text-slate-500 dark:text-gray-400">{emp.email}</span>
                     </div>
                   )}
                   {emp.phone && (
                     <div className="flex items-center gap-1">
                       <Phone className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-slate-500">{emp.phone}</span>
+                      <span className="text-xs text-slate-500 dark:text-gray-400">{emp.phone}</span>
                     </div>
                   )}
                   {emp.google_calendar_connected && (
@@ -205,7 +205,7 @@ export default function EmployeeManager() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] bg-white" data-testid="employee-form-dialog">
+        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-gray-900" data-testid="employee-form-dialog">
           <DialogHeader>
             <DialogTitle>
               {editing ? 'Edit Employee' : 'Add Employee'}

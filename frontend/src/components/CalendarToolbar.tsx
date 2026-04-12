@@ -50,11 +50,11 @@ export default function CalendarToolbar({
             data-testid="calendar-prev"
             onClick={() => onNavigate('prev')}
             aria-label="Previous period"
-            className="border-gray-200"
+            className="border-gray-200 dark:border-gray-700"
           >
             <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </Button>
-          <h2 className="text-xl font-bold text-slate-800 min-w-[200px] text-center">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-gray-100 min-w-[200px] text-center">
             {dateLabel}
           </h2>
           <Button
@@ -63,7 +63,7 @@ export default function CalendarToolbar({
             data-testid="calendar-next"
             onClick={() => onNavigate('next')}
             aria-label="Next period"
-            className="border-gray-200"
+            className="border-gray-200 dark:border-gray-700"
           >
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </Button>
@@ -72,7 +72,7 @@ export default function CalendarToolbar({
             size="sm"
             data-testid="calendar-today"
             onClick={onToday}
-            className="border-gray-200 text-sm"
+            className="border-gray-200 dark:border-gray-700 text-sm"
           >
             Today
           </Button>
@@ -86,7 +86,7 @@ export default function CalendarToolbar({
             size="sm"
             data-testid="calendar-select-mode"
             onClick={onToggleSelection}
-            className={selectionMode ? '' : 'border-gray-200'}
+            className={selectionMode ? '' : 'border-gray-200 dark:border-gray-700'}
           >
             <ListChecks className="w-4 h-4 mr-1" />
             Select
@@ -98,11 +98,11 @@ export default function CalendarToolbar({
             value={calendarView}
             onValueChange={v => v && onViewChange(v)}
             aria-label="Calendar view"
-            className="bg-gray-100 rounded-lg p-0.5"
+            className="bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5"
           >
-            <ToggleGroupItem value="day" data-testid="view-day" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Day</ToggleGroupItem>
-            <ToggleGroupItem value="week" data-testid="view-week" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Week</ToggleGroupItem>
-            <ToggleGroupItem value="month" data-testid="view-month" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white data-[state=on]:shadow">Month</ToggleGroupItem>
+            <ToggleGroupItem value="day" data-testid="view-day" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white dark:data-[state=on]:bg-gray-700 data-[state=on]:shadow">Day</ToggleGroupItem>
+            <ToggleGroupItem value="week" data-testid="view-week" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white dark:data-[state=on]:bg-gray-700 data-[state=on]:shadow">Week</ToggleGroupItem>
+            <ToggleGroupItem value="month" data-testid="view-month" className="text-xs px-3 py-1 h-7 data-[state=on]:bg-white dark:data-[state=on]:bg-gray-700 data-[state=on]:shadow">Month</ToggleGroupItem>
           </ToggleGroup>
         )}
         {isAdmin && (
@@ -111,7 +111,7 @@ export default function CalendarToolbar({
               variant="outline"
               size="sm"
               onClick={onExportCsv}
-              className="border-gray-200"
+              className="border-gray-200 dark:border-gray-700"
               disabled={selectionMode}
             >
               <Download className="w-4 h-4 mr-1" />
@@ -121,7 +121,7 @@ export default function CalendarToolbar({
               variant="outline"
               size="sm"
               onClick={onImportCsv}
-              className="border-gray-200"
+              className="border-gray-200 dark:border-gray-700"
               disabled={selectionMode}
             >
               <Upload className="w-4 h-4 mr-1" />
@@ -134,7 +134,7 @@ export default function CalendarToolbar({
           size="sm"
           data-testid="export-pdf-btn"
           onClick={onExportPdf}
-          className="border-gray-200"
+          className="border-gray-200 dark:border-gray-700"
         >
           <FileDown className="w-4 h-4 mr-1" />
           PDF
@@ -144,7 +144,7 @@ export default function CalendarToolbar({
           size="sm"
           data-testid="print-btn"
           onClick={onPrint}
-          className="border-gray-200 no-print"
+          className="border-gray-200 dark:border-gray-700 no-print"
         >
           <Printer className="w-4 h-4 mr-1" />
           Print

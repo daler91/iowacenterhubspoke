@@ -159,18 +159,18 @@ export default function LocationManager() {
           <div
             key={loc.id}
             data-testid={`location-card-${loc.id}`}
-            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800">{loc.city_name}</EntityLink>
+                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
                 <div className="flex items-center gap-3 mt-1">
                   <div className="flex items-center gap-1">
                     <Car className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-slate-500">{loc.drive_time_minutes} min from Hub</span>
+                    <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
                   </div>
                   {loc.latitude && (
                     <span className="text-xs text-muted-foreground">
@@ -228,7 +228,7 @@ export default function LocationManager() {
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
-          className="sm:max-w-[440px] bg-white"
+          className="sm:max-w-[440px] bg-white dark:bg-gray-900"
           data-testid="location-form-dialog"
           onPointerDownOutside={(e) => {
             // Radix uses custom events - the real DOM target is in detail.originalEvent

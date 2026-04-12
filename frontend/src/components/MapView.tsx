@@ -33,12 +33,12 @@ export default function MapView() {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="map-view-fallback">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
-          <p className="text-sm text-slate-500 mt-1">Google Maps API key not configured</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Map View</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Google Maps API key not configured</p>
         </div>
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-12 text-center">
-          <MapPin className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-          <p className="text-slate-500">Add a Google Maps API key to enable the map view</p>
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <MapPin className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+          <p className="text-slate-500 dark:text-gray-400">Add a Google Maps API key to enable the map view</p>
         </div>
       </div>
     );
@@ -47,11 +47,11 @@ export default function MapView() {
   return (
     <div className="space-y-6 animate-slide-in" data-testid="map-view">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">Map View</h2>
-        <p className="text-sm text-slate-500 mt-1">Hub and Spoke locations across Iowa</p>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Map View</h2>
+        <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Hub and Spoke locations across Iowa</p>
       </div>
 
-      <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm" style={{ height: '500px' }}>
+      <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm" style={{ height: '500px' }}>
         <APIProvider apiKey={MAPS_KEY}>
           <Map
             style={{ width: '100%', height: '100%' }}
@@ -71,9 +71,9 @@ export default function MapView() {
                   <MapPin className="w-6 h-6 text-white" />
                 </div>
                 <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                  <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3 min-w-[200px]">
-                    <p className="font-bold text-sm text-indigo-700">Hub - Des Moines</p>
-                    <p className="text-xs text-slate-500 mt-1">2210 Grand Ave, Des Moines, IA 50312</p>
+                  <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px]">
+                    <p className="font-bold text-sm text-indigo-700 dark:text-indigo-400">Hub - Des Moines</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">2210 Grand Ave, Des Moines, IA 50312</p>
                     <Badge className="mt-2 bg-indigo-100 text-indigo-700 border-0 text-[10px]">Central Hub</Badge>
                   </div>
                 </div>
@@ -95,19 +95,19 @@ export default function MapView() {
                       </div>
                     )}
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                      <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-3 min-w-[220px]">
-                        <p className="font-bold text-sm text-teal-700">{loc.city_name}</p>
+                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]">
+                        <p className="font-bold text-sm text-teal-700 dark:text-teal-400">{loc.city_name}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Car className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs text-slate-500">{loc.drive_time_minutes} min from Hub</span>
+                          <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
                         </div>
                         {locSchedules.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-100">
+                          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
                             <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Today's Classes</p>
                             {locSchedules.map(s => (
                               <div key={s.id} className="flex items-center gap-2 mt-1">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />
-                                <span className="text-xs text-slate-600">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
+                                <span className="text-xs text-slate-600 dark:text-gray-300">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
                               </div>
                             ))}
                           </div>
@@ -124,28 +124,28 @@ export default function MapView() {
 
       {/* Location legend */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <div className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
             <MapPin className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800">Hub</p>
-            <p className="text-xs text-slate-500">Des Moines</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-gray-100">Hub</p>
+            <p className="text-xs text-slate-500 dark:text-gray-400">Des Moines</p>
           </div>
         </div>
         {validLocations.map(loc => (
           <button
             key={loc.id}
             type="button"
-            className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow text-left"
+            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow text-left"
             onClick={() => navigate(`/locations/${loc.id}`)}
           >
             <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
               <Navigation className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800 hover:text-indigo-600 transition-colors">{loc.city_name}</p>
-              <p className="text-xs text-slate-500">{loc.drive_time_minutes}m drive</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-indigo-600 transition-colors">{loc.city_name}</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes}m drive</p>
             </div>
           </button>
         ))}

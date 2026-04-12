@@ -63,7 +63,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
       <div className="flex-[0_0_100%] min-w-0" key={index}>
         <div className="px-4 py-2">
           {daySchedules.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-500 dark:text-gray-400">
               <Clock className="w-12 h-12 mb-3 opacity-20" />
               <p>No classes scheduled for today.</p>
             </div>
@@ -79,7 +79,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                     <button
                       type="button"
                       className={cn(
-                        "w-full text-left bg-white rounded-lg p-4 shadow-sm border border-gray-100 transition-all",
+                        "w-full text-left bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-800 transition-all",
                         selectionMode ? "cursor-pointer" : "cursor-pointer active:scale-[0.98]",
                         selected && "ring-2 ring-indigo-500 border-transparent"
                       )}
@@ -91,24 +91,24 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                           {selectionMode && (
                             <div className={cn(
                               "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
-                              selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300"
+                              selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 dark:border-gray-600"
                             )}>
                               {selected && <Check className="w-3.5 h-3.5 text-white" />}
                             </div>
                           )}
-                          <h3 className="font-semibold text-slate-800">{className}</h3>
+                          <h3 className="font-semibold text-slate-800 dark:text-gray-100">{className}</h3>
                         </div>
-                        <span className="text-sm font-medium text-slate-600 shrink-0 bg-slate-50 px-2 py-1 rounded-md">
+                        <span className="text-sm font-medium text-slate-600 dark:text-gray-300 shrink-0 bg-slate-50 dark:bg-gray-800 px-2 py-1 rounded-md">
                           {schedule.start_time} - {schedule.end_time}
                         </span>
                       </div>
 
                       <div className="space-y-1.5 mt-3">
-                        <div className="flex items-center text-sm text-slate-600">
+                        <div className="flex items-center text-sm text-slate-600 dark:text-gray-300">
                           <MapPin className="w-4 h-4 mr-2 opacity-70" />
                           <span className="truncate">{schedule.location_name}</span>
                         </div>
-                        <div className="flex items-center text-sm text-slate-600">
+                        <div className="flex items-center text-sm text-slate-600 dark:text-gray-300">
                           <User className="w-4 h-4 mr-2 opacity-70" />
                           <span className="truncate">{schedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</span>
                         </div>
@@ -132,11 +132,11 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
   };
 
   return (
-    <div className="mobile-calendar flex flex-col h-full bg-slate-50/50 -mx-4 sm:mx-0">
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+    <div className="mobile-calendar flex flex-col h-full bg-slate-50/50 dark:bg-gray-900/50 -mx-4 sm:mx-0">
+      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
         <button
           onClick={() => setCurrentDate(subDays(currentDate, 1))}
-          className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+          className="p-2 -ml-2 text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 rounded-full transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -145,14 +145,14 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
           <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-0.5">
             {format(currentDate, 'EEEE')}
           </p>
-          <h2 className="text-lg font-bold text-slate-800 leading-none">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-gray-100 leading-none">
             {format(currentDate, 'MMMM d, yyyy')}
           </h2>
         </div>
 
         <button
           onClick={() => setCurrentDate(addDays(currentDate, 1))}
-          className="p-2 -mr-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+          className="p-2 -mr-2 text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 rounded-full transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
@@ -166,7 +166,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
 
       {/* Bottom Sheet for Details */}
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-        <DrawerContent className="bg-white">
+        <DrawerContent className="bg-white dark:bg-gray-900">
           {selectedSchedule && (
             <div className="mx-auto w-full max-w-sm">
               <DrawerHeader className="text-left px-6 pt-6 pb-2">
@@ -177,35 +177,35 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                   />
                   <DrawerTitle className="text-xl">{selectedSchedule.class_name || 'Unassigned Class'}</DrawerTitle>
                 </div>
-                <DrawerDescription className="text-base text-slate-600 flex items-center gap-2 mt-2">
+                <DrawerDescription className="text-base text-slate-600 dark:text-gray-300 flex items-center gap-2 mt-2">
                   <Clock className="w-4 h-4" />
                   {format(parseISO(selectedSchedule.date), 'MMM d, yyyy')} • {selectedSchedule.start_time} - {selectedSchedule.end_time}
                 </DrawerDescription>
               </DrawerHeader>
 
               <div className="p-6 space-y-4">
-                <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+                <div className="bg-slate-50 dark:bg-gray-800 p-4 rounded-lg space-y-3">
                   <div className="flex items-start gap-3">
                     <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Location</p>
-                      <p className="text-sm text-slate-600">{selectedSchedule.location_name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-gray-100">Location</p>
+                      <p className="text-sm text-slate-600 dark:text-gray-300">{selectedSchedule.location_name}</p>
                     </div>
                   </div>
 
-                  <div className="w-full h-px bg-slate-200 ml-8" />
+                  <div className="w-full h-px bg-slate-200 dark:bg-gray-700 ml-8" />
 
                   <div className="flex items-start gap-3">
                     <User className="w-5 h-5 text-muted-foreground mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Instructor</p>
-                      <p className="text-sm text-slate-600">{selectedSchedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-gray-100">Instructor</p>
+                      <p className="text-sm text-slate-600 dark:text-gray-300">{selectedSchedule.employees?.map(e => e.name).join(', ') || 'Unassigned'}</p>
                     </div>
                   </div>
                 </div>
 
                 {selectedSchedule.drive_time_minutes > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-300 bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
                     <Car className="w-4 h-4 text-indigo-600" />
                     <span>Est. Drive Time: <span className="font-semibold text-indigo-700">{selectedSchedule.drive_time_minutes} min</span></span>
                   </div>

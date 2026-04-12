@@ -124,7 +124,7 @@ export default function ClassManager() {
           <div
             key={classItem.id}
             data-testid={`class-card-${classItem.id}`}
-            className="bg-white rounded-lg border border-gray-100 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
           >
             <div className="flex items-start gap-4 min-w-0">
               <div
@@ -133,10 +133,10 @@ export default function ClassManager() {
                 data-testid={`class-color-swatch-${classItem.id}`}
               />
               <div className="min-w-0">
-                <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 truncate block" data-testid={`class-name-${classItem.id}`}>
+                <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 dark:text-gray-100 truncate block" data-testid={`class-name-${classItem.id}`}>
                   {classItem.name}
                 </EntityLink>
-                <p className="text-xs text-slate-500 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
                   {classItem.description || 'No description added yet.'}
                 </p>
               </div>
@@ -209,7 +209,7 @@ export default function ClassManager() {
       </AlertDialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-form-dialog">
+        <DialogContent className="sm:max-w-[460px] bg-white dark:bg-gray-900" data-testid="class-form-dialog">
           <DialogHeader>
             <DialogTitle>
               {editing ? 'Edit Class' : 'Add Class'}

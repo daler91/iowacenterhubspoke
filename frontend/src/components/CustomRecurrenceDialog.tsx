@@ -97,7 +97,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] bg-white" data-testid="custom-recurrence-dialog">
+      <DialogContent className="sm:max-w-[560px] bg-white dark:bg-gray-900" data-testid="custom-recurrence-dialog">
         <DialogHeader>
           <DialogTitle>Custom recurrence</DialogTitle>
           <DialogDescription>
@@ -116,14 +116,14 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                 value={draft.interval}
                 onChange={(e) => setDraft((prev) => ({ ...prev, interval: e.target.value }))}
                 data-testid="custom-repeat-interval"
-                className="bg-gray-50/50"
+                className="bg-gray-50/50 dark:bg-gray-800"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="custom-repeat-frequency">Unit</Label>
               <Select value={draft.frequency} onValueChange={(value) => setDraft((prev) => ({ ...prev, frequency: value }))}>
-                <SelectTrigger id="custom-repeat-frequency" className="bg-gray-50/50" data-testid="custom-repeat-frequency">
+                <SelectTrigger id="custom-repeat-frequency" className="bg-gray-50/50 dark:bg-gray-800" data-testid="custom-repeat-frequency">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -156,7 +156,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                       aria-pressed={active}
                       data-testid={`custom-repeat-day-${day.value}`}
                       onClick={() => toggleWeekday(day.value)}
-                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'}`}
                     >
                       {day.label}
                     </button>
@@ -186,13 +186,13 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                 aria-checked={draft.end_mode === 'never'}
                 data-testid="custom-repeat-end-never"
                 onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'never' }))}
-                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left ${draft.end_mode === 'never' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}
+                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left ${draft.end_mode === 'never' ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-700' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'}`}
               >
-                <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'never' ? 'border-4 border-indigo-600' : 'border-gray-300'}`} />
-                <span className="text-sm font-medium text-slate-700">Never</span>
+                <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'never' ? 'border-4 border-indigo-600' : 'border-gray-300 dark:border-gray-600'}`} />
+                <span className="text-sm font-medium text-slate-700 dark:text-gray-200">Never</span>
               </button>
 
-              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'on_date' ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-700' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'}`}>
                 <button
                   type="button"
                   role="radio"
@@ -201,21 +201,21 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                   onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'on_date' }))}
                   className="flex items-center gap-3 w-full text-left"
                 >
-                  <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'on_date' ? 'border-4 border-indigo-600' : 'border-gray-300'}`} />
-                  <span className="text-sm font-medium text-slate-700">On</span>
+                  <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'on_date' ? 'border-4 border-indigo-600' : 'border-gray-300 dark:border-gray-600'}`} />
+                  <span className="text-sm font-medium text-slate-700 dark:text-gray-200">On</span>
                 </button>
                 {draft.end_mode === 'on_date' && (
                   <Input
                     type="date"
                     value={draft.end_date}
                     onChange={(e) => setDraft((prev) => ({ ...prev, end_date: e.target.value }))}
-                    className="mt-3 bg-white"
+                    className="mt-3 bg-white dark:bg-gray-900"
                     data-testid="custom-repeat-end-date-input"
                   />
                 )}
               </div>
 
-              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+              <div className={`rounded-lg border px-4 py-3 ${draft.end_mode === 'after_occurrences' ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-700' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'}`}>
                 <button
                   type="button"
                   role="radio"
@@ -224,8 +224,8 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                   onClick={() => setDraft((prev) => ({ ...prev, end_mode: 'after_occurrences' }))}
                   className="flex items-center gap-3 w-full text-left"
                 >
-                  <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'after_occurrences' ? 'border-4 border-indigo-600' : 'border-gray-300'}`} />
-                  <span className="text-sm font-medium text-slate-700">After</span>
+                  <div className={`w-4 h-4 rounded-full border ${draft.end_mode === 'after_occurrences' ? 'border-4 border-indigo-600' : 'border-gray-300 dark:border-gray-600'}`} />
+                  <span className="text-sm font-medium text-slate-700 dark:text-gray-200">After</span>
                 </button>
                 {draft.end_mode === 'after_occurrences' && (
                   <div className="mt-3 flex items-center gap-3">
@@ -234,10 +234,10 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                       min="1"
                       value={draft.occurrences}
                       onChange={(e) => setDraft((prev) => ({ ...prev, occurrences: e.target.value }))}
-                      className="max-w-[160px] bg-white"
+                      className="max-w-[160px] bg-white dark:bg-gray-900"
                       data-testid="custom-repeat-occurrences-input"
                     />
-                    <span className="text-sm text-slate-500">occurrences</span>
+                    <span className="text-sm text-slate-500 dark:text-gray-400">occurrences</span>
                   </div>
                 )}
               </div>

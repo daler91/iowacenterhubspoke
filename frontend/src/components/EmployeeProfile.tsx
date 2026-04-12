@@ -57,7 +57,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
       size="sm"
       onClick={onBack}
       data-testid="profile-back-btn"
-      className="text-slate-500 hover:text-slate-700 -ml-2"
+      className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Employees
@@ -94,13 +94,13 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
               <div className="min-w-0">
                 <div className="flex items-center gap-4 mt-1 flex-wrap">
                   {employee.email && (
-                    <div className="flex items-center gap-1 text-sm text-slate-500">
+                    <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-gray-400">
                       <Mail className="w-4 h-4" aria-hidden="true" />
                       {employee.email}
                     </div>
                   )}
                   {employee.phone && (
-                    <div className="flex items-center gap-1 text-sm text-slate-500">
+                    <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-gray-400">
                       <Phone className="w-4 h-4" aria-hidden="true" />
                       {employee.phone}
                     </div>
@@ -126,7 +126,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Location breakdown */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
                 Locations Visited
               </h2>
               {data.location_breakdown?.length > 0 ? (
@@ -148,18 +148,18 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
 
             {/* Recent schedules */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
                 Recent Assignments
               </h2>
               <ScrollArea className="max-h-[250px]">
                 <div className="space-y-3">
                   {(data.recent_schedules || []).map(s => (
-                    <div key={s.id} className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
+                    <div key={s.id} className="flex items-center gap-3 p-3 bg-gray-50/50 dark:bg-gray-800/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
                       <div className="w-8 h-8 rounded-lg bg-hub-soft flex items-center justify-center shrink-0">
                         <MapPin className="w-4 h-4 text-hub" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <EntityLink type="location" id={s.location_id} className="text-sm font-medium text-slate-700">{s.location_name}</EntityLink>
+                        <EntityLink type="location" id={s.location_id} className="text-sm font-medium text-slate-700 dark:text-gray-200">{s.location_name}</EntityLink>
                         <p className="text-xs text-muted-foreground">{s.date} | {s.start_time}-{s.end_time}</p>
                       </div>
                       <Badge className={`border-0 text-[10px] ${getScheduleStatusStyle(s.status)}`}>

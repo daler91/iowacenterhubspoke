@@ -196,18 +196,18 @@ export default function UserManager() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-500" />
-                <h2 className="text-lg font-semibold text-slate-800">Pending Approval ({pendingUsers.length})</h2>
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Approval ({pendingUsers.length})</h2>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
-                  <div key={u.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
+                  <div key={u.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">
                         {u.name?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">{u.name}</p>
-                        <p className="text-sm text-slate-500">{u.email}</p>
+                        <p className="font-medium text-slate-900 dark:text-gray-100">{u.name}</p>
+                        <p className="text-sm text-slate-500 dark:text-gray-400">{u.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -239,18 +239,18 @@ export default function UserManager() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-info" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-800">Pending Invitations ({pendingInvitations.length})</h2>
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
               <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
-                  <div key={inv.id} className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
+                  <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info font-semibold text-sm">
                         {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">{inv.name || 'No name'}</p>
-                        <p className="text-sm text-slate-500">{inv.email}</p>
+                        <p className="font-medium text-slate-900 dark:text-gray-100">{inv.name || 'No name'}</p>
+                        <p className="text-sm text-slate-500 dark:text-gray-400">{inv.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -273,28 +273,28 @@ export default function UserManager() {
           )}
 
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">All Users</h2>
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">All Users</h2>
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Role</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
+                  <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">User</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {otherUsers.map(u => (
-                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <tr key={u.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
                             {u.name?.charAt(0)?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium text-slate-900 text-sm">{u.name}</p>
-                            <p className="text-xs text-slate-500">{u.email}</p>
+                            <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">{u.email}</p>
                           </div>
                         </div>
                       </td>
@@ -348,7 +348,7 @@ export default function UserManager() {
       {/* Invite User Dialog — hoisted outside PageShell so it stays mounted
           during the loading state. */}
       <Dialog open={inviteDialogOpen} onOpenChange={closeInviteDialog}>
-        <DialogContent className="sm:max-w-[440px] bg-white">
+        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Invite User</DialogTitle>
             <DialogDescription>
@@ -367,7 +367,7 @@ export default function UserManager() {
                     id="invite-generated-link"
                     readOnly
                     value={generatedLink}
-                    className="h-10 bg-gray-50 text-sm font-mono"
+                    className="h-10 bg-gray-50 dark:bg-gray-800 text-sm font-mono"
                   />
                   <Button
                     type="button"
@@ -378,7 +378,7 @@ export default function UserManager() {
                     <Copy className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   This link will allow the recipient to register and be automatically approved.
                 </p>
               </div>
@@ -403,7 +403,7 @@ export default function UserManager() {
                   value={inviteForm.email}
                   onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                   required
-                  className="h-10 bg-gray-50/50"
+                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
                 />
               </div>
               <div className="space-y-2">
@@ -413,7 +413,7 @@ export default function UserManager() {
                   placeholder="John Doe"
                   value={inviteForm.name}
                   onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                  className="h-10 bg-gray-50/50"
+                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
                 />
               </div>
               <div className="space-y-2">

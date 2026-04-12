@@ -45,7 +45,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[460px] bg-white" data-testid="class-quick-create-dialog">
+      <DialogContent className="sm:max-w-[460px] bg-white dark:bg-gray-900" data-testid="class-quick-create-dialog">
         <DialogHeader>
           <DialogTitle>Add New Class</DialogTitle>
           <DialogDescription>
@@ -62,7 +62,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
               placeholder="Entrepreneurship 101"
               value={form.name}
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-              className="bg-gray-50/50"
+              className="bg-gray-50/50 dark:bg-gray-800/50"
               required
             />
           </div>
@@ -75,7 +75,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
               placeholder="Optional details for this class type"
               value={form.description}
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-              className="min-h-[96px] bg-gray-50/50 resize-none"
+              className="min-h-[96px] bg-gray-50/50 dark:bg-gray-800/50 resize-none"
             />
           </div>
 
