@@ -201,8 +201,8 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                 ))}
               </div>
 
-              <div className="bg-gray-50/50 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="bg-gray-50/50 rounded-lg overflow-x-auto">
+                <div className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   <div className="bg-gray-50 px-3 py-2">Date</div>
                   <div className="bg-gray-50 px-3 py-2">Class</div>
                   <div className="bg-gray-50 px-3 py-2">Location</div>
@@ -211,7 +211,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   <div className="bg-gray-50 px-3 py-2">Status</div>
                 </div>
                 {(emp.schedule_details || []).map((scheduleDetail) => (
-                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
+                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 text-xs">
                     <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
                     <div className="bg-white px-3 py-2">
                       <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>

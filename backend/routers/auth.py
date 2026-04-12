@@ -95,7 +95,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         token = create_token(user_id, data.email, data.name, role)
         response.set_cookie(
             key="auth_token", value=token, httponly=True,
-            secure=True, samesite="lax", max_age=86400 * 7,
+            secure=True, samesite="lax", max_age=86400,
         )
         return {
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
@@ -140,7 +140,7 @@ async def login(request: Request, data: UserLogin, response: Response):
     logger.info("User logged in", extra={"entity": {"user_id": user['id']}})
     response.set_cookie(
         key="auth_token", value=token, httponly=True,
-        secure=True, samesite="lax", max_age=86400 * 7,
+        secure=True, samesite="lax", max_age=86400,
     )
     return {
         "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role},
@@ -297,5 +297,5 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
 
     # Issue a new token (with iat after password_changed_at)
     token = create_token(user['user_id'], user['email'], user['name'], user.get('role', ROLE_VIEWER))
-    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
+    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return {"message": "Password changed successfully. All other sessions have been invalidated."}

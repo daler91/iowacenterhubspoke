@@ -54,14 +54,20 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
+TOKEN_LIFETIME_SECONDS = 86400  # 1 day
+
+
 def create_token(user_id: str, email: str, name: str, role: str = '', iat: float = None) -> str:
+    import uuid as _uuid
+    now_ts = int(datetime.now(timezone.utc).timestamp())
     payload = {
         'user_id': user_id,
         'email': email,
         'name': name,
         'role': role,
-        'iat': int(iat or datetime.now(timezone.utc).timestamp()),
-        'exp': int(datetime.now(timezone.utc).timestamp()) + 86400 * 7
+        'jti': str(_uuid.uuid4()),
+        'iat': int(iat or now_ts),
+        'exp': now_ts + TOKEN_LIFETIME_SECONDS,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

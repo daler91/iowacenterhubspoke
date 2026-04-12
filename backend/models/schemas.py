@@ -45,7 +45,6 @@ class LocationUpdate(BaseModel):
     drive_time_minutes: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    deleted_at: Optional[str] = None
 
 
 class EmployeeCreate(BaseModel):
@@ -60,7 +59,6 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     color: Optional[str] = None
-    deleted_at: Optional[str] = None
 
 
 class RecurrenceRule(BaseModel):
@@ -82,7 +80,6 @@ class ClassUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
-    deleted_at: Optional[str] = None
 
 
 class ScheduleCreate(BaseModel):
@@ -144,7 +141,6 @@ class ScheduleUpdate(BaseModel):
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
     series_id: Optional[str] = None
-    deleted_at: Optional[str] = None
 
 
 class StatusUpdate(BaseModel):
