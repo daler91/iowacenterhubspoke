@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr, model_validator
-from typing import List, Optional
+from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
+from typing import List, Literal, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
 
@@ -8,6 +8,15 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     invite_token: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_complexity(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 
 class UserLogin(BaseModel):
@@ -81,9 +90,9 @@ class ScheduleCreate(BaseModel):
     employee_ids: Optional[List[str]] = None  # preferred: multiple employees
     location_id: str
     class_id: Optional[str] = None
-    date: str  # YYYY-MM-DD
-    start_time: str  # HH:MM
-    end_time: str
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
     force: Optional[bool] = False
     notes: Optional[str] = None
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
@@ -97,6 +106,12 @@ class ScheduleCreate(BaseModel):
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
     force_google: Optional[bool] = False
+
+    @model_validator(mode="after")
+    def _validate_time_range(self):
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
 
     @model_validator(mode="after")
     def _normalise_employees(self):
@@ -133,7 +148,7 @@ class ScheduleUpdate(BaseModel):
 
 
 class StatusUpdate(BaseModel):
-    status: str  # upcoming, in_progress, completed
+    status: Literal["upcoming", "in_progress", "completed"]
 
 
 class ScheduleRelocate(BaseModel):
@@ -170,7 +185,7 @@ class BulkClassUpdateRequest(BaseModel):
 
 
 class UserRoleUpdate(BaseModel):
-    role: str
+    role: Literal["admin", "editor", "scheduler", "viewer"]
 
 
 class InviteCreate(BaseModel):

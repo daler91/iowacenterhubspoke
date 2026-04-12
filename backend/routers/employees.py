@@ -116,6 +116,16 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
     responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
 )
 async def delete_employee(employee_id: str, user: AdminRequired):
+    from datetime import date as date_type
+    today = date_type.today().isoformat()
+    future_count = await db.schedules.count_documents({
+        "employee_ids": employee_id, "date": {"$gte": today}, "deleted_at": None
+    })
+    if future_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: {future_count} future schedule(s) assigned to this employee. Reassign or delete them first."
+        )
     result = await db.employees.update_one(
         {"id": employee_id, "deleted_at": None},
         {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}

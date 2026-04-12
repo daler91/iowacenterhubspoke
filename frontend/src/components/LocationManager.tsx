@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { PageShell } from './ui/page-shell';
 import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -100,14 +101,18 @@ export default function LocationManager() {
     }
   };
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
   const handleDelete = async (id) => {
     try {
       await locationsAPI.delete(id);
       toast.success('Location deleted');
       onRefresh();
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete location');
+      const detail = err.response?.data?.detail;
+      toast.error(detail || 'Failed to delete location');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -201,7 +206,7 @@ export default function LocationManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-location-${loc.id}`}
-                    onClick={() => handleDelete(loc.id)}
+                    onClick={() => setDeleteTarget(loc)}
                     className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -403,6 +408,23 @@ export default function LocationManager() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.city_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the location from the system. This action cannot be easily undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 }
