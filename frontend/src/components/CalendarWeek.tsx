@@ -200,15 +200,15 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes, isToday, curren
       ref={setNodeRef}
       aria-label={`Schedule drop zone for ${dateStr}`}
       className={cn(
-        "border-r border-gray-100 last:border-r-0 relative",
-        isOver && "bg-indigo-50/20",
-        isToday && "bg-indigo-50/10"
+        "border-r border-gray-100 dark:border-gray-800 last:border-r-0 relative",
+        isOver && "bg-indigo-50/20 dark:bg-indigo-950/20",
+        isToday && "bg-indigo-50/10 dark:bg-indigo-950/10"
       )}
     >
       {HOURS.map(hour => (
         <div
           key={hour}
-          className="h-[60px] border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
+          className="h-[60px] border-b border-gray-50 dark:border-gray-800 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 transition-colors"
         />
       ))}
 
@@ -383,18 +383,18 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" data-testid="calendar-week">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-week">
         {/* Header row */}
-        <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50/50">
-          <div className="p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider border-r border-gray-100">
+        <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+          <div className="p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider border-r border-gray-100 dark:border-gray-800">
             Time
           </div>
           {days.map(day => (
-            <div key={day.toISOString()} className="p-3 text-center border-r border-gray-100 last:border-r-0">
+            <div key={day.toISOString()} className="p-3 text-center border-r border-gray-100 dark:border-gray-800 last:border-r-0">
               <p className="text-xs font-medium text-muted-foreground uppercase">{format(day, 'EEE')}</p>
               <p className={cn(
                 "text-lg font-bold mt-0.5 font-display",
-                isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-800"
+                isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-800 dark:text-gray-100"
               )}>
                 {format(day, 'd')}
               </p>
@@ -417,7 +417,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
         >
           <div className="grid grid-cols-8 relative">
             {/* Time labels column */}
-            <div className="border-r border-gray-100">
+            <div className="border-r border-gray-100 dark:border-gray-800">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[60px] px-2 flex items-start justify-end pt-1">
                   <span className="text-[11px] text-muted-foreground font-medium">

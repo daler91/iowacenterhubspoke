@@ -33,12 +33,12 @@ export function LocationTimeSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700">Location</Label>
+        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">Location</Label>
         <Select value={form.location_id} onValueChange={(v) => setForm({ ...form, location_id: v })}>
           <SelectTrigger
             id="schedule-location-select"
             data-testid="schedule-location-select"
-            className="h-10 bg-gray-50/50"
+            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             aria-describedby={selectedLocation ? 'schedule-location-drive' : undefined}
           >
             <SelectValue placeholder="Select a location" />
@@ -49,7 +49,7 @@ export function LocationTimeSelectors({
                 <div className="flex items-center gap-2">
                   <MapPin className="w-3 h-3 text-spoke" aria-hidden="true" />
                   {loc.city_name}
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-gray-100 text-gray-600">
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
                     {loc.drive_time_minutes}m
                   </Badge>
                 </div>
@@ -60,11 +60,11 @@ export function LocationTimeSelectors({
         {selectedLocation && (
           <div
             id="schedule-location-drive"
-            className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
+            className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
           >
             <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <span className="text-xs text-slate-500">
-              Estimated drive: <span className="font-semibold text-slate-700">{selectedLocation.drive_time_minutes} min</span> each way from Hub
+            <span className="text-xs text-slate-500 dark:text-gray-400">
+              Estimated drive: <span className="font-semibold text-slate-700 dark:text-gray-200">{selectedLocation.drive_time_minutes} min</span> each way from Hub
             </span>
           </div>
         )}
@@ -72,40 +72,40 @@ export function LocationTimeSelectors({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700">Date</Label>
+          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">Date</Label>
           <Input
             id="schedule-date-input"
             type="date"
             data-testid="schedule-date-input"
             value={form.date}
             onChange={(e) => onDateChange(e.target.value)}
-            className="h-10 bg-gray-50/50"
+            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700">Start Time</Label>
+          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">Start Time</Label>
           <Input
             id="schedule-start-time"
             type="time"
             data-testid="schedule-start-time"
             value={form.start_time}
             onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-            className="h-10 bg-gray-50/50"
+            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700">End Time</Label>
+          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">End Time</Label>
           <Input
             id="schedule-end-time"
             type="time"
             data-testid="schedule-end-time"
             value={form.end_time}
             onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-            className="h-10 bg-gray-50/50"
+            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
           />
@@ -194,14 +194,14 @@ export function LocationTimeSelectors({
       <TravelChainPreview travelChain={travelChain} onOverrideChange={onOverrideChange} />
 
       <div className="space-y-2">
-        <Label htmlFor="schedule-notes-input" className="text-sm font-medium text-slate-700">Notes (optional)</Label>
+        <Label htmlFor="schedule-notes-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">Notes (optional)</Label>
         <Input
           id="schedule-notes-input"
           data-testid="schedule-notes-input"
           placeholder="Additional notes..."
           value={form.notes}
           onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          className="h-10 bg-gray-50/50"
+          className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
         />
       </div>
     </>

@@ -97,8 +97,8 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
           label="Busiest Period" value={summary.busiest} />
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4">
           Trends Over Time
         </h3>
         {isLoading && <LoadingChart />}

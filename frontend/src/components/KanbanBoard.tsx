@@ -91,7 +91,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         }}
         onKeyDown={handleKeyDown}
         className={cn(
-          "bg-white rounded-lg border border-gray-100 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+          "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
           selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
           isDragging && "opacity-50 scale-95",
@@ -125,11 +125,11 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         </div>
 
         <div className="pl-[26px] space-y-2">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
             <MapPin className="w-3 h-3" />
             <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
             <User className="w-3 h-3" />
             {schedule.employees?.length > 0 ? (
               schedule.employees.map((emp, i) => (
@@ -142,7 +142,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
               <span>Unassigned</span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
             <Clock className="w-3 h-3" />
             <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
           </div>
@@ -170,7 +170,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
           size="sm"
           variant="ghost"
           onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
-          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700 bg-white/80 backdrop-blur-sm"
+          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
           data-testid={`kanban-advance-${schedule.id}`}
         >
           <ChevronRight className="w-3 h-3 mr-0.5" />
@@ -297,7 +297,7 @@ export default function KanbanBoard() {
           size="sm"
           data-testid="kanban-select-mode"
           onClick={toggleSelectionMode}
-          className={selectionMode ? '' : 'border-gray-200'}
+          className={selectionMode ? '' : 'border-gray-200 dark:border-gray-700'}
         >
           <ListChecks className="w-4 h-4 mr-1" aria-hidden="true" />
           Bulk Select
@@ -321,10 +321,10 @@ export default function KanbanBoard() {
               <section
                 aria-label={`${col.label} column`}
                 data-testid={`kanban-column-${col.id}`}
-                className="bg-gray-50/80 rounded-lg border border-gray-200 min-h-[400px]"
+                className="bg-gray-50/80 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[400px]"
               >
                 {/* Column header */}
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {selectionMode && items.length > 0 && (
                       <Checkbox
@@ -335,7 +335,7 @@ export default function KanbanBoard() {
                       />
                     )}
                     <div className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
-                    <h3 className="text-sm font-semibold text-slate-700">{col.label}</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{col.label}</h3>
                   </div>
                   <Badge className={cn("border-0 text-[10px] px-2", col.lightColor, col.textColor)}>
                     {items.length}

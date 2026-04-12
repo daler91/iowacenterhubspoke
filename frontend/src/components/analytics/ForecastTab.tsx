@@ -87,9 +87,9 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-100 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-800">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">
             Historical & Forecast
           </h3>
           {method === 'linear_regression' && (

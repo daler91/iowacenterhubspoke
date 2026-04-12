@@ -63,8 +63,8 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] flex items-center justify-center p-4 sm:p-8" data-testid="reset-password-page">
-      <Card className="w-full max-w-md border-0 shadow-lg bg-white">
+    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] dark:bg-gray-950 flex items-center justify-center p-4 sm:p-8" data-testid="reset-password-page">
+      <Card className="w-full max-w-md border-0 shadow-lg bg-white dark:bg-gray-900">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
         </CardHeader>
         <CardContent>
           {tokenState === 'checking' && (
-            <p className="text-sm text-slate-500 text-center py-8">Validating reset link...</p>
+            <p className="text-sm text-slate-500 dark:text-gray-400 text-center py-8">Validating reset link...</p>
           )}
           {tokenState === 'invalid' && (
             <div className="space-y-4">
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  className="h-11 bg-gray-50/50"
+                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
                 />
               </div>
               <div className="space-y-2">
@@ -130,7 +130,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setConfirm(e.target.value)}
                   required
                   minLength={8}
-                  className="h-11 bg-gray-50/50"
+                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
                 />
               </div>
               <Button

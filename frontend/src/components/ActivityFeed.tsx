@@ -29,11 +29,11 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
     return (
       <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Activity Feed</h2>
-          <p className="text-sm text-slate-500 mt-1">Recent actions and updates</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Activity Feed</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Recent actions and updates</p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-100 p-12 text-center">
-          <Activity className="w-12 h-12 mx-auto text-gray-200 mb-3" />
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-12 text-center">
+          <Activity className="w-12 h-12 mx-auto text-gray-200 dark:text-gray-700 mb-3" />
           <p className="text-muted-foreground text-sm">No activity yet. Start scheduling to see updates here.</p>
         </div>
       </div>
@@ -51,16 +51,16 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
   return (
     <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">Activity Feed</h2>
-        <p className="text-sm text-slate-500 mt-1">Recent actions and updates across the team</p>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Activity Feed</h2>
+        <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Recent actions and updates across the team</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden">
         <ScrollArea className="max-h-[calc(100vh-220px)]">
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {Object.entries(grouped).map(([date, items]) => (
               <div key={date}>
-                <div className="px-5 py-2 bg-gray-50/50 sticky top-0">
+                <div className="px-5 py-2 bg-gray-50/50 dark:bg-gray-800/50 sticky top-0">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{date}</p>
                 </div>
                 {items.map((activity, idx) => {
@@ -74,7 +74,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
                   } catch { timeAgo = ''; }
 
                   return (
-                    <div key={activity.id || idx} className="px-5 py-4 flex items-start gap-4 hover:bg-gray-50/50 transition-colors" data-testid={`activity-item-${activity.id}`}>
+                    <div key={activity.id || idx} className="px-5 py-4 flex items-start gap-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors" data-testid={`activity-item-${activity.id}`}>
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${config.bg}`}>
                         <Icon className={`w-4 h-4 ${config.color}`} />
                       </div>
@@ -85,7 +85,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
                           </Badge>
                           <span className="text-[11px] text-muted-foreground">{timeAgo}</span>
                         </div>
-                        <p className="text-sm text-slate-700">{activity.description}</p>
+                        <p className="text-sm text-slate-700 dark:text-gray-200">{activity.description}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">by {activity.user_name}</p>
                       </div>
                     </div>

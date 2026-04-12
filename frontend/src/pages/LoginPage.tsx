@@ -81,7 +81,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] flex" data-testid="login-page">
+    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] dark:bg-gray-950 flex" data-testid="login-page">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 relative overflow-hidden flex-col justify-between p-12">
         <div className="relative z-10">
@@ -136,7 +136,7 @@ export default function LoginPage() {
 
       {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-y-auto relative z-10">
-        <Card className="w-full max-w-md border-0 shadow-lg bg-white">
+        <Card className="w-full max-w-md border-0 shadow-lg bg-white dark:bg-gray-900">
           <CardHeader className="space-y-1 pb-6">
             <div className="lg:hidden flex items-center gap-2 mb-4">
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -173,7 +173,7 @@ export default function LoginPage() {
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     required={!isLogin}
-                    className="h-11 bg-gray-50/50"
+                    className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
                   />
                 </div>
               )}
@@ -188,7 +188,7 @@ export default function LoginPage() {
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
                   disabled={!!inviteData}
-                  className={`h-11 bg-gray-50/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`h-11 bg-gray-50/50 dark:bg-gray-800/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div className="space-y-2">
@@ -212,7 +212,7 @@ export default function LoginPage() {
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
-                  className="h-11 bg-gray-50/50"
+                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
                 />
               </div>
               <Button

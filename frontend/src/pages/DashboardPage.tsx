@@ -90,7 +90,7 @@ export default function DashboardPage() {
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             data-testid="mobile-menu-btn"
           >
-            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <svg className="w-5 h-5 text-slate-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path className="text-slate-600 dark:text-muted-foreground" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>

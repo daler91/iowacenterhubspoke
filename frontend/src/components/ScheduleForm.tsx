@@ -135,7 +135,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] bg-white overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
+      <DialogContent className="sm:max-w-[520px] bg-white dark:bg-gray-900 overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}

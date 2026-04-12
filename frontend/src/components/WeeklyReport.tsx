@@ -76,14 +76,14 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
     <div className="space-y-6 animate-slide-in" data-testid="weekly-report">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 font-display">Weekly Summary</h2>
-          <p className="text-sm text-slate-500 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">Weekly Summary</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" aria-hidden="true" />
           </Button>
-          <span className="text-sm font-medium text-slate-700 min-w-[180px] text-center">
+          <span className="text-sm font-medium text-slate-700 dark:text-gray-200 min-w-[180px] text-center">
             {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
           </span>
           <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => addWeeks(date, 1))} data-testid="report-next" aria-label="Next week">
@@ -101,7 +101,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       <div className="max-w-[280px] space-y-2">
         <Label className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground" htmlFor="report-class-filter">Filter by Class</Label>
         <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-          <SelectTrigger id="report-class-filter" className="bg-white" data-testid="report-class-filter">
+          <SelectTrigger id="report-class-filter" className="bg-white dark:bg-gray-900" data-testid="report-class-filter">
             <SelectValue placeholder="All classes" />
           </SelectTrigger>
           <SelectContent>
@@ -120,15 +120,15 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       )}
 
       {error && !loading && (
-        <div className="text-center py-12 text-slate-500">
+        <div className="text-center py-12 text-slate-500 dark:text-gray-400">
           <p className="text-sm">Failed to load report. Please try again.</p>
         </div>
       )}
 
       {report && !loading && !error && (
-        <div ref={reportRef} className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
-          <div className="border-b border-gray-100 pb-4 mb-2">
-            <h3 className="text-lg font-bold text-slate-800 font-display">
+        <div ref={reportRef} className="space-y-6 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="border-b border-gray-100 dark:border-gray-800 pb-4 mb-2">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-gray-100 font-display">
               Weekly Summary: {format(weekStart, 'MMM d')} — {format(weekEnd, 'MMM d, yyyy')}
             </h3>
           </div>
@@ -170,14 +170,14 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
           </div>
 
           {(report.employees || []).map((emp) => (
-            <div key={emp.employee_name} className="border border-gray-100 rounded-lg p-4" data-testid={`report-employee-${emp.employee_name}`}>
+            <div key={emp.employee_name} className="border border-gray-100 dark:border-gray-800 rounded-lg p-4" data-testid={`report-employee-${emp.employee_name}`}>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: emp.employee_color }}>
                     {emp.employee_name?.charAt(0)?.toUpperCase()}
                   </div>
                   <div>
-                    <EntityLink type="employee" id={emp.employee_id} className="font-semibold text-slate-800">{emp.employee_name}</EntityLink>
+                    <EntityLink type="employee" id={emp.employee_id} className="font-semibold text-slate-800 dark:text-gray-100">{emp.employee_name}</EntityLink>
                     <p className="text-xs text-muted-foreground">{emp.days_worked} day{emp.days_worked === 1 ? '' : 's'} worked</p>
                   </div>
                 </div>
@@ -201,34 +201,34 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                 ))}
               </div>
 
-              <div className="bg-gray-50/50 rounded-lg overflow-x-auto">
-                <div className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="bg-gray-50 px-3 py-2">Date</div>
-                  <div className="bg-gray-50 px-3 py-2">Class</div>
-                  <div className="bg-gray-50 px-3 py-2">Location</div>
-                  <div className="bg-gray-50 px-3 py-2">Time</div>
-                  <div className="bg-gray-50 px-3 py-2">Drive</div>
-                  <div className="bg-gray-50 px-3 py-2">Status</div>
+              <div className="bg-gray-50/50 dark:bg-gray-800/50 rounded-lg overflow-x-auto">
+                <div className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 dark:bg-gray-700 text-[11px] font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Date</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Class</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Location</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Time</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Drive</div>
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Status</div>
                 </div>
                 {(emp.schedule_details || []).map((scheduleDetail) => (
-                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 text-xs">
-                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
-                    <div className="bg-white px-3 py-2">
+                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 dark:bg-gray-700 text-xs">
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-700 dark:text-gray-200">{scheduleDetail.date}</div>
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2">
                       <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>
                         {scheduleDetail.class_name}
                       </Badge>
                     </div>
-                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
-                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
-                    <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
-                    <div className="bg-white px-3 py-2">
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-700 dark:text-gray-200 flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700 dark:text-gray-200">{scheduleDetail.location}</EntityLink></div>
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-700 dark:text-gray-200">{scheduleDetail.time}</div>
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-500 dark:text-gray-400">{scheduleDetail.drive_minutes}m x2</div>
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2">
                       <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-indigo-50 text-indigo-700'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+              <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 dark:text-gray-400">
                 <span>Locations: {(emp.locations_visited || []).join(', ')}</span>
               </div>
             </div>

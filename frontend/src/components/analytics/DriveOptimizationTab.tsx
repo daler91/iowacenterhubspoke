@@ -38,7 +38,7 @@ export default function DriveOptimizationTab() {
             type="date"
             value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
-            className="flex h-10 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background"
+            className="flex h-10 w-full rounded-lg border border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm ring-offset-background"
           />
         </div>
         <div className="space-y-2">
@@ -48,7 +48,7 @@ export default function DriveOptimizationTab() {
             type="date"
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
-            className="flex h-10 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background"
+            className="flex h-10 w-full rounded-lg border border-input bg-white dark:bg-gray-900 px-3 py-2 text-sm ring-offset-background"
           />
         </div>
       </div>
@@ -64,8 +64,8 @@ export default function DriveOptimizationTab() {
           label="Potential Savings" value={`${summary.potential_savings_hours || 0}h`} />
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4">
           Drive Hours by Employee
         </h3>
         {isLoading && <LoadingChart />}
@@ -83,15 +83,15 @@ export default function DriveOptimizationTab() {
         {!isLoading && employeeDrive.length === 0 && <EmptyState message="No drive data for the selected period." />}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4">
           Optimization Suggestions
         </h3>
         {suggestions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-gray-100 dark:border-gray-800">
                   <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                   <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Swap</th>
                   <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Locations</th>
@@ -106,16 +106,16 @@ export default function DriveOptimizationTab() {
                   else if (s.savings_mins >= 60) savingsBadgeClass = 'bg-amber-50 text-amber-700';
 
                   return (
-                  <tr key={`${s.date}-${s.schedule_a_id}-${s.schedule_b_id}`} className="border-b border-gray-50 hover:bg-gray-50/50">
-                    <td className="py-2.5 px-3 text-slate-700">{s.date}</td>
+                  <tr key={`${s.date}-${s.schedule_a_id}-${s.schedule_b_id}`} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+                    <td className="py-2.5 px-3 text-slate-700 dark:text-gray-200">{s.date}</td>
                     <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1.5 text-slate-700">
+                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-gray-200">
                         <span className="font-medium">{s.employee_a.split(' ')[0]}</span>
                         <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-medium">{s.employee_b.split(' ')[0]}</span>
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-600 text-xs">
+                    <td className="py-2.5 px-3 text-slate-600 dark:text-gray-300 text-xs">
                       {s.location_a} / {s.location_b}
                     </td>
                     <td className="py-2.5 px-3 text-right">
@@ -123,7 +123,7 @@ export default function DriveOptimizationTab() {
                         {s.savings_mins}m saved
                       </Badge>
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-slate-500">{s.reason}</td>
+                    <td className="py-2.5 px-3 text-xs text-slate-500 dark:text-gray-400">{s.reason}</td>
                   </tr>);
                 })}
               </tbody>

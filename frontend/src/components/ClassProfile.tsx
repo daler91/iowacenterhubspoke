@@ -56,7 +56,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
       size="sm"
       onClick={onBack}
       data-testid="class-profile-back-btn"
-      className="text-slate-500 hover:text-slate-700 -ml-2"
+      className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Classes
@@ -91,7 +91,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                 aria-hidden="true"
               />
               <div className="min-w-0">
-                <p className="text-sm text-slate-500">Class color and summary</p>
+                <p className="text-sm text-slate-500 dark:text-gray-400">Class color and summary</p>
               </div>
             </div>
           </Card>
@@ -99,31 +99,31 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
           {/* Date filter */}
           <Card className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-slate-500">
+              <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400">
                 <Filter className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Date Range</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="class-date-from" className="text-xs text-slate-500 whitespace-nowrap">From</Label>
+                  <Label htmlFor="class-date-from" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">From</Label>
                   <Input
                     id="class-date-from"
                     type="date"
                     data-testid="class-profile-date-from"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-40 h-8 text-sm bg-gray-50/50"
+                    className="w-40 h-8 text-sm bg-gray-50/50 dark:bg-gray-800/50"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="class-date-to" className="text-xs text-slate-500 whitespace-nowrap">To</Label>
+                  <Label htmlFor="class-date-to" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">To</Label>
                   <Input
                     id="class-date-to"
                     type="date"
                     data-testid="class-profile-date-to"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-40 h-8 text-sm bg-gray-50/50"
+                    className="w-40 h-8 text-sm bg-gray-50/50 dark:bg-gray-800/50"
                   />
                 </div>
                 {hasDateFilter && (
@@ -164,24 +164,24 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
             <div className="grid grid-cols-3 gap-4">
               <Card className="p-4 text-center border-spoke/20">
                 <GraduationCap className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
-                <p className="text-2xl font-bold text-slate-800 font-display">
+                <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.projects_delivered}
                 </p>
-                <p className="text-xs text-slate-500">Projects Delivered</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Projects Delivered</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
                 <Users className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
-                <p className="text-2xl font-bold text-slate-800 font-display">
+                <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.total_attendance}
                 </p>
-                <p className="text-xs text-slate-500">Total Attendance</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Total Attendance</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
                 <Flame className="w-5 h-5 text-warn mx-auto mb-2" aria-hidden="true" />
-                <p className="text-2xl font-bold text-slate-800 font-display">
+                <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.total_warm_leads}
                 </p>
-                <p className="text-xs text-slate-500">Warm Leads</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Warm Leads</p>
               </Card>
             </div>
           )}
@@ -190,7 +190,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Employee breakdown */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
                 Employees Teaching
               </h2>
               {data.employee_breakdown?.length > 0 ? (
@@ -212,7 +212,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
 
             {/* Location breakdown */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
                 Locations
               </h2>
               {data.location_breakdown?.length > 0 ? (
@@ -235,13 +235,13 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
 
           {/* Recent schedules */}
           <Card className="p-6">
-            <h2 className="text-sm font-semibold text-slate-800 mb-4 font-display">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
               Recent Assignments
             </h2>
             <ScrollArea className="max-h-[300px]">
               <div className="space-y-3">
                 {(data.recent_schedules || []).map(s => (
-                  <div key={s.id} className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
+                  <div key={s.id} className="flex items-center gap-3 p-3 bg-gray-50/50 dark:bg-gray-800/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
                     <div className="w-8 h-8 rounded-lg bg-hub-soft flex items-center justify-center shrink-0">
                       <Users className="w-4 h-4 text-hub" aria-hidden="true" />
                     </div>
@@ -249,12 +249,12 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                       {s.employees?.length > 0 ? (
                         s.employees.map((emp, i) => (
                           <span key={emp.id}>
-                            <EntityLink type="employee" id={emp.id} className="text-sm font-medium text-slate-700">{emp.name}</EntityLink>
+                            <EntityLink type="employee" id={emp.id} className="text-sm font-medium text-slate-700 dark:text-gray-200">{emp.name}</EntityLink>
                             {i < s.employees.length - 1 && ', '}
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm font-medium text-slate-700">Unassigned</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-gray-200">Unassigned</span>
                       )}
                       <p className="text-xs text-muted-foreground"><EntityLink type="location" id={s.location_id} className="text-muted-foreground">{s.location_name}</EntityLink> | {s.date} | {s.start_time}-{s.end_time}</p>
                     </div>
