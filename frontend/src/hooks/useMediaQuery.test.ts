@@ -1,6 +1,22 @@
 import { renderHook } from '@testing-library/react';
 import { useMediaQuery } from './useMediaQuery';
 
+function mockMatchMedia(initialMatches = true) {
+  const addEventListener = jest.fn();
+  const removeEventListener = jest.fn();
+  globalThis.matchMedia = jest.fn().mockImplementation(query => ({
+    matches: initialMatches,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(), // deprecated
+    removeListener: jest.fn(), // deprecated
+    addEventListener,
+    removeEventListener,
+    dispatchEvent: jest.fn(),
+  }));
+  return { addEventListener, removeEventListener };
+}
+
 describe('useMediaQuery', () => {
   let originalMatchMedia;
 
@@ -11,22 +27,6 @@ describe('useMediaQuery', () => {
   afterAll(() => {
     globalThis.matchMedia = originalMatchMedia;
   });
-
-  function mockMatchMedia(initialMatches = true) {
-    const addEventListener = jest.fn();
-    const removeEventListener = jest.fn();
-    globalThis.matchMedia = jest.fn().mockImplementation(query => ({
-      matches: initialMatches,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener,
-      removeEventListener,
-      dispatchEvent: jest.fn(),
-    }));
-    return { addEventListener, removeEventListener };
-  }
 
   it('should return true if media query matches', () => {
     mockMatchMedia(true);
