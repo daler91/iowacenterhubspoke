@@ -154,6 +154,7 @@ export const schedulesAPI = {
   importCommit: (data: unknown) => api.post('/schedules/import', data),
 
   getAll: (params?: ApiListParams) => api.get('/schedules/', { params }),
+  getOne: (id: string) => api.get(`/schedules/${id}`),
   create: (data: ScheduleRequestPayload) => api.post('/schedules/', data),
   update: (id: string, data: ScheduleRequestPayload) => api.put(`/schedules/${id}`, data),
   delete: (id: string) => api.delete(`/schedules/${id}`),

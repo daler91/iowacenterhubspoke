@@ -345,10 +345,9 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (project?.schedule_id) {
-      schedulesAPI.getAll({ ids: project.schedule_id }).then(res => {
-        const items = res.data?.items ?? res.data;
-        if (Array.isArray(items) && items.length > 0) setLinkedSchedule(items[0]);
-      }).catch(() => {});
+      schedulesAPI.getOne(project.schedule_id)
+        .then(res => setLinkedSchedule(res.data))
+        .catch(() => {});
     }
   }, [project?.schedule_id]);
 
