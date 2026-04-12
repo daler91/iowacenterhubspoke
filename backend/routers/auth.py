@@ -98,7 +98,6 @@ async def register(request: Request, data: UserRegister, response: Response):
             secure=True, samesite="lax", max_age=86400 * 7,
         )
         return {
-            "token": token,
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
         }
     else:
@@ -144,7 +143,6 @@ async def login(request: Request, data: UserLogin, response: Response):
         secure=True, samesite="lax", max_age=86400 * 7,
     )
     return {
-        "token": token,
         "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role},
     }
 

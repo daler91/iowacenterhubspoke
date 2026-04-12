@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { PageShell } from './ui/page-shell';
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ export default function EmployeeManager() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   if (selectedEmployeeId) {
     return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
@@ -81,8 +83,10 @@ export default function EmployeeManager() {
       toast.success('Employee deleted');
       onRefresh();
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete employee');
+      const detail = err.response?.data?.detail;
+      toast.error(detail || 'Failed to delete employee');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -179,7 +183,7 @@ export default function EmployeeManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-employee-${emp.id}`}
-                    onClick={() => handleDelete(emp.id)}
+                    onClick={() => setDeleteTarget(emp)}
                     className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -290,6 +294,23 @@ export default function EmployeeManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the employee from the system. This action cannot be easily undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 }

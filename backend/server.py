@@ -606,11 +606,21 @@ if (_static_dir / "static").exists():
 elif (_static_dir / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(_static_dir / "assets")), name="frontend-assets")
 
+    # Build an allow-set of real files under static_root at startup so
+    # serve_frontend never joins user input into a path at all.
+    _static_root_resolved = _static_dir.resolve()
+    _allowed_files: dict[str, str] = {}  # relative posix path -> absolute str
+    if _static_root_resolved.exists():
+        for p in _static_root_resolved.rglob("*"):
+            if p.is_file():
+                rel = p.relative_to(_static_root_resolved).as_posix()
+                _allowed_files[rel] = str(p)
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        static_root = _static_dir.resolve()
-        static_app = StaticFiles(directory=str(static_root))
-        safe_path, stat_result = static_app.lookup_path(full_path)
-        if stat_result is not None and os.path.isfile(safe_path):
-            return FileResponse(safe_path)
-        return FileResponse(str(static_root / "index.html"))
+        # Look up the request path in the pre-built allow-set.
+        # No user input is ever joined to a filesystem path.
+        resolved = _allowed_files.get(full_path)
+        if resolved is not None:
+            return FileResponse(resolved)
+        return FileResponse(str(_static_root_resolved / "index.html"))

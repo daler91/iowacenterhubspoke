@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 from models.schemas import UserRegister
 
-_VALID_PASSWORD = "dummy_password_123"  # noqa: S105 – test-only placeholder
+_VALID_PASSWORD = "Dummy_password_123"  # noqa: S105 – test-only placeholder
 
 def test_user_register_password_min_length():
     # Valid registration data
