@@ -290,9 +290,38 @@ export default function TaskDetailModal({
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
       onUpdated();
+      // Pull the server-computed completion metadata (completed_at /
+      // completed_by) for the footer. We deliberately avoid loadTask()
+      // here: loadTask resets ALL local fields (so it would clobber an
+      // in-flight blur-save of title/description/details) and its catch
+      // closes the modal on any transient fetch error. This narrow merge
+      // only touches status/completion fields and silently tolerates a
+      // transient failure.
+      try {
+        const res = await projectTasksAPI.getOne(projectId, taskId);
+        const fresh = res.data;
+        setTask(prev => {
+          if (prev?.status !== next) return prev; // user moved on; don't stomp
+          return {
+            ...prev,
+            status: fresh.status,
+            completed: fresh.completed,
+            completed_at: fresh.completed_at,
+            completed_by: fresh.completed_by,
+          };
+        });
+      } catch {
+        // Non-fatal: the PATCH succeeded; the footer metadata will catch
+        // up on the next full reload.
+      }
     } catch {
-      // Roll back optimistic update so the UI stays in sync with the backend.
-      setTask(prev => prev ? { ...prev, status: prevStatus, completed: prevCompleted } : prev);
+      // Roll back optimistic update, but only if the value we optimistically
+      // set is still the current one. If a newer status change has superseded
+      // us (user changed status twice on a slow link), do not clobber it.
+      setTask(prev => {
+        if (prev?.status !== next) return prev;
+        return { ...prev, status: prevStatus, completed: prevCompleted };
+      });
       toast.error('Failed to update status');
     }
   };
@@ -312,8 +341,12 @@ export default function TaskDetailModal({
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
     } catch {
-      // Roll back optimistic update so the UI stays in sync with the backend.
-      setTask(prev => prev ? { ...prev, [field]: prevValue } : prev);
+      // Roll back only if our optimistic value is still current. If the user
+      // toggled again before this request failed, the newer value must win.
+      setTask(prev => {
+        if (prev?.[field] !== value) return prev;
+        return { ...prev, [field]: prevValue };
+      });
       toast.error('Failed to update');
     }
   };
