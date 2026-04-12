@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter
 from typing import Optional
@@ -15,13 +16,19 @@ router = APIRouter(tags=["reports"])
 @router.get("/dashboard/stats", summary="Get dashboard statistics")
 async def get_dashboard_stats(user: CurrentUser):
     """Return total counts for employees, locations, schedules, and today's schedule count."""
-    total_employees = await db.employees.count_documents({"deleted_at": None})
-    total_locations = await db.locations.count_documents({"deleted_at": None})
-    total_schedules = await db.schedules.count_documents({"deleted_at": None})
-    total_classes = await db.classes.count_documents({"deleted_at": None})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_schedules = await db.schedules.count_documents(
-        {"date": today, "deleted_at": None}
+    (
+        total_employees,
+        total_locations,
+        total_schedules,
+        total_classes,
+        today_schedules,
+    ) = await asyncio.gather(
+        db.employees.count_documents({"deleted_at": None}),
+        db.locations.count_documents({"deleted_at": None}),
+        db.schedules.count_documents({"deleted_at": None}),
+        db.classes.count_documents({"deleted_at": None}),
+        db.schedules.count_documents({"date": today, "deleted_at": None}),
     )
     return {
         "total_employees": total_employees,
@@ -69,9 +76,26 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
 @router.get("/workload", summary="Get employee workload statistics")
 async def get_workload_stats(user: CurrentUser):
     """Return class/drive hours, completion status, and class breakdowns per employee."""
-    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    all_schedules = await db.schedules.find({"deleted_at": None}, {"_id": 0}).to_list(
-        1000
+    employees, all_schedules = await asyncio.gather(
+        db.employees.find(
+            {"deleted_at": None},
+            {"_id": 0, "id": 1, "name": 1, "color": 1},
+        ).to_list(100),
+        db.schedules.find(
+            {"deleted_at": None},
+            {
+                "_id": 0,
+                "id": 1,
+                "employee_ids": 1,
+                "status": 1,
+                "start_time": 1,
+                "end_time": 1,
+                "drive_time_minutes": 1,
+                "class_id": 1,
+                "class_name": 1,
+                "class_color": 1,
+            },
+        ).to_list(1000),
     )
 
     schedules_by_employee = defaultdict(list)

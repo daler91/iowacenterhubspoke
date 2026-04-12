@@ -20,17 +20,17 @@ export type Breakpoint = keyof typeof BREAKPOINTS;
  * the common min-width cases so we don't drift from Tailwind.
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  const [matches, setMatches] = useState(() =>
+    typeof globalThis.matchMedia === 'function' ? globalThis.matchMedia(query).matches : false,
+  );
 
   useEffect(() => {
     const media = globalThis.matchMedia(query);
-    if (media.matches !== matches) {
-      setMatches(media.matches);
-    }
-    const listener = () => setMatches(media.matches);
-    globalThis.addEventListener("resize", listener);
-    return () => globalThis.removeEventListener("resize", listener);
-  }, [matches, query]);
+    setMatches(media.matches);
+    const listener = (event: MediaQueryListEvent) => setMatches(event.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [query]);
 
   return matches;
 }

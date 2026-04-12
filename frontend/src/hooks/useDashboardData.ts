@@ -36,12 +36,13 @@ export function useDashboardData() {
   const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>('workload', () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
 
   const handleClassRefresh = useCallback(() => {
+    // Editing a class (name, color, etc.) doesn't change schedule records or
+    // workload aggregations — only the class list, stats counts, and the
+    // activity-log entry. Skip the two heavy revalidations.
     mutateClasses();
-    mutateSchedules();
     mutateStats();
     mutateActivities();
-    mutateWorkload();
-  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
+  }, [mutateClasses, mutateStats, mutateActivities]);
 
   const handleScheduleSaved = useCallback(() => {
     mutateSchedules();

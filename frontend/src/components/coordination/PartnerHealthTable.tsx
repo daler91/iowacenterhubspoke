@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -49,29 +49,33 @@ export default function PartnerHealthTable() {
     }).catch(() => {});
   }, []);
 
-  const sorted = [...partners].sort((a, b) => {
-    const aVal = a[sortBy as keyof PartnerHealthRow] ?? 0;
-    const bVal = b[sortBy as keyof PartnerHealthRow] ?? 0;
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
+  const sorted = useMemo(() => {
+    return [...partners].sort((a, b) => {
+      const aVal = a[sortBy as keyof PartnerHealthRow] ?? 0;
+      const bVal = b[sortBy as keyof PartnerHealthRow] ?? 0;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDir === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
       return sortDir === 'asc'
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
-    }
-    return sortDir === 'asc'
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
+        ? (aVal as number) - (bVal as number)
+        : (bVal as number) - (aVal as number);
+    });
+  }, [partners, sortBy, sortDir]);
 
-  const toggleSort = (col: string) => {
-    if (sortBy === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(col);
+  const toggleSort = useCallback((col: string) => {
+    setSortBy(prev => {
+      if (prev === col) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return prev;
+      }
       setSortDir('desc');
-    }
-  };
+      return col;
+    });
+  }, []);
 
-  const renderSortHeader = (col: string, label: string) => (
+  const renderSortHeader = useCallback((col: string, label: string) => (
     <th
       key={col}
       className="px-4 py-3 font-medium cursor-pointer hover:text-slate-700"
@@ -82,7 +86,7 @@ export default function PartnerHealthTable() {
         <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
       )}
     </th>
-  );
+  ), [sortBy, sortDir, toggleSort]);
 
   return (
     <Card className="overflow-hidden">

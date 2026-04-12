@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -167,9 +167,11 @@ export default function UserManager() {
     );
   }
 
-  const pendingUsers = users.filter(u => u.status === 'pending');
-  const otherUsers = users.filter(u => u.status !== 'pending');
-  const pendingInvitations = invitations.filter(i => i.status === 'pending');
+  const { pendingUsers, otherUsers, pendingInvitations } = useMemo(() => ({
+    pendingUsers: users.filter(u => u.status === 'pending'),
+    otherUsers: users.filter(u => u.status !== 'pending'),
+    pendingInvitations: invitations.filter(i => i.status === 'pending'),
+  }), [users, invitations]);
 
   return (
     <>
