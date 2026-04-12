@@ -73,6 +73,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Bold"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={btnCls(editor.isActive('bold'))}
         >
@@ -81,6 +82,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Italic"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={btnCls(editor.isActive('italic'))}
         >
@@ -89,6 +91,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Underline"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={btnCls(editor.isActive('underline'))}
         >
@@ -98,6 +101,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Numbered list"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={btnCls(editor.isActive('orderedList'))}
         >
@@ -106,6 +110,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Bulleted list"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={btnCls(editor.isActive('bulletList'))}
         >

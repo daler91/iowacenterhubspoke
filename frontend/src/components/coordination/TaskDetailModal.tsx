@@ -7,6 +7,7 @@ import { Switch } from '../ui/switch';
 import {
   Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
   AlertTriangle, Lock, Star, User as UserIcon,
+  MessageSquare, MessageCircle,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
@@ -126,71 +127,118 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
     }
   };
 
+  const messageCountLabel = comments.length === 0
+    ? 'No messages'
+    : `${comments.length} message${comments.length === 1 ? '' : 's'}`;
+
   return (
-    <div className="w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 font-display">Conversations</h2>
-        {/* The Dialog's built-in close (top-right X) sits in this corner. */}
+    <div className="w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-gradient-to-b from-indigo-50 via-indigo-50/40 to-white dark:from-indigo-950/40 dark:via-slate-900/60 dark:to-slate-900 flex flex-col">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-indigo-100/80 dark:border-slate-800 flex items-center gap-3 bg-white/40 dark:bg-slate-900/30 backdrop-blur-sm">
+        <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-indigo-600/20">
+          <MessageSquare className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 font-display leading-tight">Conversations</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{messageCountLabel}</p>
+        </div>
       </div>
 
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {groups.length === 0 ? (
-          <div className="flex items-center justify-center h-full min-h-[200px]">
-            <p className="text-xs text-muted-foreground">No messages yet</p>
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center px-6">
+            <div className="w-14 h-14 rounded-full bg-indigo-100/80 dark:bg-indigo-900/30 text-indigo-500 dark:text-indigo-300 flex items-center justify-center mb-3 ring-4 ring-indigo-50/60 dark:ring-indigo-950/30">
+              <MessageCircle className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No messages yet</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Start the conversation below</p>
           </div>
         ) : (
           groups.map(group => (
             <div key={group.date}>
-              <div className="flex items-center gap-2 my-3">
-                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-                <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
-                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+              {/* Date separator */}
+              <div className="flex items-center gap-2 my-4">
+                <div className="flex-1 h-px bg-indigo-100 dark:bg-slate-700/60" />
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                  {group.date}
+                </span>
+                <div className="flex-1 h-px bg-indigo-100 dark:bg-slate-700/60" />
               </div>
-              {group.items.map((cmt) => (
-                <div key={cmt.id} className="flex gap-2 mb-3">
+
+              {/* Chat bubbles */}
+              {group.items.map((cmt) => {
+                const isInternal = cmt.sender_type === 'internal';
+                const avatar = (
                   <div className={cn(
-                    'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
-                    cmt.sender_type === 'partner'
-                      ? 'bg-ownership-partner-soft text-ownership-partner'
-                      : 'bg-ownership-internal-soft text-ownership-internal',
+                    'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0',
+                    isInternal
+                      ? 'bg-ownership-internal-soft text-ownership-internal'
+                      : 'bg-ownership-partner-soft text-ownership-partner',
                   )}>
                     {(cmt.sender_name || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                );
+                return (
+                  <div
+                    key={cmt.id}
+                    className={cn(
+                      'flex gap-2 mb-3 items-end',
+                      isInternal ? 'justify-end' : 'justify-start',
+                    )}
+                  >
+                    {!isInternal && avatar}
+                    <div className={cn(
+                      'max-w-[78%] min-w-0 flex flex-col',
+                      isInternal ? 'items-end' : 'items-start',
+                    )}>
+                      <div className={cn(
+                        'flex items-baseline gap-1.5 mb-0.5 px-1',
+                        isInternal && 'flex-row-reverse',
+                      )}>
+                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">{cmt.sender_name}</span>
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className={cn(
+                        'px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap shadow-sm rounded-2xl',
+                        isInternal
+                          ? 'bg-indigo-600 text-white rounded-tr-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-tl-sm',
+                      )}>
+                        {cmt.body}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{cmt.body}</p>
+                    {isInternal && avatar}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))
         )}
         <div ref={endRef} />
       </div>
 
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
+      {/* Input */}
+      <div className="p-3 border-t border-indigo-100/80 dark:border-slate-800">
+        <div className="flex items-end gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-500 dark:focus-within:border-indigo-500 focus-within:shadow-md focus-within:shadow-indigo-100/50 dark:focus-within:shadow-none bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-all">
           <textarea
             value={body}
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="Type a message..."
             rows={1}
-            className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
+            className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 max-h-[96px] overflow-y-auto placeholder:text-slate-400"
           />
           <Button
             size="icon"
             onClick={handleSend}
             disabled={sending || !body.trim()}
-            className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white h-8 w-8 shrink-0"
+            className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white h-9 w-9 shrink-0 shadow-md shadow-indigo-600/20 transition-all duration-150 active:scale-90 hover:scale-105 disabled:opacity-40 disabled:scale-100"
             aria-label="Send message"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       </div>
