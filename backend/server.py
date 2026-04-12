@@ -608,9 +608,11 @@ elif (_static_dir / "assets").exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        from pathlib import Path as _Path
         static_root = _static_dir.resolve()
-        file_path = (static_root / full_path).resolve()
+        normalized = os.path.normpath(full_path)
+        if os.path.isabs(normalized) or normalized.startswith(".."):
+            return FileResponse(str(static_root / "index.html"))
+        file_path = (static_root / normalized).resolve()
         if file_path.is_relative_to(static_root) and file_path.is_file():
             return FileResponse(str(file_path))
         return FileResponse(str(static_root / "index.html"))
