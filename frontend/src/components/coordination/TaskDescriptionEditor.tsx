@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
 import {
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
 } from 'lucide-react';
@@ -31,7 +32,10 @@ const PROSE_CLASSES = [
 
 export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    // StarterKit v3 bundles Underline by default, but we register it
+    // explicitly (and disable the bundled copy) so the Underline toolbar
+    // command is obviously wired up at the call site.
+    extensions: [StarterKit.configure({ underline: false }), Underline],
     content: value || '',
     editorProps: {
       attributes: {
