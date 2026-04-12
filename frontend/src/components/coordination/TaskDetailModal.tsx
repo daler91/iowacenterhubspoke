@@ -235,6 +235,13 @@ export default function TaskDetailModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Keep a ref to the latest onClose so loadTask doesn't need it in its deps.
+  // The parent passes a fresh arrow for onClose on every render, which previously
+  // flipped loadTask's identity and made the open-effect flash the spinner on
+  // every parent re-render (e.g. after mutateTasks).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   const loadTask = useCallback(async () => {
     if (!projectId || !taskId) return;
     try {
@@ -249,18 +256,21 @@ export default function TaskDetailModal({
       setAssignedTo(t.assigned_to || '');
     } catch {
       toast.error('Task not found');
-      onClose();
+      onCloseRef.current();
     } finally {
       setLoading(false);
     }
-  }, [projectId, taskId, onClose]);
+  }, [projectId, taskId]);
 
+  // loadTask is intentionally omitted from deps: it is stable for the
+  // (projectId, taskId) pair via useCallback, and including it would
+  // re-trigger the spinner on unrelated parent re-renders.
   useEffect(() => {
     if (open && taskId) {
       setLoading(true);
       loadTask();
     }
-  }, [open, taskId, loadTask]);
+  }, [open, taskId, projectId]);
 
   const saveField = async (field: string, value: string | boolean) => {
     try {
@@ -272,12 +282,17 @@ export default function TaskDetailModal({
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!newStatus) return;
+    if (!newStatus || !task) return;
+    const next = newStatus as TaskStatus;
+    const prevStatus = task.status;
+    const prevCompleted = task.completed;
+    setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
-      await loadTask();
       onUpdated();
     } catch {
+      // Roll back optimistic update so the UI stays in sync with the backend.
+      setTask(prev => prev ? { ...prev, status: prevStatus, completed: prevCompleted } : prev);
       toast.error('Failed to update status');
     }
   };
@@ -291,11 +306,14 @@ export default function TaskDetailModal({
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
+    const prevValue = task[field];
+    setTask(prev => prev ? { ...prev, [field]: value } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
-      await loadTask();
       onUpdated();
     } catch {
+      // Roll back optimistic update so the UI stays in sync with the backend.
+      setTask(prev => prev ? { ...prev, [field]: prevValue } : prev);
       toast.error('Failed to update');
     }
   };
