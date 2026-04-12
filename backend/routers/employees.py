@@ -127,7 +127,8 @@ async def delete_employee(employee_id: str, user: AdminRequired):
     if future_count > 0:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot delete: {future_count} future schedule(s) assigned to this employee. Reassign or delete them first."
+            detail=f"Cannot delete: {future_count} future schedule(s) assigned to this employee. "
+            "Reassign or delete them first."
         )
     result = await db.employees.update_one(
         {"id": employee_id, "deleted_at": None},
