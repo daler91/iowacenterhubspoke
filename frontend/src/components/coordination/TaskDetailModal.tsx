@@ -235,6 +235,13 @@ export default function TaskDetailModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Keep a ref to the latest onClose so loadTask doesn't need it in its deps.
+  // The parent passes a fresh arrow for onClose on every render, which previously
+  // flipped loadTask's identity and made the open-effect flash the spinner on
+  // every parent re-render (e.g. after mutateTasks).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   const loadTask = useCallback(async () => {
     if (!projectId || !taskId) return;
     try {
@@ -249,18 +256,22 @@ export default function TaskDetailModal({
       setAssignedTo(t.assigned_to || '');
     } catch {
       toast.error('Task not found');
-      onClose();
+      onCloseRef.current();
     } finally {
       setLoading(false);
     }
-  }, [projectId, taskId, onClose]);
+  }, [projectId, taskId]);
 
   useEffect(() => {
     if (open && taskId) {
       setLoading(true);
       loadTask();
     }
-  }, [open, taskId, loadTask]);
+    // loadTask intentionally omitted: it is stable for the (projectId, taskId)
+    // pair, and including it would re-trigger the spinner on unrelated
+    // parent re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, taskId, projectId]);
 
   const saveField = async (field: string, value: string | boolean) => {
     try {
@@ -273,9 +284,10 @@ export default function TaskDetailModal({
 
   const handleStatusChange = async (newStatus: string) => {
     if (!newStatus) return;
+    const next = newStatus as TaskStatus;
+    setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
-      await loadTask();
       onUpdated();
     } catch {
       toast.error('Failed to update status');
@@ -291,9 +303,9 @@ export default function TaskDetailModal({
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
+    setTask(prev => prev ? { ...prev, [field]: value } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
-      await loadTask();
       onUpdated();
     } catch {
       toast.error('Failed to update');

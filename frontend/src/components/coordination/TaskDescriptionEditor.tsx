@@ -67,12 +67,18 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
     active && 'bg-slate-200 dark:bg-slate-700 text-hub',
   );
 
+  // Prevent toolbar buttons from stealing focus from the editor. Without this,
+  // every click blurs the editor (firing onBlur → save → parent mutate → reload
+  // flicker) and disrupts the current selection mid-format.
+  const preventBlur = (e: React.MouseEvent) => e.preventDefault();
+
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900 focus-within:border-slate-300 dark:focus-within:border-slate-600 transition-colors">
       <div className="border-b border-slate-200 dark:border-slate-700 px-2 py-1 flex items-center gap-0.5 bg-slate-50 dark:bg-slate-800/60">
         <button
           type="button"
           aria-label="Bold"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={btnCls(editor.isActive('bold'))}
         >
@@ -81,6 +87,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Italic"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={btnCls(editor.isActive('italic'))}
         >
@@ -89,6 +96,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Underline"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={btnCls(editor.isActive('underline'))}
         >
@@ -98,6 +106,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Numbered list"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={btnCls(editor.isActive('orderedList'))}
         >
@@ -106,6 +115,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Bulleted list"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={btnCls(editor.isActive('bulletList'))}
         >
