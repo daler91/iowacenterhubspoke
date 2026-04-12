@@ -3,17 +3,19 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Card } from '../ui/card';
+import { Switch } from '../ui/switch';
 import {
-  Paperclip, Upload, Download,
-  FileText, Send, X, Trash2, CalendarDays, AlertTriangle, Lock, Star,
+  Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
+  AlertTriangle, Lock, Star, User as UserIcon,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
+import { TaskDescriptionEditor } from './TaskDescriptionEditor';
 import {
-  PHASE_LABELS, PHASE_DOT_COLORS,
-  TASK_STATUSES, TASK_STATUS_LABELS,
-  type Task, type TaskOwner, type TaskComment,
+  PHASE_LABELS, PHASE_COLORS,
+  TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
+  TASK_OWNERS, OWNER_LABELS,
+  type Task, type TaskOwner, type TaskStatus, type TaskComment,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -36,56 +38,70 @@ function groupCommentsByDate(comments: TaskComment[]) {
   return groups;
 }
 
-function TaskFlagControls({ task, onToggle }: Readonly<{
-  task: Task;
-  onToggle: (field: 'spotlight' | 'at_risk') => void;
-}>) {
+// ── Field Card ───────────────────────────────────────────────────────
+// A labeled container used for each metadata field in the header grid.
+function FieldCard({
+  label, icon, children,
+}: Readonly<{ label: string; icon?: React.ReactNode; children: React.ReactNode }>) {
   return (
-    <div className="space-y-2 mb-3">
-      {/* Active flag banners */}
-      {task.spotlight && (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800">
-          <Star className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
-          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Spotlight</span>
-        </div>
-      )}
-      {task.at_risk && (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-danger-soft border border-danger/30">
-          <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
-          <span className="text-xs font-bold text-danger uppercase tracking-wide">At Risk</span>
-        </div>
-      )}
-      {/* Toggle buttons */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onToggle('spotlight')}
-          className={cn(
-            'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
-            task.spotlight
-              ? 'border-amber-400 text-amber-700 bg-amber-100 font-semibold'
-              : 'border-slate-200 text-muted-foreground hover:border-amber-300 hover:text-amber-600',
-          )}
-        >
-          <Star className="w-3 h-3 inline mr-0.5" />
-          {task.spotlight ? 'Remove Spotlight' : 'Spotlight'}
-        </button>
-        <button
-          onClick={() => onToggle('at_risk')}
-          className={cn(
-            'text-[10px] px-2.5 py-1 rounded-full border transition-colors',
-            task.at_risk
-              ? 'border-danger text-danger bg-danger-soft font-semibold'
-              : 'border-slate-200 text-muted-foreground hover:border-danger/30 hover:text-danger',
-          )}
-        >
-          <AlertTriangle className="w-3 h-3 inline mr-0.5" />
-          {task.at_risk ? 'Remove At Risk' : 'At Risk'}
-        </button>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-colors hover:border-slate-300 dark:hover:border-slate-600">
+      <div className="flex items-center gap-1.5 mb-1">
+        {icon}
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
       </div>
+      {children}
     </div>
   );
 }
 
+// ── Flag Pill Switch ─────────────────────────────────────────────────
+// Pill-shaped container holding a label + Radix Switch for Spotlight / At Risk.
+function FlagPillSwitch({
+  id, label, icon, checked, onCheckedChange, tint,
+}: Readonly<{
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  tint: 'amber' | 'danger';
+}>) {
+  const activeClasses = tint === 'amber'
+    ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/50'
+    : 'border-danger/40 bg-danger-soft';
+  const switchCls = tint === 'amber'
+    ? 'data-[state=checked]:bg-amber-500'
+    : 'data-[state=checked]:bg-danger';
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors cursor-pointer select-none',
+        checked
+          ? activeClasses
+          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300',
+      )}
+    >
+      {icon}
+      <span className={cn(
+        'text-xs font-semibold',
+        checked && tint === 'amber' && 'text-amber-700 dark:text-amber-400',
+        checked && tint === 'danger' && 'text-danger',
+        !checked && 'text-slate-600 dark:text-slate-300',
+      )}>
+        {label}
+      </span>
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className={cn('h-4 w-7', switchCls)}
+      />
+    </label>
+  );
+}
+
+// ── Conversations Panel ──────────────────────────────────────────────
 function ConversationsPanel({ comments, onPostComment }: Readonly<{
   comments: TaskComment[];
   onPostComment: (body: string) => Promise<void>;
@@ -111,61 +127,68 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
   };
 
   return (
-    <div className="w-[340px] shrink-0 border-l bg-gray-50/50 dark:bg-gray-900/30 flex flex-col">
-      <div className="px-4 py-3 border-b">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Conversations</h2>
+    <div className="w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col">
+      <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 font-display">Conversations</h2>
+        {/* The Dialog's built-in close (top-right X) sits in this corner. */}
       </div>
+
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        {groups.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-6">No messages yet</p>
-        )}
-        {groups.map(group => (
-          <div key={group.date}>
-            <div className="flex items-center gap-2 my-3">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-              <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-            </div>
-            {group.items.map((cmt) => (
-              <div key={cmt.id} className="flex gap-2 mb-3">
-                <div className={cn(
-                  'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5',
-                  cmt.sender_type === 'partner'
-                    ? 'bg-ownership-partner-soft text-ownership-partner'
-                    : 'bg-ownership-internal-soft text-ownership-internal',
-                )}>
-                  {(cmt.sender_name || '?').charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5 leading-relaxed">{cmt.body}</p>
-                </div>
-              </div>
-            ))}
+        {groups.length === 0 ? (
+          <div className="flex items-center justify-center h-full min-h-[200px]">
+            <p className="text-xs text-muted-foreground">No messages yet</p>
           </div>
-        ))}
+        ) : (
+          groups.map(group => (
+            <div key={group.date}>
+              <div className="flex items-center gap-2 my-3">
+                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
+                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+              </div>
+              {group.items.map((cmt) => (
+                <div key={cmt.id} className="flex gap-2 mb-3">
+                  <div className={cn(
+                    'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
+                    cmt.sender_type === 'partner'
+                      ? 'bg-ownership-partner-soft text-ownership-partner'
+                      : 'bg-ownership-internal-soft text-ownership-internal',
+                  )}>
+                    {(cmt.sender_name || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{cmt.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
         <div ref={endRef} />
       </div>
-      <div className="border-t p-3">
-        <div className="flex gap-1.5">
+
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
           <textarea
             value={body}
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="Type a message..."
             rows={1}
-            className="flex-1 text-xs border rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-900 dark:border-gray-700 resize-none"
+            className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
           />
           <Button
-            size="sm"
+            size="icon"
             onClick={handleSend}
             disabled={sending || !body.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white h-auto self-end px-2.5 py-1.5"
+            className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white h-8 w-8 shrink-0"
+            aria-label="Send message"
           >
             <Send className="w-3.5 h-3.5" />
           </Button>
@@ -229,7 +252,7 @@ export default function TaskDetailModal({
     }
   }, [open, taskId, loadTask]);
 
-  const saveField = async (field: string, value: string) => {
+  const saveField = async (field: string, value: string | boolean) => {
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
@@ -239,6 +262,7 @@ export default function TaskDetailModal({
   };
 
   const handleStatusChange = async (newStatus: string) => {
+    if (!newStatus) return;
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
       await loadTask();
@@ -248,10 +272,17 @@ export default function TaskDetailModal({
     }
   };
 
-  const handleToggleFlag = async (field: 'spotlight' | 'at_risk') => {
+  const handleOwnerChange = async (v: string) => {
+    if (!v) return;
+    const next = v as TaskOwner;
+    setOwner(next);
+    await saveField('owner', next);
+  };
+
+  const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
     try {
-      await projectTasksAPI.update(projectId, taskId, { [field]: !task[field] });
+      await projectTasksAPI.update(projectId, taskId, { [field]: value });
       await loadTask();
       onUpdated();
     } catch {
@@ -295,9 +326,11 @@ export default function TaskDetailModal({
 
   if (!open) return null;
 
+  const currentStatus: TaskStatus = (task?.status ?? (task?.completed ? 'completed' : 'to_do')) as TaskStatus;
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden gap-0">
+      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
@@ -310,14 +343,14 @@ export default function TaskDetailModal({
         ) : (
           <div className="flex h-full">
             {/* ── Left: Task Info ──────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto p-5 pb-6">
+            <div className="flex-1 overflow-y-auto px-7 pt-7 pb-6">
               {/* Project name */}
               {projectTitle && (
-                <p className="text-xs text-indigo-600 font-medium mb-2">{projectTitle}</p>
+                <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
               )}
 
-              {/* Title */}
-              <div className="flex items-start gap-2.5 mb-3">
+              {/* Title + Flag switches + Phase badge */}
+              <div className="flex items-center gap-3 mb-5 flex-wrap">
                 <Input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
@@ -325,55 +358,67 @@ export default function TaskDetailModal({
                     if (title !== task.title) saveField('title', title);
                   }}
                   className={cn(
-                    'text-xl font-bold font-display border-0 p-0 h-auto shadow-none focus-visible:ring-0',
+                    'text-2xl font-bold font-display border-0 p-0 h-auto shadow-none focus-visible:ring-0 flex-1 min-w-[12rem]',
                     task.completed && 'line-through opacity-50',
                   )}
                 />
+
+                <FlagPillSwitch
+                  id="task-spotlight-toggle"
+                  label="Spotlight"
+                  icon={<Star className={cn('w-3.5 h-3.5', task.spotlight ? 'text-amber-500 fill-amber-400' : 'text-slate-400')} />}
+                  checked={!!task.spotlight}
+                  onCheckedChange={(v) => handleToggleFlag('spotlight', v)}
+                  tint="amber"
+                />
+                <FlagPillSwitch
+                  id="task-at-risk-toggle"
+                  label="At Risk"
+                  icon={<AlertTriangle className={cn('w-3.5 h-3.5', task.at_risk ? 'text-danger' : 'text-slate-400')} />}
+                  checked={!!task.at_risk}
+                  onCheckedChange={(v) => handleToggleFlag('at_risk', v)}
+                  tint="danger"
+                />
+
+                <Badge className={cn('text-[11px] px-2.5 py-1 rounded-full text-white border-0', PHASE_COLORS[task.phase])}>
+                  {PHASE_LABELS[task.phase]}
+                </Badge>
               </div>
 
-              <TaskFlagControls task={task} onToggle={handleToggleFlag} />
-
-              {/* Metadata row */}
-              <div className="flex items-center gap-4 mb-5 flex-wrap text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground uppercase tracking-wide">Assign to</span>
-                  <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[9px] font-semibold">
-                    {(assignedTo || '?').charAt(0).toUpperCase()}
-                  </div>
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <FieldCard label="Assign To" icon={<UserIcon className="w-3 h-3 text-slate-400" />}>
                   {employees.length > 0 ? (
-                    <div className="w-36">
-                      <SearchableSelect
-                        options={[
-                          ...employees.map(e => ({ value: e.name, label: e.name })),
-                          { value: '__custom__', label: 'Custom name...' },
-                        ]}
-                        value={employees.some(e => e.name === assignedTo) ? assignedTo : ''}
-                        onValueChange={(v) => {
-                          if (v === '__custom__') {
-                            const name = prompt('Enter assignee name:');
-                            if (name) { setAssignedTo(name); saveField('assigned_to', name); }
-                          } else {
-                            setAssignedTo(v); saveField('assigned_to', v);
-                          }
-                        }}
-                        placeholder="Unassigned"
-                        searchPlaceholder="Search team..."
-                        className="text-xs h-7 border-0 shadow-none"
-                      />
-                    </div>
+                    <SearchableSelect
+                      options={[
+                        ...employees.map(e => ({ value: e.name, label: e.name })),
+                        { value: '__custom__', label: 'Custom name...' },
+                      ]}
+                      value={employees.some(e => e.name === assignedTo) ? assignedTo : ''}
+                      onValueChange={(v) => {
+                        if (v === '__custom__') {
+                          const name = prompt('Enter assignee name:');
+                          if (name) { setAssignedTo(name); saveField('assigned_to', name); }
+                        } else {
+                          setAssignedTo(v); saveField('assigned_to', v);
+                        }
+                      }}
+                      placeholder="Unassigned"
+                      searchPlaceholder="Search team..."
+                      className="h-7 text-sm border-0 shadow-none px-0 bg-transparent dark:bg-transparent"
+                    />
                   ) : (
                     <Input
                       value={assignedTo}
                       onChange={e => setAssignedTo(e.target.value)}
                       onBlur={() => saveField('assigned_to', assignedTo)}
                       placeholder="Unassigned"
-                      className="text-xs border-0 p-0 h-auto w-24 shadow-none focus-visible:ring-0"
+                      className="text-sm border-0 p-0 h-7 shadow-none focus-visible:ring-0 bg-transparent"
                     />
                   )}
-                </div>
+                </FieldCard>
 
-                <div className="flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+                <FieldCard label="Due Date" icon={<CalendarDays className="w-3 h-3 text-slate-400" />}>
                   <Input
                     type="date"
                     value={dueDate}
@@ -381,98 +426,91 @@ export default function TaskDetailModal({
                     onBlur={() => {
                       if (dueDate) saveField('due_date', new Date(dueDate).toISOString());
                     }}
-                    className="text-xs border-0 p-0 h-auto shadow-none focus-visible:ring-0 w-28"
+                    className="text-sm border-0 p-0 h-7 shadow-none focus-visible:ring-0 bg-transparent"
                   />
-                </div>
+                </FieldCard>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground uppercase tracking-wide">Status</span>
-                  <select
-                    value={task.status || (task.completed ? 'completed' : 'to_do')}
-                    onChange={e => handleStatusChange(e.target.value)}
-                    className="text-[10px] border rounded px-1.5 py-0.5 bg-white dark:bg-gray-900 dark:border-gray-700"
-                  >
-                    {TASK_STATUSES.map(s => (
-                      <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                </div>
+                <FieldCard label="Status" icon={<span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[currentStatus])} />}>
+                  <SearchableSelect
+                    options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))}
+                    value={currentStatus}
+                    onValueChange={handleStatusChange}
+                    placeholder="Select status"
+                    searchPlaceholder="Search status..."
+                    className="h-7 text-sm border-0 shadow-none px-0 bg-transparent dark:bg-transparent"
+                  />
+                </FieldCard>
 
-                <Badge className={cn('text-[10px]', PHASE_DOT_COLORS[task.phase])}>
-                  {PHASE_LABELS[task.phase]}
-                </Badge>
-                <select
-                  value={owner}
-                  onChange={e => {
-                    const v = e.target.value as TaskOwner;
-                    setOwner(v);
-                    saveField('owner', v);
-                  }}
-                  className="text-[10px] border rounded px-1.5 py-0.5 bg-white dark:bg-gray-900 dark:border-gray-700"
-                >
-                  <option value="internal">Internal</option>
-                  <option value="partner">Partner</option>
-                  <option value="both">Both</option>
-                </select>
+                <FieldCard label="Owner">
+                  <SearchableSelect
+                    options={TASK_OWNERS.map(o => ({ value: o, label: OWNER_LABELS[o] }))}
+                    value={owner}
+                    onValueChange={handleOwnerChange}
+                    placeholder="Select owner"
+                    searchPlaceholder="Search..."
+                    className="h-7 text-sm border-0 shadow-none px-0 bg-transparent dark:bg-transparent"
+                  />
+                </FieldCard>
               </div>
 
-              <div className="space-y-5">
-                {/* Description */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Description</span>
-                  </div>
-                  <textarea
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    onBlur={() => {
-                      if (description !== (task.description || '')) {
-                        saveField('description', description);
-                      }
-                    }}
-                    rows={4}
-                    className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700 resize-y leading-relaxed"
-                    placeholder="Add a detailed description..."
-                  />
+              {/* Description (rich text) */}
+              <div className="mb-5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Description</span>
+                </div>
+                <TaskDescriptionEditor
+                  value={description}
+                  onBlurSave={(html) => {
+                    setDescription(html);
+                    if (html !== (task.description || '')) {
+                      saveField('description', html);
+                    }
+                  }}
+                  placeholder="Add a detailed description..."
+                />
+              </div>
+
+              {/* Internal Notes */}
+              <div className="mb-5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Lock className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Internal Notes</span>
+                  <span className="text-[9px] font-semibold text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Private</span>
+                </div>
+                <textarea
+                  value={details}
+                  onChange={e => setDetails(e.target.value)}
+                  onBlur={() => {
+                    if (details !== (task.details || '')) {
+                      saveField('details', details);
+                    }
+                  }}
+                  rows={3}
+                  className="w-full text-sm rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 focus-visible:outline-none focus-visible:border-amber-300 resize-y leading-relaxed text-slate-800 dark:text-amber-100 placeholder:text-amber-600/50"
+                  placeholder="Private notes (not shared with partners)..."
+                />
+              </div>
+
+              {/* Attachments */}
+              <div className="mb-5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+                    Attachments <span className="text-slate-400 normal-case">({task.attachments?.length ?? 0})</span>
+                  </span>
                 </div>
 
-                {/* Internal Notes */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Internal Notes</span>
-                    <span className="text-[9px] text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">Private</span>
-                  </div>
-                  <textarea
-                    value={details}
-                    onChange={e => setDetails(e.target.value)}
-                    onBlur={() => {
-                      if (details !== (task.details || '')) {
-                        saveField('details', details);
-                      }
-                    }}
-                    rows={3}
-                    className="w-full text-sm border rounded-lg px-3 py-2 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/30 border-amber-200 resize-y leading-relaxed"
-                    placeholder="Private notes (not shared with partners)..."
-                  />
-                </div>
-
-                {/* Attachments */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                      Attachments ({task.attachments?.length ?? 0})
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 mb-2">
+                {(task.attachments?.length ?? 0) > 0 && (
+                  <div className="space-y-1.5 mb-2.5">
                     {(task.attachments ?? []).map(att => (
-                      <Card key={att.id} className="p-2 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                      >
+                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">{att.filename}</p>
+                          <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{att.filename}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {att.uploaded_by} &middot; {new Date(att.uploaded_at).toLocaleDateString()}
                           </p>
@@ -482,53 +520,59 @@ export default function TaskDetailModal({
                         </Badge>
                         <a
                           href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
-                          className="text-muted-foreground hover:text-indigo-600"
+                          className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
+                          aria-label={`Download ${att.filename}`}
                         >
                           <Download className="w-3.5 h-3.5" />
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="text-muted-foreground hover:text-danger"
+                          className="text-slate-400 hover:text-danger p-1 rounded transition-colors"
+                          aria-label={`Delete ${att.filename}`}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
-                      </Card>
+                      </div>
                     ))}
                   </div>
+                )}
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                  >
-                    <Upload className="w-3 h-3" /> Add attachment
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={handleUpload}
-                  />
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-8 text-xs font-medium border-slate-200 dark:border-slate-700"
+                >
+                  <Paperclip className="w-3.5 h-3.5 mr-1.5" /> Add File
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleUpload}
+                />
+              </div>
 
-                {/* Timestamps */}
-                <div className="text-[10px] text-muted-foreground pt-2 border-t">
-                  Created {new Date(task.created_at).toLocaleString()}
-                  {task.completed_at && (
-                    <> &middot; Completed {new Date(task.completed_at).toLocaleString()}
-                      {task.completed_by && <> by {task.completed_by}</>}
-                    </>
-                  )}
-                </div>
+              {/* Timestamps */}
+              <div className="text-[10px] text-muted-foreground pt-3 border-t border-slate-200 dark:border-slate-800">
+                Created {new Date(task.created_at).toLocaleString()}
+                {task.completed_at && (
+                  <> &middot; Completed {new Date(task.completed_at).toLocaleString()}
+                    {task.completed_by && <> by {task.completed_by}</>}
+                  </>
+                )}
               </div>
 
               {/* Delete */}
-              <div className="mt-6 pt-3 border-t">
+              <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <Button
-                  variant="ghost"
+                  type="button"
+                  variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-danger hover:text-danger hover:bg-danger-soft text-xs h-7"
+                  className="border-danger/40 text-danger hover:bg-danger-soft hover:text-danger h-9"
                 >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Task
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete Task
                 </Button>
               </div>
 
