@@ -340,7 +340,7 @@ export default function TaskDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
@@ -351,7 +351,7 @@ export default function TaskDetailModal({
             <span className="w-7 h-7 border-2 border-hub border-t-transparent rounded-full animate-spin" />
           </output>
         ) : (
-          <div className="flex h-full">
+          <div className="flex min-h-0">
             {/* ── Left: Task Info ──────────────────────────────── */}
             <div className="flex-1 overflow-y-auto px-7 pt-7 pb-3">
               {/* Project name */}
