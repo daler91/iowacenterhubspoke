@@ -33,6 +33,7 @@ export default function LocationManager() {
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
     setForm(prev => ({
@@ -100,8 +101,6 @@ export default function LocationManager() {
       setLoading(false);
     }
   };
-
-  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handleDelete = async (id) => {
     try {

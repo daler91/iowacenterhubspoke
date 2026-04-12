@@ -113,7 +113,10 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
 @router.delete(
     "/{employee_id}",
     summary="Soft-delete an employee",
-    responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND},
+        409: {"model": ErrorResponse, "description": "Employee has future schedules"},
+    },
 )
 async def delete_employee(employee_id: str, user: AdminRequired):
     from datetime import date as date_type

@@ -35,6 +35,7 @@ export default function EmployeeManager() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   if (selectedEmployeeId) {
     return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
@@ -75,8 +76,6 @@ export default function EmployeeManager() {
       setLoading(false);
     }
   };
-
-  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handleDelete = async (id) => {
     try {

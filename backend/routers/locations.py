@@ -133,7 +133,10 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
 @router.delete(
     "/{location_id}",
     summary="Soft-delete a location",
-    responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}},
+    responses={
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND},
+        409: {"model": ErrorResponse, "description": "Location has future schedules"},
+    },
 )
 async def delete_location(location_id: str, user: AdminRequired):
     from datetime import date as date_type
