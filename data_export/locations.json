@@ -1,5 +1,0 @@
-{"_id":{"$oid":"69bdb9c4654a23749fc285c9"},"id":"03941c67-f9d7-4ce3-a8bb-8f3840802d04","city_name":"Oskaloosa","drive_time_minutes":75,"latitude":41.2964,"longitude":-92.6443,"created_at":"2026-03-20T21:19:00.728719+00:00"}
-{"_id":{"$oid":"69bdb9c4654a23749fc285ca"},"id":"346e0200-c180-465c-839f-dbb69ab0ddc6","city_name":"Grinnell","drive_time_minutes":60,"latitude":41.7431,"longitude":-92.7224,"created_at":"2026-03-20T21:19:00.728734+00:00"}
-{"_id":{"$oid":"69bdb9c4654a23749fc285cb"},"id":"c218f834-98bf-4686-9642-2cc718c43943","city_name":"Fort Dodge","drive_time_minutes":105,"latitude":42.4975,"longitude":-94.168,"created_at":"2026-03-20T21:19:00.728744+00:00"}
-{"_id":{"$oid":"69bdb9c4654a23749fc285cc"},"id":"622588ba-3150-41f1-b25e-c6eeed9fb13b","city_name":"Carroll","drive_time_minutes":105,"latitude":42.0664,"longitude":-94.8669,"created_at":"2026-03-20T21:19:00.728749+00:00"}
-{"_id":{"$oid":"69bdb9c4654a23749fc285cd"},"id":"84b5d0d9-7190-4370-957c-51d06a87781f","city_name":"Marshalltown","drive_time_minutes":60,"latitude":42.0492,"longitude":-92.908,"created_at":"2026-03-20T21:19:00.728754+00:00"}
