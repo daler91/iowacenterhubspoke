@@ -13,9 +13,8 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-RUN addgroup --system --gid 1001 appgroup && \
+RUN pip install --no-cache-dir -r requirements.txt && \
+    addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup appuser
 
 COPY --chown=appuser:appgroup backend/ ./

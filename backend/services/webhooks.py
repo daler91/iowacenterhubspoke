@@ -15,6 +15,14 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _safe_sub_id(sid: str) -> str:
+    """Return a canonical UUID string for logging, or a placeholder if invalid."""
+    try:
+        return str(uuid.UUID(str(sid)))
+    except (ValueError, AttributeError, TypeError):
+        return "invalid-id"
+
+
 def validate_webhook_url(url: str) -> None:
     """Validate that a webhook URL is HTTPS and does not target private networks."""
     parsed = urlparse(url)
@@ -146,7 +154,7 @@ async def deliver_webhook(
                 )
                 logger.warning(
                     "Webhook %s auto-disabled after 10+ failures",
-                    subscription_id,
+                    _safe_sub_id(subscription_id),
                 )
 
     except Exception as e:
@@ -169,5 +177,6 @@ async def deliver_webhook(
         )
         logger.error(
             "Webhook delivery to subscription %s failed: %s",
-            subscription_id, type(e).__name__,
+            _safe_sub_id(subscription_id),
+            type(e).__name__,
         )
