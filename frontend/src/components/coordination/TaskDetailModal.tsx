@@ -262,15 +262,14 @@ export default function TaskDetailModal({
     }
   }, [projectId, taskId]);
 
+  // loadTask is intentionally omitted from deps: it is stable for the
+  // (projectId, taskId) pair via useCallback, and including it would
+  // re-trigger the spinner on unrelated parent re-renders.
   useEffect(() => {
     if (open && taskId) {
       setLoading(true);
       loadTask();
     }
-    // loadTask intentionally omitted: it is stable for the (projectId, taskId)
-    // pair, and including it would re-trigger the spinner on unrelated
-    // parent re-renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId, projectId]);
 
   const saveField = async (field: string, value: string | boolean) => {
@@ -283,13 +282,17 @@ export default function TaskDetailModal({
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!newStatus) return;
+    if (!newStatus || !task) return;
     const next = newStatus as TaskStatus;
+    const prevStatus = task.status;
+    const prevCompleted = task.completed;
     setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
       onUpdated();
     } catch {
+      // Roll back optimistic update so the UI stays in sync with the backend.
+      setTask(prev => prev ? { ...prev, status: prevStatus, completed: prevCompleted } : prev);
       toast.error('Failed to update status');
     }
   };
@@ -303,11 +306,14 @@ export default function TaskDetailModal({
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
+    const prevValue = task[field];
     setTask(prev => prev ? { ...prev, [field]: value } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
     } catch {
+      // Roll back optimistic update so the UI stays in sync with the backend.
+      setTask(prev => prev ? { ...prev, [field]: prevValue } : prev);
       toast.error('Failed to update');
     }
   };
