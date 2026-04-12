@@ -36,13 +36,18 @@ export function useDashboardData() {
   const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>('workload', () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
 
   const handleClassRefresh = useCallback(() => {
-    // Editing a class (name, color, etc.) doesn't change schedule records or
-    // workload aggregations — only the class list, stats counts, and the
-    // activity-log entry. Skip the two heavy revalidations.
+    // Class edits and deletes denormalize class_name/class_color/class_id
+    // onto every matching schedule (via sync_class_snapshot_background on
+    // update, and a direct db.schedules.update_many on delete). Workload
+    // aggregations read those same fields. So all five caches need to
+    // revalidate — otherwise the dashboard keeps showing the old class
+    // label until a hard refresh, since SWR has revalidateOnFocus disabled.
     mutateClasses();
+    mutateSchedules();
     mutateStats();
     mutateActivities();
-  }, [mutateClasses, mutateStats, mutateActivities]);
+    mutateWorkload();
+  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
 
   const handleScheduleSaved = useCallback(() => {
     mutateSchedules();

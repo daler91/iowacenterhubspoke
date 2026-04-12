@@ -90,14 +90,15 @@ describe('useDashboardData', () => {
       result.current.handleClassRefresh();
     });
 
-    // Class edits only refresh the class list, stats, and activity log.
-    // Schedules and workload are intentionally NOT revalidated because
-    // editing a class (name/color) doesn't change schedule or workload data.
+    // Class update/delete denormalize class fields onto every matching
+    // schedule (update runs sync_class_snapshot_background; delete runs a
+    // direct db.schedules.update_many). Workload reads those same fields.
+    // So all five caches must revalidate to avoid stale labels.
     expect(mockMutate.mutateClasses).toHaveBeenCalled();
-    expect(mockMutate.mutateStats).toHaveBeenCalled();
+    expect(mockMutate.mutateSchedules).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
-    expect(mockMutate.mutateSchedules).not.toHaveBeenCalled();
-    expect(mockMutate.mutateWorkload).not.toHaveBeenCalled();
+    expect(mockMutate.mutateWorkload).toHaveBeenCalled();
+    expect(mockMutate.mutateStats).toHaveBeenCalled();
     expect(mockMutate.mutateLocations).not.toHaveBeenCalled();
     expect(mockMutate.mutateEmployees).not.toHaveBeenCalled();
   });
