@@ -67,14 +67,12 @@ async def run(db) -> int:
         count += 1
 
     logger.info("Migrated %d schedule documents to multi-employee model", count)
-    await db.schedules.create_index(
-        [("employee_ids", 1), ("date", 1)],
-        name="employee_ids_date",
-    )
-    await db.schedules.create_index(
-        [("employee_ids", 1), ("date", 1), ("deleted_at", 1)],
-        name="employee_ids_date_deleted",
-    )
+    # Index creation is owned by ``server._ensure_indexes`` (see
+    # ``backend/server.py``), which creates the same ``employee_ids`` key
+    # patterns on every boot. Re-creating them here with explicit names
+    # triggers ``IndexOptionsConflict`` against deployments whose auto-named
+    # indexes were created before the migration runner existed, which would
+    # crash the FastAPI lifespan and permanently wedge the deploy.
     return count
 
 
