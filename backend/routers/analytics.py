@@ -37,6 +37,7 @@ def _linear_regression(y_vals: List[float]) -> Tuple[float, float]:
     intercept = (sum_y - slope * sum_x) / n
     return slope, intercept
 
+
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
