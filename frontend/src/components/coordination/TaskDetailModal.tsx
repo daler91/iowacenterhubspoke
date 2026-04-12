@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';
 import {
   Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
-  AlertTriangle, Lock, Star, User as UserIcon,
+  AlertTriangle, Lock, Star, User as UserIcon, MessageSquare,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
@@ -127,9 +127,19 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
   };
 
   return (
-    <div className="w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 font-display">Conversations</h2>
+    <div className="w-[360px] shrink-0 border-l-4 border-indigo-300 dark:border-indigo-800/70 bg-gradient-to-b from-indigo-50/80 via-white to-slate-50 dark:from-indigo-950/30 dark:via-slate-900/60 dark:to-slate-900/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col">
+      <div className="px-5 py-4 border-b border-indigo-200/70 dark:border-indigo-900/50 bg-white/60 dark:bg-slate-900/40 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+          </div>
+          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 font-display">Conversations</h2>
+          {comments.length > 0 && (
+            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded-full">
+              {comments.length}
+            </span>
+          )}
+        </div>
         {/* The Dialog's built-in close (top-right X) sits in this corner. */}
       </div>
 
@@ -343,7 +353,7 @@ export default function TaskDetailModal({
         ) : (
           <div className="flex h-full">
             {/* ── Left: Task Info ──────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto px-7 pt-7 pb-6">
+            <div className="flex-1 overflow-y-auto px-7 pt-7 pb-3">
               {/* Project name */}
               {projectTitle && (
                 <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
@@ -565,7 +575,7 @@ export default function TaskDetailModal({
               </div>
 
               {/* Delete */}
-              <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <Button
                   type="button"
                   variant="outline"
