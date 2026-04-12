@@ -82,6 +82,7 @@ class TaskReorder(BaseModel):
 
 class TaskCommentCreate(BaseModel):
     body: str
+    parent_comment_id: Optional[str] = None
 
 
 # ── Partner Orgs ──────────────────────────────────────────────────────

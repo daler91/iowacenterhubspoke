@@ -54,8 +54,11 @@ export const projectTasksAPI = {
   // Comments
   listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
-  postComment: (projectId: string, taskId: string, body: string) =>
-    api.post(`/projects/${projectId}/tasks/${taskId}/comments`, { body }),
+  postComment: (projectId: string, taskId: string, body: string, parentCommentId?: string | null) =>
+    api.post(`/projects/${projectId}/tasks/${taskId}/comments`, {
+      body,
+      parent_comment_id: parentCommentId ?? null,
+    }),
 };
 
 // ── Partner Organizations ────────────────────────────────────────────
