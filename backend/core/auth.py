@@ -56,6 +56,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 TOKEN_LIFETIME_SECONDS = 86400  # 1 day
 
+
 def create_token(user_id: str, email: str, name: str, role: str = '', iat: float = None) -> str:
     import uuid as _uuid
     now_ts = int(datetime.now(timezone.utc).timestamp())

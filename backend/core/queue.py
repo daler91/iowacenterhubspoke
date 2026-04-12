@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 
 _pool = None
 
+
 async def get_redis_pool():
     global _pool
     if _pool is not None:
