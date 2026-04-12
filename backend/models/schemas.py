@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
+from typing import List, Literal, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
 class UserRegister(BaseModel):
@@ -7,6 +7,15 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     invite_token: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_complexity(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 class UserLogin(BaseModel):
     email: str
@@ -23,7 +32,6 @@ class LocationUpdate(BaseModel):
     drive_time_minutes: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    deleted_at: Optional[str] = None
 
 class EmployeeCreate(BaseModel):
     name: str
@@ -36,7 +44,6 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     color: Optional[str] = None
-    deleted_at: Optional[str] = None
 
 class RecurrenceRule(BaseModel):
     interval: int = 1
@@ -55,15 +62,14 @@ class ClassUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
-    deleted_at: Optional[str] = None
 
 class ScheduleCreate(BaseModel):
     employee_id: str
     location_id: str
     class_id: Optional[str] = None
-    date: str  # YYYY-MM-DD
-    start_time: str  # HH:MM
-    end_time: str
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
     force: Optional[bool] = False  # HH:MM
     notes: Optional[str] = None
     travel_override_minutes: Optional[int] = None  # DEPRECATED: use per-leg overrides
@@ -76,6 +82,12 @@ class ScheduleCreate(BaseModel):
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
+
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
 
 class ScheduleUpdate(BaseModel):
     employee_id: Optional[str] = None
@@ -94,10 +106,9 @@ class ScheduleUpdate(BaseModel):
     recurrence_end_mode: Optional[str] = None
     recurrence_occurrences: Optional[int] = None
     custom_recurrence: Optional[RecurrenceRule] = None
-    deleted_at: Optional[str] = None
 
 class StatusUpdate(BaseModel):
-    status: str  # upcoming, in_progress, completed
+    status: Literal["upcoming", "in_progress", "completed"]
 
 class ScheduleRelocate(BaseModel):
     date: str
@@ -126,7 +137,7 @@ class BulkClassUpdateRequest(BaseModel):
     class_id: str
 
 class UserRoleUpdate(BaseModel):
-    role: str
+    role: Literal["admin", "editor", "scheduler", "viewer"]
 
 class InviteCreate(BaseModel):
     email: EmailStr

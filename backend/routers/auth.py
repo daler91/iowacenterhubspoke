@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Response
@@ -13,7 +14,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-ADMIN_EMAILS = ["russell.dale1@gmail.com"]
+ADMIN_EMAILS = [e.strip() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()]
 
 @router.get("/invite/{token}")
 async def validate_invite(token: str):
@@ -77,8 +78,8 @@ async def register(request: Request, data: UserRegister, response: Response):
 
     if is_admin_email or invitation:
         token = create_token(user_id, data.email, data.name, role)
-        response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
-        return {"token": token, "user": {"id": user_id, "name": data.name, "email": data.email, "role": role}}
+        response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400)
+        return {"user": {"id": user_id, "name": data.name, "email": data.email, "role": role}}
     else:
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
@@ -99,8 +100,8 @@ async def login(request: Request, data: UserLogin, response: Response):
     token = create_token(user['id'], user['email'], user['name'], role)
     user_var.set(user['email'])
     logger.info(f"User logged in: {user['email']}", extra={"entity": {"user_id": user['id']}})
-    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400 * 7)
-    return {"token": token, "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role}}
+    response.set_cookie(key="auth_token", value=token, httponly=True, secure=True, samesite="lax", max_age=86400)
+    return {"user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role}}
 
 @router.post("/logout")
 @limiter.limit("5/minute")

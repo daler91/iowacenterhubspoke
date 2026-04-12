@@ -14,6 +14,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="calendar-stats-strip">
       <button
         type="button"
+        aria-label="Today's schedules"
         className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all text-left"
         onClick={() => onStatClick('today')}
       >
@@ -32,6 +33,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
 
       <button
         type="button"
+        aria-label="Total scheduled"
         className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all text-left"
         onClick={() => onStatClick('scheduled')}
       >
@@ -50,6 +52,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
 
       <button
         type="button"
+        aria-label="Team members"
         className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all text-left"
         onClick={() => onStatClick('team')}
       >
@@ -68,6 +71,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
 
       <button
         type="button"
+        aria-label="Total locations"
         className="bg-white rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all text-left"
         onClick={() => onStatClick('locations')}
       >

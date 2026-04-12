@@ -49,12 +49,12 @@ def _validate_import_row(
 
     return {
         "valid_data": {
-            "employee_id": employee["_id"],
+            "employee_id": employee["id"],
             "employee_name": employee["name"],
-            "employee_email": employee["email"],
-            "location_id": location["_id"],
+            "employee_email": employee.get("email", ""),
+            "location_id": location["id"],
             "location_name": location["city_name"],
-            "class_id": class_obj["_id"] if class_obj else None,
+            "class_id": class_obj["id"] if class_obj else None,
             "class_name": class_obj["name"] if class_obj else "",
             "date": date,
             "start_time": start_time,
@@ -1496,19 +1496,19 @@ async def export_schedules(
     loc_ids = list({s["location_id"] for s in schedules if "location_id" in s})
     class_ids = list({s["class_id"] for s in schedules if s.get("class_id")})
 
-    employees = await db.employees.find({"_id": {"$in": emp_ids}}).to_list(
+    employees = await db.employees.find({"id": {"$in": emp_ids}}, {"_id": 0}).to_list(
         length=None
     )
-    locations = await db.locations.find({"_id": {"$in": loc_ids}}).to_list(
+    locations = await db.locations.find({"id": {"$in": loc_ids}}, {"_id": 0}).to_list(
         length=None
     )
-    classes = await db.classes.find({"_id": {"$in": class_ids}}).to_list(
+    classes = await db.classes.find({"id": {"$in": class_ids}}, {"_id": 0}).to_list(
         length=None
     )
 
-    emp_map = {e["_id"]: e for e in employees}
-    loc_map = {l["_id"]: l for l in locations}
-    class_map = {c["_id"]: c for c in classes}
+    emp_map = {e["id"]: e for e in employees}
+    loc_map = {l["id"]: l for l in locations}
+    class_map = {c["id"]: c for c in classes}
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
     if not field_list:
@@ -1678,10 +1678,10 @@ async def import_schedules_commit(
 
             # This logic mimics the standard create schedule conflict check
             employee = await db.employees.find_one(
-                {"_id": item.employee_id, "deleted_at": None}
+                {"id": item.employee_id, "deleted_at": None}
             )
             location = await db.locations.find_one(
-                {"_id": item.location_id, "deleted_at": None}
+                {"id": item.location_id, "deleted_at": None}
             )
 
             if not employee or not location:
@@ -1711,16 +1711,32 @@ async def import_schedules_commit(
                 )
                 continue
 
+            # Look up class if provided
+            class_obj = None
+            if item.class_id:
+                class_obj = await db.classes.find_one({"id": item.class_id, "deleted_at": None})
+
             new_schedule = {
-                "_id": str(uuid.uuid4()),
+                "id": str(uuid.uuid4()),
                 "employee_id": item.employee_id,
+                "employee_name": employee.get("name", ""),
+                "employee_color": employee.get("color", ""),
                 "location_id": item.location_id,
+                "location_name": location.get("city_name", ""),
+                "drive_time_minutes": drive_minutes,
                 "class_id": item.class_id,
+                "class_name": class_obj.get("name", "") if class_obj else "",
+                "class_color": class_obj.get("color", "") if class_obj else "",
                 "date": item.date,
                 "start_time": item.start_time,
                 "end_time": item.end_time,
                 "notes": item.notes,
                 "travel_override_minutes": None,
+                "drive_to_override_minutes": None,
+                "drive_from_override_minutes": None,
+                "town_to_town": False,
+                "town_to_town_warning": None,
+                "town_to_town_drive_minutes": None,
                 "status": STATUS_UPCOMING,
                 "recurrence": "none",
                 "recurrence_end_date": None,

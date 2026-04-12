@@ -3,6 +3,7 @@ import { BookOpen, Pencil, Plus, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -25,6 +26,7 @@ export default function ClassManager() {
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', color: '#0F766E' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const openNew = () => {
     setEditing(null);
@@ -81,6 +83,8 @@ export default function ClassManager() {
       onRefresh?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to delete class');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -161,7 +165,7 @@ export default function ClassManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-class-${classItem.id}`}
-                    onClick={() => handleDelete(classItem.id)}
+                    onClick={() => setDeleteTarget(classItem)}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -248,6 +252,23 @@ export default function ClassManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the class from the system. This action cannot be easily undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

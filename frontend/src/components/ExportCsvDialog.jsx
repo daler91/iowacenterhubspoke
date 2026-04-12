@@ -70,6 +70,7 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
       document.body.appendChild(link);
       link.click();
       link.remove();
+      globalThis.URL.revokeObjectURL(url);
       onOpenChange(false);
       toast.success('Export completed successfully');
     } catch (error) {

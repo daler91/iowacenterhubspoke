@@ -192,31 +192,33 @@ export default function WeeklyReport() {
                 ))}
               </div>
 
-              <div className="bg-gray-50/50 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <div className="bg-gray-50 px-3 py-2">Date</div>
-                  <div className="bg-gray-50 px-3 py-2">Class</div>
-                  <div className="bg-gray-50 px-3 py-2">Location</div>
-                  <div className="bg-gray-50 px-3 py-2">Time</div>
-                  <div className="bg-gray-50 px-3 py-2">Drive</div>
-                  <div className="bg-gray-50 px-3 py-2">Status</div>
-                </div>
-                {(emp.schedule_details || []).map((scheduleDetail) => (
-                  <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
-                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
-                    <div className="bg-white px-3 py-2">
-                      <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>
-                        {scheduleDetail.class_name}
-                      </Badge>
-                    </div>
-                    <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
-                    <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
-                    <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
-                    <div className="bg-white px-3 py-2">
-                      <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-indigo-50 text-indigo-700'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
-                    </div>
+              <div className="overflow-x-auto">
+                <div className="bg-gray-50/50 rounded-lg overflow-hidden min-w-[600px]">
+                  <div className="grid grid-cols-6 gap-px bg-gray-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <div className="bg-gray-50 px-3 py-2">Date</div>
+                    <div className="bg-gray-50 px-3 py-2">Class</div>
+                    <div className="bg-gray-50 px-3 py-2">Location</div>
+                    <div className="bg-gray-50 px-3 py-2">Time</div>
+                    <div className="bg-gray-50 px-3 py-2">Drive</div>
+                    <div className="bg-gray-50 px-3 py-2">Status</div>
                   </div>
-                ))}
+                  {(emp.schedule_details || []).map((scheduleDetail) => (
+                    <div key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`} className="grid grid-cols-6 gap-px bg-gray-200 text-xs">
+                      <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.date}</div>
+                      <div className="bg-white px-3 py-2">
+                        <Badge className="border-0 text-[10px]" style={{ backgroundColor: `${scheduleDetail.class_color}20`, color: scheduleDetail.class_color }}>
+                          {scheduleDetail.class_name}
+                        </Badge>
+                      </div>
+                      <div className="bg-white px-3 py-2 text-slate-700 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700">{scheduleDetail.location}</EntityLink></div>
+                      <div className="bg-white px-3 py-2 text-slate-700">{scheduleDetail.time}</div>
+                      <div className="bg-white px-3 py-2 text-slate-500">{scheduleDetail.drive_minutes}m x2</div>
+                      <div className="bg-white px-3 py-2">
+                        <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-indigo-50 text-indigo-700'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">

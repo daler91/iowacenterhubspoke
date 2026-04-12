@@ -202,6 +202,7 @@ export default function CalendarView() {
               variant="outline"
               size="sm"
               data-testid="calendar-prev"
+              aria-label="Previous"
               onClick={() => navigateDate('prev')}
               className="border-gray-200"
             >
@@ -218,6 +219,7 @@ export default function CalendarView() {
               variant="outline"
               size="sm"
               data-testid="calendar-next"
+              aria-label="Next"
               onClick={() => navigateDate('next')}
               className="border-gray-200"
             >

@@ -95,8 +95,18 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
 
 @router.delete("/{location_id}", responses={404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}})
 async def delete_location(location_id: str, user: AdminRequired):
+    from datetime import date as date_type
+    today = date_type.today().isoformat()
+    future_count = await db.schedules.count_documents({
+        "location_id": location_id, "date": {"$gte": today}, "deleted_at": None
+    })
+    if future_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: {future_count} future schedule(s) at this location. Reassign or delete them first."
+        )
     result = await db.locations.update_one(
-        {"id": location_id, "deleted_at": None}, 
+        {"id": location_id, "deleted_at": None},
         {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:

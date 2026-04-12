@@ -59,6 +59,8 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
       <button
         key={item.id}
         data-testid={`nav-${item.id}`}
+        aria-label={item.label}
+        aria-current={isActive ? 'page' : undefined}
         onClick={() => {
           navigate(item.path);
           if (globalThis.innerWidth < 768) {

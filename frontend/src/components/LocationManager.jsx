@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
@@ -31,6 +32,7 @@ export default function LocationManager() {
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
     setForm(prev => ({
@@ -105,8 +107,10 @@ export default function LocationManager() {
       toast.success('Location deleted');
       onRefresh();
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete location');
+      const detail = err.response?.data?.detail;
+      toast.error(detail || 'Failed to delete location');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -201,7 +205,7 @@ export default function LocationManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-location-${loc.id}`}
-                    onClick={() => handleDelete(loc.id)}
+                    onClick={() => setDeleteTarget(loc)}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -261,8 +265,9 @@ export default function LocationManager() {
             <APIProvider apiKey={MAPS_KEY} libraries={['places']}>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>City Name</Label>
+                  <Label htmlFor="location-city-input">City Name</Label>
                   <PlacesAutocomplete
+                    id="location-city-input"
                     value={form.city_name}
                     onChange={(val) => setForm({ ...form, city_name: val })}
                     onSelect={handlePlaceSelect}
@@ -274,9 +279,10 @@ export default function LocationManager() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Drive Time from Hub (minutes)</Label>
+                  <Label htmlFor="location-drive-time-input">Drive Time from Hub (minutes)</Label>
                   <div className="relative">
                     <Input
+                      id="location-drive-time-input"
                       type="number"
                       data-testid="location-drive-time-input"
                       placeholder="e.g. 45"
@@ -294,8 +300,9 @@ export default function LocationManager() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Latitude</Label>
+                    <Label htmlFor="location-lat-input">Latitude</Label>
                     <Input
+                      id="location-lat-input"
                       type="number"
                       step="any"
                       data-testid="location-lat-input"
@@ -306,8 +313,9 @@ export default function LocationManager() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Longitude</Label>
+                    <Label htmlFor="location-lng-input">Longitude</Label>
                     <Input
+                      id="location-lng-input"
                       type="number"
                       step="any"
                       data-testid="location-lng-input"
@@ -333,8 +341,9 @@ export default function LocationManager() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>City Name</Label>
+                <Label htmlFor="location-city-input-fallback">City Name</Label>
                 <Input
+                  id="location-city-input-fallback"
                   data-testid="location-city-input"
                   placeholder="e.g. Ames"
                   value={form.city_name}
@@ -344,8 +353,9 @@ export default function LocationManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Drive Time from Hub (minutes)</Label>
+                <Label htmlFor="location-drive-time-input-fallback">Drive Time from Hub (minutes)</Label>
                 <Input
+                  id="location-drive-time-input-fallback"
                   type="number"
                   data-testid="location-drive-time-input"
                   placeholder="e.g. 45"
@@ -357,8 +367,9 @@ export default function LocationManager() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Latitude (optional)</Label>
+                  <Label htmlFor="location-lat-input-fallback">Latitude (optional)</Label>
                   <Input
+                    id="location-lat-input-fallback"
                     type="number"
                     step="any"
                     data-testid="location-lat-input"
@@ -369,8 +380,9 @@ export default function LocationManager() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Longitude (optional)</Label>
+                  <Label htmlFor="location-lng-input-fallback">Longitude (optional)</Label>
                   <Input
+                    id="location-lng-input-fallback"
                     type="number"
                     step="any"
                     data-testid="location-lng-input"
@@ -395,6 +407,23 @@ export default function LocationManager() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.city_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the location from the system. This action cannot be easily undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

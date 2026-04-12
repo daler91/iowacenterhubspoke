@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { format, addDays, subDays } from 'date-fns';
+import { format, addDays, subDays, parseISO } from 'date-fns';
 import { Car, AlertTriangle, ChevronLeft, ChevronRight, Clock, MapPin, User, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
@@ -136,6 +136,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
     <div className="mobile-calendar flex flex-col h-full bg-slate-50/50 -mx-4 sm:mx-0">
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <button
+          aria-label="Previous day"
           onClick={() => setCurrentDate(subDays(currentDate, 1))}
           className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
         >
@@ -152,6 +153,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
         </div>
 
         <button
+          aria-label="Next day"
           onClick={() => setCurrentDate(addDays(currentDate, 1))}
           className="p-2 -mr-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
         >

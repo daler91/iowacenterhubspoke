@@ -3,12 +3,15 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
+
+// Delete confirmation state is managed inside the component
 
 import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
@@ -32,6 +35,7 @@ export default function EmployeeManager() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   if (selectedEmployeeId) {
     return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
@@ -79,8 +83,10 @@ export default function EmployeeManager() {
       toast.success('Employee deleted');
       onRefresh();
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete employee');
+      const detail = err.response?.data?.detail;
+      toast.error(detail || 'Failed to delete employee');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -166,7 +172,7 @@ export default function EmployeeManager() {
                     variant="ghost"
                     size="sm"
                     data-testid={`delete-employee-${emp.id}`}
-                    onClick={() => handleDelete(emp.id)}
+                    onClick={() => setDeleteTarget(emp)}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -199,8 +205,9 @@ export default function EmployeeManager() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Full Name</Label>
+              <Label htmlFor="employee-name-input">Full Name</Label>
               <Input
+                id="employee-name-input"
                 data-testid="employee-name-input"
                 placeholder="John Smith"
                 value={form.name}
@@ -210,8 +217,9 @@ export default function EmployeeManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Email (optional)</Label>
+              <Label htmlFor="employee-email-input">Email (optional)</Label>
               <Input
+                id="employee-email-input"
                 type="email"
                 data-testid="employee-email-input"
                 placeholder="john@company.com"
@@ -221,8 +229,9 @@ export default function EmployeeManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Phone (optional)</Label>
+              <Label htmlFor="employee-phone-input">Phone (optional)</Label>
               <Input
+                id="employee-phone-input"
                 data-testid="employee-phone-input"
                 placeholder="(515) 555-0123"
                 value={form.phone}
@@ -238,6 +247,7 @@ export default function EmployeeManager() {
                     key={c}
                     type="button"
                     data-testid={`color-${c}`}
+                    aria-label={`Select color ${c}`}
                     onClick={() => setForm({ ...form, color: c })}
                     className={`w-8 h-8 rounded-full transition-all ${form.color === c ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : 'hover:scale-105'}`}
                     style={{ backgroundColor: c }}
@@ -258,6 +268,23 @@ export default function EmployeeManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the employee from the system. This action cannot be easily undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -72,7 +72,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob:; worker-src 'self' blob:;"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://maps.googleapis.com https://graph.microsoft.com; worker-src 'self' blob:;"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
@@ -88,7 +88,13 @@ async def request_id_middleware(request: Request, call_next):
         request_id_var.reset(token)
 
 cors_origins_str = os.getenv("CORS_ORIGINS", "")
-origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()] or ["*"]
+origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+if not origins:
+    if os.getenv("ENVIRONMENT") == "production" or os.getenv("RAILWAY_ENVIRONMENT"):
+        logger.error("CORS_ORIGINS must be set in production")
+        origins = []
+    else:
+        origins = ["http://localhost:5173", "http://localhost:3000"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -138,9 +144,12 @@ async def health_check():
 async def seed_data():
     try:
         await client.admin.command('ping')
-        logger.info(f"Connected to MongoDB at {mongo_url}")
+        from urllib.parse import urlparse as _urlparse
+        _parsed = _urlparse(mongo_url or "")
+        _safe_url = f"{_parsed.scheme}://{_parsed.hostname}" if _parsed.hostname else "local"
+        logger.info(f"Connected to MongoDB at {_safe_url}")
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB at {mongo_url}: {e}")
+        logger.error(f"Failed to connect to MongoDB: {e}")
         raise
     
     # Migrate existing users: set status to approved if missing
@@ -155,7 +164,7 @@ async def seed_data():
         logger.warning(f"Failed to migrate user statuses: {e}")
 
     # Auto-promote admin email
-    admin_email = "russell.dale1@gmail.com"
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip()
     try:
         existing_admin = await db.users.find_one({"email": admin_email})
         if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
@@ -182,6 +191,8 @@ async def seed_data():
         await db.drive_time_cache.create_index("key", unique=True)
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
+        await db.users.create_index("email", unique=True)
+        await db.schedules.create_index([("location_id", 1), ("date", 1), ("deleted_at", 1)])
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
@@ -215,8 +226,8 @@ elif (_static_dir / "assets").exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        file_path = _static_dir / full_path
-        if file_path.exists() and file_path.is_file():
+        file_path = (_static_dir / full_path).resolve()
+        if file_path.is_relative_to(_static_dir.resolve()) and file_path.is_file():
             return FileResponse(str(file_path))
         return FileResponse(str(_static_dir / "index.html"))
 

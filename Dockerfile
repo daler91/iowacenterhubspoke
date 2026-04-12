@@ -10,10 +10,13 @@ RUN yarn build
 
 # Stage 2: Python backend + frontend static files
 FROM python:3.11-slim
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY --from=frontend-build /app/frontend/build ./static
+RUN chown -R appuser:appuser /app
+USER appuser
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]

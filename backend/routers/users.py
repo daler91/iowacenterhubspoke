@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from database import db
 from core.auth import AdminRequired
+from core.rate_limit import limiter
 from core.constants import (
     ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER,
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
@@ -103,7 +104,8 @@ async def delete_user(user_id: str, user: AdminRequired):
 
 
 @router.post("/invite")
-async def create_invitation(data: InviteCreate, user: AdminRequired):
+@limiter.limit("10/minute")
+async def create_invitation(request: Request, data: InviteCreate, user: AdminRequired):
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
 

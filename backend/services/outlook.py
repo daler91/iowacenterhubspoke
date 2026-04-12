@@ -12,6 +12,14 @@ logger = logging.getLogger("outlook")
 _token_cache = {"access_token": None, "expires_at": 0}
 _token_lock = asyncio.Lock()
 
+_http_client = None
+
+def _get_http_client():
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=10)
+    return _http_client
+
 
 async def _get_access_token() -> str | None:
     if not OUTLOOK_ENABLED:
@@ -27,18 +35,18 @@ async def _get_access_token() -> str | None:
             return _token_cache["access_token"]
 
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(TOKEN_URL, data={
-                    "client_id": AZURE_CLIENT_ID,
-                    "client_secret": AZURE_CLIENT_SECRET,
-                    "scope": "https://graph.microsoft.com/.default",
-                    "grant_type": "client_credentials",
-                }, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
-                _token_cache["access_token"] = data["access_token"]
-                _token_cache["expires_at"] = now + data.get("expires_in", 3600)
-                return _token_cache["access_token"]
+            client = _get_http_client()
+            resp = await client.post(TOKEN_URL, data={
+                "client_id": AZURE_CLIENT_ID,
+                "client_secret": AZURE_CLIENT_SECRET,
+                "scope": "https://graph.microsoft.com/.default",
+                "grant_type": "client_credentials",
+            }, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            _token_cache["access_token"] = data["access_token"]
+            _token_cache["expires_at"] = now + data.get("expires_in", 3600)
+            return _token_cache["access_token"]
         except Exception:
             logger.exception("Failed to acquire Microsoft Graph access token")
             return None
@@ -70,13 +78,13 @@ async def check_outlook_availability(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=body, headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            }, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+        client = _get_http_client()
+        resp = await client.post(url, json=body, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
     except Exception:
         logger.exception("Outlook getSchedule failed for user")
         return []
@@ -127,13 +135,13 @@ async def create_outlook_event(
         body["body"] = {"contentType": "text", "content": notes}
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=body, headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            }, timeout=10)
-            resp.raise_for_status()
-            return resp.json().get("id")
+        client = _get_http_client()
+        resp = await client.post(url, json=body, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }, timeout=10)
+        resp.raise_for_status()
+        return resp.json().get("id")
     except Exception:
         logger.exception("Failed to create Outlook event for user")
         return None
@@ -146,12 +154,12 @@ async def delete_outlook_event(email: str, event_id: str) -> bool:
 
     url = f"{GRAPH_BASE_URL}/users/{email}/events/{event_id}"
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.delete(url, headers={
-                "Authorization": f"Bearer {token}",
-            }, timeout=10)
-            resp.raise_for_status()
-            return True
+        client = _get_http_client()
+        resp = await client.delete(url, headers={
+            "Authorization": f"Bearer {token}",
+        }, timeout=10)
+        resp.raise_for_status()
+        return True
     except Exception:
         logger.exception("Failed to delete Outlook event %s for user", event_id)
         return False

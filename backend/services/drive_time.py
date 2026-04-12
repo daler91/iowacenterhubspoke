@@ -9,6 +9,14 @@ from database import db
 
 logger = get_logger(__name__)
 
+_http_client = None
+
+def _get_http_client():
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=10)
+    return _http_client
+
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 HUB_LAT = 41.5868
 HUB_LNG = -93.654
@@ -45,9 +53,9 @@ async def _fetch_distance_matrix(origin_lat, origin_lng, dest_lat, dest_lng):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, params=params)
-            data = resp.json()
+        client = _get_http_client()
+        resp = await client.get(url, params=params)
+        data = resp.json()
 
         if data.get("status") != "OK":
             logger.warning(f"Distance Matrix API error: {data.get('status')}")

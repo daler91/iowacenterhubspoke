@@ -74,7 +74,7 @@ export default function WorkloadDashboard() {
     }).filter((employeeWorkload) => selectedClassId === ALL_CLASSES_VALUE || employeeWorkload.display_classes > 0)
   ), [selectedClassId, workloadData]);
 
-  const chartData = scopedWorkload.map((employeeWorkload) => ({
+  const chartData = useMemo(() => scopedWorkload.map((employeeWorkload) => ({
     name: employeeWorkload.employee_name?.split(' ')[0] || '?',
     fullName: employeeWorkload.employee_name,
     'Class Hours': employeeWorkload.display_class_hours,
@@ -83,21 +83,21 @@ export default function WorkloadDashboard() {
     completed: employeeWorkload.completed,
     upcoming: employeeWorkload.upcoming,
     color: employeeWorkload.employee_color,
-  }));
+  })), [scopedWorkload]);
 
-  const totals = scopedWorkload.reduce((acc, employeeWorkload) => ({
+  const totals = useMemo(() => scopedWorkload.reduce((acc, employeeWorkload) => ({
     classes: acc.classes + employeeWorkload.display_classes,
     classHours: acc.classHours + employeeWorkload.display_class_hours,
     driveHours: acc.driveHours + employeeWorkload.display_drive_hours,
     completed: acc.completed + employeeWorkload.completed,
-  }), { classes: 0, classHours: 0, driveHours: 0, completed: 0 });
+  }), { classes: 0, classHours: 0, driveHours: 0, completed: 0 }), [scopedWorkload]);
 
-  const pieData = scopedWorkload.filter((employeeWorkload) => employeeWorkload.display_classes > 0).map((employeeWorkload) => ({
+  const pieData = useMemo(() => scopedWorkload.filter((employeeWorkload) => employeeWorkload.display_classes > 0).map((employeeWorkload) => ({
     name: employeeWorkload.employee_name,
     employee_id: employeeWorkload.employee_id,
     value: employeeWorkload.display_classes,
     color: employeeWorkload.employee_color || '#4F46E5',
-  }));
+  })), [scopedWorkload]);
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">

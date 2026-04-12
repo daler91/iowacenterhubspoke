@@ -25,7 +25,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
       rows.push(week);
     }
     return rows;
-  }, [calStart, calEnd]);
+  }, [calStart.getTime(), calEnd.getTime()]);
 
   const schedulesByDate = useMemo(() => {
     const map = {};

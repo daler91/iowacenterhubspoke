@@ -134,19 +134,21 @@ export default function MapView() {
           </div>
         </div>
         {validLocations.map(loc => (
-          <div
+          <button
             key={loc.id}
-            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
+            type="button"
+            aria-label={`View ${loc.city_name} location`}
+            className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow text-left w-full"
             onClick={() => navigate(`/locations/${loc.id}`)}
           >
-            <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center shrink-0">
               <Navigation className="w-4 h-4 text-white" />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-800 hover:text-indigo-600 transition-colors">{loc.city_name}</p>
               <p className="text-xs text-slate-500">{loc.drive_time_minutes}m drive</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

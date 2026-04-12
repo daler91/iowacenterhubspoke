@@ -23,12 +23,14 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 def create_token(user_id: str, email: str, name: str, role: str = '') -> str:
+    import uuid as _uuid
     payload = {
         'user_id': user_id,
         'email': email,
         'name': name,
         'role': role,
-        'exp': int(datetime.now(timezone.utc).timestamp()) + 86400 * 7
+        'jti': str(_uuid.uuid4()),
+        'exp': int(datetime.now(timezone.utc).timestamp()) + 86400
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

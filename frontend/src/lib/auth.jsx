@@ -41,8 +41,7 @@ export function AuthProvider({ children }) {
     const payload = { name, email, password };
     if (inviteToken) payload.invite_token = inviteToken;
     const res = await authAPI.register(payload);
-    if (res.data.token && res.data.user) {
-      localStorage.setItem('auth_user', JSON.stringify(res.data.user));
+    if (res.data.user) {
       setUser(res.data.user);
     }
     return res.data;

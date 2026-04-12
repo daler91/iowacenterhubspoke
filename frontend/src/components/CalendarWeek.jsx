@@ -297,7 +297,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
   );
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart.getTime()]);
 
   const schedulesByDay = useMemo(() => {
     const map = {};
