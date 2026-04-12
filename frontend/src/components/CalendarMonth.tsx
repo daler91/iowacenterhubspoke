@@ -7,14 +7,13 @@ import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 
 export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calStartTime = useMemo(() => startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }).getTime(), [currentDate]);
+  const calEndTime = useMemo(() => endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }).getTime(), [currentDate]);
 
   const weeks = useMemo(() => {
     const rows = [];
-    let day = calStart;
+    let day = new Date(calStartTime);
+    const calEnd = new Date(calEndTime);
     while (day <= calEnd) {
       const week = [];
       for (let i = 0; i < 7; i++) {
@@ -24,8 +23,7 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
       rows.push(week);
     }
     return rows;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calStart.getTime(), calEnd.getTime()]);
+  }, [calStartTime, calEndTime]);
 
   const schedulesByDate = useMemo(() => {
     const map = {};
