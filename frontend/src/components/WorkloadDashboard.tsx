@@ -81,7 +81,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
     }).filter((employeeWorkload) => selectedClassId === ALL_CLASSES_VALUE || employeeWorkload.display_classes > 0)
   ), [selectedClassId, workloadData]);
 
-  const chartData = scopedWorkload.map((employeeWorkload) => ({
+  const chartData = useMemo(() => scopedWorkload.map((employeeWorkload) => ({
     name: employeeWorkload.employee_name?.split(' ')[0] || '?',
     fullName: employeeWorkload.employee_name,
     'Class Hours': employeeWorkload.display_class_hours,
@@ -90,21 +90,36 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
     completed: employeeWorkload.completed,
     upcoming: employeeWorkload.upcoming,
     color: employeeWorkload.employee_color,
-  }));
+  })), [scopedWorkload]);
 
-  const totals = scopedWorkload.reduce((acc, employeeWorkload) => ({
+  const totals = useMemo(() => scopedWorkload.reduce((acc, employeeWorkload) => ({
     classes: acc.classes + employeeWorkload.display_classes,
     classHours: acc.classHours + employeeWorkload.display_class_hours,
     driveHours: acc.driveHours + employeeWorkload.display_drive_hours,
     completed: acc.completed + employeeWorkload.completed,
-  }), { classes: 0, classHours: 0, driveHours: 0, completed: 0 });
+  }), { classes: 0, classHours: 0, driveHours: 0, completed: 0 }), [scopedWorkload]);
 
-  const pieData = scopedWorkload.filter((employeeWorkload) => employeeWorkload.display_classes > 0).map((employeeWorkload) => ({
-    name: employeeWorkload.employee_name,
-    employee_id: employeeWorkload.employee_id,
-    value: employeeWorkload.display_classes,
-    color: employeeWorkload.employee_color || '#4F46E5',
-  }));
+  const pieData = useMemo(() => scopedWorkload
+    .filter((employeeWorkload) => employeeWorkload.display_classes > 0)
+    .map((employeeWorkload) => ({
+      name: employeeWorkload.employee_name,
+      employee_id: employeeWorkload.employee_id,
+      value: employeeWorkload.display_classes,
+      color: employeeWorkload.employee_color || '#4F46E5',
+    })), [scopedWorkload]);
+
+  // Precompute bar-width denominators once per render so each employee card
+  // below doesn't spread the full scopedWorkload array twice — O(n) instead
+  // of the original O(n²) inside the .map().
+  const { maxClassHours, maxDriveHours } = useMemo(() => {
+    let maxClass = 1;
+    let maxDrive = 1;
+    for (const w of scopedWorkload) {
+      if (w.display_class_hours > maxClass) maxClass = w.display_class_hours;
+      if (w.display_drive_hours > maxDrive) maxDrive = w.display_drive_hours;
+    }
+    return { maxClassHours: maxClass, maxDriveHours: maxDrive };
+  }, [scopedWorkload]);
 
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">
@@ -280,14 +295,14 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
                 <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_class_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
-                <div className="h-2 rounded-full" style={{ width: `${Math.min((employeeWorkload.display_class_hours / Math.max(...scopedWorkload.map((item) => item.display_class_hours), 1)) * 100, 100)}%`, backgroundColor: employeeWorkload.employee_color }} />
+                <div className="h-2 rounded-full" style={{ width: `${Math.min((employeeWorkload.display_class_hours / maxClassHours) * 100, 100)}%`, backgroundColor: employeeWorkload.employee_color }} />
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500 dark:text-gray-400">Drive Time</span>
                 <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_drive_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
-                <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / Math.max(...scopedWorkload.map((item) => item.display_drive_hours), 1)) * 100, 100)}%` }} />
+                <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / maxDriveHours) * 100, 100)}%` }} />
               </div>
               <div className="flex gap-2 mt-3">
                 <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{employeeWorkload.completed} done</Badge>

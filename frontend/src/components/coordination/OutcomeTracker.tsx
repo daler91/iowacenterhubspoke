@@ -58,20 +58,25 @@ export default function OutcomeTracker({ projectId }: Props) {
     outcomeId: string; currentStatus: string; requestedStatus: string; attendeeName: string;
   } | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (signal?: AbortSignal) => {
     try {
       const [outRes, funnelRes] = await Promise.all([
-        api.get(`/projects/${projectId}/outcomes`),
-        api.get(`/projects/${projectId}/outcomes/funnel`),
+        api.get(`/projects/${projectId}/outcomes`, { signal }),
+        api.get(`/projects/${projectId}/outcomes/funnel`, { signal }),
       ]);
       setOutcomes(outRes.data.items || []);
       setFunnel(funnelRes.data);
-    } catch {
+    } catch (err) {
+      if (signal?.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
       toast.error('Failed to load outcomes');
     }
   }, [projectId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
 
   const handleStatusChange = async (outcomeId: string, newStatus: string, force?: boolean) => {
     const outcome = outcomes.find(o => o.id === outcomeId);

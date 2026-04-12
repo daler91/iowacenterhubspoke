@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, AlertTriangle, CalendarDays, UserX, X } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import api from '../lib/api';
+import { notificationsAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 
 function getNotificationLink(notification: { type?: string; id?: string }): string | null {
@@ -26,18 +26,39 @@ export default function NotificationsPanel() {
   const ref = useRef(null);
 
   useEffect(() => {
-    const fetch = async () => {
+    // One controller per lifecycle; aborted on unmount to drop any in-flight
+    // request so we don't setState on an unmounted component. Individual
+    // ticks use per-call controllers so a stale tick can't be reused.
+    let currentController: AbortController | null = null;
+
+    const fetchOnce = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      currentController?.abort();
+      const controller = new AbortController();
+      currentController = controller;
       try {
-        const res = await api.get('/notifications');
-        // Ensure notifications is always an array
+        const res = await notificationsAPI.getAll({ signal: controller.signal });
+        if (controller.signal.aborted) return;
         setNotifications(Array.isArray(res.data) ? res.data : []);
-      } catch {
+      } catch (err) {
+        if (controller.signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
         setNotifications([]);
       }
     };
-    fetch();
-    const interval = setInterval(fetch, 30000);
-    return () => clearInterval(interval);
+
+    fetchOnce();
+    const interval = setInterval(fetchOnce, 30000);
+
+    const onVisibility = () => {
+      if (!document.hidden) fetchOnce();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      currentController?.abort();
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   useEffect(() => {
@@ -48,9 +69,15 @@ export default function NotificationsPanel() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const safeNotifications = Array.isArray(notifications) ? notifications : [];
-  const activeNotifications = safeNotifications.filter(n => !dismissed.has(n.id));
-  const warningCount = activeNotifications.filter(n => n.severity === 'warning').length;
+  const { safeNotifications, activeNotifications, warningCount } = useMemo(() => {
+    const safe = Array.isArray(notifications) ? notifications : [];
+    const active = safe.filter(n => !dismissed.has(n.id));
+    return {
+      safeNotifications: safe,
+      activeNotifications: active,
+      warningCount: active.filter(n => n.severity === 'warning').length,
+    };
+  }, [notifications, dismissed]);
 
   // Build the accessible bell label once so the JSX stays free of
   // nested ternaries / nested template literals (Sonar S3358 / S4624).

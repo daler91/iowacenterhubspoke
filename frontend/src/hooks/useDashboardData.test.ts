@@ -90,6 +90,10 @@ describe('useDashboardData', () => {
       result.current.handleClassRefresh();
     });
 
+    // Class update/delete denormalize class fields onto every matching
+    // schedule (update runs sync_class_snapshot_background; delete runs a
+    // direct db.schedules.update_many). Workload reads those same fields.
+    // So all five caches must revalidate to avoid stale labels.
     expect(mockMutate.mutateClasses).toHaveBeenCalled();
     expect(mockMutate.mutateSchedules).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();

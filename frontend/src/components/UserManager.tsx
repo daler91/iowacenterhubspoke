@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -154,6 +154,14 @@ export default function UserManager() {
     setInviteForm({ email: '', name: '', role: 'viewer' });
   };
 
+  // Derived lists must be computed before any conditional return so the hook
+  // call order stays stable across renders (rules-of-hooks).
+  const { pendingUsers, otherUsers, pendingInvitations } = useMemo(() => ({
+    pendingUsers: users.filter(u => u.status === 'pending'),
+    otherUsers: users.filter(u => u.status !== 'pending'),
+    pendingInvitations: invitations.filter(i => i.status === 'pending'),
+  }), [users, invitations]);
+
   if (user?.role !== 'admin') {
     return (
       <PageShell
@@ -166,10 +174,6 @@ export default function UserManager() {
       />
     );
   }
-
-  const pendingUsers = users.filter(u => u.status === 'pending');
-  const otherUsers = users.filter(u => u.status !== 'pending');
-  const pendingInvitations = invitations.filter(i => i.status === 'pending');
 
   return (
     <>

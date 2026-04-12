@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 import type {
   ApiListParams,
   ClassCreate,
@@ -90,7 +90,7 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
   validateInvite: (token: string) => api.get(`/auth/invite/${token}`),
-  myEmployee: () => api.get('/auth/my-employee'),
+  myEmployee: (config?: AxiosRequestConfig) => api.get('/auth/my-employee', config),
   changePassword: (data: { current_password: string; new_password: string }) =>
     api.post('/auth/change-password', data),
   forgotPassword: (email: string) =>
@@ -175,7 +175,7 @@ export const schedulesAPI = {
 
 // System Config
 export const systemAPI = {
-  getConfig: () => api.get('/system/config'),
+  getConfig: (config?: AxiosRequestConfig) => api.get('/system/config', config),
 };
 
 // Dashboard
@@ -190,7 +190,7 @@ export const activityAPI = {
 
 // Notifications
 export const notificationsAPI = {
-  getAll: () => api.get('/notifications'),
+  getAll: (config?: AxiosRequestConfig) => api.get('/notifications', config),
 };
 
 // Workload

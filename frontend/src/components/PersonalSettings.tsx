@@ -38,17 +38,29 @@ export default function PersonalSettings() {
   };
 
   useEffect(() => {
-    fetchMyEmployee();
-    const loadConfig = async () => {
-      try {
-        const res = await systemAPI.getConfig();
-        setGoogleEnabled(res.data.google_oauth_enabled);
-        setOutlookEnabled(res.data.outlook_oauth_enabled || res.data.outlook_enabled);
-      } catch {
-        console.warn('Failed to load system config for calendar integrations');
-      }
-    };
-    loadConfig();
+    const controller = new AbortController();
+    const { signal } = controller;
+    Promise.all([
+      authAPI.myEmployee({ signal })
+        .then(res => { if (!signal.aborted) setEmployee(res.data.employee); })
+        .catch(err => {
+          if (signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
+          setEmployee(null);
+        }),
+      systemAPI.getConfig({ signal })
+        .then(res => {
+          if (signal.aborted) return;
+          setGoogleEnabled(res.data.google_oauth_enabled);
+          setOutlookEnabled(res.data.outlook_oauth_enabled || res.data.outlook_enabled);
+        })
+        .catch(err => {
+          if (signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
+          console.warn('Failed to load system config for calendar integrations');
+        }),
+    ]).finally(() => {
+      if (!signal.aborted) setEmployeeLoading(false);
+    });
+    return () => controller.abort();
   }, []);
 
   // Handle OAuth callback query params
