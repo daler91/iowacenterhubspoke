@@ -122,7 +122,9 @@ async def delete_employee(employee_id: str, user: AdminRequired):
     from datetime import date as date_type
     today = date_type.today().isoformat()
     future_count = await db.schedules.count_documents({
-        "employee_ids": employee_id, "date": {"$gte": today}, "deleted_at": None
+        "$or": [{"employee_ids": employee_id}, {"employee_id": employee_id}],
+        "date": {"$gte": today},
+        "deleted_at": None,
     })
     if future_count > 0:
         raise HTTPException(
