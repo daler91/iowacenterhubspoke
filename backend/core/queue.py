@@ -7,11 +7,21 @@ from core.constants import DEFAULT_REDIS_URL
 _logger = logging.getLogger(__name__)
 
 
+_pool = None
+
 async def get_redis_pool():
+    global _pool
+    if _pool is not None:
+        try:
+            # Verify existing pool is still healthy
+            await _pool.ping()
+            return _pool
+        except Exception:
+            _pool = None
     redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     try:
-        pool = await create_pool(RedisSettings.from_dsn(redis_url))
-        return pool
+        _pool = await create_pool(RedisSettings.from_dsn(redis_url))
+        return _pool
     except Exception:
         _logger.warning("Failed to connect to Redis. Queue operations will fall back.")
         return None
