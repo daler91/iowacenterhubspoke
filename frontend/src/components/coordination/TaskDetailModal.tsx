@@ -284,6 +284,7 @@ export default function TaskDetailModal({
   const handleStatusChange = async (newStatus: string) => {
     if (!newStatus || !task) return;
     const next = newStatus as TaskStatus;
+    const originalId = task.id;
     const prevStatus = task.status;
     const prevCompleted = task.completed;
     setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
@@ -301,7 +302,10 @@ export default function TaskDetailModal({
         const res = await projectTasksAPI.getOne(projectId, taskId);
         const fresh = res.data;
         setTask(prev => {
-          if (prev?.status !== next) return prev; // user moved on; don't stomp
+          // Don't merge into a different task: the modal may have switched
+          // to another task (close + reopen) while this refresh was in
+          // flight. Also bail if the user moved status on again.
+          if (prev?.id !== fresh.id || prev.status !== next) return prev;
           return {
             ...prev,
             status: fresh.status,
@@ -315,11 +319,11 @@ export default function TaskDetailModal({
         // up on the next full reload.
       }
     } catch {
-      // Roll back optimistic update, but only if the value we optimistically
-      // set is still the current one. If a newer status change has superseded
-      // us (user changed status twice on a slow link), do not clobber it.
+      // Roll back optimistic update, but only if we're still on the same
+      // task AND the value we optimistically set is still current. Skip if
+      // the modal has switched tasks or the user has moved status on again.
       setTask(prev => {
-        if (prev?.status !== next) return prev;
+        if (prev?.id !== originalId || prev.status !== next) return prev;
         return { ...prev, status: prevStatus, completed: prevCompleted };
       });
       toast.error('Failed to update status');
@@ -335,16 +339,18 @@ export default function TaskDetailModal({
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
+    const originalId = task.id;
     const prevValue = task[field];
     setTask(prev => prev ? { ...prev, [field]: value } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
     } catch {
-      // Roll back only if our optimistic value is still current. If the user
-      // toggled again before this request failed, the newer value must win.
+      // Roll back only if we're still on the same task AND our optimistic
+      // value is still current. Skip if the modal switched tasks or the
+      // user toggled again before this request failed.
       setTask(prev => {
-        if (prev?.[field] !== value) return prev;
+        if (prev?.id !== originalId || prev[field] !== value) return prev;
         return { ...prev, [field]: prevValue };
       });
       toast.error('Failed to update');
