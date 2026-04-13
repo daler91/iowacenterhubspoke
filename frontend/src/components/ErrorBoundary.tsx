@@ -65,6 +65,10 @@ class ErrorBoundary extends React.Component<
     this.setState({ hasError: false, error: null });
   };
 
+  handleReload = () => {
+    window.location.reload();
+  };
+
   render() {
     if (this.state.hasError && this.state.error) {
       if (this.props.fallback) {
@@ -81,9 +85,7 @@ class ErrorBoundary extends React.Component<
         ? "A new version of the app is available. Reload to continue."
         : this.state.error?.message ?? "An unexpected error occurred.";
       const buttonLabel = chunkError ? "Reload now" : "Try again";
-      const handleClick = chunkError
-        ? () => window.location.reload()
-        : this.reset;
+      const handleClick = chunkError ? this.handleReload : this.reset;
       return (
         <div
           className="p-6 m-4 border border-danger/30 bg-danger-soft rounded-lg"

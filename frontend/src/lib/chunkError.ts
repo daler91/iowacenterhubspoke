@@ -9,6 +9,7 @@
  */
 
 const RELOAD_GUARD_KEY = "__chunk_reload_attempted__";
+const RELOAD_GUARD_VALUE = "1";
 
 const CHUNK_ERROR_MESSAGE_FRAGMENTS = [
   "Failed to fetch dynamically imported module",
@@ -16,31 +17,22 @@ const CHUNK_ERROR_MESSAGE_FRAGMENTS = [
   "error loading dynamically imported module",
 ];
 
-function getErrorName(err: unknown): string {
-  if (err !== null && typeof err === "object" && "name" in err) {
-    const { name } = err as { name: unknown };
-    if (typeof name === "string") return name;
-  }
-  return "";
-}
-
-function getErrorMessage(err: unknown): string {
-  if (typeof err === "string") return err;
-  if (err !== null && typeof err === "object" && "message" in err) {
-    const { message } = err as { message: unknown };
-    if (typeof message === "string") return message;
-  }
-  return "";
-}
-
-export function isChunkLoadError(err: unknown): boolean {
-  // webpack-style (harmless for Vite, but cheap to include).
-  if (getErrorName(err) === "ChunkLoadError") return true;
-  const message = getErrorMessage(err);
-  if (!message) return false;
+function matchesChunkFragment(message: string): boolean {
   return CHUNK_ERROR_MESSAGE_FRAGMENTS.some((fragment) =>
     message.includes(fragment),
   );
+}
+
+export function isChunkLoadError(err: unknown): boolean {
+  if (err instanceof Error) {
+    // webpack-style (harmless for Vite, but cheap to include).
+    if (err.name === "ChunkLoadError") return true;
+    return matchesChunkFragment(err.message);
+  }
+  if (typeof err === "string") {
+    return matchesChunkFragment(err);
+  }
+  return false;
 }
 
 function readReloadGuard(): string | null {
@@ -55,7 +47,7 @@ function readReloadGuard(): string | null {
 
 function writeReloadGuard(): void {
   try {
-    window.sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
+    window.sessionStorage.setItem(RELOAD_GUARD_KEY, RELOAD_GUARD_VALUE);
   } catch (err) {
     // Non-fatal: we lose the one-reload guarantee but still recover.
     console.debug("chunkError: sessionStorage write failed", err);
@@ -70,12 +62,12 @@ function writeReloadGuard(): void {
  */
 export function reloadOnceForStaleChunk(): void {
   if (typeof window === "undefined") return;
-  if (readReloadGuard() === "1") return;
+  if (readReloadGuard() === RELOAD_GUARD_VALUE) return;
   writeReloadGuard();
   window.location.reload();
 }
 
 export function hasAttemptedChunkReload(): boolean {
   if (typeof window === "undefined") return false;
-  return readReloadGuard() === "1";
+  return readReloadGuard() === RELOAD_GUARD_VALUE;
 }
