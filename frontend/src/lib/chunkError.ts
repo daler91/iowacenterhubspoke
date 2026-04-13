@@ -37,7 +37,7 @@ export function isChunkLoadError(err: unknown): boolean {
 
 function readReloadGuard(): string | null {
   try {
-    return window.sessionStorage.getItem(RELOAD_GUARD_KEY);
+    return globalThis.sessionStorage.getItem(RELOAD_GUARD_KEY);
   } catch (err) {
     // Storage access can throw in private mode / disabled storage.
     console.debug("chunkError: sessionStorage read failed", err);
@@ -47,7 +47,7 @@ function readReloadGuard(): string | null {
 
 function writeReloadGuard(): void {
   try {
-    window.sessionStorage.setItem(RELOAD_GUARD_KEY, RELOAD_GUARD_VALUE);
+    globalThis.sessionStorage.setItem(RELOAD_GUARD_KEY, RELOAD_GUARD_VALUE);
   } catch (err) {
     // Non-fatal: we lose the one-reload guarantee but still recover.
     console.debug("chunkError: sessionStorage write failed", err);
@@ -61,13 +61,13 @@ function writeReloadGuard(): void {
  * ErrorBoundary render a recovery UI.
  */
 export function reloadOnceForStaleChunk(): void {
-  if (typeof window === "undefined") return;
+  if (typeof globalThis.window === "undefined") return;
   if (readReloadGuard() === RELOAD_GUARD_VALUE) return;
   writeReloadGuard();
-  window.location.reload();
+  globalThis.location.reload();
 }
 
 export function hasAttemptedChunkReload(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof globalThis.window === "undefined") return false;
   return readReloadGuard() === RELOAD_GUARD_VALUE;
 }
