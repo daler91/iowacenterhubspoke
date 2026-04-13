@@ -62,35 +62,51 @@ function buildChildrenMap(comments: TaskComment[]) {
   return map;
 }
 
-// ── Comment Node ─────────────────────────────────────────────────────
-// Recursive renderer for a comment and its replies. Visual indent caps at
-// depth 4 so deep threads stay readable in the 360px sidebar; the data tree
-// itself nests arbitrarily.
-const MAX_INDENT_DEPTH = 4;
+// Collect every descendant of a root and return them as a single flat list
+// sorted chronologically. This matches Slack's thread view: one root at the
+// top, then every reply (and reply-to-reply) at the same indent level in the
+// order they were posted. The data tree is preserved via `parent_comment_id`
+// so we can flip to a tree view later without a migration.
+function collectDescendants(
+  rootId: string,
+  childrenMap: Map<string | null, TaskComment[]>,
+): TaskComment[] {
+  const out: TaskComment[] = [];
+  const walk = (id: string) => {
+    for (const child of childrenMap.get(id) ?? []) {
+      out.push(child);
+      walk(child.id);
+    }
+  };
+  walk(rootId);
+  out.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return out;
+}
 
+// ── Comment Node ─────────────────────────────────────────────────────
+// Renders a single comment (root or reply). Roots render at depth 0 at the
+// left edge; replies render at depth 1 with a single indent + rail. Nested
+// replies are flattened by the caller into a chronological list, so nothing
+// in this component recurses.
 function CommentNode({
-  comment, depth, childrenMap, onReply, parentDate,
+  comment, depth, onReply, parentDate,
 }: Readonly<{
   comment: TaskComment;
-  depth: number;
-  childrenMap: Map<string | null, TaskComment[]>;
+  depth: 0 | 1;
   onReply: (c: TaskComment) => void;
   parentDate: string;
 }>) {
-  const replies = childrenMap.get(comment.id) ?? [];
-  const visualDepth = Math.min(depth, MAX_INDENT_DEPTH);
   const ownDate = formatCommentDate(comment.created_at);
   const time = new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   // Replies inherit their root's date header, so when a reply crosses a day
-  // boundary relative to its parent, surface the date inline so readers
-  // don't misread the chronology.
+  // boundary relative to its root, surface the date inline so readers don't
+  // misread the chronology.
   const crossesDayBoundary = ownDate !== parentDate;
   return (
     <div
       id={`comment-${comment.id}`}
-      style={{ marginLeft: visualDepth > 0 ? visualDepth * 16 : undefined }}
       className={cn(
-        depth > 0 && 'border-l border-indigo-100 dark:border-indigo-900/50 pl-2',
+        depth > 0 && 'ml-4 border-l border-indigo-100 dark:border-indigo-900/50 pl-3',
       )}
     >
       <div className="flex gap-2 mb-3">
@@ -120,16 +136,6 @@ function CommentNode({
           <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
         </div>
       </div>
-      {replies.map(child => (
-        <CommentNode
-          key={child.id}
-          comment={child}
-          depth={depth + 1}
-          childrenMap={childrenMap}
-          onReply={onReply}
-          parentDate={ownDate}
-        />
-      ))}
     </div>
   );
 }
@@ -270,16 +276,29 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                 <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
               </div>
-              {group.items.map(root => (
-                <CommentNode
-                  key={root.id}
-                  comment={root}
-                  depth={0}
-                  childrenMap={childrenMap}
-                  onReply={setReplyingTo}
-                  parentDate={group.date}
-                />
-              ))}
+              {group.items.map(root => {
+                const rootDate = formatCommentDate(root.created_at);
+                const descendants = collectDescendants(root.id, childrenMap);
+                return (
+                  <div key={root.id}>
+                    <CommentNode
+                      comment={root}
+                      depth={0}
+                      onReply={setReplyingTo}
+                      parentDate={group.date}
+                    />
+                    {descendants.map(d => (
+                      <CommentNode
+                        key={d.id}
+                        comment={d}
+                        depth={1}
+                        onReply={setReplyingTo}
+                        parentDate={rootDate}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           ))
         )}
