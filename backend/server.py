@@ -616,11 +616,36 @@ elif (_static_dir / "assets").exists():
                 rel = p.relative_to(_static_root_resolved).as_posix()
                 _allowed_files[rel] = str(p)
 
+    # Hashed Vite chunks are content-addressed; everything under /assets
+    # can be cached forever. index.html must NOT be cached — otherwise a
+    # browser holding onto stale HTML after a deploy keeps requesting
+    # chunk hashes that no longer exist, which is exactly how users end
+    # up with "Failed to fetch dynamically imported module" on idle tabs.
+    _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+    _HTML_CACHE = "no-cache"
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         # Look up the request path in the pre-built allow-set.
         # No user input is ever joined to a filesystem path.
         resolved = _allowed_files.get(full_path)
         if resolved is not None:
+            if full_path.startswith("assets/"):
+                return FileResponse(
+                    resolved,
+                    headers={"Cache-Control": _IMMUTABLE_CACHE},
+                )
+            if full_path == "index.html" or full_path.endswith(".html"):
+                return FileResponse(
+                    resolved,
+                    headers={"Cache-Control": _HTML_CACHE},
+                )
             return FileResponse(resolved)
-        return FileResponse(str(_static_root_resolved / "index.html"))
+        # SPA fallback: serve index.html for unknown paths so client-side
+        # routing works. Use no-cache so a deploy is picked up on next
+        # navigation instead of getting stuck on a cached HTML pointing
+        # at stale chunk hashes.
+        return FileResponse(
+            str(_static_root_resolved / "index.html"),
+            headers={"Cache-Control": _HTML_CACHE},
+        )
