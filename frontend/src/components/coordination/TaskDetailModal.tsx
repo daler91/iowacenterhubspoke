@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';
 import {
   Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
-  AlertTriangle, Lock, Star, User as UserIcon, MessageSquare,
+  AlertTriangle, Lock, Star, User as UserIcon, MessageSquare, Reply,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
@@ -22,13 +22,17 @@ import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 
 
+function formatCommentDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    day: 'numeric', month: 'short', year: '2-digit',
+  });
+}
+
 function groupCommentsByDate(comments: TaskComment[]) {
   const groups: Array<{ date: string; items: TaskComment[] }> = [];
   let currentDate = '';
   for (const c of comments) {
-    const d = new Date(c.created_at).toLocaleDateString('en-US', {
-      day: 'numeric', month: 'short', year: '2-digit',
-    });
+    const d = formatCommentDate(c.created_at);
     if (d !== currentDate) {
       currentDate = d;
       groups.push({ date: d, items: [] });
@@ -36,6 +40,98 @@ function groupCommentsByDate(comments: TaskComment[]) {
     groups.at(-1)!.items.push(c);
   }
   return groups;
+}
+
+// Build a map of parent_comment_id → ordered children. Comments whose parent
+// is missing from the payload (orphans) are promoted to roots so they remain
+// visible. Roots live under the `null` key.
+function buildChildrenMap(comments: TaskComment[]) {
+  const ids = new Set(comments.map(c => c.id));
+  const map = new Map<string | null, TaskComment[]>();
+  for (const c of comments) {
+    const parent = c.parent_comment_id && ids.has(c.parent_comment_id)
+      ? c.parent_comment_id
+      : null;
+    const bucket = map.get(parent) ?? [];
+    bucket.push(c);
+    map.set(parent, bucket);
+  }
+  for (const bucket of map.values()) {
+    bucket.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+  return map;
+}
+
+// ── Comment Node ─────────────────────────────────────────────────────
+// Recursive renderer for a comment and its replies. Visual indent caps at
+// depth 4 so deep threads stay readable in the 360px sidebar; the data tree
+// itself nests arbitrarily.
+const MAX_INDENT_DEPTH = 4;
+
+function CommentNode({
+  comment, depth, childrenMap, onReply, parentDate,
+}: Readonly<{
+  comment: TaskComment;
+  depth: number;
+  childrenMap: Map<string | null, TaskComment[]>;
+  onReply: (c: TaskComment) => void;
+  parentDate: string;
+}>) {
+  const replies = childrenMap.get(comment.id) ?? [];
+  const visualDepth = Math.min(depth, MAX_INDENT_DEPTH);
+  const ownDate = formatCommentDate(comment.created_at);
+  const time = new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Replies inherit their root's date header, so when a reply crosses a day
+  // boundary relative to its parent, surface the date inline so readers
+  // don't misread the chronology.
+  const crossesDayBoundary = ownDate !== parentDate;
+  return (
+    <div
+      id={`comment-${comment.id}`}
+      style={{ marginLeft: visualDepth > 0 ? visualDepth * 16 : undefined }}
+      className={cn(
+        depth > 0 && 'border-l border-indigo-100 dark:border-indigo-900/50 pl-2',
+      )}
+    >
+      <div className="flex gap-2 mb-3">
+        <div className={cn(
+          'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
+          comment.sender_type === 'partner'
+            ? 'bg-ownership-partner-soft text-ownership-partner'
+            : 'bg-ownership-internal-soft text-ownership-internal',
+        )}>
+          {(comment.sender_name || '?').charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
+            <span className="text-[10px] text-muted-foreground">
+              {crossesDayBoundary ? `${ownDate} · ${time}` : time}
+            </span>
+            <button
+              type="button"
+              onClick={() => onReply(comment)}
+              className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+              aria-label={`Reply to ${comment.sender_name}`}
+            >
+              <Reply className="w-3 h-3" /> Reply
+            </button>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+        </div>
+      </div>
+      {replies.map(child => (
+        <CommentNode
+          key={child.id}
+          comment={child}
+          depth={depth + 1}
+          childrenMap={childrenMap}
+          onReply={onReply}
+          parentDate={ownDate}
+        />
+      ))}
+    </div>
+  );
 }
 
 // ── Field Card ───────────────────────────────────────────────────────
@@ -104,23 +200,41 @@ function FlagPillSwitch({
 // ── Conversations Panel ──────────────────────────────────────────────
 function ConversationsPanel({ comments, onPostComment }: Readonly<{
   comments: TaskComment[];
-  onPostComment: (body: string) => Promise<void>;
+  onPostComment: (body: string, parentCommentId?: string | null) => Promise<string | null | void>;
 }>) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
+  const [lastPostedId, setLastPostedId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const groups = groupCommentsByDate(comments);
+  const childrenMap = buildChildrenMap(comments);
+  const roots = childrenMap.get(null) ?? [];
+  const groups = groupCommentsByDate(roots);
 
+  // When a reply is posted to an older thread, the new node renders somewhere
+  // mid-panel rather than at the end. Scroll to the specific new comment when
+  // we know its id; otherwise fall back to the end-ref behavior so initial
+  // load and brand-new root comments still pin to the bottom.
   useEffect(() => {
+    if (lastPostedId) {
+      const el = document.getElementById(`comment-${lastPostedId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setLastPostedId(null);
+        return;
+      }
+    }
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments.length]);
+  }, [comments.length, lastPostedId]);
 
   const handleSend = async () => {
     if (!body.trim()) return;
     setSending(true);
     try {
-      await onPostComment(body.trim());
+      const newId = await onPostComment(body.trim(), replyingTo?.id ?? null);
       setBody('');
+      setReplyingTo(null);
+      if (typeof newId === 'string') setLastPostedId(newId);
     } finally {
       setSending(false);
     }
@@ -156,26 +270,15 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                 <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
               </div>
-              {group.items.map((cmt) => (
-                <div key={cmt.id} className="flex gap-2 mb-3">
-                  <div className={cn(
-                    'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
-                    cmt.sender_type === 'partner'
-                      ? 'bg-ownership-partner-soft text-ownership-partner'
-                      : 'bg-ownership-internal-soft text-ownership-internal',
-                  )}>
-                    {(cmt.sender_name || '?').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{cmt.body}</p>
-                  </div>
-                </div>
+              {group.items.map(root => (
+                <CommentNode
+                  key={root.id}
+                  comment={root}
+                  depth={0}
+                  childrenMap={childrenMap}
+                  onReply={setReplyingTo}
+                  parentDate={group.date}
+                />
               ))}
             </div>
           ))
@@ -184,12 +287,28 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
       </div>
 
       <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+        {replyingTo && (
+          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800/60 text-[11px] text-indigo-700 dark:text-indigo-300 w-fit max-w-full">
+            <Reply className="w-3 h-3 shrink-0" />
+            <span className="truncate">
+              Replying to <span className="font-semibold">{replyingTo.sender_name}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="ml-0.5 p-0.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800/60 transition-colors shrink-0"
+              aria-label="Cancel reply"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
           <textarea
             value={body}
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Type a message..."
+            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message...'}
             rows={1}
             className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
           />
@@ -655,9 +774,10 @@ export default function TaskDetailModal({
             {/* ── Right: Conversations ──────────────────────────── */}
             <ConversationsPanel
               comments={task.comments ?? []}
-              onPostComment={async (body) => {
-                await projectTasksAPI.postComment(projectId, taskId, body);
+              onPostComment={async (body, parentCommentId) => {
+                const res = await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
                 await loadTask();
+                return res.data?.id ?? null;
               }}
             />
           </div>

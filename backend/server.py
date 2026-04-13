@@ -101,6 +101,7 @@ async def _ensure_indexes():
         await db.partner_contacts.create_index([("partner_org_id", 1)])
         await db.task_attachments.create_index([("task_id", 1)])
         await db.task_comments.create_index([("task_id", 1), ("created_at", 1)])
+        await db.task_comments.create_index([("task_id", 1), ("parent_comment_id", 1)])
         # Phase 2 collections
         await db.email_reminders.create_index(
             [("task_id", 1), ("threshold_key", 1)], unique=True)

@@ -427,7 +427,10 @@ async def list_task_comments(
 @router.post(
     "/{task_id}/comments",
     summary="Post a comment on a task",
-    responses={404: {"description": TASK_NOT_FOUND}},
+    responses={
+        400: {"description": "Parent comment not found for this task"},
+        404: {"description": TASK_NOT_FOUND},
+    },
 )
 async def post_task_comment(
     project_id: str,
@@ -436,6 +439,16 @@ async def post_task_comment(
     user: CurrentUser,
 ):
     await _verify_task(project_id, task_id)
+    if data.parent_comment_id:
+        parent = await db.task_comments.find_one(
+            {"id": data.parent_comment_id, "task_id": task_id},
+            {"_id": 0, "id": 1},
+        )
+        if not parent:
+            raise HTTPException(
+                status_code=400,
+                detail="Parent comment not found for this task",
+            )
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -446,6 +459,7 @@ async def post_task_comment(
         "sender_name": user.get("name", "Unknown"),
         "sender_id": user.get("id", ""),
         "body": data.body,
+        "parent_comment_id": data.parent_comment_id,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)

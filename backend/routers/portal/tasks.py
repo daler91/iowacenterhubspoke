@@ -183,7 +183,11 @@ async def portal_task_comments(
 @router.post(
     "/projects/{project_id}/tasks/{task_id}/comments",
     summary="Partner posts a task comment",
-    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+    responses={
+        400: {"description": "Parent comment not found for this task"},
+        401: {"description": INVALID_TOKEN},
+        404: {"description": TASK_NOT_FOUND},
+    },
 )
 async def portal_post_task_comment(
     project_id: str, task_id: str, ctx: PortalContext,
@@ -191,6 +195,17 @@ async def portal_post_task_comment(
 ):
     await _require_partner_project(project_id, ctx)
     await _require_partner_task(task_id, project_id)
+
+    if data.parent_comment_id:
+        parent = await db.task_comments.find_one(
+            {"id": data.parent_comment_id, "task_id": task_id},
+            {"_id": 0, "id": 1},
+        )
+        if not parent:
+            raise HTTPException(
+                status_code=400,
+                detail="Parent comment not found for this task",
+            )
 
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -202,6 +217,7 @@ async def portal_post_task_comment(
         "sender_name": ctx["contact"]["name"],
         "sender_id": ctx["contact"]["id"],
         "body": data.body,
+        "parent_comment_id": data.parent_comment_id,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)
