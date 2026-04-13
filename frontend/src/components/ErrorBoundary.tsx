@@ -74,6 +74,16 @@ class ErrorBoundary extends React.Component<
         });
       }
       const chunkError = isChunkLoadError(this.state.error);
+      const heading = chunkError
+        ? "This page was updated."
+        : "Something went wrong.";
+      const body = chunkError
+        ? "A new version of the app is available. Reload to continue."
+        : this.state.error?.message ?? "An unexpected error occurred.";
+      const buttonLabel = chunkError ? "Reload now" : "Try again";
+      const handleClick = chunkError
+        ? () => window.location.reload()
+        : this.reset;
       return (
         <div
           className="p-6 m-4 border border-danger/30 bg-danger-soft rounded-lg"
@@ -86,22 +96,17 @@ class ErrorBoundary extends React.Component<
             />
             <div className="flex-1">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                {chunkError
-                  ? "This page was updated."
-                  : "Something went wrong."}
+                {heading}
               </h2>
               <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
-                {chunkError
-                  ? "A new version of the app is available. Reload to continue."
-                  : this.state.error?.message ||
-                    "An unexpected error occurred."}
+                {body}
               </p>
               <button
                 type="button"
-                onClick={chunkError ? () => window.location.reload() : this.reset}
+                onClick={handleClick}
                 className="mt-4 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium rounded-lg transition-colors"
               >
-                {chunkError ? "Reload now" : "Try again"}
+                {buttonLabel}
               </button>
             </div>
           </div>

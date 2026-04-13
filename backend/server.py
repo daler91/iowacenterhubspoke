@@ -621,6 +621,7 @@ elif (_static_dir / "assets").exists():
     # browser holding onto stale HTML after a deploy keeps requesting
     # chunk hashes that no longer exist, which is exactly how users end
     # up with "Failed to fetch dynamically imported module" on idle tabs.
+    _CACHE_CONTROL_HEADER = "Cache-Control"
     _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
     _HTML_CACHE = "no-cache"
 
@@ -633,12 +634,12 @@ elif (_static_dir / "assets").exists():
             if full_path.startswith("assets/"):
                 return FileResponse(
                     resolved,
-                    headers={"Cache-Control": _IMMUTABLE_CACHE},
+                    headers={_CACHE_CONTROL_HEADER: _IMMUTABLE_CACHE},
                 )
             if full_path == "index.html" or full_path.endswith(".html"):
                 return FileResponse(
                     resolved,
-                    headers={"Cache-Control": _HTML_CACHE},
+                    headers={_CACHE_CONTROL_HEADER: _HTML_CACHE},
                 )
             return FileResponse(resolved)
         # SPA fallback: serve index.html for unknown paths so client-side
@@ -647,5 +648,5 @@ elif (_static_dir / "assets").exists():
         # at stale chunk hashes.
         return FileResponse(
             str(_static_root_resolved / "index.html"),
-            headers={"Cache-Control": _HTML_CACHE},
+            headers={_CACHE_CONTROL_HEADER: _HTML_CACHE},
         )

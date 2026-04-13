@@ -16,29 +16,50 @@ const CHUNK_ERROR_MESSAGE_FRAGMENTS = [
   "error loading dynamically imported module",
 ];
 
-export function isChunkLoadError(err: unknown): boolean {
-  if (err === null || err === undefined) return false;
-  // webpack-style (harmless for Vite, but cheap to include)
-  if (
-    typeof err === "object" &&
-    "name" in err &&
-    (err as { name?: unknown }).name === "ChunkLoadError"
-  ) {
-    return true;
+function getErrorName(err: unknown): string {
+  if (err !== null && typeof err === "object" && "name" in err) {
+    const { name } = err as { name: unknown };
+    if (typeof name === "string") return name;
   }
-  const message =
-    typeof err === "string"
-      ? err
-      : typeof err === "object" &&
-          err !== null &&
-          "message" in err &&
-          typeof (err as { message?: unknown }).message === "string"
-        ? ((err as { message: string }).message)
-        : "";
+  return "";
+}
+
+function getErrorMessage(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err !== null && typeof err === "object" && "message" in err) {
+    const { message } = err as { message: unknown };
+    if (typeof message === "string") return message;
+  }
+  return "";
+}
+
+export function isChunkLoadError(err: unknown): boolean {
+  // webpack-style (harmless for Vite, but cheap to include).
+  if (getErrorName(err) === "ChunkLoadError") return true;
+  const message = getErrorMessage(err);
   if (!message) return false;
   return CHUNK_ERROR_MESSAGE_FRAGMENTS.some((fragment) =>
     message.includes(fragment),
   );
+}
+
+function readReloadGuard(): string | null {
+  try {
+    return window.sessionStorage.getItem(RELOAD_GUARD_KEY);
+  } catch (err) {
+    // Storage access can throw in private mode / disabled storage.
+    console.debug("chunkError: sessionStorage read failed", err);
+    return null;
+  }
+}
+
+function writeReloadGuard(): void {
+  try {
+    window.sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
+  } catch (err) {
+    // Non-fatal: we lose the one-reload guarantee but still recover.
+    console.debug("chunkError: sessionStorage write failed", err);
+  }
 }
 
 /**
@@ -49,23 +70,12 @@ export function isChunkLoadError(err: unknown): boolean {
  */
 export function reloadOnceForStaleChunk(): void {
   if (typeof window === "undefined") return;
-  try {
-    if (window.sessionStorage.getItem(RELOAD_GUARD_KEY) === "1") return;
-    window.sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
-  } catch {
-    // sessionStorage can throw in private mode / disabled storage — in
-    // that case we still try a single reload, but there's no guarantee
-    // against a loop. That's acceptable: the alternative is showing a
-    // broken page forever.
-  }
+  if (readReloadGuard() === "1") return;
+  writeReloadGuard();
   window.location.reload();
 }
 
 export function hasAttemptedChunkReload(): boolean {
   if (typeof window === "undefined") return false;
-  try {
-    return window.sessionStorage.getItem(RELOAD_GUARD_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return readReloadGuard() === "1";
 }
