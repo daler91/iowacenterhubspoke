@@ -61,13 +61,13 @@ function writeReloadGuard(): void {
  * ErrorBoundary render a recovery UI.
  */
 export function reloadOnceForStaleChunk(): void {
-  if (typeof globalThis.window === "undefined") return;
+  if (globalThis.window === undefined) return;
   if (readReloadGuard() === RELOAD_GUARD_VALUE) return;
   writeReloadGuard();
   globalThis.location.reload();
 }
 
 export function hasAttemptedChunkReload(): boolean {
-  if (typeof globalThis.window === "undefined") return false;
+  if (globalThis.window === undefined) return false;
   return readReloadGuard() === RELOAD_GUARD_VALUE;
 }
