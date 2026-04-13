@@ -427,7 +427,10 @@ async def list_task_comments(
 @router.post(
     "/{task_id}/comments",
     summary="Post a comment on a task",
-    responses={404: {"description": TASK_NOT_FOUND}},
+    responses={
+        400: {"description": "Parent comment not found for this task"},
+        404: {"description": TASK_NOT_FOUND},
+    },
 )
 async def post_task_comment(
     project_id: str,

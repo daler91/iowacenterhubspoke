@@ -183,7 +183,11 @@ async def portal_task_comments(
 @router.post(
     "/projects/{project_id}/tasks/{task_id}/comments",
     summary="Partner posts a task comment",
-    responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
+    responses={
+        400: {"description": "Parent comment not found for this task"},
+        401: {"description": INVALID_TOKEN},
+        404: {"description": TASK_NOT_FOUND},
+    },
 )
 async def portal_post_task_comment(
     project_id: str, task_id: str, ctx: PortalContext,

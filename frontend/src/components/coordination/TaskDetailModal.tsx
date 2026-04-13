@@ -22,13 +22,17 @@ import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 
 
+function formatCommentDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    day: 'numeric', month: 'short', year: '2-digit',
+  });
+}
+
 function groupCommentsByDate(comments: TaskComment[]) {
   const groups: Array<{ date: string; items: TaskComment[] }> = [];
   let currentDate = '';
   for (const c of comments) {
-    const d = new Date(c.created_at).toLocaleDateString('en-US', {
-      day: 'numeric', month: 'short', year: '2-digit',
-    });
+    const d = formatCommentDate(c.created_at);
     if (d !== currentDate) {
       currentDate = d;
       groups.push({ date: d, items: [] });
@@ -65,17 +69,25 @@ function buildChildrenMap(comments: TaskComment[]) {
 const MAX_INDENT_DEPTH = 4;
 
 function CommentNode({
-  comment, depth, childrenMap, onReply,
+  comment, depth, childrenMap, onReply, parentDate,
 }: Readonly<{
   comment: TaskComment;
   depth: number;
   childrenMap: Map<string | null, TaskComment[]>;
   onReply: (c: TaskComment) => void;
+  parentDate: string;
 }>) {
   const replies = childrenMap.get(comment.id) ?? [];
   const visualDepth = Math.min(depth, MAX_INDENT_DEPTH);
+  const ownDate = formatCommentDate(comment.created_at);
+  const time = new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Replies inherit their root's date header, so when a reply crosses a day
+  // boundary relative to its parent, surface the date inline so readers
+  // don't misread the chronology.
+  const crossesDayBoundary = ownDate !== parentDate;
   return (
     <div
+      id={`comment-${comment.id}`}
       style={{ marginLeft: visualDepth > 0 ? visualDepth * 16 : undefined }}
       className={cn(
         depth > 0 && 'border-l border-indigo-100 dark:border-indigo-900/50 pl-2',
@@ -94,7 +106,7 @@ function CommentNode({
           <div className="flex items-baseline gap-1.5">
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
             <span className="text-[10px] text-muted-foreground">
-              {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {crossesDayBoundary ? `${ownDate} · ${time}` : time}
             </span>
             <button
               type="button"
@@ -115,6 +127,7 @@ function CommentNode({
           depth={depth + 1}
           childrenMap={childrenMap}
           onReply={onReply}
+          parentDate={ownDate}
         />
       ))}
     </div>
@@ -187,27 +200,41 @@ function FlagPillSwitch({
 // ── Conversations Panel ──────────────────────────────────────────────
 function ConversationsPanel({ comments, onPostComment }: Readonly<{
   comments: TaskComment[];
-  onPostComment: (body: string, parentCommentId?: string | null) => Promise<void>;
+  onPostComment: (body: string, parentCommentId?: string | null) => Promise<string | null | void>;
 }>) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
+  const [lastPostedId, setLastPostedId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const childrenMap = buildChildrenMap(comments);
   const roots = childrenMap.get(null) ?? [];
   const groups = groupCommentsByDate(roots);
 
+  // When a reply is posted to an older thread, the new node renders somewhere
+  // mid-panel rather than at the end. Scroll to the specific new comment when
+  // we know its id; otherwise fall back to the end-ref behavior so initial
+  // load and brand-new root comments still pin to the bottom.
   useEffect(() => {
+    if (lastPostedId) {
+      const el = document.getElementById(`comment-${lastPostedId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setLastPostedId(null);
+        return;
+      }
+    }
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments.length]);
+  }, [comments.length, lastPostedId]);
 
   const handleSend = async () => {
     if (!body.trim()) return;
     setSending(true);
     try {
-      await onPostComment(body.trim(), replyingTo?.id ?? null);
+      const newId = await onPostComment(body.trim(), replyingTo?.id ?? null);
       setBody('');
       setReplyingTo(null);
+      if (typeof newId === 'string') setLastPostedId(newId);
     } finally {
       setSending(false);
     }
@@ -250,6 +277,7 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                   depth={0}
                   childrenMap={childrenMap}
                   onReply={setReplyingTo}
+                  parentDate={group.date}
                 />
               ))}
             </div>
@@ -708,8 +736,9 @@ export default function TaskDetailModal({
             <ConversationsPanel
               comments={task.comments ?? []}
               onPostComment={async (body, parentCommentId) => {
-                await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
+                const res = await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
                 await loadTask();
+                return res.data?.id ?? null;
               }}
             />
           </div>
