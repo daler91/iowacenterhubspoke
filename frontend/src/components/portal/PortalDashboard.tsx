@@ -178,7 +178,7 @@ export default function PortalDashboard() {
   }
 
   return (
-    <PortalLayout org={org} contact={contact} activeTab={activeTab} onTabChange={setActiveTab}>
+    <PortalLayout org={org} contact={contact} activeTab={activeTab} onTabChange={setActiveTab} token={token}>
       {/* Overview Tab */}
       {activeTab === 'overview' && dashboardData && (
         <div>

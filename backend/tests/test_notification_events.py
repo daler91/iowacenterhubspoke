@@ -32,15 +32,19 @@ from services import notification_events as events_mod  # noqa: E402
 from services.notification_events import (  # noqa: E402
     make_event,
     notify_new_user_pending,
+    notify_project_deleted,
     notify_project_document_shared,
     notify_project_message,
     notify_project_phase_advanced,
     notify_role_changed,
     notify_schedule_assigned,
+    notify_schedule_bulk_location_changed,
+    notify_schedule_bulk_status_changed,
     notify_schedule_changed,
     notify_task_assigned,
     notify_task_comment,
     notify_task_completed,
+    notify_task_deleted,
 )
 from services.notification_prefs import Principal  # noqa: E402
 
@@ -90,6 +94,18 @@ class _FakeComments:
         if query.get("sender_id", {}).get("$ne"):
             excl = query["sender_id"]["$ne"]
             filtered = [d for d in filtered if d.get("sender_id") != excl]
+        return _AsyncListCursor(filtered)
+
+
+class _FakePrincipalColl:
+    """Stand-in for ``db.users`` / ``db.partner_contacts`` batch lookups."""
+
+    def __init__(self, docs):
+        self._docs = docs
+
+    def find(self, query, projection=None):
+        id_filter = query.get("id", {}).get("$in", [])
+        filtered = [d for d in self._docs if d.get("id") in id_filter]
         return _AsyncListCursor(filtered)
 
 
@@ -297,19 +313,25 @@ async def test_task_comment_notifies_assignee_and_prior_commenters(
 ):
     # Assignee
     stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane", "jane@x.com")
-    # Prior commenters on this task
-    stub_recipient_helpers["by_id"][("internal", "u-pete")] = _internal("u-pete")
-    stub_recipient_helpers["by_id"][("partner", "c-liz")] = _partner("c-liz")
 
-    # Stub the task_comments collection
+    # Stub every collection the helper touches. Commenter resolution is
+    # now batched (one find() per kind), so we stub both principal tables.
     fake_comments = _FakeComments([
         {"sender_id": "u-pete", "sender_type": "internal"},
         {"sender_id": "c-liz", "sender_type": "partner"},
         {"sender_id": "u-actor", "sender_type": "internal"},  # excluded by query
     ])
+    fake_users = _FakePrincipalColl([
+        {"id": "u-pete", "email": "pete@x.com", "name": "Pete", "role": "editor"},
+    ])
+    fake_contacts = _FakePrincipalColl([
+        {"id": "c-liz", "email": "liz@p.com", "name": "Liz"},
+    ])
 
     class _DB:
         task_comments = fake_comments
+        users = fake_users
+        partner_contacts = fake_contacts
 
     monkeypatch.setattr(events_mod, "db", _DB)
 
@@ -335,6 +357,8 @@ async def test_task_comment_truncates_long_body_in_preview(
 
     class _DB:
         task_comments = _FakeComments([])
+        users = _FakePrincipalColl([])
+        partner_contacts = _FakePrincipalColl([])
 
     monkeypatch.setattr(events_mod, "db", _DB)
 
@@ -560,6 +584,91 @@ async def test_new_user_pending_noop_with_no_admins(
     stub_recipient_helpers["admins"] = []
     await notify_new_user_pending({"id": "u", "name": "N", "email": "e@x.com"})
     assert capture_dispatch == []
+
+
+# ── notify_task_deleted ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_task_deleted_notifies_assignee_plus_project(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane", "jane@x.com")
+    stub_recipient_helpers["project_principals"] = [_internal("u-alice")]
+
+    task = {"id": "t-1", "title": "Draft", "assignee_email": "jane@x.com"}
+    project = {"id": "p-1", "title": "Kickoff"}
+    actor = {"id": "u-actor", "name": "Actor"}
+
+    await notify_task_deleted(task, project, actor)
+
+    ids = {p.id for p, _ in capture_dispatch}
+    # Assignee + project member, actor excluded
+    assert ids == {"u-jane", "u-alice"}
+    _, ev = capture_dispatch[0]
+    assert ev.type_key == "task.deleted"
+    assert ev.severity == "warning"
+    assert ev.dedup_key == "t-1:deleted"
+
+
+# ── notify_project_deleted ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_project_deleted_notifies_all_stakeholders(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["project_principals"] = [
+        _internal("u-a"), _partner("c-b"),
+    ]
+    project = {"id": "p-1", "title": "Launch"}
+    actor = {"id": "u-x", "name": "X"}
+    await notify_project_deleted(project, actor)
+
+    assert len(capture_dispatch) == 2
+    _, ev = capture_dispatch[0]
+    assert ev.type_key == "project.deleted"
+    assert ev.severity == "warning"
+    assert ev.dedup_key == "p-1:deleted"
+
+
+# ── notify_schedule_bulk_status_changed ──────────────────────────────
+
+@pytest.mark.asyncio
+async def test_schedule_bulk_status_dispatches_per_assigned_employee(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["by_employee"]["emp-1"] = _internal("u-1")
+    schedule = {
+        "id": "s-1", "employee_ids": ["emp-1"],
+        "location_name": "L", "date": "2026-05-01",
+    }
+    await notify_schedule_bulk_status_changed(
+        schedule, "completed", {"id": "u-x", "name": "X"},
+    )
+    assert len(capture_dispatch) == 1
+    _, ev = capture_dispatch[0]
+    assert ev.type_key == "schedule.bulk_status_changed"
+    assert ev.dedup_key == "s-1:status:completed"
+
+
+# ── notify_schedule_bulk_location_changed ────────────────────────────
+
+@pytest.mark.asyncio
+async def test_schedule_bulk_location_uses_warning_severity(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["by_employee"]["emp-1"] = _internal("u-1")
+    schedule = {
+        "id": "s-1", "employee_ids": ["emp-1"],
+        "location_name": "Old Town", "date": "2026-05-01",
+    }
+    await notify_schedule_bulk_location_changed(
+        schedule, "New Town", {"id": "u-x", "name": "X"},
+    )
+    assert len(capture_dispatch) == 1
+    _, ev = capture_dispatch[0]
+    assert ev.severity == "warning"
+    assert "New Town" in ev.body
+    assert ev.dedup_key == "s-1:location:New Town"
 
 
 # ── Error containment ───────────────────────────────────────────────

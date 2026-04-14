@@ -77,11 +77,26 @@ async def reject_user(user_id: str, user: AdminRequired):
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     if target.get("role") == ROLE_ADMIN:
         raise HTTPException(status_code=400, detail="Cannot reject an admin user")
+    was_pending = target.get("status") != USER_STATUS_REJECTED
     await db.users.update_one(
         {"id": user_id},
         {"$set": {"status": USER_STATUS_REJECTED}}
     )
     logger.info(f"User {user_id} rejected by {user['email']}")
+    # Transactional courtesy email — non-fatal on failure. Only send on
+    # the meaningful transition, not idempotent re-rejections.
+    if was_pending:
+        try:
+            from services.email import send_account_rejected
+            await send_account_rejected(
+                to=target["email"],
+                name=target.get("name", ""),
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to send rejection email to %s: %s",
+                target["email"], e,
+            )
     return {"message": "User rejected"}
 
 

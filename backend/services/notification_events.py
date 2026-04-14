@@ -242,6 +242,57 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
     await _fan_out([principal], event, log_key="task.assigned_to_you")
 
 
+async def notify_task_deleted(task: dict, project: dict, actor: dict) -> None:
+    """Fire ``task.deleted`` for assignee + project stakeholders.
+
+    The task no longer exists in the database by the time the notification
+    fires, so the link points at the parent project page.
+    """
+    actor_id = actor.get("id") or actor.get("user_id") or ""
+    recipients: list[Principal] = []
+    seen_ids: set[str] = {actor_id}
+
+    # Assignee — skip silently if we can't resolve
+    email = _email_from_task_assignment(task)
+    if email:
+        assignee = await find_principal_by_email(email)
+        if assignee is not None and assignee.id not in seen_ids:
+            recipients.append(assignee)
+            seen_ids.add(assignee.id)
+
+    # Add project stakeholders (deduped against the assignee)
+    project_folks = await principals_for_project(
+        project_id=project.get("id", ""),
+        exclude_ids=seen_ids,
+    )
+    recipients.extend(project_folks)
+
+    if not recipients:
+        return
+
+    title = task.get("title", "a task")
+    project_title = project.get("title", "a project")
+    actor_name = _actor_name(actor)
+    link = _app_link(f"/coordination/projects/{project.get('id', '')}")
+
+    event = make_event(
+        type_key="task.deleted",
+        title=f'{actor_name} deleted: "{title}"',
+        body=f'{actor_name} deleted the task "{title}" from project "{project_title}".',
+        email_body_html=(
+            f"{escape(actor_name)} deleted the task <strong>{escape(title)}</strong> "
+            f"from project <strong>{escape(project_title)}</strong>. "
+            f'<a href="{escape(link)}">Open project</a>'
+        ),
+        link=link,
+        entity_type="task",
+        entity_id=task.get("id"),
+        severity="warning",
+        dedup_key=f"{task.get('id', '')}:deleted",
+    )
+    await _fan_out(recipients, event, log_key="task.deleted")
+
+
 async def notify_task_completed(task: dict, project: dict, actor: dict) -> None:
     """Fire ``task.completed`` for project stakeholders (minus the actor)."""
     recipients = await principals_for_project(
@@ -289,22 +340,46 @@ async def notify_task_comment(
             recipients.append(assignee)
             seen_ids.add(assignee.id)
 
-    # Prior commenters — distinct, excluding the actor
+    # Prior commenters — distinct, excluding the actor. Distinct IDs first,
+    # then batch-load per kind so a long thread doesn't mean N DB round-trips.
     prior = await db.task_comments.find(
         {"task_id": task.get("id"), "sender_id": {"$ne": actor_id}},
         {"_id": 0, "sender_id": 1, "sender_type": 1},
     ).to_list(200)
+    ids_by_kind: dict[str, set[str]] = {"internal": set(), "partner": set()}
     for c in prior:
         sender_id = c.get("sender_id") or ""
         if not sender_id or sender_id in seen_ids:
             continue
         kind = c.get("sender_type") or "internal"
-        if kind not in ("internal", "partner"):
+        if kind not in ids_by_kind:
             continue
-        p = await load_principal(kind, sender_id)  # type: ignore[arg-type]
-        if p is not None:
-            recipients.append(p)
-            seen_ids.add(sender_id)
+        ids_by_kind[kind].add(sender_id)
+
+    for kind, id_set in ids_by_kind.items():
+        if not id_set:
+            continue
+        coll = db.users if kind == "internal" else db.partner_contacts
+        proj = (
+            {"_id": 0, "password_hash": 0} if kind == "internal" else {"_id": 0}
+        )
+        query: dict = {"id": {"$in": list(id_set)}}
+        if kind == "partner":
+            query["deleted_at"] = None
+        docs = await coll.find(query, proj).to_list(len(id_set))
+        for d in docs:
+            pid = d.get("id") or ""
+            if pid in seen_ids:
+                continue
+            recipients.append(Principal(
+                kind=kind,  # type: ignore[arg-type]
+                id=pid,
+                email=d.get("email"),
+                name=d.get("name"),
+                role=d.get("role") if kind == "internal" else None,
+                prefs=d.get("notification_preferences") or {},
+            ))
+            seen_ids.add(pid)
 
     if not recipients:
         return
@@ -365,6 +440,41 @@ async def notify_project_phase_advanced(
         dedup_key=f"{project.get('id', '')}:phase:{new_phase}",
     )
     await _fan_out(recipients, event, log_key="project.phase_advanced")
+
+
+async def notify_project_deleted(project: dict, actor: dict) -> None:
+    """Fire ``project.deleted`` for all project stakeholders.
+
+    The project row is typically soft-deleted; the deep-link goes to the
+    projects list (the detail page would 404).
+    """
+    recipients = await principals_for_project(
+        project_id=project.get("id", ""),
+        exclude_ids={actor.get("id") or actor.get("user_id") or ""},
+    )
+    if not recipients:
+        return
+
+    project_title = project.get("title", "a project")
+    actor_name = _actor_name(actor)
+    link = _app_link("/coordination")
+
+    event = make_event(
+        type_key="project.deleted",
+        title=f"{project_title}: deleted",
+        body=f'{actor_name} deleted the project "{project_title}".',
+        email_body_html=(
+            f"{escape(actor_name)} deleted the project "
+            f"<strong>{escape(project_title)}</strong>. "
+            f'<a href="{escape(link)}">Open coordination</a>'
+        ),
+        link=link,
+        entity_type="project",
+        entity_id=project.get("id"),
+        severity="warning",
+        dedup_key=f"{project.get('id', '')}:deleted",
+    )
+    await _fan_out(recipients, event, log_key="project.deleted")
 
 
 async def notify_project_message(
@@ -533,6 +643,82 @@ async def notify_schedule_changed(
         await _fan_out([principal], event, log_key="schedule.changed")
 
 
+async def notify_schedule_bulk_status_changed(
+    schedule: dict, new_status: str, actor: dict,
+) -> None:
+    """Fire ``schedule.bulk_status_changed`` for each assigned employee."""
+    employee_ids = schedule.get("employee_ids") or []
+    if not employee_ids:
+        return
+    actor_name = _actor_name(actor)
+    location = schedule.get("location_name") or "a class"
+    date = schedule.get("date", "")
+    link = _app_link("/calendar")
+    label = new_status.replace("_", " ")
+
+    for emp_id in employee_ids:
+        principal = await principal_for_employee(emp_id)
+        if principal is None:
+            continue
+        event = make_event(
+            type_key="schedule.bulk_status_changed",
+            title=f"{location} on {date}: {label}",
+            body=(
+                f'{actor_name} marked your class at {location} on {date} '
+                f'as "{label}".'
+            ),
+            email_body_html=(
+                f"{escape(actor_name)} marked your class at "
+                f"<strong>{escape(location)}</strong> on "
+                f"<strong>{escape(date)}</strong> as "
+                f"<em>{escape(label)}</em>. "
+                f'<a href="{escape(link)}">Open calendar</a>'
+            ),
+            link=link,
+            entity_type="schedule",
+            entity_id=schedule.get("id"),
+            dedup_key=f"{schedule.get('id', '')}:status:{new_status}",
+        )
+        await _fan_out([principal], event, log_key="schedule.bulk_status_changed")
+
+
+async def notify_schedule_bulk_location_changed(
+    schedule: dict, new_location_name: str, actor: dict,
+) -> None:
+    """Fire ``schedule.bulk_location_changed`` for each assigned employee."""
+    employee_ids = schedule.get("employee_ids") or []
+    if not employee_ids:
+        return
+    actor_name = _actor_name(actor)
+    date = schedule.get("date", "")
+    link = _app_link("/calendar")
+
+    for emp_id in employee_ids:
+        principal = await principal_for_employee(emp_id)
+        if principal is None:
+            continue
+        event = make_event(
+            type_key="schedule.bulk_location_changed",
+            title=f"Moved to {new_location_name} on {date}",
+            body=(
+                f'{actor_name} moved your class on {date} to '
+                f'{new_location_name}.'
+            ),
+            email_body_html=(
+                f"{escape(actor_name)} moved your class on "
+                f"<strong>{escape(date)}</strong> to "
+                f"<strong>{escape(new_location_name)}</strong>. "
+                f'<a href="{escape(link)}">Open calendar</a>'
+            ),
+            link=link,
+            entity_type="schedule",
+            entity_id=schedule.get("id"),
+            severity="warning",
+            dedup_key=f"{schedule.get('id', '')}:location:{new_location_name}",
+        )
+        await _fan_out([principal], event, log_key="schedule.bulk_location_changed")
+
+
 # ── Account / Admin events ────────────────────────────────────────────
 
 async def notify_role_changed(
@@ -597,12 +783,16 @@ __all__ = [
     # Event helpers (one per registry key)
     "notify_task_assigned",
     "notify_task_completed",
+    "notify_task_deleted",
     "notify_task_comment",
     "notify_project_phase_advanced",
+    "notify_project_deleted",
     "notify_project_message",
     "notify_project_document_shared",
     "notify_schedule_assigned",
     "notify_schedule_changed",
+    "notify_schedule_bulk_status_changed",
+    "notify_schedule_bulk_location_changed",
     "notify_role_changed",
     "notify_new_user_pending",
     # Extension-point utilities (use these when adding a new notify_* helper)

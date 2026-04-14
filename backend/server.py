@@ -135,6 +135,25 @@ async def _ensure_indexes():
              ("type_key", 1), ("channel", 1), ("dedup_key", 1)],
             unique=True,
         )
+        # TTL cleanup for notification subsystem — prevents unbounded growth.
+        # - Inbox items: keep 1 year (plenty for user history, short enough
+        #   that a user can still see old context but we don't hoard forever).
+        # - Dedup ledger: keep 90 days (well past any reasonable re-trigger
+        #   window for cron-driven reminders).
+        # - Queue failures: keep 30 days (digest runs hourly, anything still
+        #   unsent after 30d is lost to ops; leaving it longer just bloats).
+        await db.notifications.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 365,
+            partialFilterExpression={"created_at_date": {"$exists": True}},
+        )
+        await db.notifications_sent.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 90,
+            partialFilterExpression={"created_at_date": {"$exists": True}},
+        )
+        await db.notification_queue.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 30,
+            partialFilterExpression={"created_at_date": {"$exists": True}},
+        )
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")

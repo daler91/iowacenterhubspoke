@@ -100,6 +100,10 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
           ? await portalAPI.updateNotificationPrefs(portalToken, body)
           : await notificationPreferencesAPI.update(body);
         setData(res.data as NotificationPrefsResponse);
+        // Quiet success — a noisy toast on every dropdown change is
+        // annoying, but silent save makes users wonder if it stuck. This
+        // middle-ground uses a short toast with the built-in dedup id.
+        toast.success('Preferences saved', { id: 'notification-prefs-saved' });
       } catch (err: unknown) {
         toast.error(extractErrorMessage(err, 'Failed to save preferences'));
       } finally {

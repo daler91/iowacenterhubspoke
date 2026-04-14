@@ -18,6 +18,8 @@ from core.auth import SchedulerRequired
 from services.activity import log_activity
 from services.notification_events import (
     notify_schedule_assigned,
+    notify_schedule_bulk_location_changed,
+    notify_schedule_bulk_status_changed,
     notify_schedule_changed,
 )
 from core.constants import (
@@ -83,6 +85,12 @@ async def bulk_update_status(
         STATUS_COMPLETED,
     ]:
         raise HTTPException(status_code=400, detail="Invalid status")
+    # Snapshot affected schedules before the update so we can notify each
+    # schedule's employees. Only includes not-already-in-this-status rows.
+    affected = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None, "status": {"$ne": data.status}},
+        {"_id": 0},
+    ).to_list(1000)
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {"$set": {"status": data.status}},
@@ -105,6 +113,8 @@ async def bulk_update_status(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        for s in affected:
+            await notify_schedule_bulk_status_changed(s, data.status, user)
     return {"updated_count": updated_count}
 
 
@@ -290,6 +300,10 @@ async def bulk_update_location(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        for s in schedules:
+            await notify_schedule_bulk_location_changed(
+                s, location["city_name"], user,
+            )
     return {"updated_count": updated_count}
 
 

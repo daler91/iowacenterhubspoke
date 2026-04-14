@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PartnerOrg, PartnerContact } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
+import PortalNotificationsPanel from './PortalNotificationsPanel';
 
 interface Props {
   readonly org: PartnerOrg;
@@ -8,6 +9,8 @@ interface Props {
   readonly activeTab: string;
   readonly onTabChange: (tab: string) => void;
   readonly children: ReactNode;
+  /** Magic-link token — when set, shows the notifications bell. */
+  readonly token?: string;
 }
 
 const TABS = [
@@ -26,7 +29,9 @@ const TABS = [
  * instead of overflowing, and content has fluid padding (16px phone →
  * 24px tablet → 32px desktop).
  */
-export default function PortalLayout({ org, contact, activeTab, onTabChange, children }: Props) {
+export default function PortalLayout({
+  org, contact, activeTab, onTabChange, children, token,
+}: Props) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
@@ -39,6 +44,12 @@ export default function PortalLayout({ org, contact, activeTab, onTabChange, chi
             <p className="text-xs sm:text-sm text-slate-500 truncate">{org.community}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {token && (
+              <PortalNotificationsPanel
+                token={token}
+                onOpenSettings={() => onTabChange('settings')}
+              />
+            )}
             <div
               className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm"
               aria-hidden="true"

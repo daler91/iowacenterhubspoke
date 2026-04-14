@@ -1,4 +1,5 @@
 import os
+from html import escape
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -178,13 +179,33 @@ async def send_account_approved(
 ) -> bool:
     """Notify a user that their pending account has been approved."""
     subject = "Your Iowa Center Hub account is approved"
-    display_name = name or "there"
+    display_name = escape(name) if name else "there"
     body = (
         f"<p>Hi {display_name},</p>"
         f"<p>Good news — an administrator has approved your Iowa Center Hub "
         f"account. You can sign in any time using the button below.</p>"
-        f"<p><a href=\"{login_url}\" "
+        f"<p><a href=\"{escape(login_url)}\" "
         f"style=\"{_BUTTON_STYLE}\">Sign In</a></p>"
+        f"{_SIGNATURE}"
+    )
+    return await send_email(to, subject, body)
+
+
+async def send_account_rejected(to: str, name: str) -> bool:
+    """Notify a user that their pending registration was declined.
+
+    Transactional — kept short and respectful. No link (there's no next
+    step for them in the app); we direct them to reach out to an admin.
+    """
+    subject = "Update on your Iowa Center Hub registration"
+    display_name = escape(name) if name else "there"
+    body = (
+        f"<p>Hi {display_name},</p>"
+        f"<p>Thanks for your interest in the Iowa Center Hub. After review, "
+        f"an administrator has declined your registration request.</p>"
+        f"<p>If you believe this was a mistake or you'd like more context, "
+        f"please reply to this email or reach out to your Iowa Center "
+        f"contact directly.</p>"
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
@@ -222,7 +243,7 @@ def _settings_footer() -> str:
     return (
         f"<p style=\"color:#9ca3af;font-size:12px;margin-top:24px;\">"
         f"You're receiving this because of your notification preferences. "
-        f"<a href=\"{app_url}/settings\" style=\"color:#6b7280;\">Manage "
+        f"<a href=\"{escape(app_url)}/settings\" style=\"color:#6b7280;\">Manage "
         f"notifications</a>."
         f"</p>"
     )
@@ -238,10 +259,15 @@ async def send_notification_email(
     instant email delivery of a given type. The caller supplies a
     user-friendly ``title`` and pre-rendered ``body_html``; we wrap them in
     the shared header/footer.
+
+    ``name`` and ``link`` are caller-supplied strings that could contain
+    HTML metacharacters; we escape them before embedding. ``body_html`` is
+    the dispatcher's rendered HTML and is assumed pre-escaped by the caller
+    (``make_event`` + per-helper HTML uses ``html.escape`` consistently).
     """
-    display_name = name or "there"
+    display_name = escape(name) if name else "there"
     cta = (
-        f"<p><a href=\"{link}\" style=\"{_BUTTON_STYLE}\">View details</a></p>"
+        f"<p><a href=\"{escape(link)}\" style=\"{_BUTTON_STYLE}\">View details</a></p>"
         if link else ""
     )
     body = (
@@ -266,22 +292,24 @@ async def send_digest_email(
     if not items:
         return True  # nothing to send — treat as success so we clear state
 
-    display_name = name or "there"
+    display_name = escape(name) if name else "there"
     label = "daily" if frequency == "daily" else "weekly"
     subject = f"Your {label} Iowa Center Hub digest ({len(items)} update"
     if len(items) != 1:
         subject += "s"
     subject += ")"
 
+    # Digest item fields come from NotificationEvent.title/body (plaintext)
+    # and .link (URL). All need escaping before embedding in HTML.
     rows = []
     for item in items:
-        title = item.get("title", "")
-        body = item.get("body", "")
+        title = escape(str(item.get("title", "")))
+        body = escape(str(item.get("body", "")))
         link = item.get("link")
         if link:
             link_html = (
                 "<p style=\"margin:6px 0 0 0;font-size:13px;\">"
-                f"<a href=\"{link}\" style=\"color:#4F46E5;\">View</a>"
+                f"<a href=\"{escape(str(link))}\" style=\"color:#4F46E5;\">View</a>"
                 "</p>"
             )
         else:

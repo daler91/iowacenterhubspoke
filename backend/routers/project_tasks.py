@@ -17,6 +17,7 @@ from services.notification_events import (
     notify_task_assigned,
     notify_task_comment,
     notify_task_completed,
+    notify_task_deleted,
 )
 from core.logger import get_logger
 
@@ -320,6 +321,11 @@ async def reorder_tasks(
 async def delete_task(
     project_id: str, task_id: str, user: CurrentUser,
 ):
+    # Snapshot the task + project BEFORE delete so the notification has
+    # enough context (title, assignee) to render something useful.
+    task_snapshot = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id}, {"_id": 0},
+    )
     result = await db.tasks.delete_one(
         {"id": task_id, "project_id": project_id},
     )
@@ -332,6 +338,11 @@ async def delete_task(
         "task_deleted", f"Task '{task_id}' deleted",
         "task", task_id, user.get("name", "System"),
     )
+    if task_snapshot:
+        project = await db.projects.find_one(
+            {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+        ) or {"id": project_id}
+        await notify_task_deleted(task_snapshot, project, user)
     return {"message": "Task deleted"}
 
 
