@@ -209,3 +209,101 @@ async def send_password_reset(
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
+
+
+def _settings_footer() -> str:
+    """HTML footer linking recipients to their notification settings.
+
+    Keeping this in one place means every notification email has a
+    consistent unsubscribe/manage-preferences path, which both matches user
+    expectations and helps keep deliverability healthy.
+    """
+    app_url = resolve_app_url().rstrip("/")
+    return (
+        f"<p style=\"color:#9ca3af;font-size:12px;margin-top:24px;\">"
+        f"You're receiving this because of your notification preferences. "
+        f"<a href=\"{app_url}/settings\" style=\"color:#6b7280;\">Manage "
+        f"notifications</a>."
+        f"</p>"
+    )
+
+
+async def send_notification_email(
+    to: str, name: str, title: str, body_html: str,
+    link: str | None = None,
+) -> bool:
+    """Send an instant notification email.
+
+    Called by the notification dispatcher when the recipient has asked for
+    instant email delivery of a given type. The caller supplies a
+    user-friendly ``title`` and pre-rendered ``body_html``; we wrap them in
+    the shared header/footer.
+    """
+    display_name = name or "there"
+    cta = (
+        f"<p><a href=\"{link}\" style=\"{_BUTTON_STYLE}\">View details</a></p>"
+        if link else ""
+    )
+    body = (
+        f"<p>Hi {display_name},</p>"
+        f"<p>{body_html}</p>"
+        f"{cta}"
+        f"{_SIGNATURE}"
+        f"{_settings_footer()}"
+    )
+    return await send_email(to, title, body)
+
+
+async def send_digest_email(
+    to: str, name: str, frequency: str, items: list[dict],
+) -> bool:
+    """Send a grouped digest of queued notifications.
+
+    ``items`` is a list of dicts with at least ``title`` / ``body`` and
+    optionally ``link``. One email per recipient per digest run; the digest
+    worker deletes the queued rows on success.
+    """
+    if not items:
+        return True  # nothing to send — treat as success so we clear state
+
+    display_name = name or "there"
+    label = "daily" if frequency == "daily" else "weekly"
+    subject = f"Your {label} Iowa Center Hub digest ({len(items)} update"
+    if len(items) != 1:
+        subject += "s"
+    subject += ")"
+
+    rows = []
+    for item in items:
+        title = item.get("title", "")
+        body = item.get("body", "")
+        link = item.get("link")
+        if link:
+            link_html = (
+                "<p style=\"margin:6px 0 0 0;font-size:13px;\">"
+                f"<a href=\"{link}\" style=\"color:#4F46E5;\">View</a>"
+                "</p>"
+            )
+        else:
+            link_html = ""
+        rows.append(
+            "<tr>"
+            "<td style=\"padding:12px 0;border-bottom:1px solid #e5e7eb;\">"
+            "<p style=\"margin:0 0 4px 0;font-weight:600;color:#111827;\">"
+            f"{title}</p>"
+            "<p style=\"margin:0;color:#4b5563;font-size:14px;\">"
+            f"{body}</p>"
+            f"{link_html}"
+            "</td>"
+            "</tr>"
+        )
+    body_html = (
+        f"<p>Hi {display_name},</p>"
+        f"<p>Here's your {label} round-up from the Iowa Center Hub:</p>"
+        f"<table style=\"width:100%;border-collapse:collapse;\">"
+        f"{''.join(rows)}"
+        f"</table>"
+        f"{_SIGNATURE}"
+        f"{_settings_footer()}"
+    )
+    return await send_email(to, subject, body_html)

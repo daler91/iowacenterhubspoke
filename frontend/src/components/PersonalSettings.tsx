@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { User, Lock, Calendar, Mail, Unlink, Info } from 'lucide-react';
+import { User, Lock, Calendar, Mail, Unlink, Info, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { authAPI, employeesAPI, systemAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { extractErrorMessage } from '../lib/types';
 import type { LinkedEmployee } from '../lib/types';
+import NotificationPreferences from './NotificationPreferences';
 
 export default function PersonalSettings() {
   const { user } = useAuth();
@@ -365,6 +366,18 @@ export default function PersonalSettings() {
         </div>
 
         {renderCalendarContent()}
+      </div>
+
+      {/* Notification Preferences */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+        <div className="flex items-center gap-3 mb-1">
+          <Bell className="w-5 h-5 text-indigo-600" />
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Notifications</h3>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-muted-foreground mb-4">
+          Choose which notifications you receive and how.
+        </p>
+        <NotificationPreferences mode="internal" />
       </div>
     </div>
   );

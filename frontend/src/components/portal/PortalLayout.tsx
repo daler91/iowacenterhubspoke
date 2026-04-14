@@ -15,6 +15,7 @@ const TABS = [
   { id: 'tasks', label: 'Your Tasks' },
   { id: 'documents', label: 'Documents' },
   { id: 'messages', label: 'Messages' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 /**

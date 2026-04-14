@@ -37,6 +37,7 @@ from routers import (  # noqa: E402
     partner_orgs, projects, project_tasks, project_docs,
     project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
+    notification_preferences,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
@@ -119,6 +120,21 @@ async def _ensure_indexes():
         await db.messages.create_index([("project_id", 1), ("created_at", -1)])
         await db.portal_tokens.create_index("token", unique=True)
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # Notification subsystem
+        await db.notifications.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("created_at", -1)],
+        )
+        await db.notifications.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("read_at", 1), ("dismissed_at", 1)],
+        )
+        await db.notification_queue.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("frequency", 1), ("sent_at", 1)],
+        )
+        await db.notifications_sent.create_index(
+            [("principal_kind", 1), ("principal_id", 1),
+             ("type_key", 1), ("channel", 1), ("dedup_key", 1)],
+            unique=True,
+        )
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
@@ -525,6 +541,7 @@ api_router.include_router(exports.router)
 api_router.include_router(event_outcomes.router)
 api_router.include_router(promotion_checklist.router)
 api_router.include_router(webhooks.router)
+api_router.include_router(notification_preferences.router)
 
 
 @api_router.get("/health", tags=["system"])
