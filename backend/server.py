@@ -617,11 +617,44 @@ elif (_static_dir / "assets").exists():
                 rel = p.relative_to(_static_root_resolved).as_posix()
                 _allowed_files[rel] = str(p)
 
+    # Hashed Vite chunks are content-addressed; everything under /assets
+    # can be cached forever. index.html must NOT be cached — otherwise a
+    # browser holding onto stale HTML after a deploy keeps requesting
+    # chunk hashes that no longer exist, which is exactly how users end
+    # up with "Failed to fetch dynamically imported module" on idle tabs.
+    _CACHE_CONTROL_HEADER = "Cache-Control"
+    _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+    _HTML_CACHE = "no-cache"
+
+    _INDEX_HTML_PATH = str(_static_root_resolved / "index.html")
+
+    def _cache_for(full_path: str, resolved: str | None) -> str | None:
+        """Return the Cache-Control value for a served path, or None.
+
+        index.html (and the SPA fallback, which serves it) must revalidate
+        on every request so a new deploy is picked up immediately. Hashed
+        /assets/ files are content-addressed and safe to cache forever.
+        """
+        if (
+            resolved is None
+            or full_path == "index.html"
+            or full_path.endswith(".html")
+        ):
+            return _HTML_CACHE
+        if full_path.startswith("assets/"):
+            return _IMMUTABLE_CACHE
+        return None
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         # Look up the request path in the pre-built allow-set.
         # No user input is ever joined to a filesystem path.
         resolved = _allowed_files.get(full_path)
-        if resolved is not None:
-            return FileResponse(resolved)
-        return FileResponse(str(_static_root_resolved / "index.html"))
+        target = resolved if resolved is not None else _INDEX_HTML_PATH
+        cache_value = _cache_for(full_path, resolved)
+        headers = (
+            {_CACHE_CONTROL_HEADER: cache_value}
+            if cache_value is not None
+            else None
+        )
+        return FileResponse(target, headers=headers)
