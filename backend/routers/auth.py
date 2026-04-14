@@ -1,6 +1,8 @@
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Response
 from database import db
 from models.schemas import (
@@ -39,6 +41,59 @@ async def validate_invite(token: str):
     }
 
 
+async def _resolve_invitation(data: UserRegister) -> Optional[dict]:
+    """Validate a signup invitation token, if one was supplied.
+
+    Returns the matching invitation doc or ``None`` (no token). Raises
+    HTTPException when the token is unknown or the email doesn't match.
+    Keeping this out of ``register`` pulls ~3 branches of cognitive
+    complexity out of the parent function.
+    """
+    if not data.invite_token:
+        return None
+    invitation = await db.invitations.find_one(
+        {"token": data.invite_token, "status": "pending"}, {"_id": 0}
+    )
+    if not invitation:
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation link")
+    if invitation["email"].lower() != data.email.lower():
+        raise HTTPException(status_code=400, detail="Email does not match invitation")
+    return invitation
+
+
+def _derive_role_and_status(
+    invitation: Optional[dict], is_admin_email: bool,
+) -> tuple[str, str]:
+    """Pick (role, status) for a new user based on the signup path."""
+    if invitation:
+        return invitation["role"], USER_STATUS_APPROVED
+    if is_admin_email:
+        return ROLE_ADMIN, USER_STATUS_APPROVED
+    return ROLE_VIEWER, USER_STATUS_PENDING
+
+
+async def _send_pending_notifications(user_doc: dict) -> None:
+    """Fire the post-registration notifications for a pending user.
+
+    Two independent non-fatal calls: the courtesy "we got your application"
+    email to the applicant, and the admin-fanout notification. Either can
+    fail without blocking registration.
+    """
+    email = user_doc.get("email", "")
+    name = user_doc.get("name", "")
+    user_id = user_doc.get("id", "")
+    try:
+        from services.email import send_welcome_pending
+        await send_welcome_pending(to=email, name=name)
+    except Exception as e:
+        logger.warning("Failed to send pending-welcome email to %s: %s", email, e)
+    try:
+        from services.notification_events import notify_new_user_pending
+        await notify_new_user_pending(user_doc)
+    except Exception as e:
+        logger.warning("Failed to notify admins of pending user %s: %s", user_id, e)
+
+
 @router.post(
     "/register",
     summary="Register a new user account",
@@ -51,27 +106,11 @@ async def register(request: Request, data: UserRegister, response: Response):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    invitation = None
-    if data.invite_token:
-        invitation = await db.invitations.find_one(
-            {"token": data.invite_token, "status": "pending"}, {"_id": 0}
-        )
-        if not invitation:
-            raise HTTPException(status_code=400, detail="Invalid or expired invitation link")
-        if invitation["email"].lower() != data.email.lower():
-            raise HTTPException(status_code=400, detail="Email does not match invitation")
+    invitation = await _resolve_invitation(data)
 
     user_id = str(uuid.uuid4())
     is_admin_email = data.email.lower() in ADMIN_EMAILS
-    if invitation:
-        role = invitation["role"]
-        status = USER_STATUS_APPROVED
-    elif is_admin_email:
-        role = ROLE_ADMIN
-        status = USER_STATUS_APPROVED
-    else:
-        role = ROLE_VIEWER
-        status = USER_STATUS_PENDING
+    role, status = _derive_role_and_status(invitation, is_admin_email)
 
     user_doc = {
         "id": user_id,
@@ -80,7 +119,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "password_hash": hash_password(data.password),
         "role": role,
         "status": status,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user_doc)
     logger.info("User registered", extra={"entity": {"user_id": user_id}})
@@ -100,26 +139,13 @@ async def register(request: Request, data: UserRegister, response: Response):
         return {
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
         }
-    else:
-        # Self-service registration awaiting admin approval — send a
-        # "received, pending review" acknowledgement. Non-fatal on failure.
-        try:
-            from services.email import send_welcome_pending
-            await send_welcome_pending(to=data.email, name=data.name)
-        except Exception as e:
-            logger.warning(
-                "Failed to send pending-welcome email to %s: %s", data.email, e,
-            )
-        # Notify admins so they can approve or reject. Separate try/except
-        # so a notification failure never breaks registration.
-        try:
-            from services.notification_events import notify_new_user_pending
-            await notify_new_user_pending(user_doc)
-        except Exception as e:
-            logger.warning(
-                "Failed to notify admins of pending user %s: %s", user_id, e,
-            )
-        return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
+
+    # Self-service registration awaiting admin approval.
+    await _send_pending_notifications(user_doc)
+    return {
+        "message": "Registration submitted. An admin must approve your account.",
+        "pending": True,
+    }
 
 
 @router.post(

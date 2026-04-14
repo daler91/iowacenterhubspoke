@@ -145,6 +145,8 @@ async def principal_for_employee(employee_id: str) -> Optional[Principal]:
 async def principals_for_project(
     project_id: str,
     exclude_ids: Optional[set[str]] = None,
+    *,
+    partner_org_id: Optional[str] = None,
 ) -> list[Principal]:
     """Return every stakeholder for a project (internal + partner contacts).
 
@@ -160,19 +162,26 @@ async def principals_for_project(
 
     ``exclude_ids`` is a set of principal IDs to drop (typically the actor
     so a user doesn't notify themselves).
+
+    ``partner_org_id`` bypasses the DB lookup for the project — callers that
+    already have the project document, OR that want to notify stakeholders
+    of a just-soft-deleted project (where the ``deleted_at: None`` filter
+    would return nothing), should pass it explicitly.
     """
     exclude_ids = exclude_ids or set()
-    project = await db.projects.find_one(
-        {"id": project_id, "deleted_at": None},
-        {"_id": 0, "partner_org_id": 1},
-    )
-    if not project:
-        return []
+
+    if partner_org_id is None:
+        project = await db.projects.find_one(
+            {"id": project_id, "deleted_at": None},
+            {"_id": 0, "partner_org_id": 1},
+        )
+        if not project:
+            return []
+        partner_org_id = project.get("partner_org_id")
 
     principals: list[Principal] = []
 
     # Partner primary contacts
-    partner_org_id = project.get("partner_org_id")
     if partner_org_id:
         contacts = await db.partner_contacts.find(
             {

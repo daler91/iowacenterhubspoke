@@ -235,11 +235,13 @@ async def bulk_update_location(
 
     new_drive_time = location["drive_time_minutes"]
 
-    # Pre-flight conflict check with new drive time
+    # Pre-flight conflict check with new drive time. We also pull
+    # ``location_id`` / ``location_name`` so the notification step can
+    # skip schedules whose location didn't actually change.
     schedules = await db.schedules.find(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {"_id": 0, "id": 1, "date": 1, "start_time": 1, "end_time": 1,
-         "employee_ids": 1},
+         "employee_ids": 1, "location_id": 1, "location_name": 1},
     ).to_list(200)
 
     conflict_preview = []
@@ -300,7 +302,12 @@ async def bulk_update_location(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        # Only notify schedules whose location actually changed. If a caller
+        # passed a mixed batch (some already at the target location), those
+        # unchanged rows shouldn't emit a bogus "moved" notification.
         for s in schedules:
+            if s.get("location_id") == data.location_id:
+                continue
             await notify_schedule_bulk_location_changed(
                 s, location["city_name"], user,
             )

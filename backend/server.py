@@ -142,17 +142,20 @@ async def _ensure_indexes():
         #   window for cron-driven reminders).
         # - Queue failures: keep 30 days (digest runs hourly, anything still
         #   unsent after 30d is lost to ops; leaving it longer just bloats).
+        # Partial filter skips rows without the BSON-Date field (old rows
+        # written before this index existed).
+        ttl_partial_filter = {"created_at_date": {"$exists": True}}
         await db.notifications.create_index(
             "created_at_date", expireAfterSeconds=60 * 60 * 24 * 365,
-            partialFilterExpression={"created_at_date": {"$exists": True}},
+            partialFilterExpression=ttl_partial_filter,
         )
         await db.notifications_sent.create_index(
             "created_at_date", expireAfterSeconds=60 * 60 * 24 * 90,
-            partialFilterExpression={"created_at_date": {"$exists": True}},
+            partialFilterExpression=ttl_partial_filter,
         )
         await db.notification_queue.create_index(
             "created_at_date", expireAfterSeconds=60 * 60 * 24 * 30,
-            partialFilterExpression={"created_at_date": {"$exists": True}},
+            partialFilterExpression=ttl_partial_filter,
         )
         logger.info("Ensured indexes on all collections")
     except Exception as e:

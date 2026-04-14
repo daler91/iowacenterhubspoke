@@ -101,6 +101,18 @@ from services.notifications import NotificationEvent, dispatch
 logger = get_logger(__name__)
 
 
+# ── Shared constants ─────────────────────────────────────────────────
+
+# Defaults used when an entity doc is missing its display field. Extracting
+# constants keeps copy consistent across every notify_* helper and silences
+# the "repeated literal" Sonar rule.
+DEFAULT_TASK_LABEL = "a task"
+DEFAULT_PROJECT_LABEL = "a project"
+
+# SPA deep-link targets that multiple events share.
+CALENDAR_PATH = "/calendar"
+
+
 # ── Shared utilities (used by every notify_* helper) ──────────────────
 
 def _app_link(path: str) -> str:
@@ -189,35 +201,95 @@ async def _fan_out(
     return sent
 
 
-def _email_from_task_assignment(task: dict) -> Optional[str]:
-    """Extract an email from a task's ``assignee_email`` or ``assigned_to``.
+async def _resolve_task_assignee(
+    task: dict, project: Optional[dict] = None,
+) -> Optional[Principal]:
+    """Resolve the ``Principal`` assigned to ``task``.
 
-    Some legacy tasks store the email directly in ``assigned_to``. Returns
-    ``None`` when neither field contains a usable email — caller should
-    skip the notification in that case.
+    The task schema has several shapes in the wild:
+
+    1. ``assignee_email`` set — the canonical explicit path (used by task
+       reminders).
+    2. ``assigned_to`` is an email (legacy — some rows store the email
+       directly).
+    3. ``assigned_to`` is a **name** like ``"Jane Smith"`` — the current
+       UI default. We look that up by name against the project's
+       partner-org contacts first, then fall back to any partner contact
+       or internal user with that exact name.
+
+    Returns ``None`` when we can't resolve anybody — callers no-op silently
+    rather than erroring, so a misspelled name never blocks the CRUD.
     """
+    # 1 + 2: email paths.
     direct = task.get("assignee_email")
     if direct:
-        return direct
+        return await find_principal_by_email(direct)
     assigned = task.get("assigned_to")
-    if isinstance(assigned, str) and "@" in assigned:
-        return assigned
+    if not isinstance(assigned, str) or not assigned.strip():
+        return None
+    if "@" in assigned:
+        return await find_principal_by_email(assigned)
+
+    # 3: name-based lookup. Prefer the project's partner org (narrow) then
+    # widen to any partner contact / internal user with that exact name.
+    name = assigned.strip()
+    partner_org_id = (project or {}).get("partner_org_id")
+    if partner_org_id:
+        contact = await db.partner_contacts.find_one(
+            {"partner_org_id": partner_org_id, "name": name, "deleted_at": None},
+            {"_id": 0},
+        )
+        if contact:
+            return _principal_from_contact(contact)
+
+    contact = await db.partner_contacts.find_one(
+        {"name": name, "deleted_at": None}, {"_id": 0},
+    )
+    if contact:
+        return _principal_from_contact(contact)
+
+    user = await db.users.find_one(
+        {"name": name}, {"_id": 0, "password_hash": 0},
+    )
+    if user:
+        return _principal_from_user(user)
     return None
+
+
+def _principal_from_contact(doc: dict) -> Principal:
+    """Build a partner Principal from a ``partner_contacts`` row."""
+    return Principal(
+        kind="partner",
+        id=doc.get("id") or "",
+        email=doc.get("email"),
+        name=doc.get("name"),
+        role=None,
+        prefs=doc.get("notification_preferences") or {},
+    )
+
+
+def _principal_from_user(doc: dict) -> Principal:
+    """Build an internal Principal from a ``users`` row."""
+    return Principal(
+        kind="internal",
+        id=doc.get("id") or "",
+        email=doc.get("email"),
+        name=doc.get("name"),
+        role=doc.get("role"),
+        prefs=doc.get("notification_preferences") or {},
+    )
 
 
 # ── Task events ───────────────────────────────────────────────────────
 
 async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
     """Fire ``task.assigned_to_you`` for the newly-assigned principal."""
-    email = _email_from_task_assignment(task)
-    if not email:
-        return
-    principal = await find_principal_by_email(email)
+    principal = await _resolve_task_assignee(task, project)
     if principal is None:
         return
 
-    title = task.get("title", "a task")
-    project_title = project.get("title", "a project")
+    title = task.get("title", DEFAULT_TASK_LABEL)
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
@@ -253,12 +325,10 @@ async def notify_task_deleted(task: dict, project: dict, actor: dict) -> None:
     seen_ids: set[str] = {actor_id}
 
     # Assignee — skip silently if we can't resolve
-    email = _email_from_task_assignment(task)
-    if email:
-        assignee = await find_principal_by_email(email)
-        if assignee is not None and assignee.id not in seen_ids:
-            recipients.append(assignee)
-            seen_ids.add(assignee.id)
+    assignee = await _resolve_task_assignee(task, project)
+    if assignee is not None and assignee.id not in seen_ids:
+        recipients.append(assignee)
+        seen_ids.add(assignee.id)
 
     # Add project stakeholders (deduped against the assignee)
     project_folks = await principals_for_project(
@@ -270,8 +340,8 @@ async def notify_task_deleted(task: dict, project: dict, actor: dict) -> None:
     if not recipients:
         return
 
-    title = task.get("title", "a task")
-    project_title = project.get("title", "a project")
+    title = task.get("title", DEFAULT_TASK_LABEL)
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
@@ -302,8 +372,8 @@ async def notify_task_completed(task: dict, project: dict, actor: dict) -> None:
     if not recipients:
         return
 
-    title = task.get("title", "a task")
-    project_title = project.get("title", "a project")
+    title = task.get("title", DEFAULT_TASK_LABEL)
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
@@ -324,6 +394,67 @@ async def notify_task_completed(task: dict, project: dict, actor: dict) -> None:
     await _fan_out(recipients, event, log_key="task.completed")
 
 
+async def _gather_prior_commenters(
+    task_id: str, exclude_ids: set[str],
+) -> list[Principal]:
+    """Return distinct prior commenters on ``task_id`` as Principals.
+
+    Batches the lookup: one query per principal kind instead of N
+    per-sender ``load_principal`` calls. Callers pass the set of already-seen
+    IDs (actor + assignee) to skip.
+    """
+    prior = await db.task_comments.find(
+        {"task_id": task_id, "sender_id": {"$nin": list(exclude_ids)}},
+        {"_id": 0, "sender_id": 1, "sender_type": 1},
+    ).to_list(200)
+
+    ids_by_kind: dict[str, set[str]] = {"internal": set(), "partner": set()}
+    for c in prior:
+        sender_id = c.get("sender_id") or ""
+        if not sender_id or sender_id in exclude_ids:
+            continue
+        kind = c.get("sender_type") or "internal"
+        if kind in ids_by_kind:
+            ids_by_kind[kind].add(sender_id)
+
+    out: list[Principal] = []
+    for kind, id_set in ids_by_kind.items():
+        out.extend(await _load_commenter_principals(kind, id_set, exclude_ids))
+    return out
+
+
+async def _load_commenter_principals(
+    kind: str, id_set: set[str], seen_ids: set[str],
+) -> list[Principal]:
+    """Batch-load Principals for a set of commenter IDs of one kind.
+
+    Mutates ``seen_ids`` so repeat calls across kinds stay deduped.
+    """
+    if not id_set:
+        return []
+    coll = db.users if kind == "internal" else db.partner_contacts
+    proj = {"_id": 0, "password_hash": 0} if kind == "internal" else {"_id": 0}
+    query: dict = {"id": {"$in": list(id_set)}}
+    if kind == "partner":
+        query["deleted_at"] = None
+    docs = await coll.find(query, proj).to_list(len(id_set))
+    out: list[Principal] = []
+    for d in docs:
+        pid = d.get("id") or ""
+        if pid in seen_ids:
+            continue
+        out.append(Principal(
+            kind=kind,  # type: ignore[arg-type]
+            id=pid,
+            email=d.get("email"),
+            name=d.get("name"),
+            role=d.get("role") if kind == "internal" else None,
+            prefs=d.get("notification_preferences") or {},
+        ))
+        seen_ids.add(pid)
+    return out
+
+
 async def notify_task_comment(
     comment: dict, task: dict, project: dict, actor: dict,
 ) -> None:
@@ -332,60 +463,20 @@ async def notify_task_comment(
     recipients: list[Principal] = []
     seen_ids: set[str] = {actor_id}
 
-    # Task assignee — skip silently if we can't resolve
-    email = _email_from_task_assignment(task)
-    if email:
-        assignee = await find_principal_by_email(email)
-        if assignee is not None and assignee.id not in seen_ids:
-            recipients.append(assignee)
-            seen_ids.add(assignee.id)
+    # Task assignee — skip silently if we can't resolve.
+    assignee = await _resolve_task_assignee(task, project)
+    if assignee is not None and assignee.id not in seen_ids:
+        recipients.append(assignee)
+        seen_ids.add(assignee.id)
 
-    # Prior commenters — distinct, excluding the actor. Distinct IDs first,
-    # then batch-load per kind so a long thread doesn't mean N DB round-trips.
-    prior = await db.task_comments.find(
-        {"task_id": task.get("id"), "sender_id": {"$ne": actor_id}},
-        {"_id": 0, "sender_id": 1, "sender_type": 1},
-    ).to_list(200)
-    ids_by_kind: dict[str, set[str]] = {"internal": set(), "partner": set()}
-    for c in prior:
-        sender_id = c.get("sender_id") or ""
-        if not sender_id or sender_id in seen_ids:
-            continue
-        kind = c.get("sender_type") or "internal"
-        if kind not in ids_by_kind:
-            continue
-        ids_by_kind[kind].add(sender_id)
-
-    for kind, id_set in ids_by_kind.items():
-        if not id_set:
-            continue
-        coll = db.users if kind == "internal" else db.partner_contacts
-        proj = (
-            {"_id": 0, "password_hash": 0} if kind == "internal" else {"_id": 0}
-        )
-        query: dict = {"id": {"$in": list(id_set)}}
-        if kind == "partner":
-            query["deleted_at"] = None
-        docs = await coll.find(query, proj).to_list(len(id_set))
-        for d in docs:
-            pid = d.get("id") or ""
-            if pid in seen_ids:
-                continue
-            recipients.append(Principal(
-                kind=kind,  # type: ignore[arg-type]
-                id=pid,
-                email=d.get("email"),
-                name=d.get("name"),
-                role=d.get("role") if kind == "internal" else None,
-                prefs=d.get("notification_preferences") or {},
-            ))
-            seen_ids.add(pid)
+    # Prior commenters — distinct, excluding actor + assignee.
+    recipients.extend(await _gather_prior_commenters(task.get("id", ""), seen_ids))
 
     if not recipients:
         return
 
-    title = task.get("title", "a task")
-    project_title = project.get("title", "a project")
+    title = task.get("title", DEFAULT_TASK_LABEL)
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = comment.get("body", "")
     preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
@@ -421,7 +512,7 @@ async def notify_project_phase_advanced(
     if not recipients:
         return
 
-    project_title = project.get("title", "a project")
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
@@ -445,17 +536,20 @@ async def notify_project_phase_advanced(
 async def notify_project_deleted(project: dict, actor: dict) -> None:
     """Fire ``project.deleted`` for all project stakeholders.
 
-    The project row is typically soft-deleted; the deep-link goes to the
-    projects list (the detail page would 404).
+    The caller passes the pre-delete project snapshot. We pass
+    ``partner_org_id`` through to :func:`principals_for_project` so the
+    recipient lookup bypasses the ``deleted_at: None`` filter — by the time
+    this runs, the soft-delete has already marked the project deleted.
     """
     recipients = await principals_for_project(
         project_id=project.get("id", ""),
         exclude_ids={actor.get("id") or actor.get("user_id") or ""},
+        partner_org_id=project.get("partner_org_id"),
     )
     if not recipients:
         return
 
-    project_title = project.get("title", "a project")
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _app_link("/coordination")
 
@@ -494,7 +588,7 @@ async def notify_project_message(
     if not recipients:
         return
 
-    project_title = project.get("title", "a project")
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = message.get("body", "")
     preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
@@ -532,7 +626,7 @@ async def notify_project_document_shared(
     if not recipients:
         return
 
-    project_title = project.get("title", "a project")
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     filename = doc.get("filename", "a document")
     actor_name = _actor_name(actor)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
@@ -566,7 +660,7 @@ async def notify_schedule_assigned(
     location = schedule.get("location_name") or "location TBD"
     date = schedule.get("date", "")
     start = schedule.get("start_time", "")
-    link = _app_link("/calendar")
+    link = _app_link(CALENDAR_PATH)
 
     for emp_id in employee_ids:
         principal = await principal_for_employee(emp_id)
@@ -615,7 +709,7 @@ async def notify_schedule_changed(
     actor_name = _actor_name(actor)
     location = schedule.get("location_name") or "a class"
     date = (extra or {}).get("new_date") or schedule.get("date", "")
-    link = _app_link("/calendar")
+    link = _app_link(CALENDAR_PATH)
     verb_past, verb_title = SCHEDULE_CHANGE_VERBS.get(
         change_type, ("changed", "Changed"),
     )
@@ -653,7 +747,7 @@ async def notify_schedule_bulk_status_changed(
     actor_name = _actor_name(actor)
     location = schedule.get("location_name") or "a class"
     date = schedule.get("date", "")
-    link = _app_link("/calendar")
+    link = _app_link(CALENDAR_PATH)
     label = new_status.replace("_", " ")
 
     for emp_id in employee_ids:
@@ -691,7 +785,7 @@ async def notify_schedule_bulk_location_changed(
         return
     actor_name = _actor_name(actor)
     date = schedule.get("date", "")
-    link = _app_link("/calendar")
+    link = _app_link(CALENDAR_PATH)
 
     for emp_id in employee_ids:
         principal = await principal_for_employee(emp_id)

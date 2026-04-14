@@ -89,24 +89,43 @@ class _FakeComments:
         self._docs = docs
 
     def find(self, query, projection=None):
-        # Filter by sender_id != X if present
+        # Supports both $ne (legacy) and $nin (batch exclusion) sender_id filters.
         filtered = list(self._docs)
-        if query.get("sender_id", {}).get("$ne"):
-            excl = query["sender_id"]["$ne"]
-            filtered = [d for d in filtered if d.get("sender_id") != excl]
+        sender_filter = query.get("sender_id", {})
+        if isinstance(sender_filter, dict):
+            if "$ne" in sender_filter:
+                excl = sender_filter["$ne"]
+                filtered = [d for d in filtered if d.get("sender_id") != excl]
+            if "$nin" in sender_filter:
+                excl_set = set(sender_filter["$nin"])
+                filtered = [d for d in filtered if d.get("sender_id") not in excl_set]
         return _AsyncListCursor(filtered)
 
 
 class _FakePrincipalColl:
-    """Stand-in for ``db.users`` / ``db.partner_contacts`` batch lookups."""
+    """Stand-in for ``db.users`` / ``db.partner_contacts`` with batch + single-doc lookups."""
 
     def __init__(self, docs):
         self._docs = docs
 
+    def _matches(self, doc, query):
+        for k, v in query.items():
+            if isinstance(v, dict) and "$in" in v:
+                if doc.get(k) not in v["$in"]:
+                    return False
+            elif doc.get(k) != v:
+                return False
+        return True
+
     def find(self, query, projection=None):
-        id_filter = query.get("id", {}).get("$in", [])
-        filtered = [d for d in self._docs if d.get("id") in id_filter]
-        return _AsyncListCursor(filtered)
+        return _AsyncListCursor([d for d in self._docs if self._matches(d, query)])
+
+    async def find_one(self, query, projection=None):
+        await asyncio.sleep(0)
+        for d in self._docs:
+            if self._matches(d, query):
+                return d
+        return None
 
 
 @pytest.fixture
@@ -150,9 +169,13 @@ def stub_recipient_helpers(monkeypatch):
         await asyncio.sleep(0)
         return state["by_employee"].get(emp_id)
 
-    async def fake_principals_for_project(project_id, exclude_ids=None):
+    async def fake_principals_for_project(project_id, exclude_ids=None, *, partner_org_id=None):
         await asyncio.sleep(0)
         exclude = exclude_ids or set()
+        # Ignore partner_org_id in the fake — the state["project_principals"]
+        # list represents "whichever recipients this test wants to see",
+        # regardless of how the helper would resolve them in production.
+        _ = partner_org_id
         return [p for p in state["project_principals"] if p.id not in exclude]
 
     async def fake_load_principal(kind, pid):
@@ -251,13 +274,47 @@ async def test_task_assigned_falls_back_to_assigned_to_if_it_looks_like_email(
 
 
 @pytest.mark.asyncio
-async def test_task_assigned_noop_when_no_email(
-    capture_dispatch, stub_recipient_helpers, stub_app_url,
+async def test_task_assigned_noop_when_name_unknown(
+    capture_dispatch, stub_recipient_helpers, stub_app_url, monkeypatch,
 ):
-    # Neither assignee_email nor assigned_to (looking like email)
+    # assigned_to is a name that isn't in the partner/user directories.
+
+    class _DB:
+        partner_contacts = _FakePrincipalColl([])
+        users = _FakePrincipalColl([])
+
+    monkeypatch.setattr(events_mod, "db", _DB)
+
     task = {"id": "t-1", "title": "Draft", "assigned_to": "Jane Smith"}
-    await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
+    await notify_task_assigned(
+        task, {"id": "p-1", "partner_org_id": "org-1"}, {"id": "a", "name": "A"},
+    )
     assert capture_dispatch == []
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_resolves_name_against_partner_org(
+    capture_dispatch, stub_recipient_helpers, stub_app_url, monkeypatch,
+):
+    # A name-based assigned_to resolves against the project's partner org.
+
+    class _DB:
+        partner_contacts = _FakePrincipalColl([
+            {"id": "c-jane", "partner_org_id": "org-1", "name": "Jane Smith",
+             "email": "jane@p.com", "deleted_at": None},
+        ])
+        users = _FakePrincipalColl([])
+
+    monkeypatch.setattr(events_mod, "db", _DB)
+
+    task = {"id": "t-1", "title": "Draft", "assigned_to": "Jane Smith"}
+    project = {"id": "p-1", "title": "Kickoff", "partner_org_id": "org-1"}
+    await notify_task_assigned(task, project, {"id": "a", "name": "A"})
+
+    assert len(capture_dispatch) == 1
+    principal, _ = capture_dispatch[0]
+    assert principal.id == "c-jane"
+    assert principal.kind == "partner"
 
 
 @pytest.mark.asyncio
