@@ -102,8 +102,9 @@ def _assert_never_called(*_args, **_kwargs):
     raise AssertionError("digest worker flushed when it should not have")
 
 
-async def _load_principal_at_hour(daily_hour=8, weekly_day="mon"):
-    async def _loader(kind, pid):
+def _load_principal_at_hour(daily_hour=8, weekly_day="mon"):
+    """Build an async ``load_principal`` replacement for a given schedule."""
+    async def _loader(kind, pid):  # noqa: ARG001 — signature mirrors real load_principal
         await asyncio.sleep(0)
         return _make_principal(daily_hour=daily_hour, weekly_day=weekly_day)
     return _loader
@@ -113,7 +114,7 @@ async def _load_principal_at_hour(daily_hour=8, weekly_day="mon"):
 async def test_digest_does_not_flush_off_hour(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
-    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
+    monkeypatch.setattr(digest_mod, "load_principal", _load_principal_at_hour(daily_hour=8))
     monkeypatch.setattr(digest_mod, "_send_digest_and_clear", _assert_never_called)
 
     # Override "now" to 03:00 UTC — principal wants digest at 08:00.
@@ -131,7 +132,7 @@ async def test_digest_does_not_flush_off_hour(monkeypatch, queue_rows):
 async def test_digest_flushes_at_configured_hour(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
-    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
+    monkeypatch.setattr(digest_mod, "load_principal", _load_principal_at_hour(daily_hour=8))
 
     sent_calls = []
 
@@ -160,7 +161,7 @@ async def test_digest_flushes_at_configured_hour(monkeypatch, queue_rows):
 async def test_digest_failure_leaves_rows_for_retry(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
-    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
+    monkeypatch.setattr(digest_mod, "load_principal", _load_principal_at_hour(daily_hour=8))
 
     async def fake_send_digest_email(to, name, frequency, items):  # noqa: ARG001
         await asyncio.sleep(0)
@@ -188,7 +189,7 @@ async def test_digest_weekly_only_fires_on_configured_day(monkeypatch, queue_row
     monkeypatch.setattr(digest_mod, "db", db)
     monkeypatch.setattr(
         digest_mod, "load_principal",
-        await _load_principal_at_hour(daily_hour=8, weekly_day="fri"),
+        _load_principal_at_hour(daily_hour=8, weekly_day="fri"),
     )
 
     sent = []

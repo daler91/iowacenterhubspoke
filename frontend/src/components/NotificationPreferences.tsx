@@ -18,6 +18,17 @@ import { extractErrorMessage } from '../lib/types';
 
 type Mode = 'internal' | 'portal';
 
+/**
+ * Fire-and-forget helper for promises whose errors are already handled
+ * inside the promise itself. Sonar S1186 flags empty catch bodies, so we
+ * route through a named helper that logs a warn at most — never throws.
+ */
+function logAndIgnore(p: Promise<unknown>): void {
+  p.then(() => undefined, (err) => {
+    console.warn('notification prefs persist failed', err);
+  });
+}
+
 interface Props {
   readonly mode: Mode;
   /** Portal magic-link token — required when mode === 'portal'. */
@@ -110,10 +121,10 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
           ...current,
           preferences: { ...current.preferences, types: nextTypes },
         };
-        // Fire-and-forget — we reconcile with server response. The
-        // .catch() below keeps the promise floating-safe without needing
-        // the (confusing) ``void`` operator.
-        persist(next.preferences).catch(() => { /* handled in persist() */ });
+        // Fire-and-forget — persist() already handles its own errors
+        // (toast + state reset). Use .then() with a no-op continuation to
+        // keep the promise floating-safe without a naked void.
+        logAndIgnore(persist(next.preferences));
         return next;
       });
     },
