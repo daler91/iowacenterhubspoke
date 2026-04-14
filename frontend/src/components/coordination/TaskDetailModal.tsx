@@ -63,10 +63,10 @@ function buildChildrenMap(comments: TaskComment[]) {
 }
 
 // Collect every descendant of a root and return them as a single flat list
-// sorted chronologically. This matches Slack's thread view: one root at the
-// top, then every reply (and reply-to-reply) at the same indent level in the
-// order they were posted. The data tree is preserved via `parent_comment_id`
-// so we can flip to a tree view later without a migration.
+// sorted chronologically. Matches Slack's thread view: one root at the top,
+// then every reply (and reply-to-reply) at a shared indent level in the order
+// they were posted. The data tree is preserved via `parent_comment_id` so we
+// can flip back to a tree view later without a migration.
 function collectDescendants(
   rootId: string,
   childrenMap: Map<string | null, TaskComment[]>,
@@ -83,17 +83,31 @@ function collectDescendants(
   return out;
 }
 
+// Compact relative timestamp for the thread summary bar. Falls back to a
+// full date for anything older than ~6 days so "30d ago" doesn't stretch on.
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (diffMs < 45_000) return 'just now';
+  const mins = Math.round(diffMs / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatCommentDate(iso);
+}
+
 // ── Comment Node ─────────────────────────────────────────────────────
-// Renders a single comment (root or reply). Roots render at depth 0 at the
-// left edge; replies render at depth 1 with a single indent + rail. Nested
-// replies are flattened by the caller into a chronological list, so nothing
-// in this component recurses.
+// Renders a single comment (root or reply). Never recurses — the caller
+// flattens each thread via `collectDescendants` and renders descendants
+// inside one expandable container, so the "N replies" summary, the single
+// left rail, and the root-only Reply button all live at the thread level.
 function CommentNode({
-  comment, depth, onReply, parentDate,
+  comment, isRoot, onReply, parentDate,
 }: Readonly<{
   comment: TaskComment;
-  depth: 0 | 1;
-  onReply: (c: TaskComment) => void;
+  isRoot: boolean;
+  onReply?: (c: TaskComment) => void;
   parentDate: string;
 }>) {
   const ownDate = formatCommentDate(comment.created_at);
@@ -103,27 +117,22 @@ function CommentNode({
   // misread the chronology.
   const crossesDayBoundary = ownDate !== parentDate;
   return (
-    <div
-      id={`comment-${comment.id}`}
-      className={cn(
-        depth > 0 && 'ml-4 border-l border-indigo-100 dark:border-indigo-900/50 pl-3',
-      )}
-    >
-      <div className="flex gap-2 mb-3">
-        <div className={cn(
-          'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
-          comment.sender_type === 'partner'
-            ? 'bg-ownership-partner-soft text-ownership-partner'
-            : 'bg-ownership-internal-soft text-ownership-internal',
-        )}>
-          {(comment.sender_name || '?').charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {crossesDayBoundary ? `${ownDate} · ${time}` : time}
-            </span>
+    <div id={`comment-${comment.id}`} className="flex gap-2 mb-3">
+      <div className={cn(
+        'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
+        comment.sender_type === 'partner'
+          ? 'bg-ownership-partner-soft text-ownership-partner'
+          : 'bg-ownership-internal-soft text-ownership-internal',
+      )}>
+        {(comment.sender_name || '?').charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
+          <span className="text-[10px] text-muted-foreground">
+            {crossesDayBoundary ? `${ownDate} · ${time}` : time}
+          </span>
+          {isRoot && onReply && (
             <button
               type="button"
               onClick={() => onReply(comment)}
@@ -132,11 +141,65 @@ function CommentNode({
             >
               <Reply className="w-3 h-3" /> Reply
             </button>
-          </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+          )}
         </div>
+        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
       </div>
     </div>
+  );
+}
+
+// ── Thread Summary ───────────────────────────────────────────────────
+// Collapsed-thread indicator shown under a root comment when its thread has
+// replies but is not expanded. Click expands the replies inline.
+function ThreadSummary({
+  descendants, onExpand,
+}: Readonly<{
+  descendants: TaskComment[];
+  onExpand: () => void;
+}>) {
+  // Unique senders in reply order, up to 3 avatars.
+  const seen = new Set<string>();
+  const avatars: TaskComment[] = [];
+  for (const d of descendants) {
+    const key = d.sender_id || d.sender_name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    avatars.push(d);
+    if (avatars.length === 3) break;
+  }
+  const last = descendants.at(-1);
+  const count = descendants.length;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+    >
+      <div className="flex -space-x-1.5">
+        {avatars.map(a => (
+          <span
+            key={a.id}
+            className={cn(
+              'w-5 h-5 rounded-md border border-white dark:border-slate-900 flex items-center justify-center text-[9px] font-semibold',
+              a.sender_type === 'partner'
+                ? 'bg-ownership-partner-soft text-ownership-partner'
+                : 'bg-ownership-internal-soft text-ownership-internal',
+            )}
+          >
+            {(a.sender_name || '?').charAt(0).toUpperCase()}
+          </span>
+        ))}
+      </div>
+      <span className="font-semibold group-hover:underline">
+        {count} {count === 1 ? 'reply' : 'replies'}
+      </span>
+      {last && (
+        <span className="text-[10px] text-muted-foreground font-normal">
+          Last reply {timeAgo(last.created_at)}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -212,10 +275,29 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
   const [lastPostedId, setLastPostedId] = useState<string | null>(null);
+  // Root comment ids whose thread is currently expanded. Threads default to
+  // collapsed (Slack-style summary) and open on demand — either by clicking
+  // the summary bar, by clicking Reply on the root, or after posting a reply
+  // (so the new message renders under the existing open thread).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
   const childrenMap = buildChildrenMap(comments);
   const roots = childrenMap.get(null) ?? [];
   const groups = groupCommentsByDate(roots);
+
+  const openThread = (rootId: string) =>
+    setExpanded(prev => {
+      if (prev.has(rootId)) return prev;
+      const next = new Set(prev);
+      next.add(rootId);
+      return next;
+    });
+  const toggleThread = (rootId: string) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(rootId)) next.delete(rootId); else next.add(rootId);
+      return next;
+    });
 
   // When a reply is posted to an older thread, the new node renders somewhere
   // mid-panel rather than at the end. Scroll to the specific new comment when
@@ -237,9 +319,14 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
     if (!body.trim()) return;
     setSending(true);
     try {
-      const newId = await onPostComment(body.trim(), replyingTo?.id ?? null);
+      // Capture before clearing so we can expand the target thread after the
+      // post completes — otherwise the scroll-to-new-comment effect runs
+      // against a collapsed thread and can't find the element.
+      const target = replyingTo;
+      const newId = await onPostComment(body.trim(), target?.id ?? null);
       setBody('');
       setReplyingTo(null);
+      if (target) openThread(target.id);
       if (typeof newId === 'string') setLastPostedId(newId);
     } finally {
       setSending(false);
@@ -277,25 +364,49 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
               </div>
               {group.items.map(root => {
-                const rootDate = formatCommentDate(root.created_at);
                 const descendants = collectDescendants(root.id, childrenMap);
+                const hasReplies = descendants.length > 0;
+                const isExpanded = expanded.has(root.id);
+                const rootDate = formatCommentDate(root.created_at);
                 return (
-                  <div key={root.id}>
+                  <div
+                    key={root.id}
+                    className={cn(
+                      'rounded-lg mb-2 transition-colors',
+                      hasReplies && 'bg-white/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 p-2',
+                    )}
+                  >
                     <CommentNode
                       comment={root}
-                      depth={0}
-                      onReply={setReplyingTo}
+                      isRoot
+                      onReply={(c) => { setReplyingTo(c); openThread(c.id); }}
                       parentDate={group.date}
                     />
-                    {descendants.map(d => (
-                      <CommentNode
-                        key={d.id}
-                        comment={d}
-                        depth={1}
-                        onReply={setReplyingTo}
-                        parentDate={rootDate}
+                    {hasReplies && !isExpanded && (
+                      <ThreadSummary
+                        descendants={descendants}
+                        onExpand={() => toggleThread(root.id)}
                       />
-                    ))}
+                    )}
+                    {hasReplies && isExpanded && (
+                      <div className="ml-4 border-l border-indigo-100 dark:border-indigo-900/50 pl-3 mt-1">
+                        {descendants.map(d => (
+                          <CommentNode
+                            key={d.id}
+                            comment={d}
+                            isRoot={false}
+                            parentDate={rootDate}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => toggleThread(root.id)}
+                          className="text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 hover:underline mb-1"
+                        >
+                          Hide replies
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
