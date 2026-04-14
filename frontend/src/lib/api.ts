@@ -191,6 +191,48 @@ export const activityAPI = {
 // Notifications
 export const notificationsAPI = {
   getAll: (config?: AxiosRequestConfig) => api.get('/notifications', config),
+  getInbox: (config?: AxiosRequestConfig) => api.get('/notifications/inbox', config),
+  markRead: (id: string) => api.post(`/notifications/inbox/${id}/read`),
+  dismiss: (id: string) => api.post(`/notifications/inbox/${id}/dismiss`),
+  markAllRead: () => api.post('/notifications/inbox/mark-all-read'),
+};
+
+// Notification preferences — shape mirrors the backend registry/effective view.
+export type NotificationChannel = 'in_app' | 'email';
+export type NotificationFrequency = 'instant' | 'daily' | 'weekly' | 'off';
+
+export interface NotificationTypeDescriptor {
+  key: string;
+  category: string;
+  label: string;
+  description: string;
+  default_channels: Partial<Record<NotificationChannel, NotificationFrequency>>;
+  allowed_channels: NotificationChannel[];
+  implemented: boolean;
+}
+
+export interface NotificationRegistryCategory {
+  key: string;
+  label: string;
+  types: NotificationTypeDescriptor[];
+}
+
+export interface NotificationPreferences {
+  version: number;
+  digest: { daily_hour: number; weekly_day: string };
+  types: Record<string, Partial<Record<NotificationChannel, NotificationFrequency>>>;
+}
+
+export interface NotificationPrefsResponse {
+  registry: { categories: NotificationRegistryCategory[] };
+  preferences: NotificationPreferences;
+}
+
+export const notificationPreferencesAPI = {
+  get: (config?: AxiosRequestConfig) =>
+    api.get<NotificationPrefsResponse>('/me/notification-preferences', config),
+  update: (body: Partial<NotificationPreferences>) =>
+    api.put<NotificationPrefsResponse>('/me/notification-preferences', body),
 };
 
 // Workload

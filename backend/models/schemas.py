@@ -211,3 +211,31 @@ class ScheduleImportItem(BaseModel):
     force: Optional[bool] = False
     notes: Optional[str] = None
     row_idx: int
+
+
+# ── Notification preferences ───────────────────────────────────────────
+#
+# Stored shape lives on the principal document (user or partner contact).
+# Incoming updates are validated loosely — unknown type keys are sanitized
+# out by ``services.notification_prefs.sanitize_update`` rather than 422'd,
+# so a stale frontend doesn't break the endpoint.
+
+
+class NotificationDigestSettings(BaseModel):
+    daily_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    weekly_day: Optional[
+        Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    ] = None
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    """Request body for updating a principal's notification preferences.
+
+    ``types`` is a free-form mapping of ``type_key -> {channel -> freq}``.
+    Validation of keys/channels/frequencies happens in
+    ``services.notification_prefs.sanitize_update`` so that unknown keys
+    from an older/newer client are silently ignored rather than rejected.
+    """
+
+    digest: Optional[NotificationDigestSettings] = None
+    types: Optional[dict] = None

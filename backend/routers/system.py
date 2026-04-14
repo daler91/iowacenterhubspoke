@@ -32,13 +32,43 @@ async def get_activity_logs(user: AdminRequired, limit: int = 30):
 
 @router.get("/notifications", summary="Get system notifications")
 async def get_notifications(user: CurrentUser):
-    """Return upcoming classes, town-to-town warnings, and idle employee alerts."""
+    """Return upcoming classes, town-to-town warnings, and idle employee alerts.
+
+    This endpoint returns *live-computed* system state — not persisted
+    notifications. The persistent inbox lives at
+    ``GET /api/v1/notifications/inbox``. We apply the user's in-app
+    preferences here so that disabling a type silences it from the bell
+    icon too, not only the email channel.
+    """
+    from services.notification_prefs import load_principal, get_frequency
+
     logger.info("Fetching system notifications")
+    principal = await load_principal("internal", user["user_id"])
+
+    # Map each live-alert kind to its registry key so we can gate by pref.
+    live_types = {
+        "upcoming_class": "schedule.upcoming_today",
+        "town_to_town": "schedule.town_to_town",
+        "idle_employee": "schedule.idle_employee",
+    }
+
+    def _enabled(kind: str) -> bool:
+        if principal is None:
+            return True  # no principal doc — fail open
+        type_key = live_types.get(kind)
+        if not type_key:
+            return True
+        return get_frequency(principal, type_key, "in_app") != "off"
+
     notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Today's upcoming classes
-    today_schedules = await db.schedules.find({"date": today, "deleted_at": None}, {"_id": 0}).to_list(100)
+    if _enabled("upcoming_class"):
+        today_schedules = await db.schedules.find(
+            {"date": today, "deleted_at": None}, {"_id": 0},
+        ).to_list(100)
+    else:
+        today_schedules = []
     for s in today_schedules:
         if s.get('status', 'upcoming') == 'upcoming':
             class_title = s.get('class_name') or s.get('location_name', '?')
@@ -56,33 +86,43 @@ async def get_notifications(user: CurrentUser):
                 "entity_id": s['id']
             })
 
-    # Town-to-town warnings
-    t2t_schedules = await db.schedules.find({"town_to_town": True, "deleted_at": None}, {"_id": 0}).to_list(100)
-    for s in t2t_schedules:
-        notifications.append({
-            "id": f"t2t-{s['id']}",
-            "type": "town_to_town",
-            "title": "Town-to-Town Travel",
-            "description": s.get('town_to_town_warning', 'Verify drive time manually'),
-            "severity": "warning",
-            "timestamp": s.get('created_at', today),
-            "entity_id": s['id']
-        })
-
-    # Unassigned check - employees with no schedules this week
-    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-    scheduled_emp_ids = {eid for s in today_schedules for eid in s.get('employee_ids', [])}
-    for emp in employees:
-        if emp['id'] not in scheduled_emp_ids:
+    if _enabled("town_to_town"):
+        t2t_schedules = await db.schedules.find(
+            {"town_to_town": True, "deleted_at": None}, {"_id": 0},
+        ).to_list(100)
+        for s in t2t_schedules:
             notifications.append({
-                "id": f"idle-{emp['id']}",
-                "type": "idle_employee",
-                "title": "No classes today",
-                "description": f"{emp['name']} has no classes scheduled for today",
-                "severity": "info",
-                "timestamp": today,
-                "entity_id": emp['id']
+                "id": f"t2t-{s['id']}",
+                "type": "town_to_town",
+                "title": "Town-to-Town Travel",
+                "description": s.get('town_to_town_warning', 'Verify drive time manually'),
+                "severity": "warning",
+                "timestamp": s.get('created_at', today),
+                "entity_id": s['id']
             })
+
+    if _enabled("idle_employee"):
+        # Re-fetch today_schedules if upcoming_class was gated off — we still
+        # need the list to compute scheduled_emp_ids.
+        schedules_for_ids = today_schedules
+        if not schedules_for_ids:
+            schedules_for_ids = await db.schedules.find(
+                {"date": today, "deleted_at": None},
+                {"_id": 0, "employee_ids": 1},
+            ).to_list(100)
+        employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
+        scheduled_emp_ids = {eid for s in schedules_for_ids for eid in s.get('employee_ids', [])}
+        for emp in employees:
+            if emp['id'] not in scheduled_emp_ids:
+                notifications.append({
+                    "id": f"idle-{emp['id']}",
+                    "type": "idle_employee",
+                    "title": "No classes today",
+                    "description": f"{emp['name']} has no classes scheduled for today",
+                    "severity": "info",
+                    "timestamp": today,
+                    "entity_id": emp['id']
+                })
 
     return sorted(
         notifications,

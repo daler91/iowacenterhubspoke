@@ -1,13 +1,51 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, AlertTriangle, CalendarDays, UserX, X } from 'lucide-react';
+import { Bell, AlertTriangle, CalendarDays, UserX, X, Settings as SettingsIcon } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { notificationsAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 
-function getNotificationLink(notification: { type?: string; id?: string }): string | null {
-  const { type } = notification;
+/**
+ * The panel merges two notification sources:
+ *
+ * - **Live system alerts** from ``/notifications`` — ephemeral, recomputed
+ *   on every poll (upcoming classes, town-to-town, idle employees). These
+ *   were already here; dismissing them is client-side only.
+ * - **Persistent inbox items** from ``/notifications/inbox`` — stored rows
+ *   written by the dispatcher (task reminders, planned events). These
+ *   support server-side mark-as-read and dismiss.
+ *
+ * The bell shows a combined unread count. Each item knows which source it
+ * came from so dismissal hits the right code path.
+ */
+
+interface LiveNotification {
+  readonly id: string;
+  readonly type: string;
+  readonly title: string;
+  readonly description: string;
+  readonly severity: 'info' | 'warning';
+  readonly timestamp: string;
+  readonly entity_id?: string;
+  readonly source: 'live';
+}
+
+interface InboxNotification {
+  readonly id: string;
+  readonly type_key: string;
+  readonly title: string;
+  readonly body: string;
+  readonly severity: 'info' | 'warning';
+  readonly link: string | null;
+  readonly read_at: string | null;
+  readonly created_at: string;
+  readonly source: 'inbox';
+}
+
+type AnyNotification = LiveNotification | InboxNotification;
+
+function getLiveLink(type: string): string | null {
   if (type === 'upcoming_class' || type === 'town_to_town') return '/calendar';
   if (type === 'idle_employee') return '/employees';
   return null;
@@ -21,14 +59,12 @@ const SEVERITY_CONFIG = {
 export default function NotificationsPanel() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [dismissed, setDismissed] = useState(new Set());
-  const ref = useRef(null);
+  const [liveItems, setLiveItems] = useState<LiveNotification[]>([]);
+  const [inboxItems, setInboxItems] = useState<InboxNotification[]>([]);
+  const [dismissedLive, setDismissedLive] = useState<Set<string>>(new Set());
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // One controller per lifecycle; aborted on unmount to drop any in-flight
-    // request so we don't setState on an unmounted component. Individual
-    // ticks use per-call controllers so a stale tick can't be reused.
     let currentController: AbortController | null = null;
 
     const fetchOnce = async () => {
@@ -37,12 +73,43 @@ export default function NotificationsPanel() {
       const controller = new AbortController();
       currentController = controller;
       try {
-        const res = await notificationsAPI.getAll({ signal: controller.signal });
+        const [liveRes, inboxRes] = await Promise.allSettled([
+          notificationsAPI.getAll({ signal: controller.signal }),
+          notificationsAPI.getInbox({ signal: controller.signal }),
+        ]);
         if (controller.signal.aborted) return;
-        setNotifications(Array.isArray(res.data) ? res.data : []);
+
+        if (liveRes.status === 'fulfilled') {
+          const raw = Array.isArray(liveRes.value.data) ? liveRes.value.data : [];
+          setLiveItems(raw.map((n: Record<string, unknown>) => ({
+            id: String(n.id ?? ''),
+            type: String(n.type ?? ''),
+            title: String(n.title ?? ''),
+            description: String(n.description ?? ''),
+            severity: (n.severity === 'warning' ? 'warning' : 'info'),
+            timestamp: String(n.timestamp ?? ''),
+            entity_id: n.entity_id as string | undefined,
+            source: 'live',
+          })));
+        }
+        if (inboxRes.status === 'fulfilled') {
+          const data = inboxRes.value.data as { items?: Record<string, unknown>[] };
+          const items = Array.isArray(data?.items) ? data.items : [];
+          setInboxItems(items.map((n) => ({
+            id: String(n.id ?? ''),
+            type_key: String(n.type_key ?? ''),
+            title: String(n.title ?? ''),
+            body: String(n.body ?? ''),
+            severity: (n.severity === 'warning' ? 'warning' : 'info'),
+            link: (n.link as string | null) ?? null,
+            read_at: (n.read_at as string | null) ?? null,
+            created_at: String(n.created_at ?? ''),
+            source: 'inbox',
+          })));
+        }
       } catch (err) {
         if (controller.signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
-        setNotifications([]);
+        // Network glitch — keep existing state rather than blanking the UI.
       }
     };
 
@@ -62,25 +129,23 @@ export default function NotificationsPanel() {
   }, []);
 
   useEffect(() => {
-    const handleClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const { safeNotifications, activeNotifications, warningCount } = useMemo(() => {
-    const safe = Array.isArray(notifications) ? notifications : [];
-    const active = safe.filter(n => !dismissed.has(n.id));
+  const { activeNotifications, warningCount } = useMemo(() => {
+    const live: AnyNotification[] = liveItems.filter(n => !dismissedLive.has(n.id));
+    const inbox: AnyNotification[] = inboxItems;
+    const merged = [...inbox, ...live];
     return {
-      safeNotifications: safe,
-      activeNotifications: active,
-      warningCount: active.filter(n => n.severity === 'warning').length,
+      activeNotifications: merged,
+      warningCount: merged.filter(n => n.severity === 'warning').length,
     };
-  }, [notifications, dismissed]);
+  }, [liveItems, inboxItems, dismissedLive]);
 
-  // Build the accessible bell label once so the JSX stays free of
-  // nested ternaries / nested template literals (Sonar S3358 / S4624).
   let bellLabel = 'Notifications';
   if (activeNotifications.length > 0) {
     bellLabel = `Notifications, ${activeNotifications.length} active`;
@@ -89,9 +154,56 @@ export default function NotificationsPanel() {
     }
   }
 
+  const handleDismiss = async (n: AnyNotification) => {
+    if (n.source === 'live') {
+      setDismissedLive(prev => new Set([...prev, n.id]));
+      return;
+    }
+    // Optimistic: drop from state first, call server in background.
+    setInboxItems(prev => prev.filter(i => i.id !== n.id));
+    try {
+      await notificationsAPI.dismiss(n.id);
+    } catch {
+      // If dismissal failed the item reappears on the next poll (30s).
+    }
+  };
+
+  const handleDismissAll = async () => {
+    // Dismiss all live items client-side + mark all inbox items read on server.
+    setDismissedLive(new Set(liveItems.map(n => n.id)));
+    try {
+      await notificationsAPI.markAllRead();
+      // Poll will refresh unread counts; we also locally clear read state.
+      setInboxItems(prev => prev.map(i => ({ ...i, read_at: i.read_at || new Date().toISOString() })));
+    } catch {
+      // Swallow — next poll reconciles.
+    }
+  };
+
+  const handleClick = async (n: AnyNotification) => {
+    if (n.source === 'live') {
+      const link = getLiveLink(n.type);
+      if (link) {
+        navigate(link);
+        setOpen(false);
+      }
+      return;
+    }
+    // Inbox item: mark read, then follow link if present.
+    if (!n.read_at) {
+      setInboxItems(prev => prev.map(i =>
+        i.id === n.id ? { ...i, read_at: new Date().toISOString() } : i
+      ));
+      try { await notificationsAPI.markRead(n.id); } catch { /* reconcile on poll */ }
+    }
+    if (n.link) {
+      navigate(n.link);
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="relative" ref={ref} data-testid="notifications-panel">
-      {/* Bell button */}
       <button
         type="button"
         data-testid="notifications-bell"
@@ -115,7 +227,6 @@ export default function NotificationsPanel() {
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div className="absolute right-0 top-12 w-[380px] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
           <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
@@ -129,7 +240,7 @@ export default function NotificationsPanel() {
             </div>
             {activeNotifications.length > 0 && (
               <button
-                onClick={() => setDismissed(new Set(safeNotifications.map(n => n.id)))}
+                onClick={handleDismissAll}
                 className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
                 data-testid="dismiss-all-notifications"
               >
@@ -149,28 +260,53 @@ export default function NotificationsPanel() {
                 {activeNotifications.map(notification => {
                   const config = SEVERITY_CONFIG[notification.severity] || SEVERITY_CONFIG.info;
                   const Icon = config.icon;
-                  const isIdle = notification.type === 'idle_employee';
+                  const liveType = notification.source === 'live' ? notification.type : null;
+                  const isIdle = liveType === 'idle_employee';
+                  // Inbox body may be HTML (for email rendering). Strip tags
+                  // for the bell panel so we're not pushing HTML from a DB
+                  // row through dangerouslySetInnerHTML.
+                  const rawDescription = notification.source === 'live'
+                    ? notification.description
+                    : notification.body;
+                  const description = notification.source === 'live'
+                    ? rawDescription
+                    : rawDescription.replace(/<[^>]+>/g, '');
+                  const hasLink = notification.source === 'live'
+                    ? Boolean(getLiveLink(notification.type))
+                    : Boolean(notification.link);
+                  const isUnread = notification.source === 'inbox' && !notification.read_at;
 
-                  const link = getNotificationLink(notification);
                   const content = (
                     <>
                       <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", config.bg)}>
                         {isIdle ? <UserX className={cn("w-4 h-4", config.color)} /> : <Icon className={cn("w-4 h-4", config.color)} />}
                       </div>
                       <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-slate-700 dark:text-gray-200">{notification.title}</p>
-                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">{notification.description}</p>
-                        {link && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
+                        <div className="flex items-center gap-2">
+                          {isUnread && (
+                            <span
+                              aria-label="Unread"
+                              className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"
+                            />
+                          )}
+                          <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">
+                            {notification.title}
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                          {description}
+                        </p>
+                        {hasLink && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
                       </div>
                     </>
                   );
                   return (
-                    <div key={notification.id} className="flex items-start gap-0" data-testid={`notification-${notification.id}`}>
-                      {link ? (
+                    <div key={`${notification.source}-${notification.id}`} className="flex items-start gap-0" data-testid={`notification-${notification.id}`}>
+                      {hasLink ? (
                         <button
                           type="button"
                           className="flex-1 p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
-                          onClick={() => { navigate(link); setOpen(false); }}
+                          onClick={() => handleClick(notification)}
                         >
                           {content}
                         </button>
@@ -181,8 +317,9 @@ export default function NotificationsPanel() {
                       )}
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setDismissed(prev => new Set([...prev, notification.id])); }}
+                        onClick={(e) => { e.stopPropagation(); void handleDismiss(notification); }}
                         className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
+                        aria-label="Dismiss notification"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -192,6 +329,19 @@ export default function NotificationsPanel() {
               </div>
             )}
           </ScrollArea>
+
+          {/* Settings link — surfaces the preferences UI so users don't have
+              to hunt through Settings for notification controls. */}
+          <div className="p-2 border-t border-gray-100 dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => { navigate('/settings'); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+            >
+              <SettingsIcon className="w-3.5 h-3.5" />
+              Notification settings
+            </button>
+          </div>
         </div>
       )}
     </div>

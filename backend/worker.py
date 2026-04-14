@@ -439,6 +439,17 @@ async def process_task_reminders(ctx):
     return await check_and_send_reminders()
 
 
+async def process_notification_digests(ctx):
+    """Cron job: flush queued daily/weekly notification digests.
+
+    Runs every hour. The digest service only sends to principals whose
+    configured ``digest.daily_hour`` / ``digest.weekly_day`` matches now,
+    so the hour-granularity cadence is the natural choice.
+    """
+    from services.digest import process_digests
+    return await process_digests()
+
+
 async def deliver_webhook_job(ctx, subscription_id, event, payload):
     """Background job: deliver a webhook to a subscriber."""
     from services.webhooks import deliver_webhook
@@ -477,5 +488,6 @@ class WorkerSettings:
     ]
     cron_jobs = [
         arq.cron(process_task_reminders, hour=None, minute=0),
+        arq.cron(process_notification_digests, hour=None, minute=5),
     ]
     redis_settings = RedisSettings.from_dsn(redis_url)
