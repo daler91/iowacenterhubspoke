@@ -110,6 +110,15 @@ async def register(request: Request, data: UserRegister, response: Response):
             logger.warning(
                 "Failed to send pending-welcome email to %s: %s", data.email, e,
             )
+        # Notify admins so they can approve or reject. Separate try/except
+        # so a notification failure never breaks registration.
+        try:
+            from services.notification_events import notify_new_user_pending
+            await notify_new_user_pending(user_doc)
+        except Exception as e:
+            logger.warning(
+                "Failed to notify admins of pending user %s: %s", user_id, e,
+            )
         return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
 

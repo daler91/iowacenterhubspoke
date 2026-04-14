@@ -8,6 +8,7 @@ from core.auth import CurrentUser
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
+from services.notification_events import notify_project_phase_advanced
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -675,4 +676,5 @@ async def advance_phase(
         f"Project advanced from {current} to {next_phase}",
         "project", project_id, user.get("name", "System"),
     )
+    await notify_project_phase_advanced(project, current, next_phase, user)
     return {"warning": False, "phase": next_phase, "previous_phase": current}

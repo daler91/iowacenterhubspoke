@@ -126,7 +126,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "schedule.changed": {
         "key": "schedule.changed",
@@ -138,7 +138,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
 
     # ── Tasks ──────────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "task.completed": {
         "key": "task.completed",
@@ -188,7 +188,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "task.comment_added": {
         "key": "task.comment_added",
@@ -200,7 +200,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
 
     # ── Projects & Coordination ────────────────────────────────────────
@@ -214,7 +214,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "project.message_posted": {
         "key": "project.message_posted",
@@ -226,7 +226,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "project.document_shared": {
         "key": "project.document_shared",
@@ -238,7 +238,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal", "partner"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
 
     # ── Account ────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal"},
         "required_roles": None,
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
 
     # ── Admin-only ─────────────────────────────────────────────────────
@@ -266,7 +266,7 @@ NOTIFICATION_TYPES: dict[str, NotificationType] = {
         "audience": {"internal"},
         "required_roles": {"admin"},
         "transactional": False,
-        "implemented": False,
+        "implemented": True,
     },
     "admin.partner_activity_digest": {
         "key": "admin.partner_activity_digest",

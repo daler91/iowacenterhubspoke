@@ -16,6 +16,10 @@ from models.schemas import (
 )
 from core.auth import SchedulerRequired
 from services.activity import log_activity
+from services.notification_events import (
+    notify_schedule_assigned,
+    notify_schedule_changed,
+)
 from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
@@ -38,6 +42,10 @@ router = APIRouter(tags=["schedules"])
 async def bulk_delete_schedules(
     data: BulkDeleteRequest, user: SchedulerRequired
 ):
+    # Snapshot schedules before delete so we can notify each one's employees.
+    affected = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None}, {"_id": 0},
+    ).to_list(1000)
     now = datetime.now(timezone.utc).isoformat()
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
@@ -56,6 +64,8 @@ async def bulk_delete_schedules(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        for s in affected:
+            await notify_schedule_changed(s, "cancelled", user)
     return {"deleted_count": deleted_count}
 
 
@@ -190,6 +200,10 @@ async def bulk_reassign_schedules(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        # Notify each updated schedule's new assignees.
+        for s in schedules:
+            await notify_schedule_assigned({**s, "employee_ids": employee_ids},
+                                           employee_ids, user)
     return {"updated_count": updated_count}
 
 

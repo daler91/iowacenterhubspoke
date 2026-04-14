@@ -13,6 +13,11 @@ from core.auth import CurrentUser
 from core.pagination import Paginated, paginated_response
 from core.upload import stream_upload_to_disk
 from services.activity import log_activity
+from services.notification_events import (
+    notify_task_assigned,
+    notify_task_comment,
+    notify_task_completed,
+)
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -164,6 +169,12 @@ async def create_task(
         "task_created", f"Task '{data.title}' created",
         "task", task_id, user.get("name", "System"),
     )
+    # Notify assignee if this task was created pre-assigned.
+    if doc.get("assigned_to"):
+        project = await db.projects.find_one(
+            {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+        ) or {"id": project_id}
+        await notify_task_assigned(doc, project, user)
     return doc
 
 
@@ -209,6 +220,11 @@ async def update_task(
     }
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+    # Snapshot the pre-update task so we can tell what actually changed
+    # (assignment vs. completion) after the $set lands.
+    prev = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id}, {"_id": 0},
+    )
     # Sync completed fields when status changes
     if "status" in update_data:
         now = datetime.now(timezone.utc).isoformat()
@@ -227,6 +243,20 @@ async def update_task(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
     updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+
+    # Fire notifications for the two meaningful transitions. A separate
+    # project lookup keeps these helpers ignorant of task router internals.
+    project = await db.projects.find_one(
+        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    ) or {"id": project_id}
+    if updated and prev:
+        prev_assigned = prev.get("assigned_to")
+        new_assigned = updated.get("assigned_to")
+        if new_assigned and new_assigned != prev_assigned:
+            await notify_task_assigned(updated, project, user)
+        if updated.get("completed") and not prev.get("completed"):
+            await notify_task_completed(updated, project, user)
+
     return updated
 
 
@@ -256,6 +286,12 @@ async def toggle_task_completion(
     }
     await db.tasks.update_one({"id": task_id}, {"$set": update})
     task.update(update)
+    # Only notify on the False → True transition.
+    if new_completed:
+        project = await db.projects.find_one(
+            {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+        ) or {"id": project_id}
+        await notify_task_completed(task, project, user)
     return task
 
 
@@ -464,4 +500,13 @@ async def post_task_comment(
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
+    # Notify task assignee + prior commenters (excluding the actor)
+    task = await db.tasks.find_one(
+        {"id": task_id, "project_id": project_id}, {"_id": 0},
+    )
+    project = await db.projects.find_one(
+        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    ) or {"id": project_id}
+    if task:
+        await notify_task_comment(doc, task, project, user)
     return doc

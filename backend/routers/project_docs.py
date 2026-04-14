@@ -10,6 +10,7 @@ from models.coordination_schemas import DocumentVisibilityUpdate
 from core.upload import stream_upload_to_disk
 from core.auth import CurrentUser
 from services.activity import log_activity
+from services.notification_events import notify_project_document_shared
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -87,6 +88,7 @@ async def upload_document(
         "document_uploaded", f"Document '{file.filename}' uploaded",
         "document", doc_id, user.get("name", "System"),
     )
+    await notify_project_document_shared(doc, project, user)
     return doc
 
 

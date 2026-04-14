@@ -108,6 +108,102 @@ def _principal_from_doc(kind: PrincipalKind, doc: dict) -> Principal:
     )
 
 
+# ── Batch recipient helpers (used by notification_events) ─────────────
+
+async def list_admin_principals() -> list[Principal]:
+    """Return every active admin user as a Principal.
+
+    Used by ``admin.*`` events to fan out to the admin team.
+    """
+    cursor = db.users.find(
+        {"role": "admin", "status": "approved"},
+        {"_id": 0, "password_hash": 0},
+    )
+    docs = await cursor.to_list(length=500)
+    return [_principal_from_doc("internal", d) for d in docs]
+
+
+async def principal_for_employee(employee_id: str) -> Optional[Principal]:
+    """Resolve the internal user linked to an ``employees`` record by email.
+
+    Schedules carry ``employee_ids``, not ``user_ids``. Employees have an
+    ``email`` field that may match a ``users`` record; this helper bridges
+    the two collections. Returns ``None`` if the employee has no email or
+    the email doesn't match any user.
+    """
+    if not employee_id:
+        return None
+    employee = await db.employees.find_one(
+        {"id": employee_id, "deleted_at": None},
+        {"_id": 0, "email": 1},
+    )
+    if not employee or not employee.get("email"):
+        return None
+    return await find_principal_by_email(employee["email"])
+
+
+async def principals_for_project(
+    project_id: str,
+    exclude_ids: Optional[set[str]] = None,
+) -> list[Principal]:
+    """Return every stakeholder for a project (internal + partner contacts).
+
+    Today we fan out to:
+
+    - The partner org's **primary** contacts (matches the pattern used by
+      ``services.task_reminders._partner_principals_for``).
+    - Every admin-approved internal user who has ``notification_preferences``
+      set — a narrower fan-out would require a project-membership table we
+      don't have yet. For now, every non-viewer user is eligible; in
+      practice the preferences UI lets them silence per-project event types
+      they don't care about.
+
+    ``exclude_ids`` is a set of principal IDs to drop (typically the actor
+    so a user doesn't notify themselves).
+    """
+    exclude_ids = exclude_ids or set()
+    project = await db.projects.find_one(
+        {"id": project_id, "deleted_at": None},
+        {"_id": 0, "partner_org_id": 1},
+    )
+    if not project:
+        return []
+
+    principals: list[Principal] = []
+
+    # Partner primary contacts
+    partner_org_id = project.get("partner_org_id")
+    if partner_org_id:
+        contacts = await db.partner_contacts.find(
+            {
+                "partner_org_id": partner_org_id,
+                "is_primary": True,
+                "deleted_at": None,
+            },
+            {"_id": 0},
+        ).to_list(10)
+        for c in contacts:
+            if c["id"] in exclude_ids or not c.get("email"):
+                continue
+            principals.append(_principal_from_doc("partner", c))
+
+    # Internal stakeholders — every non-viewer, approved user. Preferences
+    # let individuals silence categories they don't care about.
+    users = await db.users.find(
+        {
+            "role": {"$in": ["admin", "editor", "scheduler"]},
+            "status": "approved",
+        },
+        {"_id": 0, "password_hash": 0},
+    ).to_list(500)
+    for u in users:
+        if u["id"] in exclude_ids:
+            continue
+        principals.append(_principal_from_doc("internal", u))
+
+    return principals
+
+
 # ── Reading prefs ──────────────────────────────────────────────────────
 
 def get_frequency(principal: Principal, type_key: str, channel: Channel) -> Frequency:
