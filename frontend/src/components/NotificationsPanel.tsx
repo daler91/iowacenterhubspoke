@@ -351,7 +351,7 @@ export default function NotificationsPanel() {
           <div className="p-2 border-t border-gray-100 dark:border-gray-800">
             <button
               type="button"
-              onClick={() => { navigate('/settings'); setOpen(false); }}
+              onClick={() => { navigate('/settings#notifications'); setOpen(false); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
             >
               <SettingsIcon className="w-3.5 h-3.5" />

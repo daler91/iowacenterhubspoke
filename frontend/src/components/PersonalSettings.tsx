@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -14,6 +14,15 @@ import NotificationPreferences from './NotificationPreferences';
 export default function PersonalSettings() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { hash } = useLocation();
+
+  // Scroll to the #notifications anchor when the panel links here directly.
+  useEffect(() => {
+    if (hash === '#notifications') {
+      const el = document.getElementById('notifications');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [hash]);
 
   // Employee linked to current user
   const [employee, setEmployee] = useState<LinkedEmployee | null>(null);
@@ -369,7 +378,7 @@ export default function PersonalSettings() {
       </div>
 
       {/* Notification Preferences */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div id="notifications" className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
         <div className="flex items-center gap-3 mb-1">
           <Bell className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Notifications</h3>
