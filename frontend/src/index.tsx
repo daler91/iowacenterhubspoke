@@ -16,6 +16,25 @@ if (sentryDsn) {
   });
 }
 
+// PostHog analytics (opt-in via VITE_POSTHOG_KEY env var). Loaded from the
+// bundle so it is compatible with the strict production CSP, which disallows
+// inline <script> blocks.
+const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
+if (posthogKey) {
+  const posthogHost =
+    import.meta.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com";
+  import("posthog-js").then(({ default: posthog }) => {
+    posthog.init(posthogKey, {
+      api_host: posthogHost,
+      person_profiles: "identified_only",
+      session_recording: {
+        recordCrossOriginIframes: true,
+        capturePerformance: false,
+      },
+    });
+  });
+}
+
 const resizeObserverMessages = new Set([
   "ResizeObserver loop completed with undelivered notifications.",
   "ResizeObserver loop limit exceeded",
@@ -38,6 +57,18 @@ if (globalThis.window !== undefined) {
     "error",
     (event) => {
       if (resizeObserverMessages.has(event.message)) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        return;
+      }
+      // Cross-origin iframe DataCloneError on PerformanceServerTiming is a
+      // benign Chrome quirk — nothing the app can do about it, swallow it
+      // so Sentry doesn't get flooded with noise.
+      if (
+        event.error instanceof DOMException &&
+        event.error.name === "DataCloneError" &&
+        event.message?.includes("PerformanceServerTiming")
+      ) {
         event.stopImmediatePropagation();
         event.preventDefault();
       }
