@@ -88,6 +88,7 @@ from core.logger import get_logger
 from database import db
 from services.email import resolve_app_url
 from services.notification_prefs import (
+    PREFS_FIELD,
     Principal,
     find_principal_by_email,
     list_admin_principals,
@@ -264,7 +265,7 @@ def _principal_from_contact(doc: dict) -> Principal:
         email=doc.get("email"),
         name=doc.get("name"),
         role=None,
-        prefs=doc.get("notification_preferences") or {},
+        prefs=doc.get(PREFS_FIELD) or {},
     )
 
 
@@ -276,7 +277,7 @@ def _principal_from_user(doc: dict) -> Principal:
         email=doc.get("email"),
         name=doc.get("name"),
         role=doc.get("role"),
-        prefs=doc.get("notification_preferences") or {},
+        prefs=doc.get(PREFS_FIELD) or {},
     )
 
 
@@ -449,7 +450,7 @@ async def _load_commenter_principals(
             email=d.get("email"),
             name=d.get("name"),
             role=d.get("role") if kind == "internal" else None,
-            prefs=d.get("notification_preferences") or {},
+            prefs=d.get(PREFS_FIELD) or {},
         ))
         seen_ids.add(pid)
     return out
