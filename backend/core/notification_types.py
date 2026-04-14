@@ -360,6 +360,18 @@ def is_valid_type(key: str) -> bool:
     return key in NOTIFICATION_TYPES
 
 
+def _is_visible_to(t: NotificationType, audience: Audience, role: Optional[str]) -> bool:
+    """True if ``t`` should be shown in the settings UI for this caller."""
+    if t.get("transactional"):
+        return False
+    if audience not in t["audience"]:
+        return False
+    required = t.get("required_roles")
+    if required and (role is None or role not in required):
+        return False
+    return True
+
+
 def visible_types_for(audience: Audience, role: Optional[str]) -> list[NotificationType]:
     """Return registry entries the UI should render for a given caller.
 
@@ -367,20 +379,9 @@ def visible_types_for(audience: Audience, role: Optional[str]) -> list[Notificat
     caller's audience or required-role set. Result is ordered by
     ``CATEGORY_ORDER`` then dict-insertion order within each category.
     """
-    out: list[NotificationType] = []
-    for cat in CATEGORY_ORDER:
-        for t in NOTIFICATION_TYPES.values():
-            if t["category"] != cat:
-                continue
-            if t.get("transactional"):
-                continue
-            if audience not in t["audience"]:
-                continue
-            required = t.get("required_roles")
-            if required and (role is None or role not in required):
-                continue
-            out.append(t)
-    return out
+    visible = [t for t in NOTIFICATION_TYPES.values() if _is_visible_to(t, audience, role)]
+    category_rank = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
+    return sorted(visible, key=lambda t: category_rank.get(t["category"], len(CATEGORY_ORDER)))
 
 
 def default_frequency(type_key: str, channel: Channel) -> Frequency:

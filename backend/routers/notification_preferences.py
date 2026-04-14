@@ -23,7 +23,7 @@ from core.notification_types import (
     visible_types_for,
 )
 from core.portal_auth import PortalContext
-from models.schemas import NotificationPreferencesUpdate
+from models.schemas import ErrorResponse, NotificationPreferencesUpdate
 from services.notification_prefs import (
     Principal,
     get_effective_prefs,
@@ -45,26 +45,29 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["notifications"])
 
 
+USER_NOT_FOUND = "User not found"
+CONTACT_NOT_FOUND = "Contact not found"
+NOTIFICATION_NOT_FOUND = "Notification not found"
+
+_NOT_FOUND_RESPONSES = {404: {"model": ErrorResponse, "description": NOTIFICATION_NOT_FOUND}}
+_USER_NOT_FOUND_RESPONSES = {404: {"model": ErrorResponse, "description": USER_NOT_FOUND}}
+_CONTACT_NOT_FOUND_RESPONSES = {404: {"model": ErrorResponse, "description": CONTACT_NOT_FOUND}}
+
+
 # ── Helpers ────────────────────────────────────────────────────────────
 
 async def _load_internal(user: dict) -> Principal:
     principal = await load_principal("internal", user["user_id"])
     if principal is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     return principal
 
 
-def _portal_principal(ctx: dict) -> Principal:
-    """Build a Principal from the portal auth context (no DB round-trip)."""
-    contact = ctx["contact"]
-    return Principal(
-        kind="partner",
-        id=contact["id"],
-        email=contact.get("email"),
-        name=contact.get("name"),
-        role=None,
-        prefs=contact.get("notification_preferences") or {},
-    )
+async def _load_partner(ctx: dict) -> Principal:
+    principal = await load_principal("partner", ctx["contact"]["id"])
+    if principal is None:
+        raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
+    return principal
 
 
 def _registry_payload(audience: str, role: str | None) -> dict:
@@ -91,6 +94,7 @@ def _registry_payload(audience: str, role: str | None) -> dict:
 @router.get(
     "/me/notification-preferences",
     summary="Get my notification preferences + registry",
+    responses=_USER_NOT_FOUND_RESPONSES,
 )
 async def get_my_prefs(user: CurrentUser):
     principal = await _load_internal(user)
@@ -103,6 +107,7 @@ async def get_my_prefs(user: CurrentUser):
 @router.put(
     "/me/notification-preferences",
     summary="Update my notification preferences",
+    responses=_USER_NOT_FOUND_RESPONSES,
 )
 async def put_my_prefs(body: NotificationPreferencesUpdate, user: CurrentUser):
     principal = await _load_internal(user)
@@ -127,19 +132,27 @@ async def get_inbox(user: CurrentUser, include_dismissed: bool = False, limit: i
     return {"items": items, "unread_count": unread}
 
 
-@router.post("/notifications/inbox/{notification_id}/read", summary="Mark a notification read")
+@router.post(
+    "/notifications/inbox/{notification_id}/read",
+    summary="Mark a notification read",
+    responses=_NOT_FOUND_RESPONSES,
+)
 async def post_mark_read(notification_id: str, user: CurrentUser):
     ok = await mark_read("internal", user["user_id"], notification_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=NOTIFICATION_NOT_FOUND)
     return {"ok": True}
 
 
-@router.post("/notifications/inbox/{notification_id}/dismiss", summary="Dismiss a notification")
+@router.post(
+    "/notifications/inbox/{notification_id}/dismiss",
+    summary="Dismiss a notification",
+    responses=_NOT_FOUND_RESPONSES,
+)
 async def post_dismiss(notification_id: str, user: CurrentUser):
     ok = await dismiss_notification("internal", user["user_id"], notification_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=NOTIFICATION_NOT_FOUND)
     return {"ok": True}
 
 
@@ -155,12 +168,11 @@ async def post_mark_all_read(user: CurrentUser):
     "/portal/me/notification-preferences",
     summary="Portal: get my notification preferences",
     tags=["portal"],
+    responses=_CONTACT_NOT_FOUND_RESPONSES,
 )
 async def portal_get_prefs(ctx: PortalContext):
     # Re-read from DB so prefs updated in another tab are reflected
-    principal = await load_principal("partner", ctx["contact"]["id"])
-    if principal is None:
-        raise HTTPException(status_code=404, detail="Contact not found")
+    principal = await _load_partner(ctx)
     return {
         "registry": _registry_payload("partner", None),
         "preferences": get_effective_prefs(principal),
@@ -171,11 +183,10 @@ async def portal_get_prefs(ctx: PortalContext):
     "/portal/me/notification-preferences",
     summary="Portal: update my notification preferences",
     tags=["portal"],
+    responses=_CONTACT_NOT_FOUND_RESPONSES,
 )
 async def portal_put_prefs(body: NotificationPreferencesUpdate, ctx: PortalContext):
-    principal = await load_principal("partner", ctx["contact"]["id"])
-    if principal is None:
-        raise HTTPException(status_code=404, detail="Contact not found")
+    principal = await _load_partner(ctx)
     sanitized = sanitize_update(body.model_dump(exclude_none=False))
     await save_prefs(principal, sanitized)
     return {
@@ -203,11 +214,12 @@ async def portal_get_inbox(ctx: PortalContext, include_dismissed: bool = False, 
     "/portal/notifications/inbox/{notification_id}/read",
     summary="Portal: mark notification read",
     tags=["portal"],
+    responses=_NOT_FOUND_RESPONSES,
 )
 async def portal_mark_read(notification_id: str, ctx: PortalContext):
     ok = await mark_read("partner", ctx["contact"]["id"], notification_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=NOTIFICATION_NOT_FOUND)
     return {"ok": True}
 
 
@@ -215,9 +227,10 @@ async def portal_mark_read(notification_id: str, ctx: PortalContext):
     "/portal/notifications/inbox/{notification_id}/dismiss",
     summary="Portal: dismiss notification",
     tags=["portal"],
+    responses=_NOT_FOUND_RESPONSES,
 )
 async def portal_dismiss(notification_id: str, ctx: PortalContext):
     ok = await dismiss_notification("partner", ctx["contact"]["id"], notification_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=NOTIFICATION_NOT_FOUND)
     return {"ok": True}

@@ -68,19 +68,27 @@ async def _partner_principals_for(project: dict) -> list[Principal]:
 
 
 def _build_event(reminder_type: str, task: dict, project: dict, days: int, threshold: str) -> NotificationEvent:
+    from html import escape
+
     title = task.get("title", "Task")
     project_title = project.get("title", "project")
     due_date = task.get("due_date", "")
     app_url = resolve_app_url().rstrip("/")
-    # Deep-link uses the task id when present so clicks go straight there;
-    # planned path but stable regardless of route evolution.
-    link = f"{app_url}/projects/{project.get('id', '')}/tasks/{task.get('id', '')}"
+    # The SPA exposes project detail at /coordination/projects/:id — there's
+    # no per-task route yet, so we link to the project and rely on the user
+    # locating the task from there. When a dedicated task route exists,
+    # point at it here.
+    link = f"{app_url}/coordination/projects/{project.get('id', '')}"
 
     if reminder_type == "overdue":
         subject = f"Overdue: \"{title}\" was due {days} day(s) ago"
         body = (
-            f"The task <strong>{title}</strong> for "
-            f"<strong>{project_title}</strong> was due on {due_date} and is "
+            f"The task \"{title}\" for {project_title} was due on {due_date} and is "
+            f"now {days} day(s) overdue. Please complete it as soon as possible."
+        )
+        email_html = (
+            f"The task <strong>{escape(title)}</strong> for "
+            f"<strong>{escape(project_title)}</strong> was due on {escape(due_date)} and is "
             f"now <strong>{days} day(s) overdue</strong>. Please complete "
             f"it as soon as possible."
         )
@@ -89,8 +97,12 @@ def _build_event(reminder_type: str, task: dict, project: dict, days: int, thres
     else:
         subject = f"Reminder: \"{title}\" is due in {days} day(s)"
         body = (
-            f"This is a reminder that the task <strong>{title}</strong> for "
-            f"<strong>{project_title}</strong> is due on {due_date}. Please "
+            f"This is a reminder that the task \"{title}\" for {project_title} "
+            f"is due on {due_date}. Please complete it at your earliest convenience."
+        )
+        email_html = (
+            f"This is a reminder that the task <strong>{escape(title)}</strong> for "
+            f"<strong>{escape(project_title)}</strong> is due on {escape(due_date)}. Please "
             f"complete it at your earliest convenience."
         )
         type_key = "task.approaching"
@@ -100,6 +112,7 @@ def _build_event(reminder_type: str, task: dict, project: dict, days: int, thres
         type_key=type_key,
         title=subject,
         body=body,
+        email_body_html=email_html,
         link=link,
         entity_type="task",
         entity_id=task.get("id"),
@@ -107,6 +120,49 @@ def _build_event(reminder_type: str, task: dict, project: dict, days: int, thres
         dedup_key=f"{task.get('id', '')}:{threshold}",
         context={"task_title": title, "project_title": project_title, "due_date": due_date},
     )
+
+
+async def _resolve_task_recipients(task: dict, project: dict) -> list[Principal]:
+    """Resolve recipient principals for a task based on ownership.
+
+    Partner-owned tasks go to partner primary contacts; internal-owned
+    tasks go to the assignee's user record (when ``assignee_email`` is set).
+    """
+    owner = task.get("owner")
+    principals: list[Principal] = []
+    if owner in ("partner", "both"):
+        principals.extend(await _partner_principals_for(project))
+    assignee_email = task.get("assignee_email")
+    if owner in ("internal", "both") and assignee_email:
+        p = await find_principal_by_email(assignee_email)
+        if p is not None:
+            principals.append(p)
+    return principals
+
+
+async def _process_single_task(task: dict, now: datetime, now_iso: str) -> int:
+    """Dispatch reminders for one task and return the successful delivery count."""
+    due = task.get("due_date", "")
+    if not due:
+        return 0
+
+    project = await db.projects.find_one(
+        {"id": task["project_id"], "deleted_at": None},
+        {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    )
+    if not project:
+        return 0
+
+    rtype, threshold, days = _classify_task(due, now_iso, now)
+    principals = await _resolve_task_recipients(task, project)
+    event = _build_event(rtype, task, project, days, threshold)
+
+    sent = 0
+    for principal in principals:
+        result = await dispatch(principal, event)
+        if result.email == "sent" or result.in_app == "sent":
+            sent += 1
+    return sent
 
 
 async def check_and_send_reminders() -> int:
@@ -122,38 +178,7 @@ async def check_and_send_reminders() -> int:
 
     sent_count = 0
     for task in tasks:
-        due = task.get("due_date", "")
-        if not due:
-            continue
-
-        project = await db.projects.find_one(
-            {"id": task["project_id"], "deleted_at": None},
-            {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
-        )
-        if not project:
-            continue
-
-        rtype, threshold, days = _classify_task(due, now_iso, now)
-
-        # Resolve recipients. Partner-owned tasks go to partner contacts;
-        # "internal" and "both" would also go to assigned internal users —
-        # kept here as a placeholder for when per-task internal owners exist.
-        owner = task.get("owner")
-        principals: list[Principal] = []
-        if owner in ("partner", "both"):
-            principals.extend(await _partner_principals_for(project))
-        # (internal owner branch would resolve via assignee_email on the task)
-        assignee_email = task.get("assignee_email")
-        if owner in ("internal", "both") and assignee_email:
-            p = await find_principal_by_email(assignee_email)
-            if p is not None:
-                principals.append(p)
-
-        event = _build_event(rtype, task, project, days, threshold)
-        for principal in principals:
-            result = await dispatch(principal, event)
-            if result.email == "sent" or result.in_app == "sent":
-                sent_count += 1
+        sent_count += await _process_single_task(task, now, now_iso)
 
     logger.info("Task reminders: processed %d tasks, %d deliveries", len(tasks), sent_count)
     return sent_count

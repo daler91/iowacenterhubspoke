@@ -51,6 +51,20 @@ function getLiveLink(type: string): string | null {
   return null;
 }
 
+/**
+ * Coerce an ``unknown`` JSON field to a safe string.
+ *
+ * ``String(x ?? '')`` would call Object's default stringifier on
+ * non-string values (``[object Object]``), which is useless in a UI.
+ * We explicitly accept only string | number so a malformed payload
+ * degrades to an empty string instead of leaking type info.
+ */
+function asString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
 const SEVERITY_CONFIG = {
   warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
   info: { icon: CalendarDays, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
@@ -82,13 +96,13 @@ export default function NotificationsPanel() {
         if (liveRes.status === 'fulfilled') {
           const raw = Array.isArray(liveRes.value.data) ? liveRes.value.data : [];
           setLiveItems(raw.map((n: Record<string, unknown>) => ({
-            id: String(n.id ?? ''),
-            type: String(n.type ?? ''),
-            title: String(n.title ?? ''),
-            description: String(n.description ?? ''),
+            id: asString(n.id),
+            type: asString(n.type),
+            title: asString(n.title),
+            description: asString(n.description),
             severity: (n.severity === 'warning' ? 'warning' : 'info'),
-            timestamp: String(n.timestamp ?? ''),
-            entity_id: n.entity_id as string | undefined,
+            timestamp: asString(n.timestamp),
+            entity_id: typeof n.entity_id === 'string' ? n.entity_id : undefined,
             source: 'live',
           })));
         }
@@ -96,14 +110,14 @@ export default function NotificationsPanel() {
           const data = inboxRes.value.data as { items?: Record<string, unknown>[] };
           const items = Array.isArray(data?.items) ? data.items : [];
           setInboxItems(items.map((n) => ({
-            id: String(n.id ?? ''),
-            type_key: String(n.type_key ?? ''),
-            title: String(n.title ?? ''),
-            body: String(n.body ?? ''),
+            id: asString(n.id),
+            type_key: asString(n.type_key),
+            title: asString(n.title),
+            body: asString(n.body),
             severity: (n.severity === 'warning' ? 'warning' : 'info'),
-            link: (n.link as string | null) ?? null,
-            read_at: (n.read_at as string | null) ?? null,
-            created_at: String(n.created_at ?? ''),
+            link: typeof n.link === 'string' ? n.link : null,
+            read_at: typeof n.read_at === 'string' ? n.read_at : null,
+            created_at: asString(n.created_at),
             source: 'inbox',
           })));
         }
@@ -169,14 +183,18 @@ export default function NotificationsPanel() {
   };
 
   const handleDismissAll = async () => {
-    // Dismiss all live items client-side + mark all inbox items read on server.
+    // Mirror per-row dismissal: hide live alerts client-side and actually
+    // remove each inbox row server-side. "Dismiss all" should empty the
+    // panel — just marking read still left items visible, which defeats
+    // the point of the button.
     setDismissedLive(new Set(liveItems.map(n => n.id)));
+    const toDismiss = inboxItems;
+    // Optimistic clear so the panel empties immediately.
+    setInboxItems([]);
     try {
-      await notificationsAPI.markAllRead();
-      // Poll will refresh unread counts; we also locally clear read state.
-      setInboxItems(prev => prev.map(i => ({ ...i, read_at: i.read_at || new Date().toISOString() })));
+      await Promise.all(toDismiss.map(n => notificationsAPI.dismiss(n.id)));
     } catch {
-      // Swallow — next poll reconciles.
+      // Any failed dismissals will reappear on the next 30s poll.
     }
   };
 
@@ -262,15 +280,13 @@ export default function NotificationsPanel() {
                   const Icon = config.icon;
                   const liveType = notification.source === 'live' ? notification.type : null;
                   const isIdle = liveType === 'idle_employee';
-                  // Inbox body may be HTML (for email rendering). Strip tags
-                  // for the bell panel so we're not pushing HTML from a DB
-                  // row through dangerouslySetInnerHTML.
-                  const rawDescription = notification.source === 'live'
+                  // The backend stores inbox bodies as plaintext (email
+                  // rendering uses a separate HTML field), so we can render
+                  // them directly as React text children — which escapes any
+                  // angle brackets or entities for free.
+                  const description = notification.source === 'live'
                     ? notification.description
                     : notification.body;
-                  const description = notification.source === 'live'
-                    ? rawDescription
-                    : rawDescription.replace(/<[^>]+>/g, '');
                   const hasLink = notification.source === 'live'
                     ? Boolean(getLiveLink(notification.type))
                     : Boolean(notification.link);

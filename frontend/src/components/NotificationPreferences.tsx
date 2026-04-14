@@ -103,15 +103,17 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
       setData(current => {
         if (!current) return current;
         const nextTypes = { ...current.preferences.types };
-        const row = { ...(nextTypes[typeKey] || {}) };
+        const row: Partial<Record<NotificationChannel, NotificationFrequency>> = { ...nextTypes[typeKey] };
         row[channel] = value;
         nextTypes[typeKey] = row;
         const next = {
           ...current,
           preferences: { ...current.preferences, types: nextTypes },
         };
-        // Fire-and-forget — we reconcile with server response.
-        void persist(next.preferences);
+        // Fire-and-forget — we reconcile with server response. The
+        // .catch() below keeps the promise floating-safe without needing
+        // the (confusing) ``void`` operator.
+        persist(next.preferences).catch(() => { /* handled in persist() */ });
         return next;
       });
     },
@@ -127,7 +129,7 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
           ...current,
           preferences: { ...current.preferences, digest: nextDigest },
         };
-        void persist(next.preferences);
+        persist(next.preferences).catch(() => { /* handled in persist() */ });
         return next;
       });
     },

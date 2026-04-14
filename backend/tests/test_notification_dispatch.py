@@ -6,6 +6,7 @@ The dispatcher touches ``db.notifications`` (inbox inserts),
 dispatcher's branching is verifiable without a live Mongo.
 """
 
+import asyncio
 import os
 import sys
 from unittest.mock import MagicMock
@@ -23,29 +24,34 @@ from services.notification_prefs import Principal  # noqa: E402
 from services.notifications import NotificationEvent, dispatch  # noqa: E402
 
 
+class DuplicateKeyError(Exception):
+    """Stand-in for a Mongo duplicate-key error raised by the unique index."""
+
+
 class FakeCollection:
     """Minimal async Mongo collection stand-in.
 
     Only implements the methods the dispatcher actually calls:
-    ``insert_one`` / ``find_one`` / ``update_one`` / ``update_many`` /
-    ``count_documents`` / ``find``.
+    ``insert_one`` / ``find_one``.
     """
 
     def __init__(self):
         self.docs: list[dict] = []
 
     async def insert_one(self, doc):
+        await asyncio.sleep(0)
         # Dedup unique index simulation: reject if a prior (principal_kind,
         # principal_id, type_key, channel, dedup_key) row exists.
         keys = {"principal_kind", "principal_id", "type_key", "channel", "dedup_key"}
         if keys.issubset(doc.keys()):
             for existing in self.docs:
                 if all(existing.get(k) == doc[k] for k in keys):
-                    raise Exception("duplicate key")
+                    raise DuplicateKeyError("duplicate key")
         self.docs.append(doc)
         return MagicMock(inserted_id=doc.get("id"))
 
     async def find_one(self, query, projection=None):
+        await asyncio.sleep(0)
         for d in self.docs:
             if all(d.get(k) == v for k, v in query.items()):
                 return d
@@ -68,6 +74,7 @@ def fake_db(monkeypatch):
     sent_emails: list[dict] = []
 
     async def fake_send_instant_email(principal, event):
+        await asyncio.sleep(0)
         sent_emails.append({"to": principal.email, "title": event.title})
         return True
 

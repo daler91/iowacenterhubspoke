@@ -40,7 +40,6 @@ from core.logger import get_logger
 from core.notification_types import (
     Channel,
     Frequency,
-    NOTIFICATION_TYPES,
     get_type,
 )
 from database import db
@@ -60,20 +59,32 @@ logger = get_logger(__name__)
 class NotificationEvent:
     """Payload passed to :func:`dispatch`.
 
-    ``title`` / ``body`` appear in the in-app inbox row and as the
-    subject/body of the instant email. ``link`` is what the inbox item
-    navigates to when clicked.
+    ``title`` / ``body`` are **plaintext** and are what land in the in-app
+    inbox (React renders them as text, so no HTML sanitisation needed on
+    the client). ``email_body_html`` is the HTML version used by the
+    email channel; if omitted, the dispatcher wraps ``body`` in a minimal
+    ``<p>`` block.
     """
 
     type_key: str
     title: str
     body: str
+    email_body_html: Optional[str] = None
     link: Optional[str] = None
     entity_type: Optional[str] = None
     entity_id: Optional[str] = None
     severity: str = "info"
     dedup_key: Optional[str] = None  # per-(principal,type,channel) idempotency
     context: dict = field(default_factory=dict)  # free-form extras for email templates
+
+    def html_for_email(self) -> str:
+        """Return the HTML body used by the email channel."""
+        if self.email_body_html:
+            return self.email_body_html
+        # Plaintext → escaped HTML paragraph. Prevents injection when a
+        # caller didn't supply a pre-rendered HTML version.
+        from html import escape
+        return f"<p>{escape(self.body)}</p>"
 
 
 # ── Dedup ──────────────────────────────────────────────────────────────
@@ -181,7 +192,7 @@ async def _send_instant_email(principal: Principal, event: NotificationEvent) ->
         to=principal.email,
         name=principal.name or "there",
         title=event.title,
-        body_html=event.body,
+        body_html=event.html_for_email(),
         link=event.link,
     )
 
@@ -192,6 +203,43 @@ async def _send_instant_email(principal: Principal, event: NotificationEvent) ->
 class DispatchResult:
     in_app: str  # "sent" | "queued" | "off" | "skipped" | "deduped" | "unsupported"
     email: str
+
+
+async def _deliver_channel(
+    principal: Principal,
+    event: NotificationEvent,
+    channel: Channel,
+    frequency: Frequency,
+) -> str:
+    """Deliver ``event`` on a single channel and return the outcome."""
+    if frequency == "instant":
+        if channel == "in_app":
+            await _persist_inbox(principal, event)
+            return "sent"
+        ok = await _send_instant_email(principal, event)
+        return "sent" if ok else "skipped"
+    # daily | weekly
+    if channel == "in_app":
+        # In-app has no digest concept — degrade to instant.
+        await _persist_inbox(principal, event)
+        return "sent"
+    await _enqueue_for_digest(principal, event, channel, frequency)
+    return "queued"
+
+
+async def _dispatch_channel(
+    principal: Principal,
+    event: NotificationEvent,
+    channel: Channel,
+) -> str:
+    freq = get_frequency(principal, event.type_key, channel)
+    if freq == "off":
+        return "off"
+    if await _was_already_sent(principal, event, channel):
+        return "deduped"
+    outcome = await _deliver_channel(principal, event, channel, freq)
+    await _record_sent(principal, event, channel, outcome)
+    return outcome
 
 
 async def dispatch(principal: Principal, event: NotificationEvent) -> DispatchResult:
@@ -215,36 +263,9 @@ async def dispatch(principal: Principal, event: NotificationEvent) -> DispatchRe
         email_outcome = "sent" if await _send_instant_email(principal, event) else "skipped"
         return DispatchResult(in_app="unsupported", email=email_outcome)
 
-    results: dict[Channel, str] = {}
-    for channel in ("in_app", "email"):
-        freq = get_frequency(principal, event.type_key, channel)  # type: ignore[arg-type]
-        if freq == "off":
-            results[channel] = "off"
-            continue
-        if await _was_already_sent(principal, event, channel):  # type: ignore[arg-type]
-            results[channel] = "deduped"
-            continue
-        if freq == "instant":
-            if channel == "in_app":
-                await _persist_inbox(principal, event)
-                results[channel] = "sent"
-            else:  # email
-                ok = await _send_instant_email(principal, event)
-                results[channel] = "sent" if ok else "skipped"
-        else:  # daily | weekly
-            if channel == "in_app":
-                # In-app digests make no sense — degrade to instant.
-                await _persist_inbox(principal, event)
-                results[channel] = "sent"
-            else:
-                await _enqueue_for_digest(principal, event, channel, freq)  # type: ignore[arg-type]
-                results[channel] = "queued"
-        await _record_sent(principal, event, channel, results[channel])  # type: ignore[arg-type]
-
-    return DispatchResult(
-        in_app=results.get("in_app", "unsupported"),
-        email=results.get("email", "unsupported"),
-    )
+    in_app_outcome = await _dispatch_channel(principal, event, "in_app")
+    email_outcome = await _dispatch_channel(principal, event, "email")
+    return DispatchResult(in_app=in_app_outcome, email=email_outcome)
 
 
 # ── Inbox helpers used by the router ───────────────────────────────────

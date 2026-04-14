@@ -179,6 +179,42 @@ def get_effective_prefs(principal: Principal) -> dict:
 
 # ── Writing prefs ──────────────────────────────────────────────────────
 
+def _sanitize_digest(raw_digest: dict) -> dict:
+    """Clamp digest settings to valid values, falling back to defaults."""
+    hour = raw_digest.get("daily_hour")
+    weekday = raw_digest.get("weekly_day")
+    return {
+        "daily_hour": hour if isinstance(hour, int) and 0 <= hour <= 23 else DEFAULT_DIGEST["daily_hour"],
+        "weekly_day": weekday if weekday in VALID_WEEKDAYS else DEFAULT_DIGEST["weekly_day"],
+    }
+
+
+def _sanitize_channel_freq(channel: str, freq: Any, allowed: set) -> Optional[str]:
+    """Return the sanitised frequency for one (channel, freq) pair, or None."""
+    if channel not in VALID_CHANNELS or channel not in allowed:
+        return None
+    if freq not in VALID_FREQUENCIES:
+        return None
+    # in_app has no digest cadence — coerce any digest value to instant.
+    if channel == "in_app" and freq in ("daily", "weekly"):
+        return "instant"
+    return freq
+
+
+def _sanitize_type_entry(type_key: str, channels_in: Any) -> dict[str, str]:
+    """Return the sanitised per-channel map for one type, or {} to skip."""
+    t = get_type(type_key)
+    if not t or t.get("transactional") or not isinstance(channels_in, dict):
+        return {}
+    allowed = t.get("allowed_channels", set())
+    cleaned: dict[str, str] = {}
+    for ch, freq in channels_in.items():
+        sanitized = _sanitize_channel_freq(ch, freq, allowed)
+        if sanitized is not None:
+            cleaned[ch] = sanitized
+    return cleaned
+
+
 def sanitize_update(raw: dict) -> dict:
     """Strip unknown keys / invalid values from an incoming prefs update.
 
@@ -186,42 +222,19 @@ def sanitize_update(raw: dict) -> dict:
     erroring out — forward-compatible with older frontends whose registry
     may be out-of-date.
     """
-    out: dict[str, Any] = {"version": PREFS_VERSION}
-
-    # digest
-    digest_in = raw.get("digest") or {}
-    hour = digest_in.get("daily_hour")
-    weekday = digest_in.get("weekly_day")
-    out["digest"] = {
-        "daily_hour": hour if isinstance(hour, int) and 0 <= hour <= 23 else DEFAULT_DIGEST["daily_hour"],
-        "weekly_day": weekday if weekday in VALID_WEEKDAYS else DEFAULT_DIGEST["weekly_day"],
-    }
-
-    # types
     sanitized_types: dict[str, dict[str, str]] = {}
     types_in = raw.get("types") or {}
     if isinstance(types_in, dict):
         for key, channels in types_in.items():
-            t = get_type(key)
-            if not t or t.get("transactional"):
-                continue
-            if not isinstance(channels, dict):
-                continue
-            allowed = t.get("allowed_channels", set())
-            cleaned: dict[str, str] = {}
-            for ch, freq in channels.items():
-                if ch not in VALID_CHANNELS or ch not in allowed:
-                    continue
-                if freq not in VALID_FREQUENCIES:
-                    continue
-                # in_app only honours instant/off; coerce digest → instant
-                if ch == "in_app" and freq in ("daily", "weekly"):
-                    freq = "instant"
-                cleaned[ch] = freq
+            cleaned = _sanitize_type_entry(key, channels)
             if cleaned:
                 sanitized_types[key] = cleaned
-    out["types"] = sanitized_types
-    return out
+
+    return {
+        "version": PREFS_VERSION,
+        "digest": _sanitize_digest(raw.get("digest") or {}),
+        "types": sanitized_types,
+    }
 
 
 async def save_prefs(principal: Principal, sanitized: dict) -> dict:

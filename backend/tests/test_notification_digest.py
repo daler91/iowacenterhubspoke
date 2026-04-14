@@ -5,6 +5,7 @@ their configured ``digest.daily_hour`` / ``digest.weekly_day``. Successful
 flushes delete the rows; failed sends leave them for retry.
 """
 
+import asyncio
 import os
 import sys
 from datetime import datetime, timezone
@@ -22,6 +23,24 @@ from services import digest as digest_mod  # noqa: E402
 from services.notification_prefs import Principal  # noqa: E402
 
 
+class _Cursor:
+    """Minimal Motor cursor stand-in exposing only ``to_list``."""
+
+    def __init__(self, items):
+        self.items = items
+
+    async def to_list(self, limit):
+        # Explicit yield-point so the function is genuinely async.
+        await asyncio.sleep(0)
+        return self.items[:limit]
+
+
+class _UpdateResult:
+    def __init__(self, modified_count=0, deleted_count=0):
+        self.modified_count = modified_count
+        self.deleted_count = deleted_count
+
+
 class FakeQueue:
     """In-memory stand-in for ``db.notification_queue``."""
 
@@ -29,36 +48,25 @@ class FakeQueue:
         self.rows = list(rows)
 
     def find(self, query, projection=None):
-        # For this test, the query always matches — yield all rows
-        out = list(self.rows)
-
-        class _Cursor:
-            def __init__(self, items):
-                self.items = items
-
-            async def to_list(self, limit):
-                return self.items[:limit]
-
-        return _Cursor(out)
+        # For this test, the query always matches — yield all rows.
+        return _Cursor(list(self.rows))
 
     async def delete_many(self, query):
+        await asyncio.sleep(0)
         ids = set(query.get("id", {}).get("$in", []))
         before = len(self.rows)
         self.rows = [r for r in self.rows if r.get("id") not in ids]
-        class _R:
-            deleted_count = before - len(self.rows)
-        return _R()
+        return _UpdateResult(deleted_count=before - len(self.rows))
 
     async def update_many(self, query, update):
+        await asyncio.sleep(0)
         ids = set(query.get("id", {}).get("$in", []))
         mods = 0
         for r in self.rows:
             if r.get("id") in ids:
                 r.update(update.get("$set", {}))
                 mods += 1
-        class _R:
-            modified_count = mods
-        return _R()
+        return _UpdateResult(modified_count=mods)
 
 
 @pytest.fixture
@@ -89,31 +97,26 @@ def _make_principal(daily_hour=8, weekly_day="mon"):
     )
 
 
+def _assert_never_called(*_args, **_kwargs):
+    """Raise to fail fast if the digest worker tries to flush off-hour."""
+    raise AssertionError("digest worker flushed when it should not have")
+
+
+async def _load_principal_at_hour(daily_hour=8, weekly_day="mon"):
+    async def _loader(kind, pid):
+        await asyncio.sleep(0)
+        return _make_principal(daily_hour=daily_hour, weekly_day=weekly_day)
+    return _loader
+
+
 @pytest.mark.asyncio
 async def test_digest_does_not_flush_off_hour(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
+    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
+    monkeypatch.setattr(digest_mod, "_send_digest_and_clear", _assert_never_called)
 
-    # Principal wants digest at 08:00; now is 03:00 → no flush.
-    async def fake_load(kind, pid):
-        return _make_principal(daily_hour=8)
-    monkeypatch.setattr(digest_mod, "load_principal", fake_load)
-
-    sent = []
-
-    async def fake_send(*a, **kw):
-        sent.append(kw)
-        return True
-
-    monkeypatch.setattr(
-        digest_mod, "_send_digest_and_clear",
-        lambda *a, **kw: _assert_never(),  # fail if called
-    )
-
-    def _assert_never():
-        raise AssertionError("should not flush off-hour")
-
-    # Override "now" to 03:00 UTC
+    # Override "now" to 03:00 UTC — principal wants digest at 08:00.
     monkeypatch.setattr(
         digest_mod, "_now",
         lambda: datetime(2026, 4, 14, 3, 0, tzinfo=timezone.utc),
@@ -128,14 +131,12 @@ async def test_digest_does_not_flush_off_hour(monkeypatch, queue_rows):
 async def test_digest_flushes_at_configured_hour(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
-
-    async def fake_load(kind, pid):
-        return _make_principal(daily_hour=8)
-    monkeypatch.setattr(digest_mod, "load_principal", fake_load)
+    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
 
     sent_calls = []
 
     async def fake_send_digest_email(to, name, frequency, items):
+        await asyncio.sleep(0)
         sent_calls.append({"to": to, "items": items, "frequency": frequency})
         return True
 
@@ -159,12 +160,10 @@ async def test_digest_flushes_at_configured_hour(monkeypatch, queue_rows):
 async def test_digest_failure_leaves_rows_for_retry(monkeypatch, queue_rows):
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
+    monkeypatch.setattr(digest_mod, "load_principal", await _load_principal_at_hour(daily_hour=8))
 
-    async def fake_load(kind, pid):
-        return _make_principal(daily_hour=8)
-    monkeypatch.setattr(digest_mod, "load_principal", fake_load)
-
-    async def fake_send_digest_email(*a, **kw):
+    async def fake_send_digest_email(to, name, frequency, items):  # noqa: ARG001
+        await asyncio.sleep(0)
         return False  # simulate SMTP failure
 
     import services.email as email_mod
@@ -187,14 +186,15 @@ async def test_digest_weekly_only_fires_on_configured_day(monkeypatch, queue_row
         r["frequency"] = "weekly"
     db = _fake_db(queue_rows)
     monkeypatch.setattr(digest_mod, "db", db)
-
-    async def fake_load(kind, pid):
-        return _make_principal(daily_hour=8, weekly_day="fri")
-    monkeypatch.setattr(digest_mod, "load_principal", fake_load)
+    monkeypatch.setattr(
+        digest_mod, "load_principal",
+        await _load_principal_at_hour(daily_hour=8, weekly_day="fri"),
+    )
 
     sent = []
 
-    async def fake_send_digest_email(to, name, frequency, items):
+    async def fake_send_digest_email(to, name, frequency, items):  # noqa: ARG001
+        await asyncio.sleep(0)
         sent.append(frequency)
         return True
 

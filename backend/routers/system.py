@@ -30,6 +30,78 @@ async def get_activity_logs(user: AdminRequired, limit: int = 30):
     return logs
 
 
+_LIVE_TYPE_KEYS = {
+    "upcoming_class": "schedule.upcoming_today",
+    "town_to_town": "schedule.town_to_town",
+    "idle_employee": "schedule.idle_employee",
+}
+
+
+def _in_app_enabled(principal, kind: str) -> bool:
+    """Whether the live-alert ``kind`` should be surfaced to this user."""
+    if principal is None:
+        return True
+    from services.notification_prefs import get_frequency
+    type_key = _LIVE_TYPE_KEYS.get(kind)
+    if not type_key:
+        return True
+    return get_frequency(principal, type_key, "in_app") != "off"
+
+
+def _build_upcoming_alerts(schedules: list[dict], today: str) -> list[dict]:
+    out = []
+    for s in schedules:
+        if s.get('status', 'upcoming') != 'upcoming':
+            continue
+        class_title = s.get('class_name') or s.get('location_name', '?')
+        emp_names = ", ".join(e.get("name", "?") for e in s.get("employees", [])) or "?"
+        out.append({
+            "id": f"upcoming-{s['id']}",
+            "type": "upcoming_class",
+            "title": f"Upcoming: {class_title}",
+            "description": (
+                f"{emp_names} at "
+                f"{s.get('start_time', '?')} - {s.get('end_time', '?')}"
+            ),
+            "severity": "info",
+            "timestamp": s.get('created_at', today),
+            "entity_id": s['id'],
+        })
+    return out
+
+
+def _build_t2t_alerts(schedules: list[dict], today: str) -> list[dict]:
+    return [{
+        "id": f"t2t-{s['id']}",
+        "type": "town_to_town",
+        "title": "Town-to-Town Travel",
+        "description": s.get('town_to_town_warning', 'Verify drive time manually'),
+        "severity": "warning",
+        "timestamp": s.get('created_at', today),
+        "entity_id": s['id'],
+    } for s in schedules]
+
+
+async def _build_idle_alerts(today_schedules: list[dict], today: str) -> list[dict]:
+    # We need employee_ids for the idle comparison; if the caller gated off
+    # upcoming_class we still have to fetch a projection for the idle check.
+    schedules_for_ids = today_schedules or await db.schedules.find(
+        {"date": today, "deleted_at": None},
+        {"_id": 0, "employee_ids": 1},
+    ).to_list(100)
+    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
+    scheduled_emp_ids = {eid for s in schedules_for_ids for eid in s.get('employee_ids', [])}
+    return [{
+        "id": f"idle-{emp['id']}",
+        "type": "idle_employee",
+        "title": "No classes today",
+        "description": f"{emp['name']} has no classes scheduled for today",
+        "severity": "info",
+        "timestamp": today,
+        "entity_id": emp['id'],
+    } for emp in employees if emp['id'] not in scheduled_emp_ids]
+
+
 @router.get("/notifications", summary="Get system notifications")
 async def get_notifications(user: CurrentUser):
     """Return upcoming classes, town-to-town warnings, and idle employee alerts.
@@ -40,89 +112,29 @@ async def get_notifications(user: CurrentUser):
     preferences here so that disabling a type silences it from the bell
     icon too, not only the email channel.
     """
-    from services.notification_prefs import load_principal, get_frequency
+    from services.notification_prefs import load_principal
 
     logger.info("Fetching system notifications")
     principal = await load_principal("internal", user["user_id"])
-
-    # Map each live-alert kind to its registry key so we can gate by pref.
-    live_types = {
-        "upcoming_class": "schedule.upcoming_today",
-        "town_to_town": "schedule.town_to_town",
-        "idle_employee": "schedule.idle_employee",
-    }
-
-    def _enabled(kind: str) -> bool:
-        if principal is None:
-            return True  # no principal doc — fail open
-        type_key = live_types.get(kind)
-        if not type_key:
-            return True
-        return get_frequency(principal, type_key, "in_app") != "off"
-
-    notifications = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    if _enabled("upcoming_class"):
+    notifications: list[dict] = []
+
+    today_schedules: list[dict] = []
+    if _in_app_enabled(principal, "upcoming_class"):
         today_schedules = await db.schedules.find(
             {"date": today, "deleted_at": None}, {"_id": 0},
         ).to_list(100)
-    else:
-        today_schedules = []
-    for s in today_schedules:
-        if s.get('status', 'upcoming') == 'upcoming':
-            class_title = s.get('class_name') or s.get('location_name', '?')
-            emp_names = ", ".join(e.get("name", "?") for e in s.get("employees", [])) or "?"
-            notifications.append({
-                "id": f"upcoming-{s['id']}",
-                "type": "upcoming_class",
-                "title": f"Upcoming: {class_title}",
-                "description": (
-                    f"{emp_names} at "
-                    f"{s.get('start_time', '?')} - {s.get('end_time', '?')}"
-                ),
-                "severity": "info",
-                "timestamp": s.get('created_at', today),
-                "entity_id": s['id']
-            })
+        notifications.extend(_build_upcoming_alerts(today_schedules, today))
 
-    if _enabled("town_to_town"):
+    if _in_app_enabled(principal, "town_to_town"):
         t2t_schedules = await db.schedules.find(
             {"town_to_town": True, "deleted_at": None}, {"_id": 0},
         ).to_list(100)
-        for s in t2t_schedules:
-            notifications.append({
-                "id": f"t2t-{s['id']}",
-                "type": "town_to_town",
-                "title": "Town-to-Town Travel",
-                "description": s.get('town_to_town_warning', 'Verify drive time manually'),
-                "severity": "warning",
-                "timestamp": s.get('created_at', today),
-                "entity_id": s['id']
-            })
+        notifications.extend(_build_t2t_alerts(t2t_schedules, today))
 
-    if _enabled("idle_employee"):
-        # Re-fetch today_schedules if upcoming_class was gated off — we still
-        # need the list to compute scheduled_emp_ids.
-        schedules_for_ids = today_schedules
-        if not schedules_for_ids:
-            schedules_for_ids = await db.schedules.find(
-                {"date": today, "deleted_at": None},
-                {"_id": 0, "employee_ids": 1},
-            ).to_list(100)
-        employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
-        scheduled_emp_ids = {eid for s in schedules_for_ids for eid in s.get('employee_ids', [])}
-        for emp in employees:
-            if emp['id'] not in scheduled_emp_ids:
-                notifications.append({
-                    "id": f"idle-{emp['id']}",
-                    "type": "idle_employee",
-                    "title": "No classes today",
-                    "description": f"{emp['name']} has no classes scheduled for today",
-                    "severity": "info",
-                    "timestamp": today,
-                    "entity_id": emp['id']
-                })
+    if _in_app_enabled(principal, "idle_employee"):
+        notifications.extend(await _build_idle_alerts(today_schedules, today))
 
     return sorted(
         notifications,
