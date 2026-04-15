@@ -571,7 +571,9 @@ async def test_schedule_changed_uses_warning_severity_and_verb(
     _, ev = capture_dispatch[0]
     assert ev.severity == "warning"
     assert "Cancelled" in ev.title or "cancelled" in ev.body.lower()
-    assert ev.dedup_key == "s-1:cancelled"
+    # Dedup key includes the schedule date so repeat cancellations on
+    # later dates still fire (see Codex P2 r...736 regression test).
+    assert ev.dedup_key == "s-1:cancelled:2026-05-01"
 
 
 @pytest.mark.asyncio
@@ -589,7 +591,28 @@ async def test_schedule_changed_relocated_uses_new_date_from_extra(
     )
     _, ev = capture_dispatch[0]
     assert "2026-02-15" in ev.body
-    assert ev.dedup_key == "s-1:relocated"
+    # Dedup key incorporates the new_date so a second relocation to a
+    # different date isn't silently suppressed.
+    assert ev.dedup_key == "s-1:relocated:2026-02-15"
+
+
+@pytest.mark.asyncio
+async def test_schedule_changed_two_relocations_not_deduped(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    """Relocating the same schedule to two different dates must fire twice."""
+    stub_recipient_helpers["by_employee"]["emp-1"] = _internal("u-1")
+    schedule = {
+        "id": "s-1", "employee_ids": ["emp-1"],
+        "location_name": "L", "date": "2026-01-01",
+    }
+    actor = {"id": "u-x", "name": "X"}
+    await notify_schedule_changed(schedule, "relocated", actor,
+                                  extra={"new_date": "2026-02-15"})
+    await notify_schedule_changed(schedule, "relocated", actor,
+                                  extra={"new_date": "2026-03-20"})
+    keys = {ev.dedup_key for _, ev in capture_dispatch}
+    assert keys == {"s-1:relocated:2026-02-15", "s-1:relocated:2026-03-20"}
 
 
 # ── notify_role_changed ──────────────────────────────────────────────

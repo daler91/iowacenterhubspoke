@@ -213,10 +213,13 @@ async def _resolve_task_assignee(
        reminders).
     2. ``assigned_to`` is an email (legacy — some rows store the email
        directly).
-    3. ``assigned_to`` is a **name** like ``"Jane Smith"`` — the current
-       UI default. We look that up by name against the project's
-       partner-org contacts first, then fall back to any partner contact
-       or internal user with that exact name.
+    3. ``assigned_to`` is a **name** like ``"Jane Smith"``. For safety we
+       *only* accept name matches inside the project's own
+       ``partner_org_id`` (partner contacts) or the global internal-user
+       table. We deliberately do **not** fall back to a cross-org partner
+       search — two unrelated partners can easily share the same contact
+       name, and a broader search would leak project/task context across
+       org boundaries.
 
     Returns ``None`` when we can't resolve anybody — callers no-op silently
     rather than erroring, so a misspelled name never blocks the CRUD.
@@ -231,9 +234,13 @@ async def _resolve_task_assignee(
     if "@" in assigned:
         return await find_principal_by_email(assigned)
 
-    # 3: name-based lookup. Prefer the project's partner org (narrow) then
-    # widen to any partner contact / internal user with that exact name.
+    # 3: name-based lookup.
     name = assigned.strip()
+
+    # Partner contact — ONLY inside the project's own org. No global
+    # fallback: a name like "Jane Smith" can belong to multiple partner
+    # orgs, and matching one from a different org would be a cross-org
+    # data leak (see Codex P1 review r...248).
     partner_org_id = (project or {}).get("partner_org_id")
     if partner_org_id:
         contact = await db.partner_contacts.find_one(
@@ -243,12 +250,7 @@ async def _resolve_task_assignee(
         if contact:
             return _principal_from_contact(contact)
 
-    contact = await db.partner_contacts.find_one(
-        {"name": name, "deleted_at": None}, {"_id": 0},
-    )
-    if contact:
-        return _principal_from_contact(contact)
-
+    # Internal users — single-org by design, so a global name match is safe.
     user = await db.users.find_one(
         {"name": name}, {"_id": 0, "password_hash": 0},
     )
@@ -703,6 +705,13 @@ async def notify_schedule_changed(
 
     ``change_type`` ∈ :data:`SCHEDULE_CHANGE_VERBS` — used in the dedup key
     and the body text. Unknown types fall back to a generic "changed" verb.
+
+    **Dedup key** includes the event instance's date so repeated changes
+    on the same schedule aren't suppressed. Example: relocating a class
+    to May 3, then relocating it again to May 10, produces two distinct
+    dedup keys and fires both notifications. Re-emitting the exact same
+    change (same change_type + same date) stays idempotent — matches the
+    retry-safety semantics the dispatcher relies on (Codex P2 r...736).
     """
     employee_ids = schedule.get("employee_ids") or []
     if not employee_ids:
@@ -714,6 +723,9 @@ async def notify_schedule_changed(
     verb_past, verb_title = SCHEDULE_CHANGE_VERBS.get(
         change_type, ("changed", "Changed"),
     )
+    # Include the instance date (new date on relocate/reschedule, schedule
+    # date on cancel) so a second relocation isn't silently deduped.
+    dedup_key = f"{schedule.get('id', '')}:{change_type}:{date}"
 
     for emp_id in employee_ids:
         principal = await principal_for_employee(emp_id)
@@ -733,7 +745,7 @@ async def notify_schedule_changed(
             entity_type="schedule",
             entity_id=schedule.get("id"),
             severity="warning",
-            dedup_key=f"{schedule.get('id', '')}:{change_type}",
+            dedup_key=dedup_key,
         )
         await _fan_out([principal], event, log_key="schedule.changed")
 
