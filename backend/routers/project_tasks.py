@@ -312,19 +312,21 @@ async def _cas_apply_task_update(
             intends_to_set_assignee and new_assigned != prev_assigned
         )
 
-        filter_doc: dict = {"id": task_id, "project_id": project_id}
-        ops: dict = {"$set": update_data}
         # Pin the CAS filter on ``assigned_to`` whenever this request
         # touches the assignee field — even when ``new == prev`` on
         # retry. Dropping the pin in that case would let a late third
         # writer's assignee be silently clobbered without bumping the
         # rev or firing notify (see Codex P1 review r...254). The
         # ``$inc`` is gated separately: only a real transition bumps
-        # the rev.
+        # the rev. Note ``assignment_will_change`` already implies
+        # ``intends_to_set_assignee`` — keeping the two guards flat
+        # avoids nested branching.
+        filter_doc: dict = {"id": task_id, "project_id": project_id}
         if intends_to_set_assignee:
             filter_doc[_ASSIGNED_TO] = prev_assigned
-            if assignment_will_change:
-                ops["$inc"] = {"assigned_rev": 1}
+        ops: dict = {"$set": update_data}
+        if assignment_will_change:
+            ops["$inc"] = {"assigned_rev": 1}
 
         result = await db.tasks.update_one(filter_doc, ops)
         if result.matched_count:
