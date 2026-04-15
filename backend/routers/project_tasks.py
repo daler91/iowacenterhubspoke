@@ -32,6 +32,12 @@ PROJECT_NOT_FOUND = "Project not found"
 ATTACHMENT_NOT_FOUND = "Attachment not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
+# Field-name constants — referenced in the CAS update filter, the
+# notification-gate, and the task document. Kept as a constant to
+# avoid a sprinkled string literal (python:S1192) and so a future
+# schema rename touches one spot.
+_ASSIGNED_TO = "assigned_to"
+
 UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
@@ -177,7 +183,7 @@ async def create_task(
         "task", task_id, user.get("name", "System"),
     )
     # Notify assignee if this task was created pre-assigned.
-    if doc.get("assigned_to"):
+    if doc.get(_ASSIGNED_TO):
         project = await db.projects.find_one(
             {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
         ) or {"id": project_id}
@@ -250,7 +256,7 @@ async def update_task(
         {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
     ) or {"id": project_id}
     if updated and prev:
-        if we_performed_assignment_change and update_data.get("assigned_to"):
+        if we_performed_assignment_change and update_data.get(_ASSIGNED_TO):
             await notify_task_assigned(updated, project, user)
         if updated.get("completed") and not prev.get("completed"):
             await notify_task_completed(updated, project, user)
@@ -298,17 +304,17 @@ async def _cas_apply_task_update(
         HTTPException(409): retry budget exhausted (continuous
             contention).
     """
-    new_assigned = update_data.get("assigned_to")
+    new_assigned = update_data.get(_ASSIGNED_TO)
     for _ in range(max_attempts):
-        prev_assigned = (prev or {}).get("assigned_to")
+        prev_assigned = (prev or {}).get(_ASSIGNED_TO)
         assignment_will_change = (
-            "assigned_to" in update_data and new_assigned != prev_assigned
+            _ASSIGNED_TO in update_data and new_assigned != prev_assigned
         )
 
         filter_doc: dict = {"id": task_id, "project_id": project_id}
         ops: dict = {"$set": update_data}
         if assignment_will_change:
-            filter_doc["assigned_to"] = prev_assigned
+            filter_doc[_ASSIGNED_TO] = prev_assigned
             ops["$inc"] = {"assigned_rev": 1}
 
         result = await db.tasks.update_one(filter_doc, ops)
