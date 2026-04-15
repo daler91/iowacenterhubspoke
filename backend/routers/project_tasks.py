@@ -223,6 +223,7 @@ async def get_task_detail(
     responses={
         400: {"description": NO_FIELDS_TO_UPDATE},
         404: {"description": TASK_NOT_FOUND},
+        409: {"description": "Task was modified concurrently; please retry."},
     },
 )
 async def update_task(
