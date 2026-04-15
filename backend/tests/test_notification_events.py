@@ -47,6 +47,7 @@ from services.notification_events import (  # noqa: E402
     notify_task_deleted,
 )
 from services.notification_prefs import Principal  # noqa: E402
+from services.notifications import NotificationEvent  # noqa: E402, F401
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -244,7 +245,10 @@ async def test_task_assigned_dispatches_to_email_principal(
 ):
     stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane", "jane@x.com", "Jane")
 
-    task = {"id": "t-1", "title": "Draft", "assignee_email": "jane@x.com"}
+    task = {
+        "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
+        "updated_at": "2026-04-15T10:00:00+00:00",
+    }
     project = {"id": "p-1", "title": "Kickoff"}
     actor = {"id": "u-bob", "name": "Bob"}
 
@@ -256,10 +260,123 @@ async def test_task_assigned_dispatches_to_email_principal(
     assert event.type_key == "task.assigned_to_you"
     assert event.entity_type == "task"
     assert event.entity_id == "t-1"
-    assert event.dedup_key == "t-1:assigned:u-jane"
+    # Dedup key includes the transition marker (task.updated_at) so that
+    # successive reassignments back to the same principal produce
+    # distinct events.
+    assert event.dedup_key == (
+        "t-1:assigned:u-jane:2026-04-15T10:00:00+00:00"
+    )
     assert "Bob" in event.title
     assert "Draft" in event.title
     assert event.link == "https://hub.test/coordination/projects/p-1"
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_dedup_key_distinguishes_successive_edits(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    """Unassign → reassign back to same user should produce distinct keys."""
+    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
+    project = {"id": "p-1", "title": "Kickoff"}
+    actor = {"id": "u-bob", "name": "Bob"}
+
+    first = {
+        "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
+        "updated_at": "2026-04-15T10:00:00+00:00",
+    }
+    second = {
+        "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
+        "updated_at": "2026-04-15T10:05:00+00:00",
+    }
+
+    await notify_task_assigned(first, project, actor)
+    await notify_task_assigned(second, project, actor)
+
+    assert len(capture_dispatch) == 2
+    _, ev1 = capture_dispatch[0]
+    _, ev2 = capture_dispatch[1]
+    assert ev1.dedup_key != ev2.dedup_key
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_dedup_key_falls_back_to_created_at(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    """A newly-created pre-assigned task has no updated_at yet."""
+    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
+
+    task = {
+        "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
+        "created_at": "2026-04-15T09:00:00+00:00",
+    }
+    await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
+
+    _, ev = capture_dispatch[0]
+    assert ev.dedup_key == "t-1:assigned:u-jane:2026-04-15T09:00:00+00:00"
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_partner_gets_no_internal_link(
+    capture_dispatch, stub_recipient_helpers, stub_app_url, monkeypatch,
+):
+    """Partner recipients must not be sent to /coordination/*.
+
+    The coordination tree lives behind the internal auth guard; partners
+    authenticate via /portal/:token. Leaking an internal URL as the CTA
+    would send them to a page they cannot access.
+    """
+    class _DB:
+        partner_contacts = _FakePrincipalColl([
+            {"id": "c-jane", "partner_org_id": "org-1", "name": "Jane Smith",
+             "email": "jane@p.com", "deleted_at": None},
+        ])
+        users = _FakePrincipalColl([])
+
+    monkeypatch.setattr(events_mod, "db", _DB)
+
+    task = {
+        "id": "t-1", "title": "Draft", "assigned_to": "Jane Smith",
+        "updated_at": "2026-04-15T10:00:00+00:00",
+    }
+    project = {"id": "p-1", "title": "Kickoff", "partner_org_id": "org-1"}
+    await notify_task_assigned(task, project, {"id": "a", "name": "A"})
+
+    assert len(capture_dispatch) == 1
+    principal, event = capture_dispatch[0]
+    assert principal.kind == "partner"
+    assert event.link is None
+    # Email body stays informative but the internal "Open project" CTA
+    # is suppressed.
+    assert "/coordination/" not in (event.email_body_html or "")
+    assert "Open project" not in (event.email_body_html or "")
+    assert "Draft" in (event.email_body_html or "")
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_rejects_ambiguous_internal_name(
+    capture_dispatch, stub_recipient_helpers, stub_app_url, monkeypatch,
+):
+    """Two internal users sharing a display name must not auto-match.
+
+    Without this guard ``find_one({'name': ...})`` returns an arbitrary
+    row and the task-assignment context ships to the wrong inbox.
+    """
+    class _DB:
+        partner_contacts = _FakePrincipalColl([])
+        users = _FakePrincipalColl([
+            {"id": "u-jane-a", "name": "Jane Smith",
+             "email": "jane.a@x.com"},
+            {"id": "u-jane-b", "name": "Jane Smith",
+             "email": "jane.b@x.com"},
+        ])
+
+    monkeypatch.setattr(events_mod, "db", _DB)
+
+    task = {"id": "t-1", "title": "Draft", "assigned_to": "Jane Smith"}
+    await notify_task_assigned(
+        task, {"id": "p-1"}, {"id": "a", "name": "A"},
+    )
+    assert capture_dispatch == []
 
 
 @pytest.mark.asyncio

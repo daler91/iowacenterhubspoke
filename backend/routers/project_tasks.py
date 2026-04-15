@@ -226,9 +226,9 @@ async def update_task(
     prev = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
+    now = datetime.now(timezone.utc).isoformat()
     # Sync completed fields when status changes
     if "status" in update_data:
-        now = datetime.now(timezone.utc).isoformat()
         if update_data["status"] == "completed":
             update_data["completed"] = True
             update_data["completed_at"] = now
@@ -237,6 +237,11 @@ async def update_task(
             update_data["completed"] = False
             update_data["completed_at"] = None
             update_data["completed_by"] = None
+    # Stamp the edit so downstream consumers (notably the notification
+    # dedup key in ``notify_task_assigned``) can tell successive edits
+    # apart — reassigning away and back to the same person should emit
+    # a fresh notification, not a silent duplicate.
+    update_data["updated_at"] = now
     result = await db.tasks.update_one(
         {"id": task_id, "project_id": project_id},
         {"$set": update_data},

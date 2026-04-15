@@ -250,12 +250,22 @@ async def _resolve_task_assignee(
         if contact:
             return _principal_from_contact(contact)
 
-    # Internal users — single-org by design, so a global name match is safe.
-    user = await db.users.find_one(
+    # Internal users — refuse to guess when multiple users share the same
+    # display name. A stray ``find_one({"name": ...})`` would pick an
+    # arbitrary match and send the task context to the wrong recipient
+    # (see Codex P2 review r...251). We fetch up to two rows and only
+    # act on an unambiguous single hit.
+    user_matches = await db.users.find(
         {"name": name}, {"_id": 0, "password_hash": 0},
-    )
-    if user:
-        return _principal_from_user(user)
+    ).to_list(2)
+    if len(user_matches) == 1:
+        return _principal_from_user(user_matches[0])
+    if len(user_matches) > 1:
+        logger.warning(
+            "task assignee name '%s' is ambiguous (%d internal users "
+            "match); skipping notification to avoid mis-delivery",
+            name, len(user_matches),
+        )
     return None
 
 
@@ -286,7 +296,20 @@ def _principal_from_user(doc: dict) -> Principal:
 # ── Task events ───────────────────────────────────────────────────────
 
 async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
-    """Fire ``task.assigned_to_you`` for the newly-assigned principal."""
+    """Fire ``task.assigned_to_you`` for the newly-assigned principal.
+
+    The CTA ``link`` branches on ``principal.kind``: internal users get the
+    ``/coordination/projects/:id`` detail page; partner contacts get no
+    deep link because the portal SPA is token-gated and cannot resolve a
+    project-level URL without a fresh token (see Codex P1 review r...249).
+    Dropping the link keeps the email body / inbox card informative
+    without sending partners to an internal route they cannot access.
+
+    The ``dedup_key`` includes the task's ``updated_at`` (or
+    ``created_at`` fallback) so that unassign→reassign sequences back to
+    the same principal produce distinct events rather than being
+    silently suppressed as duplicates (see Codex P2 review r...250).
+    """
     principal = await _resolve_task_assignee(task, project)
     if principal is None:
         return
@@ -294,7 +317,13 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
     title = task.get("title", DEFAULT_TASK_LABEL)
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
-    link = _app_link(f"/coordination/projects/{project.get('id', '')}")
+    link = _task_assigned_link_for(principal, project)
+    # Unique per edit — ``updated_at`` is refreshed on every task update
+    # (see ``routers/project_tasks.update_task``); for a freshly-created
+    # pre-assigned task the create handler sets ``created_at`` instead.
+    transition = (
+        task.get("updated_at") or task.get("created_at") or ""
+    )
 
     event = make_event(
         type_key="task.assigned_to_you",
@@ -303,18 +332,55 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
             f'{actor_name} assigned you the task "{title}" on project '
             f'"{project_title}".'
         ),
-        email_body_html=(
-            f"{escape(actor_name)} assigned you the task "
-            f"<strong>{escape(title)}</strong> on project "
-            f"<strong>{escape(project_title)}</strong>. "
-            f'<a href="{escape(link)}">Open project</a>'
+        email_body_html=_task_assigned_email_html(
+            actor_name=actor_name,
+            title=title,
+            project_title=project_title,
+            link=link,
         ),
         link=link,
         entity_type="task",
         entity_id=task.get("id"),
-        dedup_key=f"{task.get('id', '')}:assigned:{principal.id}",
+        dedup_key=(
+            f"{task.get('id', '')}:assigned:{principal.id}:{transition}"
+        ),
     )
     await _fan_out([principal], event, log_key="task.assigned_to_you")
+
+
+def _task_assigned_link_for(
+    principal: Principal, project: dict,
+) -> Optional[str]:
+    """Return the CTA link for a task-assignment notification.
+
+    Internal principals → absolute URL to the coordination detail route.
+    Partner principals → ``None``; the partner-portal SPA is token-gated
+    and has no token-independent deep link, so emitting an internal URL
+    would send them to a page they cannot access.
+    """
+    if principal.kind == "partner":
+        return None
+    return _app_link(f"/coordination/projects/{project.get('id', '')}")
+
+
+def _task_assigned_email_html(
+    *, actor_name: str, title: str, project_title: str,
+    link: Optional[str],
+) -> str:
+    """Render the email body for ``task.assigned_to_you``.
+
+    CTA anchor is appended only when ``link`` is present — partner
+    principals receive the informative paragraph without a broken
+    "Open project" button.
+    """
+    body = (
+        f"{escape(actor_name)} assigned you the task "
+        f"<strong>{escape(title)}</strong> on project "
+        f"<strong>{escape(project_title)}</strong>."
+    )
+    if link:
+        body += f' <a href="{escape(link)}">Open project</a>'
+    return body
 
 
 async def notify_task_deleted(task: dict, project: dict, actor: dict) -> None:
