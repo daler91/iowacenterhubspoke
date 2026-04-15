@@ -16,6 +16,12 @@ from models.schemas import (
 )
 from core.auth import SchedulerRequired
 from services.activity import log_activity
+from services.notification_events import (
+    notify_schedule_assigned,
+    notify_schedule_bulk_location_changed,
+    notify_schedule_bulk_status_changed,
+    notify_schedule_changed,
+)
 from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
@@ -38,6 +44,10 @@ router = APIRouter(tags=["schedules"])
 async def bulk_delete_schedules(
     data: BulkDeleteRequest, user: SchedulerRequired
 ):
+    # Snapshot schedules before delete so we can notify each one's employees.
+    affected = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None}, {"_id": 0},
+    ).to_list(1000)
     now = datetime.now(timezone.utc).isoformat()
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
@@ -56,6 +66,8 @@ async def bulk_delete_schedules(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        for s in affected:
+            await notify_schedule_changed(s, "cancelled", user)
     return {"deleted_count": deleted_count}
 
 
@@ -73,6 +85,12 @@ async def bulk_update_status(
         STATUS_COMPLETED,
     ]:
         raise HTTPException(status_code=400, detail="Invalid status")
+    # Snapshot affected schedules before the update so we can notify each
+    # schedule's employees. Only includes not-already-in-this-status rows.
+    affected = await db.schedules.find(
+        {"id": {"$in": data.ids}, "deleted_at": None, "status": {"$ne": data.status}},
+        {"_id": 0},
+    ).to_list(1000)
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {"$set": {"status": data.status}},
@@ -95,6 +113,8 @@ async def bulk_update_status(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        for s in affected:
+            await notify_schedule_bulk_status_changed(s, data.status, user)
     return {"updated_count": updated_count}
 
 
@@ -190,7 +210,66 @@ async def bulk_reassign_schedules(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        # Notify each schedule's new assignees — but only for schedules
+        # whose employee set actually changed. A caller may include rows
+        # already assigned to the target set; those shouldn't trigger a
+        # bogus "assigned to you" alert (Codex P2 review r...216).
+        target_ids = set(employee_ids)
+        for s in schedules:
+            prior = set(s.get("employee_ids") or [])
+            new_for_this = [e for e in employee_ids if e not in prior]
+            if prior == target_ids or not new_for_this:
+                # Either no change (already the same set) OR every target
+                # was already on the row — nothing new to notify about.
+                continue
+            await notify_schedule_assigned(
+                {**s, "employee_ids": employee_ids}, new_for_this, user,
+            )
     return {"updated_count": updated_count}
+
+
+async def _preflight_location_conflicts(
+    schedules: list[dict], new_drive_time: int,
+) -> list[dict]:
+    """Check every schedule's primary employee for conflicts at the new
+    location's drive time. Returns a list of conflict preview dicts
+    (empty when there are none). Extracted from ``bulk_update_location``
+    to keep the parent function's cognitive complexity below Sonar's 15
+    threshold (the nested loops + if-branch account for ~6 of those
+    points on their own).
+    """
+    preview: list[dict] = []
+    for sched in schedules:
+        # Only the primary employee is checked — matches the pre-refactor
+        # behaviour (slicing ``[:1]``) and keeps the N²-ish preflight
+        # cheap. Non-primary conflicts surface at save time via the
+        # persisted per-employee town-to-town field.
+        for emp_id in sched.get("employee_ids", [])[:1]:
+            conflicts = await check_conflicts(
+                emp_id, sched["date"], sched["start_time"], sched["end_time"],
+                new_drive_time, exclude_id=sched["id"],
+            )
+            if conflicts:
+                preview.append({
+                    "schedule_id": sched["id"],
+                    "date": sched["date"],
+                    "conflicts": conflicts,
+                })
+    return preview
+
+
+async def _notify_location_changes(
+    schedules: list[dict], target_location_id: str, city_name: str, user: dict,
+) -> None:
+    """Fire ``schedule.bulk_location_changed`` for each schedule whose
+    ``location_id`` actually differs from the new target. Schedules
+    already at the target are skipped so mixed batches don't spam false
+    "moved" alerts.
+    """
+    for s in schedules:
+        if s.get("location_id") == target_location_id:
+            continue
+        await notify_schedule_bulk_location_changed(s, city_name, user)
 
 
 @router.put(
@@ -211,27 +290,18 @@ async def bulk_update_location(
 
     new_drive_time = location["drive_time_minutes"]
 
-    # Pre-flight conflict check with new drive time
+    # Pull the fields the preflight and notify steps both need. Including
+    # ``location_id`` / ``location_name`` lets the notify step skip rows
+    # whose location didn't actually change.
     schedules = await db.schedules.find(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {"_id": 0, "id": 1, "date": 1, "start_time": 1, "end_time": 1,
-         "employee_ids": 1},
+         "employee_ids": 1, "location_id": 1, "location_name": 1},
     ).to_list(200)
 
-    conflict_preview = []
-    for sched in schedules:
-        for emp_id in sched.get("employee_ids", [])[:1]:  # check primary employee
-            conflicts = await check_conflicts(
-                emp_id, sched["date"], sched["start_time"], sched["end_time"],
-                new_drive_time, exclude_id=sched["id"],
-            )
-            if conflicts:
-                conflict_preview.append({
-                    "schedule_id": sched["id"],
-                    "date": sched["date"],
-                    "conflicts": conflicts,
-                })
-
+    conflict_preview = await _preflight_location_conflicts(
+        schedules, new_drive_time,
+    )
     if conflict_preview and not data.force:
         return {
             "preview": True,
@@ -275,6 +345,9 @@ async def bulk_update_location(
             entity_type="schedule_batch",
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
+        )
+        await _notify_location_changes(
+            schedules, data.location_id, location["city_name"], user,
         )
     return {"updated_count": updated_count}
 

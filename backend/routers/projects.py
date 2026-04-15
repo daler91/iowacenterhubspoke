@@ -8,6 +8,10 @@ from core.auth import CurrentUser
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
+from services.notification_events import (
+    notify_project_deleted,
+    notify_project_phase_advanced,
+)
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -596,6 +600,11 @@ async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def delete_project(project_id: str, user: CurrentUser):
+    # Snapshot before soft-delete so the notification can name the project
+    # and still resolve the partner_org_id for recipient resolution.
+    project_snapshot = await db.projects.find_one(
+        {"id": project_id, "deleted_at": None}, {"_id": 0},
+    )
     now = datetime.now(timezone.utc).isoformat()
     result = await db.projects.update_one(
         {"id": project_id, "deleted_at": None},
@@ -611,6 +620,8 @@ async def delete_project(project_id: str, user: CurrentUser):
         "project_deleted", f"Project '{project_id}' deleted with associated data",
         "project", project_id, user.get("name", "System"),
     )
+    if project_snapshot:
+        await notify_project_deleted(project_snapshot, user)
     return {"message": "Project deleted"}
 
 
@@ -675,4 +686,5 @@ async def advance_phase(
         f"Project advanced from {current} to {next_phase}",
         "project", project_id, user.get("name", "System"),
     )
+    await notify_project_phase_advanced(project, current, next_phase, user)
     return {"warning": False, "phase": next_phase, "previous_phase": current}

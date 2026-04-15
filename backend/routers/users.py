@@ -8,6 +8,7 @@ from core.constants import (
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
 )
 from models.schemas import UserRoleUpdate, InviteCreate, ErrorResponse
+from services.notification_events import notify_role_changed
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -76,11 +77,26 @@ async def reject_user(user_id: str, user: AdminRequired):
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     if target.get("role") == ROLE_ADMIN:
         raise HTTPException(status_code=400, detail="Cannot reject an admin user")
+    was_pending = target.get("status") != USER_STATUS_REJECTED
     await db.users.update_one(
         {"id": user_id},
         {"$set": {"status": USER_STATUS_REJECTED}}
     )
     logger.info(f"User {user_id} rejected by {user['email']}")
+    # Transactional courtesy email — non-fatal on failure. Only send on
+    # the meaningful transition, not idempotent re-rejections.
+    if was_pending:
+        try:
+            from services.email import send_account_rejected
+            await send_account_rejected(
+                to=target["email"],
+                name=target.get("name", ""),
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to send rejection email to %s: %s",
+                target["email"], e,
+            )
     return {"message": "User rejected"}
 
 
@@ -104,8 +120,10 @@ async def update_user_role(user_id: str, data: UserRoleUpdate, user: AdminRequir
         admin_count = await db.users.count_documents({"role": ROLE_ADMIN})
         if admin_count <= 1:
             raise HTTPException(status_code=400, detail="Cannot remove the last admin")
+    old_role = target.get("role", "")
     await db.users.update_one({"id": user_id}, {"$set": {"role": data.role}})
     logger.info(f"User {user_id} role changed to {data.role} by {user['email']}")
+    await notify_role_changed(user_id, old_role, data.role, user)
     return {"message": f"Role updated to {data.role}"}
 
 

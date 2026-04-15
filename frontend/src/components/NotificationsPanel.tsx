@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, AlertTriangle, CalendarDays, UserX, X, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as SettingsIcon } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { notificationsAPI } from '../lib/api';
@@ -198,6 +198,19 @@ export default function NotificationsPanel() {
     }
   };
 
+  const handleMarkAllRead = async () => {
+    // Mark every inbox item read without removing from the panel so the
+    // user can still see their recent history. Live alerts don't have a
+    // read/unread concept, so they're untouched.
+    const now = new Date().toISOString();
+    setInboxItems(prev => prev.map(i => i.read_at ? i : { ...i, read_at: now }));
+    try {
+      await notificationsAPI.markAllRead();
+    } catch {
+      // Next poll will reconcile any partial failure.
+    }
+  };
+
   const handleClick = async (n: AnyNotification) => {
     if (n.source === 'live') {
       const link = getLiveLink(n.type);
@@ -257,13 +270,27 @@ export default function NotificationsPanel() {
               )}
             </div>
             {activeNotifications.length > 0 && (
-              <button
-                onClick={handleDismissAll}
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                data-testid="dismiss-all-notifications"
-              >
-                Dismiss all
-              </button>
+              <div className="flex items-center gap-3">
+                {inboxItems.some(i => !i.read_at) && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    data-testid="mark-all-read"
+                    aria-label="Mark all as read"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={handleDismissAll}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  data-testid="dismiss-all-notifications"
+                >
+                  Dismiss all
+                </button>
+              </div>
             )}
           </div>
 

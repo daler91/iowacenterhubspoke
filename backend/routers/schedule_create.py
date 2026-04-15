@@ -7,6 +7,7 @@ from database import db
 from models.schemas import ScheduleCreate
 from core.auth import SchedulerRequired
 from services.activity import log_activity
+from services.notification_events import notify_schedule_assigned
 from services.schedule_utils import (
     build_recurrence_rule,
     build_recurrence_dates,
@@ -147,6 +148,8 @@ async def _handle_single_schedule(
         entity_id=doc["id"],
         user_name=user.get("name", "System"),
     )
+    # Notify each newly-assigned employee (skip if they have no linked user).
+    await notify_schedule_assigned(doc, data.employee_ids or [], user)
     return doc
 
 

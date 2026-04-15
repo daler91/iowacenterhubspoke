@@ -151,10 +151,12 @@ async def check_conflicts(
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
 
-    logger.debug(
-        "Checking conflicts",
-        extra={"context": {"employee_id": employee_id, "date": date}}
-    )
+    # Debug-level trace only — deliberately no request-derived fields in
+    # the log record. Including ``employee_id`` / ``date`` from the call
+    # site triggers CodeQL py/clear-text-logging-sensitive-data since
+    # those values are tainted back to the HTTP request body via the
+    # bulk-schedule routes.
+    logger.debug("Checking conflicts")
 
     existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
 

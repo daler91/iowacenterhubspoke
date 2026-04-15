@@ -16,6 +16,7 @@ from models.schemas import (
 from core.auth import CurrentUser, SchedulerRequired
 from core.pagination import Paginated
 from services.activity import log_activity
+from services.notification_events import notify_schedule_changed
 from services.schedule_utils import check_conflicts
 from core.constants import (
     STATUS_UPCOMING,
@@ -227,6 +228,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
             schedule_id,
             user.get("name", "System"),
         )
+        await notify_schedule_changed(schedule, "cancelled", user)
     return {"message": "Schedule deleted"}
 
 
@@ -462,5 +464,8 @@ async def relocate_schedule(
         "schedule",
         schedule_id,
         user.get("name", "System"),
+    )
+    await notify_schedule_changed(
+        updated or schedule, "relocated", user, extra={"new_date": data.date},
     )
     return updated

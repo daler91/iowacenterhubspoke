@@ -36,6 +36,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+# pymongo ships as a transitive dep of motor in production. In test envs
+# motor itself is a MagicMock (see tests/test_notification_dispatch.py),
+# so we fall back to loose stand-ins so the module is importable.
+try:
+    from pymongo.errors import DuplicateKeyError, PyMongoError
+except ImportError:  # pragma: no cover — test env fallback
+    class DuplicateKeyError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class PyMongoError(Exception):  # type: ignore[no-redef]
+        pass
+
 from core.logger import get_logger
 from core.notification_types import (
     Channel,
@@ -110,6 +122,7 @@ async def _record_sent(
 ) -> None:
     if not event.dedup_key:
         return
+    now = datetime.now(timezone.utc)
     try:
         await db.notifications_sent.insert_one({
             "id": str(uuid.uuid4()),
@@ -119,16 +132,28 @@ async def _record_sent(
             "channel": channel,
             "dedup_key": event.dedup_key,
             "outcome": outcome,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.isoformat(),
+            # Datetime copy for the TTL index (MongoDB TTL needs BSON Date,
+            # not an ISO string — see server.py index config).
+            "created_at_date": now,
         })
-    except Exception as e:  # unique index collision — another worker beat us
+    except DuplicateKeyError as e:
+        # Unique index collision — another worker beat us. Safe to ignore.
         logger.debug("notifications_sent record skipped (race): %s", e)
+    except PyMongoError as e:
+        # A real Mongo error (timeout, auth, etc.) — log loudly. Swallowing
+        # keeps a dispatch from failing, but surfacing the cause helps ops.
+        logger.warning(
+            "notifications_sent insert failed for %s/%s type=%s: %s",
+            principal.kind, principal.id, event.type_key, e,
+        )
 
 
 # ── In-app inbox ───────────────────────────────────────────────────────
 
 async def _persist_inbox(principal: Principal, event: NotificationEvent) -> str:
     notif_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
     await db.notifications.insert_one({
         "id": notif_id,
         "principal_kind": principal.kind,
@@ -140,7 +165,9 @@ async def _persist_inbox(principal: Principal, event: NotificationEvent) -> str:
         "entity_type": event.entity_type,
         "entity_id": event.entity_id,
         "severity": event.severity,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
+        # BSON Date copy drives the TTL index (see server.py).
+        "created_at_date": now,
         "read_at": None,
         "dismissed_at": None,
     })
@@ -154,8 +181,21 @@ async def _enqueue_for_digest(
     event: NotificationEvent,
     channel: Channel,
     frequency: Frequency,
-) -> str:
+) -> Optional[str]:
+    """Enqueue one item for the digest worker. Returns ``None`` if skipped.
+
+    For the email channel we refuse to enqueue when the principal has no
+    usable email address — otherwise the digest cron would try to send to
+    ``None`` forever and leak rows.
+    """
+    if channel == "email" and not principal.email:
+        logger.warning(
+            "skip digest enqueue: %s/%s has no email (type=%s)",
+            principal.kind, principal.id, event.type_key,
+        )
+        return None
     queue_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
     await db.notification_queue.insert_one({
         "id": queue_id,
         "principal_kind": principal.kind,
@@ -172,7 +212,9 @@ async def _enqueue_for_digest(
         "entity_id": event.entity_id,
         "severity": event.severity,
         "context": event.context,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
+        # BSON Date copy drives the 30-day TTL index (see server.py).
+        "created_at_date": now,
         "sent_at": None,
     })
     return queue_id
@@ -223,8 +265,8 @@ async def _deliver_channel(
         # In-app has no digest concept — degrade to instant.
         await _persist_inbox(principal, event)
         return "sent"
-    await _enqueue_for_digest(principal, event, channel, frequency)
-    return "queued"
+    queue_id = await _enqueue_for_digest(principal, event, channel, frequency)
+    return "queued" if queue_id else "skipped"
 
 
 async def _dispatch_channel(
