@@ -245,54 +245,56 @@ async def update_task(
             update_data["completed_by"] = None
     update_data["updated_at"] = now
 
-    prev_assigned = (prev or {}).get("assigned_to")
-    new_assigned = update_data.get("assigned_to")
-    assignment_will_change = (
-        "assigned_to" in update_data and new_assigned != prev_assigned
-    )
-
     # When the assignee is changing we use a CAS (compare-and-swap) filter
     # that only matches if ``assigned_to`` is still the value we
     # snapshotted. Paired with an atomic ``$inc`` on ``assigned_rev``,
     # this guarantees that two concurrent requests both observing the
     # old assignee cannot both fire a ``task.assigned_to_you``
     # notification for the same logical transition — the loser's
-    # ``matched_count`` is 0 and it falls back to a non-CAS write of
-    # the remaining (non-assignment) fields, skipping notify. The
-    # winner's ``assigned_rev`` lands in the notification dedup key so
-    # genuine successive reassignments still fan out (see Codex P2
-    # review r...252).
-    filter_doc: dict = {"id": task_id, "project_id": project_id}
-    ops: dict = {"$set": update_data}
-    if assignment_will_change:
-        filter_doc["assigned_to"] = prev_assigned
-        ops["$inc"] = {"assigned_rev": 1}
-
-    result = await db.tasks.update_one(filter_doc, ops)
+    # ``matched_count`` is 0 (see Codex P2 review r...252). On a CAS
+    # miss we **re-snapshot prev and retry** so that two writers
+    # assigning to *different* people are serialised and BOTH intents
+    # are applied (see Codex P2 review r...253 — discarding the
+    # loser's assignee under a 200 response is incorrect). Retries are
+    # bounded to avoid livelock under pathological contention.
+    max_cas_attempts = 3
+    new_assigned = update_data.get("assigned_to")
     we_performed_assignment_change = False
-    if result.matched_count == 0:
+    for _attempt in range(max_cas_attempts):
+        prev_assigned = (prev or {}).get("assigned_to")
+        assignment_will_change = (
+            "assigned_to" in update_data and new_assigned != prev_assigned
+        )
+
+        filter_doc: dict = {"id": task_id, "project_id": project_id}
+        ops: dict = {"$set": update_data}
         if assignment_will_change:
-            # Lost the CAS race — another request already flipped the
-            # assignee. Retry the remaining fields without the CAS
-            # guard so non-assignment edits (title, status, etc.)
-            # still land, but DO NOT re-fire notify_task_assigned —
-            # the winning writer owns that side effect.
-            fallback_update = {
-                k: v for k, v in update_data.items() if k != "assigned_to"
-            }
-            if fallback_update:
-                fallback = await db.tasks.update_one(
-                    {"id": task_id, "project_id": project_id},
-                    {"$set": fallback_update},
-                )
-                if fallback.matched_count == 0:
-                    raise HTTPException(
-                        status_code=404, detail=TASK_NOT_FOUND,
-                    )
-        else:
+            filter_doc["assigned_to"] = prev_assigned
+            ops["$inc"] = {"assigned_rev": 1}
+
+        result = await db.tasks.update_one(filter_doc, ops)
+        if result.matched_count:
+            we_performed_assignment_change = assignment_will_change
+            break
+
+        # matched_count == 0. If we weren't on the CAS path the task
+        # is genuinely missing — 404. Otherwise re-snapshot prev and
+        # retry: the concurrent writer's assignee is now the baseline
+        # against which we should apply the user's intent.
+        if not assignment_will_change:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+        prev = await db.tasks.find_one(
+            {"id": task_id, "project_id": project_id}, {"_id": 0},
+        )
+        if prev is None:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
     else:
-        we_performed_assignment_change = assignment_will_change
+        # Exhausted the retry budget — surrender with 409 rather than
+        # silently dropping the write or looping forever.
+        raise HTTPException(
+            status_code=409,
+            detail="Task was modified concurrently; please retry.",
+        )
     updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
     # Fire notifications for the two meaningful transitions. A separate
