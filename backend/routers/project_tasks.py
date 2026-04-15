@@ -233,34 +233,73 @@ async def update_task(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
     now = datetime.now(timezone.utc).isoformat()
-    # Sync completed fields when status changes
-    if "status" in update_data:
-        if update_data["status"] == "completed":
-            update_data["completed"] = True
-            update_data["completed_at"] = now
-            update_data["completed_by"] = user.get("name", "System")
-        else:
-            update_data["completed"] = False
-            update_data["completed_at"] = None
-            update_data["completed_by"] = None
+    _apply_status_completion_fields(update_data, now, user)
     update_data["updated_at"] = now
 
-    # When the assignee is changing we use a CAS (compare-and-swap) filter
-    # that only matches if ``assigned_to`` is still the value we
-    # snapshotted. Paired with an atomic ``$inc`` on ``assigned_rev``,
-    # this guarantees that two concurrent requests both observing the
-    # old assignee cannot both fire a ``task.assigned_to_you``
-    # notification for the same logical transition — the loser's
-    # ``matched_count`` is 0 (see Codex P2 review r...252). On a CAS
-    # miss we **re-snapshot prev and retry** so that two writers
-    # assigning to *different* people are serialised and BOTH intents
-    # are applied (see Codex P2 review r...253 — discarding the
-    # loser's assignee under a 200 response is incorrect). Retries are
-    # bounded to avoid livelock under pathological contention.
-    max_cas_attempts = 3
+    prev, we_performed_assignment_change = await _cas_apply_task_update(
+        project_id=project_id,
+        task_id=task_id,
+        update_data=update_data,
+        prev=prev,
+    )
+    updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+
+    # Fire notifications for the two meaningful transitions. A separate
+    # project lookup keeps these helpers ignorant of task router internals.
+    project = await db.projects.find_one(
+        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    ) or {"id": project_id}
+    if updated and prev:
+        if we_performed_assignment_change and update_data.get("assigned_to"):
+            await notify_task_assigned(updated, project, user)
+        if updated.get("completed") and not prev.get("completed"):
+            await notify_task_completed(updated, project, user)
+
+    return updated
+
+
+def _apply_status_completion_fields(
+    update_data: dict, now: str, user: dict,
+) -> None:
+    """Mirror ``status`` transitions into the ``completed*`` columns."""
+    if "status" not in update_data:
+        return
+    if update_data["status"] == "completed":
+        update_data["completed"] = True
+        update_data["completed_at"] = now
+        update_data["completed_by"] = user.get("name", "System")
+    else:
+        update_data["completed"] = False
+        update_data["completed_at"] = None
+        update_data["completed_by"] = None
+
+
+async def _cas_apply_task_update(
+    *,
+    project_id: str,
+    task_id: str,
+    update_data: dict,
+    prev: Optional[dict],
+    max_attempts: int = 3,
+) -> tuple[Optional[dict], bool]:
+    """Apply ``update_data`` with a CAS-guarded assignment swap.
+
+    When ``assigned_to`` is changing, the update filter pins
+    ``assigned_to`` to the snapshotted ``prev`` value and the ops bump
+    ``assigned_rev`` via ``$inc``. Only one concurrent writer can match,
+    so ``notify_task_assigned`` fires exactly once per logical
+    transition (Codex P2 r...252). On a CAS miss we re-snapshot
+    ``prev`` and retry — serialising two writers that assign to
+    *different* people so both intents are applied (Codex P2 r...253).
+
+    Returns ``(final_prev, we_performed_assignment_change)``.
+    Raises:
+        HTTPException(404): the task was deleted mid-flight.
+        HTTPException(409): retry budget exhausted (continuous
+            contention).
+    """
     new_assigned = update_data.get("assigned_to")
-    we_performed_assignment_change = False
-    for _attempt in range(max_cas_attempts):
+    for _ in range(max_attempts):
         prev_assigned = (prev or {}).get("assigned_to")
         assignment_will_change = (
             "assigned_to" in update_data and new_assigned != prev_assigned
@@ -274,13 +313,11 @@ async def update_task(
 
         result = await db.tasks.update_one(filter_doc, ops)
         if result.matched_count:
-            we_performed_assignment_change = assignment_will_change
-            break
+            return prev, assignment_will_change
 
-        # matched_count == 0. If we weren't on the CAS path the task
-        # is genuinely missing — 404. Otherwise re-snapshot prev and
-        # retry: the concurrent writer's assignee is now the baseline
-        # against which we should apply the user's intent.
+        # Non-CAS miss = task genuinely missing. CAS miss = concurrent
+        # writer changed the assignee; re-snapshot and retry so the
+        # caller's intent lands on top of the new baseline.
         if not assignment_will_change:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
         prev = await db.tasks.find_one(
@@ -288,27 +325,13 @@ async def update_task(
         )
         if prev is None:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
-    else:
-        # Exhausted the retry budget — surrender with 409 rather than
-        # silently dropping the write or looping forever.
-        raise HTTPException(
-            status_code=409,
-            detail="Task was modified concurrently; please retry.",
-        )
-    updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
-    # Fire notifications for the two meaningful transitions. A separate
-    # project lookup keeps these helpers ignorant of task router internals.
-    project = await db.projects.find_one(
-        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
-    ) or {"id": project_id}
-    if updated and prev:
-        if we_performed_assignment_change and new_assigned:
-            await notify_task_assigned(updated, project, user)
-        if updated.get("completed") and not prev.get("completed"):
-            await notify_task_completed(updated, project, user)
-
-    return updated
+    # Exhausted the retry budget — surrender with 409 rather than
+    # silently dropping the write or looping forever.
+    raise HTTPException(
+        status_code=409,
+        detail="Task was modified concurrently; please retry.",
+    )
 
 
 @router.patch(
