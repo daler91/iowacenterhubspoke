@@ -161,6 +161,12 @@ async def create_task(
         "spotlight": False,
         "at_risk": False,
         "created_at": now,
+        # Monotonic counter bumped atomically on each assignment change
+        # (see ``update_task`` CAS logic). Used as the notification dedup
+        # marker so genuine reassignments back to the same principal
+        # produce distinct events while concurrent duplicate writes are
+        # collapsed by the CAS (only one writer bumps the rev).
+        "assigned_rev": 1 if data.assigned_to else 0,
     }
     await db.tasks.insert_one(doc)
     doc.pop("_id", None)
@@ -237,17 +243,56 @@ async def update_task(
             update_data["completed"] = False
             update_data["completed_at"] = None
             update_data["completed_by"] = None
-    # Stamp the edit so downstream consumers (notably the notification
-    # dedup key in ``notify_task_assigned``) can tell successive edits
-    # apart — reassigning away and back to the same person should emit
-    # a fresh notification, not a silent duplicate.
     update_data["updated_at"] = now
-    result = await db.tasks.update_one(
-        {"id": task_id, "project_id": project_id},
-        {"$set": update_data},
+
+    prev_assigned = (prev or {}).get("assigned_to")
+    new_assigned = update_data.get("assigned_to")
+    assignment_will_change = (
+        "assigned_to" in update_data and new_assigned != prev_assigned
     )
+
+    # When the assignee is changing we use a CAS (compare-and-swap) filter
+    # that only matches if ``assigned_to`` is still the value we
+    # snapshotted. Paired with an atomic ``$inc`` on ``assigned_rev``,
+    # this guarantees that two concurrent requests both observing the
+    # old assignee cannot both fire a ``task.assigned_to_you``
+    # notification for the same logical transition — the loser's
+    # ``matched_count`` is 0 and it falls back to a non-CAS write of
+    # the remaining (non-assignment) fields, skipping notify. The
+    # winner's ``assigned_rev`` lands in the notification dedup key so
+    # genuine successive reassignments still fan out (see Codex P2
+    # review r...252).
+    filter_doc: dict = {"id": task_id, "project_id": project_id}
+    ops: dict = {"$set": update_data}
+    if assignment_will_change:
+        filter_doc["assigned_to"] = prev_assigned
+        ops["$inc"] = {"assigned_rev": 1}
+
+    result = await db.tasks.update_one(filter_doc, ops)
+    we_performed_assignment_change = False
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+        if assignment_will_change:
+            # Lost the CAS race — another request already flipped the
+            # assignee. Retry the remaining fields without the CAS
+            # guard so non-assignment edits (title, status, etc.)
+            # still land, but DO NOT re-fire notify_task_assigned —
+            # the winning writer owns that side effect.
+            fallback_update = {
+                k: v for k, v in update_data.items() if k != "assigned_to"
+            }
+            if fallback_update:
+                fallback = await db.tasks.update_one(
+                    {"id": task_id, "project_id": project_id},
+                    {"$set": fallback_update},
+                )
+                if fallback.matched_count == 0:
+                    raise HTTPException(
+                        status_code=404, detail=TASK_NOT_FOUND,
+                    )
+        else:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+    else:
+        we_performed_assignment_change = assignment_will_change
     updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
     # Fire notifications for the two meaningful transitions. A separate
@@ -256,9 +301,7 @@ async def update_task(
         {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
     ) or {"id": project_id}
     if updated and prev:
-        prev_assigned = prev.get("assigned_to")
-        new_assigned = updated.get("assigned_to")
-        if new_assigned and new_assigned != prev_assigned:
+        if we_performed_assignment_change and new_assigned:
             await notify_task_assigned(updated, project, user)
         if updated.get("completed") and not prev.get("completed"):
             await notify_task_completed(updated, project, user)

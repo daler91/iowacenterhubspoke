@@ -247,7 +247,7 @@ async def test_task_assigned_dispatches_to_email_principal(
 
     task = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "updated_at": "2026-04-15T10:00:00+00:00",
+        "assigned_rev": 1,
     }
     project = {"id": "p-1", "title": "Kickoff"}
     actor = {"id": "u-bob", "name": "Bob"}
@@ -260,12 +260,11 @@ async def test_task_assigned_dispatches_to_email_principal(
     assert event.type_key == "task.assigned_to_you"
     assert event.entity_type == "task"
     assert event.entity_id == "t-1"
-    # Dedup key includes the transition marker (task.updated_at) so that
-    # successive reassignments back to the same principal produce
-    # distinct events.
-    assert event.dedup_key == (
-        "t-1:assigned:u-jane:2026-04-15T10:00:00+00:00"
-    )
+    # Dedup key pins to the task's assigned_rev — a monotonic counter
+    # bumped atomically by the update router's CAS. Successive
+    # reassignments get distinct keys; concurrent duplicate writes all
+    # read/write the same rev so only the CAS winner fires.
+    assert event.dedup_key == "t-1:assigned:u-jane:rev1"
     assert "Bob" in event.title
     assert "Draft" in event.title
     assert event.link == "https://hub.test/coordination/projects/p-1"
@@ -280,13 +279,14 @@ async def test_task_assigned_dedup_key_distinguishes_successive_edits(
     project = {"id": "p-1", "title": "Kickoff"}
     actor = {"id": "u-bob", "name": "Bob"}
 
+    # Two separate assignment transitions — rev bumps each time.
     first = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "updated_at": "2026-04-15T10:00:00+00:00",
+        "assigned_rev": 1,
     }
     second = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "updated_at": "2026-04-15T10:05:00+00:00",
+        "assigned_rev": 3,  # skipped rev 2 (unassigned in between)
     }
 
     await notify_task_assigned(first, project, actor)
@@ -295,24 +295,52 @@ async def test_task_assigned_dedup_key_distinguishes_successive_edits(
     assert len(capture_dispatch) == 2
     _, ev1 = capture_dispatch[0]
     _, ev2 = capture_dispatch[1]
-    assert ev1.dedup_key != ev2.dedup_key
+    assert ev1.dedup_key == "t-1:assigned:u-jane:rev1"
+    assert ev2.dedup_key == "t-1:assigned:u-jane:rev3"
 
 
 @pytest.mark.asyncio
-async def test_task_assigned_dedup_key_falls_back_to_created_at(
+async def test_task_assigned_dedup_key_matches_on_same_rev(
     capture_dispatch, stub_recipient_helpers, stub_app_url,
 ):
-    """A newly-created pre-assigned task has no updated_at yet."""
-    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
+    """Two dispatches at the same rev share a dedup key.
 
+    This is the concurrency-protection property: if two call sites fire
+    notify_task_assigned for the logically-same transition (same rev),
+    the dispatcher's ``notifications_sent`` unique index collapses the
+    second to a no-op. Here we assert the keys collide; the dispatcher
+    itself is tested in ``test_notification_dispatch.py``.
+    """
+    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
     task = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "created_at": "2026-04-15T09:00:00+00:00",
+        "assigned_rev": 5,
     }
+
+    await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
+    await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
+
+    # Dispatch stub is dumb (doesn't apply the unique-index dedup), so
+    # it records both calls — but their dedup keys must be identical so
+    # the real dispatcher would suppress the second.
+    assert len(capture_dispatch) == 2
+    _, ev1 = capture_dispatch[0]
+    _, ev2 = capture_dispatch[1]
+    assert ev1.dedup_key == ev2.dedup_key == "t-1:assigned:u-jane:rev5"
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_dedup_key_handles_missing_rev(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    """Legacy task rows without ``assigned_rev`` fall back to rev0."""
+    stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
+
+    task = {"id": "t-1", "title": "Draft", "assignee_email": "jane@x.com"}
     await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
 
     _, ev = capture_dispatch[0]
-    assert ev.dedup_key == "t-1:assigned:u-jane:2026-04-15T09:00:00+00:00"
+    assert ev.dedup_key == "t-1:assigned:u-jane:rev0"
 
 
 @pytest.mark.asyncio
@@ -336,7 +364,7 @@ async def test_task_assigned_partner_gets_no_internal_link(
 
     task = {
         "id": "t-1", "title": "Draft", "assigned_to": "Jane Smith",
-        "updated_at": "2026-04-15T10:00:00+00:00",
+        "assigned_rev": 1,
     }
     project = {"id": "p-1", "title": "Kickoff", "partner_org_id": "org-1"}
     await notify_task_assigned(task, project, {"id": "a", "name": "A"})

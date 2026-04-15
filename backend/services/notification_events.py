@@ -305,10 +305,14 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
     Dropping the link keeps the email body / inbox card informative
     without sending partners to an internal route they cannot access.
 
-    The ``dedup_key`` includes the task's ``updated_at`` (or
-    ``created_at`` fallback) so that unassign→reassign sequences back to
-    the same principal produce distinct events rather than being
-    silently suppressed as duplicates (see Codex P2 review r...250).
+    The ``dedup_key`` pins to the task's ``assigned_rev`` — a monotonic
+    counter bumped atomically by ``update_task`` only when the assignee
+    actually changes (via a CAS $inc). This gives two properties:
+    successive reassignments back to the same principal produce
+    distinct keys (old P2: r...250); and concurrent requests that both
+    observe the same ``prev`` cannot both bump the rev, so one loses
+    the CAS and does not fire, preventing duplicate delivery for the
+    same logical transition (new P2: r...252).
     """
     principal = await _resolve_task_assignee(task, project)
     if principal is None:
@@ -318,12 +322,11 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     link = _task_assigned_link_for(principal, project)
-    # Unique per edit — ``updated_at`` is refreshed on every task update
-    # (see ``routers/project_tasks.update_task``); for a freshly-created
-    # pre-assigned task the create handler sets ``created_at`` instead.
-    transition = (
-        task.get("updated_at") or task.get("created_at") or ""
-    )
+    # Transition marker — see docstring. Missing/falsy ``assigned_rev``
+    # on very-old task rows falls back to 0; they'll still get one
+    # dispatch per transition because subsequent writes will increment
+    # to 1, 2, ... via the CAS in ``update_task``.
+    rev = task.get("assigned_rev") or 0
 
     event = make_event(
         type_key="task.assigned_to_you",
@@ -342,7 +345,7 @@ async def notify_task_assigned(task: dict, project: dict, actor: dict) -> None:
         entity_type="task",
         entity_id=task.get("id"),
         dedup_key=(
-            f"{task.get('id', '')}:assigned:{principal.id}:{transition}"
+            f"{task.get('id', '')}:assigned:{principal.id}:rev{rev}"
         ),
     )
     await _fan_out([principal], event, log_key="task.assigned_to_you")
