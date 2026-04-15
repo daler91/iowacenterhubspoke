@@ -305,26 +305,36 @@ async def _cas_apply_task_update(
             contention).
     """
     new_assigned = update_data.get(_ASSIGNED_TO)
+    intends_to_set_assignee = _ASSIGNED_TO in update_data
     for _ in range(max_attempts):
         prev_assigned = (prev or {}).get(_ASSIGNED_TO)
         assignment_will_change = (
-            _ASSIGNED_TO in update_data and new_assigned != prev_assigned
+            intends_to_set_assignee and new_assigned != prev_assigned
         )
 
         filter_doc: dict = {"id": task_id, "project_id": project_id}
         ops: dict = {"$set": update_data}
-        if assignment_will_change:
+        # Pin the CAS filter on ``assigned_to`` whenever this request
+        # touches the assignee field — even when ``new == prev`` on
+        # retry. Dropping the pin in that case would let a late third
+        # writer's assignee be silently clobbered without bumping the
+        # rev or firing notify (see Codex P1 review r...254). The
+        # ``$inc`` is gated separately: only a real transition bumps
+        # the rev.
+        if intends_to_set_assignee:
             filter_doc[_ASSIGNED_TO] = prev_assigned
-            ops["$inc"] = {"assigned_rev": 1}
+            if assignment_will_change:
+                ops["$inc"] = {"assigned_rev": 1}
 
         result = await db.tasks.update_one(filter_doc, ops)
         if result.matched_count:
             return prev, assignment_will_change
 
-        # Non-CAS miss = task genuinely missing. CAS miss = concurrent
-        # writer changed the assignee; re-snapshot and retry so the
-        # caller's intent lands on top of the new baseline.
-        if not assignment_will_change:
+        # Non-CAS miss (no assignee pin) = task is genuinely missing.
+        # CAS miss = concurrent writer changed the assignee; re-snapshot
+        # and retry so the caller's intent lands on top of the new
+        # baseline.
+        if not intends_to_set_assignee:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
         prev = await db.tasks.find_one(
             {"id": task_id, "project_id": project_id}, {"_id": 0},

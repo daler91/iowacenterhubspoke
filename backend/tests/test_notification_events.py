@@ -49,6 +49,11 @@ from services.notification_events import (  # noqa: E402
 from services.notification_prefs import Principal  # noqa: E402
 from services.notifications import NotificationEvent  # noqa: E402, F401
 
+# Field-name constant — the notify_task_assigned helpers read this
+# off the task doc to build the dedup key. Extracted so the literal
+# appears once per file (python:S1192 duplicated-string-literal).
+_REV_FIELD = "assigned_rev"
+
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -247,7 +252,7 @@ async def test_task_assigned_dispatches_to_email_principal(
 
     task = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "assigned_rev": 1,
+        _REV_FIELD: 1,
     }
     project = {"id": "p-1", "title": "Kickoff"}
     actor = {"id": "u-bob", "name": "Bob"}
@@ -282,11 +287,11 @@ async def test_task_assigned_dedup_key_distinguishes_successive_edits(
     # Two separate assignment transitions — rev bumps each time.
     first = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "assigned_rev": 1,
+        _REV_FIELD: 1,
     }
     second = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "assigned_rev": 3,  # skipped rev 2 (unassigned in between)
+        _REV_FIELD: 3,  # skipped rev 2 (unassigned in between)
     }
 
     await notify_task_assigned(first, project, actor)
@@ -314,7 +319,7 @@ async def test_task_assigned_dedup_key_matches_on_same_rev(
     stub_recipient_helpers["by_email"]["jane@x.com"] = _internal("u-jane")
     task = {
         "id": "t-1", "title": "Draft", "assignee_email": "jane@x.com",
-        "assigned_rev": 5,
+        _REV_FIELD: 5,
     }
 
     await notify_task_assigned(task, {"id": "p-1"}, {"id": "a", "name": "A"})
@@ -364,7 +369,7 @@ async def test_task_assigned_partner_gets_no_internal_link(
 
     task = {
         "id": "t-1", "title": "Draft", "assigned_to": "Jane Smith",
-        "assigned_rev": 1,
+        _REV_FIELD: 1,
     }
     project = {"id": "p-1", "title": "Kickoff", "partner_org_id": "org-1"}
     await notify_task_assigned(task, project, {"id": "a", "name": "A"})
