@@ -13,14 +13,14 @@ export const CONSENT_STORAGE_KEY = "analytics_consent";
 export const CONSENT_CHANGED_EVENT = "analytics-consent-changed";
 
 export function getConsent(): ConsentState {
-  if (typeof globalThis.window === "undefined") return "pending";
+  if (globalThis.window === undefined) return "pending";
   const raw = globalThis.localStorage.getItem(CONSENT_STORAGE_KEY);
   if (raw === "granted" || raw === "rejected") return raw;
   return "pending";
 }
 
 export function setConsent(state: Exclude<ConsentState, "pending">): void {
-  if (typeof globalThis.window === "undefined") return;
+  if (globalThis.window === undefined) return;
   globalThis.localStorage.setItem(CONSENT_STORAGE_KEY, state);
   globalThis.dispatchEvent(new CustomEvent(CONSENT_CHANGED_EVENT, { detail: state }));
 }
