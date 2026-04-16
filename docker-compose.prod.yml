@@ -74,6 +74,21 @@ services:
       dockerfile: Dockerfile
     entrypoint: ["/app/docker-entrypoint-secrets.sh"]
     command: ["arq", "worker.WorkerSettings"]
+    # Override the image-level API HEALTHCHECK (which curls /health on
+    # port 8080). The worker container runs no HTTP server, so that
+    # probe fails forever and triggers restart churn. Probe the
+    # arq:heartbeat key in Redis instead — the worker writes it every
+    # cron tick, so a missing key past the 120s TTL means the worker
+    # loop is stuck. The python+redis combo is already in the image,
+    # so no extra packages are needed.
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import os, sys; import redis; r=redis.from_url(os.environ['REDIS_URL']); sys.exit(0 if r.exists('arq:heartbeat') else 1)\""
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
     environment:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: iowa_center_hub
