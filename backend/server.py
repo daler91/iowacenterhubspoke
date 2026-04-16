@@ -655,24 +655,34 @@ async def health_check(request: Request):
     pod without taking down the API.
     """
     checks = {"status": "healthy", "mongo": "ok", "redis": "ok", "worker": "ok"}
+    api_degraded = False
     try:
         await client.admin.command("ping")
     except Exception:
         checks["mongo"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
     if not await _probe_redis(request.app):
         checks["redis"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
     worker_status = await _check_worker_heartbeat()
     checks["worker"] = worker_status
-    # Only degrade on stale/missing when Redis itself is reachable — if
-    # Redis is down the heartbeat signal is meaningless.
-    if checks["redis"] == "ok" and worker_status in {"stale", "missing"}:
+    # A stale or missing worker heartbeat is reported in the JSON so
+    # operators can see it and load balancers that inspect payload can
+    # recycle the worker pod — but we deliberately do NOT 503 the API
+    # here. Killing the API container because the *worker* is down would
+    # take scheduling offline for everyone even though the API itself is
+    # fine. Redis outages still flip the status, since API-critical
+    # features (CSRF validation, rate limiting) rely on Redis.
+    if api_degraded:
         checks["status"] = "degraded"
+    elif worker_status in {"stale", "missing"}:
+        # API-healthy but worker signal is off: use a distinct status
+        # string so dashboards can alert without mis-scaling the API.
+        checks["status"] = "worker_degraded"
 
-    status_code = 200 if checks["status"] == "healthy" else 503
+    status_code = 503 if api_degraded else 200
     return JSONResponse(content=checks, status_code=status_code)
 
 # ========== APP SETUP ==========

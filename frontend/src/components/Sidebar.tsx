@@ -159,7 +159,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
       {!collapsed && (
         <a
           href="/privacy"
-          className="mt-1 block text-center text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+          className="mt-1 block text-center text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:underline"
         >
           Privacy policy
         </a>

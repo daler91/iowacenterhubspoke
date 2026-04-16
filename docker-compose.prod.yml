@@ -15,8 +15,10 @@ version: "3.8"
 #   echo -n "<value>" > ./secrets/jwt_secret   # repeat for each secret below
 #   chmod 400 ./secrets/*
 #
-# Non-secret env (MONGO_URL, REDIS_URL, ENVIRONMENT) stays inline —
-# these values are visible by design.
+# The backend/docker-entrypoint-secrets.sh wrapper reads each mounted
+# secret file from /run/secrets/* and exports it as the plain env var
+# the app already reads (JWT_SECRET, CSRF_SECRET, etc.). This keeps the
+# app code unchanged.
 
 services:
   mongo:
@@ -35,19 +37,20 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    entrypoint: ["/app/docker-entrypoint-secrets.sh"]
+    command: ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
     environment:
-      - MONGO_URL=mongodb://mongo:27017
-      - DB_NAME=iowa_center_hub
-      - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
-      # Each *_FILE variable instructs the app (or a small entrypoint
-      # shim) to read the value from /run/secrets/<name> instead of
-      # the inline env. Replace with app-native reads where possible.
-      - JWT_SECRET_FILE=/run/secrets/jwt_secret
-      - CSRF_SECRET_FILE=/run/secrets/csrf_secret
-      - TOKEN_ENCRYPTION_KEY_FILE=/run/secrets/token_encryption_key
-      - SMTP_PASSWORD_FILE=/run/secrets/smtp_password
-      - SENTRY_DSN_FILE=/run/secrets/sentry_dsn
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: iowa_center_hub
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: production
+      # *_FILE values are read by docker-entrypoint-secrets.sh and
+      # exported as JWT_SECRET / CSRF_SECRET / etc. before uvicorn starts.
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CSRF_SECRET_FILE: /run/secrets/csrf_secret
+      TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     secrets:
       - jwt_secret
       - csrf_secret
@@ -63,17 +66,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: arq worker.WorkerSettings
+    entrypoint: ["/app/docker-entrypoint-secrets.sh"]
+    command: ["arq", "worker.WorkerSettings"]
     environment:
-      - MONGO_URL=mongodb://mongo:27017
-      - DB_NAME=iowa_center_hub
-      - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
-      - JWT_SECRET_FILE=/run/secrets/jwt_secret
-      - CSRF_SECRET_FILE=/run/secrets/csrf_secret
-      - TOKEN_ENCRYPTION_KEY_FILE=/run/secrets/token_encryption_key
-      - SMTP_PASSWORD_FILE=/run/secrets/smtp_password
-      - SENTRY_DSN_FILE=/run/secrets/sentry_dsn
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: iowa_center_hub
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: production
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CSRF_SECRET_FILE: /run/secrets/csrf_secret
+      TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     secrets:
       - jwt_secret
       - csrf_secret

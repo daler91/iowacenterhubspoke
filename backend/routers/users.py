@@ -226,7 +226,12 @@ async def export_my_data(user: CurrentUser):
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
 
     async def _collect(coll, query: dict) -> list[dict]:
-        return await coll.find(query, {"_id": 0}).to_list(length=10000)
+        """Iterate the cursor fully. GDPR Article 20 requires the export to
+        be complete; capping at N with no continuation token silently
+        truncates a heavy account. Mongo cursors stream batches, so the
+        memory profile is still bounded by batch size, not full result
+        size."""
+        return [doc async for doc in coll.find(query, {"_id": 0})]
 
     bundle = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
