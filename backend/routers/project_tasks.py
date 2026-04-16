@@ -32,6 +32,12 @@ PROJECT_NOT_FOUND = "Project not found"
 ATTACHMENT_NOT_FOUND = "Attachment not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
+# Field-name constants — referenced in the CAS update filter, the
+# notification-gate, and the task document. Kept as a constant to
+# avoid a sprinkled string literal (python:S1192) and so a future
+# schema rename touches one spot.
+_ASSIGNED_TO = "assigned_to"
+
 UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
@@ -161,6 +167,12 @@ async def create_task(
         "spotlight": False,
         "at_risk": False,
         "created_at": now,
+        # Monotonic counter bumped atomically on each assignment change
+        # (see ``update_task`` CAS logic). Used as the notification dedup
+        # marker so genuine reassignments back to the same principal
+        # produce distinct events while concurrent duplicate writes are
+        # collapsed by the CAS (only one writer bumps the rev).
+        "assigned_rev": 1 if data.assigned_to else 0,
     }
     await db.tasks.insert_one(doc)
     doc.pop("_id", None)
@@ -171,7 +183,7 @@ async def create_task(
         "task", task_id, user.get("name", "System"),
     )
     # Notify assignee if this task was created pre-assigned.
-    if doc.get("assigned_to"):
+    if doc.get(_ASSIGNED_TO):
         project = await db.projects.find_one(
             {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
         ) or {"id": project_id}
@@ -211,6 +223,7 @@ async def get_task_detail(
     responses={
         400: {"description": NO_FIELDS_TO_UPDATE},
         404: {"description": TASK_NOT_FOUND},
+        409: {"description": "Task was modified concurrently; please retry."},
     },
 )
 async def update_task(
@@ -226,23 +239,16 @@ async def update_task(
     prev = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
-    # Sync completed fields when status changes
-    if "status" in update_data:
-        now = datetime.now(timezone.utc).isoformat()
-        if update_data["status"] == "completed":
-            update_data["completed"] = True
-            update_data["completed_at"] = now
-            update_data["completed_by"] = user.get("name", "System")
-        else:
-            update_data["completed"] = False
-            update_data["completed_at"] = None
-            update_data["completed_by"] = None
-    result = await db.tasks.update_one(
-        {"id": task_id, "project_id": project_id},
-        {"$set": update_data},
+    now = datetime.now(timezone.utc).isoformat()
+    _apply_status_completion_fields(update_data, now, user)
+    update_data["updated_at"] = now
+
+    prev, we_performed_assignment_change = await _cas_apply_task_update(
+        project_id=project_id,
+        task_id=task_id,
+        update_data=update_data,
+        prev=prev,
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
     updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
     # Fire notifications for the two meaningful transitions. A separate
@@ -251,14 +257,100 @@ async def update_task(
         {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
     ) or {"id": project_id}
     if updated and prev:
-        prev_assigned = prev.get("assigned_to")
-        new_assigned = updated.get("assigned_to")
-        if new_assigned and new_assigned != prev_assigned:
+        if we_performed_assignment_change and update_data.get(_ASSIGNED_TO):
             await notify_task_assigned(updated, project, user)
         if updated.get("completed") and not prev.get("completed"):
             await notify_task_completed(updated, project, user)
 
     return updated
+
+
+def _apply_status_completion_fields(
+    update_data: dict, now: str, user: dict,
+) -> None:
+    """Mirror ``status`` transitions into the ``completed*`` columns."""
+    if "status" not in update_data:
+        return
+    if update_data["status"] == "completed":
+        update_data["completed"] = True
+        update_data["completed_at"] = now
+        update_data["completed_by"] = user.get("name", "System")
+    else:
+        update_data["completed"] = False
+        update_data["completed_at"] = None
+        update_data["completed_by"] = None
+
+
+async def _cas_apply_task_update(
+    *,
+    project_id: str,
+    task_id: str,
+    update_data: dict,
+    prev: Optional[dict],
+    max_attempts: int = 3,
+) -> tuple[Optional[dict], bool]:
+    """Apply ``update_data`` with a CAS-guarded assignment swap.
+
+    When ``assigned_to`` is changing, the update filter pins
+    ``assigned_to`` to the snapshotted ``prev`` value and the ops bump
+    ``assigned_rev`` via ``$inc``. Only one concurrent writer can match,
+    so ``notify_task_assigned`` fires exactly once per logical
+    transition (Codex P2 r...252). On a CAS miss we re-snapshot
+    ``prev`` and retry — serialising two writers that assign to
+    *different* people so both intents are applied (Codex P2 r...253).
+
+    Returns ``(final_prev, we_performed_assignment_change)``.
+    Raises:
+        HTTPException(404): the task was deleted mid-flight.
+        HTTPException(409): retry budget exhausted (continuous
+            contention).
+    """
+    new_assigned = update_data.get(_ASSIGNED_TO)
+    intends_to_set_assignee = _ASSIGNED_TO in update_data
+    for _ in range(max_attempts):
+        prev_assigned = (prev or {}).get(_ASSIGNED_TO)
+        assignment_will_change = (
+            intends_to_set_assignee and new_assigned != prev_assigned
+        )
+
+        # Pin the CAS filter on ``assigned_to`` whenever this request
+        # touches the assignee field — even when ``new == prev`` on
+        # retry. Dropping the pin in that case would let a late third
+        # writer's assignee be silently clobbered without bumping the
+        # rev or firing notify (see Codex P1 review r...254). The
+        # ``$inc`` is gated separately: only a real transition bumps
+        # the rev. Note ``assignment_will_change`` already implies
+        # ``intends_to_set_assignee`` — keeping the two guards flat
+        # avoids nested branching.
+        filter_doc: dict = {"id": task_id, "project_id": project_id}
+        if intends_to_set_assignee:
+            filter_doc[_ASSIGNED_TO] = prev_assigned
+        ops: dict = {"$set": update_data}
+        if assignment_will_change:
+            ops["$inc"] = {"assigned_rev": 1}
+
+        result = await db.tasks.update_one(filter_doc, ops)
+        if result.matched_count:
+            return prev, assignment_will_change
+
+        # Non-CAS miss (no assignee pin) = task is genuinely missing.
+        # CAS miss = concurrent writer changed the assignee; re-snapshot
+        # and retry so the caller's intent lands on top of the new
+        # baseline.
+        if not intends_to_set_assignee:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+        prev = await db.tasks.find_one(
+            {"id": task_id, "project_id": project_id}, {"_id": 0},
+        )
+        if prev is None:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+
+    # Exhausted the retry budget — surrender with 409 rather than
+    # silently dropping the write or looping forever.
+    raise HTTPException(
+        status_code=409,
+        detail="Task was modified concurrently; please retry.",
+    )
 
 
 @router.patch(
