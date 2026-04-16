@@ -13,8 +13,10 @@ EXPOSE 8080
 
 # ``--reload`` is off by default so a misconfigured staging runner can't pick
 # this image up and auto-restart on unexpected file changes. Opt in per-env
-# by exporting ``UVICORN_RELOAD=1`` on the host.
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 8080 ${UVICORN_RELOAD:+--reload}"]
+# by exporting ``UVICORN_RELOAD=1`` on the host. Strict equality on "1" —
+# ${VAR:+...} would turn on for any non-empty value (including "0" / "false")
+# and reintroduce the very behavior this gate exists to prevent.
+CMD ["sh", "-c", "if [ \"${UVICORN_RELOAD}\" = \"1\" ]; then exec uvicorn server:app --host 0.0.0.0 --port 8080 --reload; else exec uvicorn server:app --host 0.0.0.0 --port 8080; fi"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS http://localhost:${PORT:-8080}/api/v1/health || exit 1
