@@ -524,6 +524,7 @@ async def request_id_middleware(request: Request, call_next):
     finally:
         request_id_var.reset(token)
 
+
 def _validate_cors_origin(origin: str) -> None:
     """Refuse wildcard / partial / non-http origins at startup.
 

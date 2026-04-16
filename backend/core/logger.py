@@ -2,56 +2,11 @@ import logging
 import json
 import contextvars
 from datetime import datetime, timezone
-from typing import Any
+
+from core.sensitive_keys import scrub as _scrub
 
 request_id_var = contextvars.ContextVar("request_id", default=None)
 user_var = contextvars.ContextVar("user", default=None)
-
-
-# Any log field whose key matches one of these substrings (case-insensitive)
-# is replaced with ``_MASK`` before the record is emitted. Mirrored from
-# ``core/sentry_scrub.py`` — kept as a duplicate to avoid an import cycle
-# (sentry_scrub already imports from typing only; logger is imported very
-# early during server boot).
-_MASK = "[REDACTED]"
-_MAX_DEPTH = 6
-_SENSITIVE_KEY_PARTS = (
-    "authorization",
-    "cookie",
-    "csrf",
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "api_key",
-    "apikey",
-    "access_key",
-    "private_key",
-    "refresh",
-    "session",
-)
-
-
-def _is_sensitive_key(key: Any) -> bool:
-    if not isinstance(key, str):
-        return False
-    lowered = key.lower()
-    return any(part in lowered for part in _SENSITIVE_KEY_PARTS)
-
-
-def _scrub(value: Any, depth: int = 0) -> Any:
-    if depth >= _MAX_DEPTH:
-        return value
-    if isinstance(value, dict):
-        return {
-            k: (_MASK if _is_sensitive_key(k) else _scrub(v, depth + 1))
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [_scrub(v, depth + 1) for v in value]
-    if isinstance(value, tuple):
-        return tuple(_scrub(v, depth + 1) for v in value)
-    return value
 
 
 class JSONFormatter(logging.Formatter):

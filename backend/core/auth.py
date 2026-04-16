@@ -11,6 +11,7 @@ from fastapi import HTTPException, Depends, Header, Request
 from typing import Annotated, Optional, List
 from core.constants import ROLE_ADMIN, ROLE_SCHEDULER
 
+
 def _looks_multi_worker() -> bool:
     """Best-effort detection of a multi-process deployment.
 
