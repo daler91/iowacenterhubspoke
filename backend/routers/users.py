@@ -1,6 +1,8 @@
 import uuid
+import json
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from database import db
 from core.auth import AdminRequired, CurrentUser, invalidate_pwd_cache
 from core.constants import (
@@ -214,42 +216,66 @@ async def restore_user(user_id: str, user: AdminRequired):
     summary="Export the authenticated user's data (GDPR Article 20)",
 )
 async def export_my_data(user: CurrentUser):
-    """Return a JSON bundle of everything we have on the authenticated user.
+    """Stream a JSON bundle of everything we have on the authenticated user.
 
-    Includes the user profile (minus password hash), owned entities they
-    created, and their activity log entries. Suitable for the data-portability
-    right described in the privacy policy.
+    Streams per-document so memory stays bounded regardless of history
+    size — a user with a million activity-log rows would otherwise OOM
+    the API worker if we materialized the full list before serializing.
     """
     user_id = user["user_id"]
     user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
     if not user_doc:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
 
-    async def _collect(coll, query: dict) -> list[dict]:
-        """Iterate the cursor fully. GDPR Article 20 requires the export to
-        be complete; capping at N with no continuation token silently
-        truncates a heavy account. Mongo cursors stream batches, so the
-        memory profile is still bounded by batch size, not full result
-        size."""
-        return [doc async for doc in coll.find(query, {"_id": 0})]
+    async def _stream_collection(key: str, coll, query: dict, is_last: bool):
+        """Emit ``"key": [ {...}, {...}, ... ]`` lazily from a cursor.
 
-    bundle = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "user": user_doc,
-        "schedules_created": await _collect(
-            db.schedules, {"created_by": user_id},
-        ),
-        "projects_created": await _collect(
-            db.projects, {"created_by": user_id},
-        ),
-        "activity_logs": await _collect(
-            db.activity_logs, {"user_id": user_id},
-        ),
-        "notification_preferences": await _collect(
-            db.notification_preferences, {"principal_id": user_id},
-        ),
-    }
-    return bundle
+        Uses ``json.dumps`` on each row so Mongo's BSON-to-dict round-trip
+        happens one document at a time. The ``is_last`` flag controls the
+        trailing comma between top-level keys.
+        """
+        yield f',\n  "{key}": ['
+        first = True
+        async for doc in coll.find(query, {"_id": 0}):
+            prefix = "" if first else ","
+            first = False
+            yield f'{prefix}\n    {json.dumps(doc, default=str)}'
+        yield '\n  ]'
+        if not is_last:
+            yield ''
+
+    async def _body():
+        generated = datetime.now(timezone.utc).isoformat()
+        yield '{\n  "generated_at": ' + json.dumps(generated)
+        yield ',\n  "user": ' + json.dumps(user_doc, default=str)
+        async for chunk in _stream_collection(
+            "schedules_created", db.schedules, {"created_by": user_id}, False,
+        ):
+            yield chunk
+        async for chunk in _stream_collection(
+            "projects_created", db.projects, {"created_by": user_id}, False,
+        ):
+            yield chunk
+        async for chunk in _stream_collection(
+            "activity_logs", db.activity_logs, {"user_id": user_id}, False,
+        ):
+            yield chunk
+        async for chunk in _stream_collection(
+            "notification_preferences",
+            db.notification_preferences,
+            {"principal_id": user_id},
+            True,
+        ):
+            yield chunk
+        yield '\n}\n'
+
+    return StreamingResponse(
+        _body(),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="user-{user_id}-export.json"',
+        },
+    )
 
 
 @router.post(

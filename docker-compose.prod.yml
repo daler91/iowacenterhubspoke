@@ -38,7 +38,13 @@ services:
     ports:
       - "8080:8080"
     entrypoint: ["/app/docker-entrypoint-secrets.sh"]
-    command: ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+    # The backend always binds 8080 inside the container. Compose
+    # expands ``${VAR}`` on the host shell before the container starts,
+    # so a developer who has PORT exported in their login shell would
+    # make the app bind to a surprising port while the published port
+    # stays 8080 — the backend becomes unreachable. Hard-code the
+    # internal bind and publish with "ports:" instead.
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
     environment:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: iowa_center_hub
