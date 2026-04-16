@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ConsentBanner from "./components/ConsentBanner";
 
 /**
  * Wraps a route element in an ErrorBoundary keyed on the current path so a
@@ -129,6 +130,7 @@ function App() {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <AuthProvider>
         <AppRoutes />
+        <ConsentBanner />
         <Toaster position="top-right" richColors />
       </AuthProvider>
     </ThemeProvider>

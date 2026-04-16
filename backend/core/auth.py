@@ -88,14 +88,16 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
         raise HTTPException(status_code=401, detail='Invalid token')
 
     # Session invalidation: reject tokens issued before a password change
+    # or belonging to a soft-deleted user account.
     token_iat = payload.get('iat', 0)
-    if token_iat:
-        changed_ts = await _get_pwd_changed_ts(payload['user_id'])
-        if changed_ts and token_iat < changed_ts:
-            raise HTTPException(
-                status_code=401,
-                detail='Session invalidated by password change. Please log in again.'
-            )
+    changed_ts, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
+    if is_deleted:
+        raise HTTPException(status_code=401, detail='Account deactivated')
+    if token_iat and changed_ts and token_iat < changed_ts:
+        raise HTTPException(
+            status_code=401,
+            detail='Session invalidated by password change. Please log in again.'
+        )
 
     return payload
 
@@ -105,23 +107,26 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
 # ``_PWD_CACHE_TTL`` seconds per worker after a password change. Password
 # change/reset handlers call ``invalidate_pwd_cache(user_id)`` to clear the
 # local entry immediately so the issuing worker cannot revalidate an old JWT.
-_pwd_change_cache: dict[str, tuple[float, float | None]] = {}  # user_id -> (cached_at, changed_ts)
+_pwd_change_cache: dict[str, tuple[float, float | None, bool]] = {}  # user_id -> (cached_at, changed_ts, is_deleted)
 _PWD_CACHE_TTL = 300  # 5 minutes
 
 
-async def _get_pwd_changed_ts(user_id: str) -> float | None:
-    """Get cached password_changed_at timestamp, refreshing from DB if stale."""
+async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
+    """Get cached (password_changed_at timestamp, is_deleted) for a user."""
     now = _time.monotonic()
     cached = _pwd_change_cache.get(user_id)
     if cached and (now - cached[0]) < _PWD_CACHE_TTL:
-        return cached[1]
+        return cached[1], cached[2]
     from database import db
-    user_doc = await db.users.find_one({"id": user_id}, {"password_changed_at": 1})
+    user_doc = await db.users.find_one(
+        {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
+    )
     changed_ts = None
+    is_deleted = bool(user_doc and user_doc.get('deleted_at'))
     if user_doc and user_doc.get('password_changed_at'):
         changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
-    _pwd_change_cache[user_id] = (now, changed_ts)
-    return changed_ts
+    _pwd_change_cache[user_id] = (now, changed_ts, is_deleted)
+    return changed_ts, is_deleted
 
 
 def invalidate_pwd_cache(user_id: str) -> None:

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from pymongo import ReturnDocument
 
 from database import db
 from models.schemas import (
@@ -437,24 +438,37 @@ async def relocate_schedule(
 
     await _check_relocate_conflicts(schedule, data, schedule_id)
 
-    await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None},
+    # Optimistic concurrency: the update only succeeds if the schedule is
+    # still anchored at the snapshot we conflict-checked against. A racing
+    # relocate against the same row will see filter-miss and 409.
+    original_date = schedule.get("date")
+    original_start = schedule.get("start_time")
+    updated = await db.schedules.find_one_and_update(
+        {
+            "id": schedule_id,
+            "deleted_at": None,
+            "date": original_date,
+            "start_time": original_start,
+        },
         {"$set": {"date": data.date, "start_time": data.start_time, "end_time": data.end_time}},
+        projection={"_id": 0},
+        return_document=ReturnDocument.AFTER,
     )
+    if not updated:
+        raise HTTPException(
+            status_code=409,
+            detail="Schedule changed during relocation; please retry.",
+        )
     logger.info(
         f"Schedule relocated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}},
     )
 
-    old_date = schedule.get("date")
+    old_date = original_date
     for emp_id in schedule.get("employee_ids", []):
         await _sync_same_day_town_to_town(emp_id, data.date)
         if old_date and old_date != data.date:
             await _sync_same_day_town_to_town(emp_id, old_date)
-
-    updated = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
 
     await sync_relocate_calendar(schedule, updated)
 
