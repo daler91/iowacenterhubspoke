@@ -22,6 +22,7 @@ export function EmployeeMultiSelect({
 }: Readonly<EmployeeMultiSelectProps>) {
   const [open, setOpen] = useState(false);
   const listboxId = id ? `${id}-listbox` : undefined;
+  const errorMessageId = id ? `${id}-error` : undefined;
 
   const toggle = (innerId: string) => {
     onSelectionChange(
@@ -41,20 +42,22 @@ export function EmployeeMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        {/* role="combobox" is correct for this filter-as-you-type multi-select
-            (Radix Popover + Command). Native <select multiple> doesn't
-            support incremental search, custom chips, or per-option colors,
-            so Sonar's "prefer native" suggestion isn't applicable here. */}
+        {/* Disclosure button opening a listbox popup. We stick with the
+            default button role rather than role="combobox" — lint rules
+            balk at aria-invalid on a plain button role, and Sonar rejects
+            combobox in favor of native select. Invalidity is signalled
+            visually via data-invalid + an aria-describedby pointer at the
+            error message rendered by the parent form. */}
         <button
           type="button"
           id={id}
           data-testid="schedule-employee-select"
-          role="combobox" // NOSONAR(S6819)
+          data-invalid={ariaInvalid ? "true" : undefined}
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={listboxId}
-          aria-invalid={ariaInvalid || undefined}
-          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 aria-invalid:border-danger aria-invalid:ring-danger"
+          aria-describedby={ariaInvalid ? errorMessageId : undefined}
+          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2"
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selectedEmployees.length === 0 && (
