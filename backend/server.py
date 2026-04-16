@@ -11,10 +11,13 @@ from datetime import datetime, timezone
 _sentry_dsn = os.getenv("SENTRY_DSN")
 if _sentry_dsn:
     import sentry_sdk
+    from core.sentry_scrub import sentry_before_send
     sentry_sdk.init(
         dsn=_sentry_dsn,
         traces_sample_rate=0.2,
         environment=os.getenv("ENVIRONMENT", "development"),
+        send_default_pii=False,
+        before_send=sentry_before_send,
     )
 
 from core.logger import setup_logging, get_logger, request_id_var  # noqa: E402
@@ -82,6 +85,8 @@ async def _ensure_indexes():
         await db.classes.create_index([("deleted_at", 1)])
         await db.activity_logs.create_index([("timestamp", -1)])
         await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
+        await db.activity_logs.create_index([("user_id", 1)])
+        await db.users.create_index([("deleted_at", 1)])
         await db.drive_time_cache.create_index("key", unique=True)
         await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
         await db.invitations.create_index("token", unique=True)

@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import App from "@/App";
 import { isChunkLoadError, reloadOnceForStaleChunk } from "@/lib/chunkError";
+import {
+  CONSENT_CHANGED_EVENT,
+  initPostHogIfConsented,
+} from "@/lib/consent";
 
 // Sentry error tracking (opt-in via VITE_SENTRY_DSN env var)
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
@@ -18,20 +22,13 @@ if (sentryDsn) {
 
 // PostHog analytics (opt-in via VITE_POSTHOG_KEY env var). Loaded from the
 // bundle so it is compatible with the strict production CSP, which disallows
-// inline <script> blocks.
-const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
-if (posthogKey) {
-  const posthogHost =
-    import.meta.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com";
-  import("posthog-js").then(({ default: posthog }) => {
-    posthog.init(posthogKey, {
-      api_host: posthogHost,
-      person_profiles: "identified_only",
-      session_recording: {
-        recordCrossOriginIframes: true,
-        capturePerformance: false,
-      },
-    });
+// inline <script> blocks. Gated behind the analytics consent banner — we
+// boot immediately if consent was previously granted, and listen for the
+// consent-changed event so a mid-session grant loads PostHog live.
+initPostHogIfConsented();
+if (typeof window !== "undefined") {
+  window.addEventListener(CONSENT_CHANGED_EVENT, () => {
+    initPostHogIfConsented();
   });
 }
 
