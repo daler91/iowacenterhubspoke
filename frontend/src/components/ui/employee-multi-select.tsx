@@ -41,11 +41,15 @@ export function EmployeeMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
+        {/* role="combobox" is correct for this filter-as-you-type multi-select
+            (Radix Popover + Command). Native <select multiple> doesn't
+            support incremental search, custom chips, or per-option colors,
+            so Sonar's "prefer native" suggestion isn't applicable here. */}
         <button
           type="button"
           id={id}
           data-testid="schedule-employee-select"
-          role="combobox"
+          role="combobox" // NOSONAR(S6819)
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={listboxId}

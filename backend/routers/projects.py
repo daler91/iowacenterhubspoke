@@ -630,6 +630,7 @@ async def delete_project(project_id: str, user: CurrentUser):
     summary="Advance project to next phase",
     responses={
         400: {"description": "Project is already complete"},
+        403: {"description": "Only admins can force-advance past incomplete tasks"},
         404: {"description": PROJECT_NOT_FOUND},
     },
 )

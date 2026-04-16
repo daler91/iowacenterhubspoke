@@ -27,12 +27,14 @@ class ProjectCreate(BaseModel):
     auto_create_schedule: bool = False
 
     @model_validator(mode="after")
-    def _require_fields_for_auto_schedule(self):
+    def _require_fields_for_auto_schedule(self):  # NOSONAR(S3516)
         """Auto-created schedules need a concrete employee list + time window.
 
         Without this guard, ``auto_create_schedule=True`` paired with
         ``employee_ids=[]`` (or missing start/end times) produces a malformed
-        schedule document downstream.
+        schedule document downstream. Pydantic v2 ``mode="after"`` validators
+        are required to return ``self`` on every non-raising path — the
+        "always returns same value" warning is a false positive.
         """
         if not self.auto_create_schedule:
             return self
