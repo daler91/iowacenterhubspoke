@@ -149,8 +149,9 @@ export default function ClassManager() {
                 data-testid={`view-class-${classItem.id}`}
                 onClick={() => onViewProfile(classItem.id)}
                 className="text-muted-foreground hover:text-teal-600"
+                aria-label={`View ${classItem.name}`}
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
               </Button>
               {isAdmin && (
                 <>
@@ -160,8 +161,9 @@ export default function ClassManager() {
                     data-testid={`edit-class-${classItem.id}`}
                     onClick={() => openEdit(classItem)}
                     className="text-muted-foreground hover:text-indigo-600"
+                    aria-label={`Edit ${classItem.name}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -169,8 +171,9 @@ export default function ClassManager() {
                     data-testid={`delete-class-${classItem.id}`}
                     onClick={() => setDeleteTarget(classItem)}
                     className="text-muted-foreground hover:text-danger"
+                    aria-label={`Delete ${classItem.name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </>
               )}

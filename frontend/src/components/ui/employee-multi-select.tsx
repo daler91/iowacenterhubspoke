@@ -10,10 +10,18 @@ interface EmployeeMultiSelectProps {
   readonly employees: Employee[];
   readonly selectedIds: string[];
   readonly onSelectionChange: (ids: string[]) => void;
+  readonly "aria-invalid"?: boolean;
 }
 
-export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionChange }: Readonly<EmployeeMultiSelectProps>) {
+export function EmployeeMultiSelect({
+  id,
+  employees,
+  selectedIds,
+  onSelectionChange,
+  "aria-invalid": ariaInvalid,
+}: Readonly<EmployeeMultiSelectProps>) {
   const [open, setOpen] = useState(false);
+  const listboxId = id ? `${id}-listbox` : undefined;
 
   const toggle = (innerId: string) => {
     onSelectionChange(
@@ -37,9 +45,12 @@ export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionCha
           type="button"
           id={id}
           data-testid="schedule-employee-select"
+          role="combobox"
           aria-haspopup="listbox"
           aria-expanded={open}
-          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          aria-controls={listboxId}
+          aria-invalid={ariaInvalid || undefined}
+          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 aria-invalid:border-danger aria-invalid:ring-danger"
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selectedEmployees.length === 0 && (
@@ -68,7 +79,7 @@ export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionCha
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search employees..." />
-          <CommandList>
+          <CommandList id={listboxId}>
             <CommandEmpty>No employees found.</CommandEmpty>
             <CommandGroup>
               {(employees || []).map(emp => {

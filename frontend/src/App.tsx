@@ -67,8 +67,16 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
-          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div
+          className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Loading page</span>
         </div>
       }>
         <Routes>

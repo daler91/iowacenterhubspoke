@@ -13,7 +13,8 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir -r requirements.txt && \
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup appuser
 
@@ -23,3 +24,6 @@ COPY --chown=appuser:appgroup --from=frontend-build /app/frontend/build ./static
 USER appuser
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://localhost:${PORT:-8080}/api/v1/health || exit 1

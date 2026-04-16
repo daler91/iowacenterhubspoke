@@ -31,6 +31,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   const ids = Array.from(selectedIds);
 
   const handleBulkDelete = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await schedulesAPI.bulkDelete(ids);
@@ -45,6 +46,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   };
 
   const handleBulkStatus = async (status) => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await schedulesAPI.bulkUpdateStatus(ids, status);
@@ -58,6 +60,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   };
 
   const handleBulkReassign = async (employeeId, employeeName) => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await schedulesAPI.bulkReassign(ids, employeeId);
@@ -72,6 +75,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   };
 
   const handleBulkLocation = async (locationId, locationName) => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await schedulesAPI.bulkUpdateLocation(ids, locationId);
@@ -86,6 +90,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
   };
 
   const handleBulkClass = async (classId, className) => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await schedulesAPI.bulkUpdateClass(ids, classId);

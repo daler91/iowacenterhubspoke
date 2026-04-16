@@ -187,8 +187,9 @@ export default function LocationManager() {
                 data-testid={`view-location-${loc.id}`}
                 onClick={() => onViewProfile(loc.id)}
                 className="text-muted-foreground hover:text-teal-600"
+                aria-label={`View ${loc.city_name}`}
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
               </Button>
               {isAdmin && (
                 <>
@@ -198,8 +199,9 @@ export default function LocationManager() {
                     data-testid={`edit-location-${loc.id}`}
                     onClick={() => openEdit(loc)}
                     className="text-muted-foreground hover:text-indigo-600"
+                    aria-label={`Edit ${loc.city_name}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -207,8 +209,9 @@ export default function LocationManager() {
                     data-testid={`delete-location-${loc.id}`}
                     onClick={() => setDeleteTarget(loc)}
                     className="text-muted-foreground hover:text-danger"
+                    aria-label={`Delete ${loc.city_name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </>
               )}

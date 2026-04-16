@@ -1,7 +1,8 @@
 FROM python:3.11-slim
 WORKDIR /app
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir -r requirements.txt && \
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup appuser
 
@@ -9,4 +10,11 @@ COPY --chown=appuser:appgroup backend/ ./
 
 USER appuser
 EXPOSE 8080
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+# ``--reload`` is off by default so a misconfigured staging runner can't pick
+# this image up and auto-restart on unexpected file changes. Opt in per-env
+# by exporting ``UVICORN_RELOAD=1`` on the host.
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 8080 ${UVICORN_RELOAD:+--reload}"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://localhost:${PORT:-8080}/api/v1/health || exit 1
