@@ -3,6 +3,8 @@ import json
 import contextvars
 from datetime import datetime, timezone
 
+from core.sensitive_keys import scrub as _scrub
+
 request_id_var = contextvars.ContextVar("request_id", default=None)
 user_var = contextvars.ContextVar("user", default=None)
 
@@ -25,10 +27,10 @@ class JSONFormatter(logging.Formatter):
             log_entry["user"] = user
 
         if hasattr(record, "entity"):
-            log_entry["entity"] = record.entity
+            log_entry["entity"] = _scrub(record.entity)
 
         if hasattr(record, "context") and isinstance(record.context, dict):
-            log_entry.update(record.context)
+            log_entry.update(_scrub(record.context))
 
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)

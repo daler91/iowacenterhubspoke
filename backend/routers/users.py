@@ -159,10 +159,9 @@ async def delete_user(user_id: str, user: AdminRequired):
         {"id": user_id},
         {"$set": {"deleted_at": now, "deleted_by": user["email"]}},
     )
-    # Drop the (changed_ts, is_deleted) cache entry on this worker so the
-    # next request with the deleted user's JWT sees is_deleted=True
-    # immediately instead of waiting out the 5-minute TTL.
-    invalidate_pwd_cache(user_id)
+    # Drop the L1 cache entry and broadcast deletion to sibling workers so
+    # no JWT for this user survives past the 30-second L1 window.
+    await invalidate_pwd_cache(user_id, is_deleted=True)
     redacted = await redact_user_from_activity(user_id, target.get("name", ""))
     await log_activity(
         action="user.delete",
@@ -195,9 +194,9 @@ async def restore_user(user_id: str, user: AdminRequired):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
-    # Clear any cached is_deleted=True entry so workers don't keep rejecting
-    # the restored user's session until the 5-minute TTL expires.
-    invalidate_pwd_cache(user_id)
+    # Clear the is_deleted marker everywhere so workers don't keep
+    # rejecting the restored user's session.
+    await invalidate_pwd_cache(user_id, is_deleted=False)
     await log_activity(
         action="user.restore",
         description=f"User {user_id} restored",

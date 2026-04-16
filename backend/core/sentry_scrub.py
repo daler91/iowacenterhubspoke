@@ -10,30 +10,12 @@ matches our sensitive-key allowlist (case-insensitive, substring match so
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
-_MASK = "[REDACTED]"
-_MAX_DEPTH = 6
-
-# Any key containing one of these substrings (case-insensitive) is masked.
-_SENSITIVE_KEY_PARTS = (
-    "authorization",
-    "cookie",
-    "csrf",
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "api_key",
-    "apikey",
-    "access_key",
-    "private_key",
-    "refresh",
-    "session",
-)
+from core.sensitive_keys import MASK as _MASK, is_sensitive_key, scrub as _scrub
 
 # Query-string parameters get an extra list. These are short enough that
-# substring matching on the full _SENSITIVE_KEY_PARTS set would produce
-# false positives on header/body dicts (``status_code``, ``code_version``),
-# so they're only applied to the parsed ``?a=b&code=xyz`` URL segment where
+# substring matching on the general sensitive-key list would produce false
+# positives on header/body dicts (``status_code``, ``code_version``), so
+# they're only applied to the parsed ``?a=b&code=xyz`` URL segment where
 # the key space is much smaller.
 _SENSITIVE_QUERY_KEYS = {
     "code",
@@ -49,30 +31,8 @@ _SENSITIVE_QUERY_KEYS = {
 }
 
 
-def _is_sensitive_key(key: Any) -> bool:
-    if not isinstance(key, str):
-        return False
-    lowered = key.lower()
-    return any(part in lowered for part in _SENSITIVE_KEY_PARTS)
-
-
-def _scrub(value: Any, depth: int = 0) -> Any:
-    if depth >= _MAX_DEPTH:
-        return value
-    if isinstance(value, dict):
-        return {
-            k: (_MASK if _is_sensitive_key(k) else _scrub(v, depth + 1))
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [_scrub(v, depth + 1) for v in value]
-    if isinstance(value, tuple):
-        return tuple(_scrub(v, depth + 1) for v in value)
-    return value
-
-
 def _is_sensitive_query_key(key: str) -> bool:
-    if _is_sensitive_key(key):
+    if is_sensitive_key(key):
         return True
     return key.lower() in _SENSITIVE_QUERY_KEYS
 

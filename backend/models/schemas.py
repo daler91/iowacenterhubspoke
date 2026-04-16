@@ -2,11 +2,19 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, model_validato
 from typing import List, Literal, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
+# Defensive caps: unbounded free-text fields enable cheap disk/memory DOS
+# (a 10 MB notes value hits Mongo + every downstream notification payload).
+# These limits are generous for real user content but shut the door on
+# abuse.
+_MAX_NAME = 500
+_MAX_DESCRIPTION = 5000
+_MAX_NOTES = 5000
+
 
 class UserRegister(BaseModel):
-    name: str
+    name: str = Field(..., max_length=_MAX_NAME)
     email: EmailStr
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8, max_length=256)
     invite_token: Optional[str] = None
 
     @field_validator("password")
@@ -34,30 +42,30 @@ class ResetPasswordRequest(BaseModel):
 
 
 class LocationCreate(BaseModel):
-    city_name: str
+    city_name: str = Field(..., max_length=_MAX_NAME)
     drive_time_minutes: int
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
 
 class LocationUpdate(BaseModel):
-    city_name: Optional[str] = None
+    city_name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     drive_time_minutes: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
 
 class EmployeeCreate(BaseModel):
-    name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    name: str = Field(..., max_length=_MAX_NAME)
+    email: Optional[str] = Field(default=None, max_length=320)
+    phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = DEFAULT_EMPLOYEE_COLOR
 
 
 class EmployeeUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    email: Optional[str] = Field(default=None, max_length=320)
+    phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = None
 
 
@@ -71,14 +79,14 @@ class RecurrenceRule(BaseModel):
 
 
 class ClassCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
+    name: str = Field(..., max_length=_MAX_NAME)
+    description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = DEFAULT_CLASS_COLOR
 
 
 class ClassUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = None
 
 
@@ -91,7 +99,7 @@ class ScheduleCreate(BaseModel):
     start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
     end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
     force: Optional[bool] = False
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
     drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
@@ -131,7 +139,7 @@ class ScheduleUpdate(BaseModel):
     date: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
     drive_to_override_minutes: Optional[int] = None  # override drive TO this class
     drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
     status: Optional[str] = None
@@ -186,13 +194,13 @@ class UserRoleUpdate(BaseModel):
 
 class InviteCreate(BaseModel):
     email: EmailStr
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     role: str
 
 
 class PasswordChange(BaseModel):
-    current_password: str
-    new_password: str = Field(..., min_length=8)
+    current_password: str = Field(..., max_length=256)
+    new_password: str = Field(..., min_length=8, max_length=256)
 
 
 class ErrorResponse(BaseModel):
@@ -209,7 +217,7 @@ class ScheduleImportItem(BaseModel):
     start_time: str
     end_time: str
     force: Optional[bool] = False
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
     row_idx: int
 
 
