@@ -65,22 +65,26 @@ async def _try_acquire_redis_lock(instance_id: str):
         return pool, True
 
 
-async def _wait_for_lock_clear(pool) -> None:
-    """Block up to ``_LOCK_WAIT_SECONDS`` for the winner to finish."""
+async def _wait_for_lock_clear(pool) -> bool:
+    """Block up to ``_LOCK_WAIT_SECONDS`` for the winner to finish.
+
+    Returns True if the lock cleared within the budget, False on timeout.
+    """
     deadline = asyncio.get_event_loop().time() + _LOCK_WAIT_SECONDS
     while asyncio.get_event_loop().time() < deadline:
         try:
             holder = await pool.get(_LOCK_KEY)
         except Exception as exc:
             logger.warning("migration lock: poll failed (%s); proceeding", exc)
-            return
+            # Can't observe the lock — conservatively report "cleared" so the
+            # caller re-reads applied_ids and likely no-ops. Running unlocked
+            # is still risky, but the alternative is a boot-loop on a Redis
+            # blip which is strictly worse for operators.
+            return True
         if holder is None:
-            return
+            return True
         await asyncio.sleep(_LOCK_POLL_SECONDS)
-    logger.warning(
-        "migration lock: still held after %ss wait; proceeding to re-verify applied set",
-        _LOCK_WAIT_SECONDS,
-    )
+    return False
 
 
 async def _release_redis_lock(pool, instance_id: str) -> None:
@@ -118,8 +122,20 @@ async def run_pending(db) -> dict:
             "migration lock held by another instance; waiting up to %ss",
             _LOCK_WAIT_SECONDS,
         )
-        await _wait_for_lock_clear(pool)
-        # Re-read applied set — the winner has finished writing by now.
+        cleared = await _wait_for_lock_clear(pool)
+        if not cleared:
+            # Winner is still mid-migration past our wait budget. Running
+            # unlocked now would let both instances execute the same pending
+            # migration concurrently. Fail fast — the operator will see the
+            # stuck lock in Redis and can intervene (kill the stuck winner
+            # or bump the TTL). This is strictly safer than corrupting the
+            # migration trail.
+            raise RuntimeError(
+                f"Migration lock at {_LOCK_KEY!r} still held after "
+                f"{_LOCK_WAIT_SECONDS}s. Refusing to run migrations unlocked."
+            )
+        # Winner has released the lock; its schema_migrations writes are
+        # visible now so re-reading applied_ids will skip everything.
         return await _run_unlocked(db)
 
     logger.info("migration runner: won lock as %s", instance_id)

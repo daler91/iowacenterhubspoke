@@ -185,21 +185,34 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
         return cached[1], cached[2]
 
     redis_changed, redis_deleted = await _read_redis_markers(user_id)
-    if redis_deleted is True:
-        _pwd_change_cache[user_id] = (now, redis_changed, True)
-        return redis_changed, True
 
+    # Always confirm deletion against Mongo — Redis is a hint, not the source
+    # of truth. If restore_user raced a Redis write that silently failed, a
+    # stale ``auth:user_deleted`` marker would otherwise keep the restored
+    # user blocked with 401 until the marker TTL expired.
     from database import db
     user_doc = await db.users.find_one(
         {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
     )
-    changed_ts: float | None = redis_changed
     is_deleted = bool(user_doc and user_doc.get('deleted_at'))
+    changed_ts: float | None = redis_changed
     if user_doc and user_doc.get('password_changed_at'):
         mongo_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
         # Prefer the later of the two — Redis marker may pre-date Mongo on
         # a race where the write landed but hasn't propagated yet.
         changed_ts = max(changed_ts or 0.0, mongo_ts) or None
+
+    # If Redis said "deleted" but Mongo says otherwise, clear the stale
+    # marker so sibling workers don't keep consulting it.
+    if redis_deleted is True and not is_deleted:
+        try:
+            from core.queue import get_redis_pool
+            pool = await get_redis_pool()
+            if pool is not None:
+                await pool.delete(f"{_REDIS_DELETED_PREFIX}{user_id}")
+        except Exception as exc:
+            logging.debug("auth redis stale-marker cleanup failed for %s: %s", user_id, exc)
+
     _pwd_change_cache[user_id] = (now, changed_ts, is_deleted)
     return changed_ts, is_deleted
 
