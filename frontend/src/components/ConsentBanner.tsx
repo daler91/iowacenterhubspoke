@@ -28,8 +28,7 @@ export default function ConsentBanner() {
   };
 
   return (
-    <div
-      role="region"
+    <section
       aria-label="Cookie and analytics consent"
       className="fixed bottom-4 inset-x-4 md:inset-x-auto md:right-6 md:max-w-md z-50 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-lg p-4"
     >
@@ -61,6 +60,6 @@ export default function ConsentBanner() {
           Accept
         </button>
       </div>
-    </div>
+    </section>
   );
 }

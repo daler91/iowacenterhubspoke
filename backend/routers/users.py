@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from database import db
-from core.auth import AdminRequired
+from core.auth import AdminRequired, invalidate_pwd_cache
 from core.constants import (
     ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER,
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
@@ -159,6 +159,10 @@ async def delete_user(user_id: str, user: AdminRequired):
         {"id": user_id},
         {"$set": {"deleted_at": now, "deleted_by": user["email"]}},
     )
+    # Drop the (changed_ts, is_deleted) cache entry on this worker so the
+    # next request with the deleted user's JWT sees is_deleted=True
+    # immediately instead of waiting out the 5-minute TTL.
+    invalidate_pwd_cache(user_id)
     redacted = await redact_user_from_activity(user_id, target.get("name", ""))
     await log_activity(
         action="user.delete",
@@ -191,6 +195,9 @@ async def restore_user(user_id: str, user: AdminRequired):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+    # Clear any cached is_deleted=True entry so workers don't keep rejecting
+    # the restored user's session until the 5-minute TTL expires.
+    invalidate_pwd_cache(user_id)
     await log_activity(
         action="user.restore",
         description=f"User {user_id} restored",

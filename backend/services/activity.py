@@ -2,9 +2,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from database import db
-from core.logger import get_logger
-
-logger = get_logger(__name__)
 
 DELETED_USER_PLACEHOLDER = "Deleted user"
 
@@ -28,10 +25,6 @@ async def log_activity(
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await db.activity_logs.insert_one(doc)
-    logger.info(
-        "Activity logged",
-        extra={"entity": {"type": entity_type, "id": entity_id, "action": action}},
-    )
 
 
 async def redact_user_from_activity(user_id: str, user_name: str) -> int:

@@ -26,8 +26,8 @@ if (sentryDsn) {
 // boot immediately if consent was previously granted, and listen for the
 // consent-changed event so a mid-session grant loads PostHog live.
 initPostHogIfConsented();
-if (typeof window !== "undefined") {
-  window.addEventListener(CONSENT_CHANGED_EVENT, () => {
+if (typeof globalThis.window !== "undefined") {
+  globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
     initPostHogIfConsented();
   });
 }
