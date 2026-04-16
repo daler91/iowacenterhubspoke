@@ -156,6 +156,14 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         <LogOut aria-hidden="true" className="w-5 h-5 shrink-0" />
         {!collapsed && <span>Sign Out</span>}
       </Button>
+      {!collapsed && (
+        <a
+          href="/privacy"
+          className="mt-1 block text-center text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+        >
+          Privacy policy
+        </a>
+      )}
     </div>
   );
 }

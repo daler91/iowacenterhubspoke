@@ -43,6 +43,7 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const PrivacyPage = lazy(() => import("./pages/Privacy"));
 const MapView = lazy(() => import("./components/MapView"));
 const KanbanBoard = lazy(() => import("./components/KanbanBoard"));
 const CalendarView = lazy(() => import("./components/CalendarView"));
@@ -127,6 +128,7 @@ function AppRoutes() {
             <Route path="coordination/webhooks" element={<RouteBoundary><WebhookManager /></RouteBoundary>} />
           </Route>
           <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />
         </Routes>
       </Suspense>
     </BrowserRouter>

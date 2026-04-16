@@ -1,0 +1,101 @@
+version: "3.8"
+
+# Production-oriented compose example.
+#
+# The dev compose (docker-compose.yml) pulls secrets from
+# backend/.env via env_file. Running that layout in production leaves
+# sensitive values readable via `docker inspect` and inheritable by any
+# child process in the container's namespace. This file uses Docker
+# secrets so credentials are mounted into /run/secrets/* read-only,
+# never appear in environment listings, and can be rotated without a
+# rebuild.
+#
+# Prep the host once before `docker compose -f docker-compose.prod.yml up`:
+#   mkdir -p ./secrets && chmod 700 ./secrets
+#   echo -n "<value>" > ./secrets/jwt_secret   # repeat for each secret below
+#   chmod 400 ./secrets/*
+#
+# Non-secret env (MONGO_URL, REDIS_URL, ENVIRONMENT) stays inline —
+# these values are visible by design.
+
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=iowa_center_hub
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      # Each *_FILE variable instructs the app (or a small entrypoint
+      # shim) to read the value from /run/secrets/<name> instead of
+      # the inline env. Replace with app-native reads where possible.
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - CSRF_SECRET_FILE=/run/secrets/csrf_secret
+      - TOKEN_ENCRYPTION_KEY_FILE=/run/secrets/token_encryption_key
+      - SMTP_PASSWORD_FILE=/run/secrets/smtp_password
+      - SENTRY_DSN_FILE=/run/secrets/sentry_dsn
+    secrets:
+      - jwt_secret
+      - csrf_secret
+      - token_encryption_key
+      - smtp_password
+      - sentry_dsn
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: arq worker.WorkerSettings
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=iowa_center_hub
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - CSRF_SECRET_FILE=/run/secrets/csrf_secret
+      - TOKEN_ENCRYPTION_KEY_FILE=/run/secrets/token_encryption_key
+      - SMTP_PASSWORD_FILE=/run/secrets/smtp_password
+      - SENTRY_DSN_FILE=/run/secrets/sentry_dsn
+    secrets:
+      - jwt_secret
+      - csrf_secret
+      - token_encryption_key
+      - smtp_password
+      - sentry_dsn
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  csrf_secret:
+    file: ./secrets/csrf_secret
+  token_encryption_key:
+    file: ./secrets/token_encryption_key
+  smtp_password:
+    file: ./secrets/smtp_password
+  sentry_dsn:
+    file: ./secrets/sentry_dsn
+
+volumes:
+  mongo_data:

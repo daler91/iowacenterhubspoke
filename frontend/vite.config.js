@@ -30,6 +30,13 @@ export default defineConfig(({ mode }) => ({
           'vendor-ui': ['@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-popover'],
           'vendor-charts': ['recharts'],
           'vendor-date': ['date-fns'],
+          // Editor + DnD are heavy deps pulled in by only a few routes
+          // (TaskComments rich-text, KanbanBoard drag). Splitting them out
+          // keeps the main bundle lean for users who never open those views.
+          // NB: @tiptap/pm is an umbrella without a default entry — its
+          // subpaths get bundled into this chunk transitively.
+          'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-underline'],
+          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
         }
       }
     }
