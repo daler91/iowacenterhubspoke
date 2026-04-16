@@ -264,7 +264,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
             "password_changed_at": now.isoformat(),
         }},
     )
-    invalidate_pwd_cache(row["user_id"])
+    await invalidate_pwd_cache(row["user_id"])
     # Invalidate ALL outstanding reset tokens for this user, not just the one
     # that was submitted. Otherwise a second leaked link could still be used
     # to reset the password again after a successful reset.
@@ -327,7 +327,7 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
             "password_changed_at": now.isoformat(),
         }}
     )
-    invalidate_pwd_cache(user['user_id'])
+    await invalidate_pwd_cache(user['user_id'])
     logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Issue a new token (with iat after password_changed_at)

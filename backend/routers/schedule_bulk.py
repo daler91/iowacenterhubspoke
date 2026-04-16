@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from database import db
 from models.schemas import (
@@ -15,6 +15,7 @@ from models.schemas import (
     ErrorResponse,
 )
 from core.auth import SchedulerRequired
+from core.rate_limit import consume_bulk_credits
 from services.activity import log_activity
 from services.notification_events import (
     notify_schedule_assigned,
@@ -42,8 +43,9 @@ router = APIRouter(tags=["schedules"])
 
 @router.post("/bulk-delete", summary="Bulk delete schedules")
 async def bulk_delete_schedules(
-    data: BulkDeleteRequest, user: SchedulerRequired
+    request: Request, data: BulkDeleteRequest, user: SchedulerRequired
 ):
+    await consume_bulk_credits(request, len(data.ids))
     # Snapshot schedules before delete so we can notify each one's employees.
     affected = await db.schedules.find(
         {"id": {"$in": data.ids}, "deleted_at": None}, {"_id": 0},
@@ -77,8 +79,9 @@ async def bulk_delete_schedules(
     responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
 )
 async def bulk_update_status(
-    data: BulkStatusUpdateRequest, user: SchedulerRequired
+    request: Request, data: BulkStatusUpdateRequest, user: SchedulerRequired
 ):
+    await consume_bulk_credits(request, len(data.ids))
     if data.status not in [
         STATUS_UPCOMING,
         STATUS_IN_PROGRESS,
@@ -147,8 +150,9 @@ async def _check_reassign_conflicts(schedules, employees):
     },
 )
 async def bulk_reassign_schedules(
-    data: BulkReassignRequest, user: SchedulerRequired
+    request: Request, data: BulkReassignRequest, user: SchedulerRequired
 ):
+    await consume_bulk_credits(request, len(data.ids))
     employees_cursor = db.employees.find(
         {"id": {"$in": data.employee_ids}, "deleted_at": None}, {"_id": 0}
     )
@@ -280,8 +284,9 @@ async def _notify_location_changes(
     },
 )
 async def bulk_update_location(
-    data: BulkLocationUpdateRequest, user: SchedulerRequired
+    request: Request, data: BulkLocationUpdateRequest, user: SchedulerRequired
 ):
+    await consume_bulk_credits(request, len(data.ids))
     location = await db.locations.find_one(
         {"id": data.location_id, "deleted_at": None}, {"_id": 0}
     )
@@ -358,8 +363,9 @@ async def bulk_update_location(
     responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
 )
 async def bulk_update_class(
-    data: BulkClassUpdateRequest, user: SchedulerRequired
+    request: Request, data: BulkClassUpdateRequest, user: SchedulerRequired
 ):
+    await consume_bulk_credits(request, len(data.ids))
     class_doc = await db.classes.find_one(
         {"id": data.class_id, "deleted_at": None}, {"_id": 0}
     )

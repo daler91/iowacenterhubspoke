@@ -524,8 +524,45 @@ async def request_id_middleware(request: Request, call_next):
     finally:
         request_id_var.reset(token)
 
+def _validate_cors_origin(origin: str) -> None:
+    """Refuse wildcard / partial / non-http origins at startup.
+
+    ``allow_credentials=True`` paired with a wildcard or sloppy match would
+    let any site read credentialed API responses. FastAPI already rejects
+    ``*`` at the middleware level, but substring wildcards like
+    ``https://*.example.com`` and path components are silently accepted —
+    this catches them before the middleware sees them.
+    """
+    from urllib.parse import urlparse
+
+    if "*" in origin:
+        raise RuntimeError(
+            f"CORS_ORIGINS contains wildcard '*' in {origin!r}; refuse startup."
+            " Enumerate each allowed origin explicitly."
+        )
+    parsed = urlparse(origin)
+    if parsed.scheme not in ("http", "https"):
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} has non-http(s) scheme {parsed.scheme!r}."
+        )
+    if not parsed.netloc:
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} is missing a host."
+        )
+    if parsed.path and parsed.path != "/":
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} includes a path; strip it down to scheme+host."
+        )
+    if parsed.query or parsed.fragment:
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} includes query/fragment; strip it."
+        )
+
+
 cors_origins_str = os.getenv("CORS_ORIGINS", "")
 origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+for _origin in origins:
+    _validate_cors_origin(_origin)
 if not origins:
     _env = os.getenv("ENVIRONMENT", "development")
     if _env == "production" or os.getenv("RAILWAY_ENVIRONMENT"):

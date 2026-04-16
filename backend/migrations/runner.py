@@ -20,6 +20,9 @@ Contract:
   rather than bring up an app against a half-migrated database.
 """
 
+import asyncio
+import os
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -30,13 +33,103 @@ logger = get_logger(__name__)
 
 _COLLECTION = "schema_migrations"
 
+_LOCK_KEY = "schema_migrations:lock"
+_LOCK_TTL_SECONDS = 600
+_LOCK_WAIT_SECONDS = 120
+_LOCK_POLL_SECONDS = 2
+
+
+async def _try_acquire_redis_lock(instance_id: str):
+    """Return (pool, acquired_bool) or (None, True) if Redis is unreachable.
+
+    When Redis is down we fall back to running the migrations without
+    coordination. This preserves the single-instance dev experience and
+    matches how other Redis-backed features degrade elsewhere in the app.
+    """
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+    except Exception as exc:
+        logger.warning("migration lock: Redis unreachable (%s); running unlocked", exc)
+        return None, True
+    if pool is None:
+        logger.warning("migration lock: Redis unreachable; running unlocked")
+        return None, True
+    try:
+        acquired = await pool.set(
+            _LOCK_KEY, instance_id, nx=True, ex=_LOCK_TTL_SECONDS,
+        )
+        return pool, bool(acquired)
+    except Exception as exc:
+        logger.warning("migration lock: acquire failed (%s); running unlocked", exc)
+        return pool, True
+
+
+async def _wait_for_lock_clear(pool) -> None:
+    """Block up to ``_LOCK_WAIT_SECONDS`` for the winner to finish."""
+    deadline = asyncio.get_event_loop().time() + _LOCK_WAIT_SECONDS
+    while asyncio.get_event_loop().time() < deadline:
+        try:
+            holder = await pool.get(_LOCK_KEY)
+        except Exception as exc:
+            logger.warning("migration lock: poll failed (%s); proceeding", exc)
+            return
+        if holder is None:
+            return
+        await asyncio.sleep(_LOCK_POLL_SECONDS)
+    logger.warning(
+        "migration lock: still held after %ss wait; proceeding to re-verify applied set",
+        _LOCK_WAIT_SECONDS,
+    )
+
+
+async def _release_redis_lock(pool, instance_id: str) -> None:
+    if pool is None:
+        return
+    try:
+        current = await pool.get(_LOCK_KEY)
+        if current is None:
+            return
+        if isinstance(current, bytes):
+            current = current.decode()
+        if current == instance_id:
+            await pool.delete(_LOCK_KEY)
+    except Exception as exc:
+        logger.debug("migration lock: release failed (%s)", exc)
+
 
 async def run_pending(db) -> dict:
     """Apply every migration whose ID isn't already recorded as applied.
 
     Returns a summary ``{"applied": [...], "skipped": [...]}`` for the caller
     (the FastAPI lifespan) to log.
+
+    Coordination: wrapped in a Redis lock so two simultaneously-booting
+    replicas can't race on migration writes. The non-winner blocks for up
+    to 2 minutes, then re-reads ``applied_ids`` — by then every migration
+    the winner was going to run has recorded its `schema_migrations` doc
+    and the non-winner will skip everything and return.
     """
+    instance_id = f"{os.getpid()}:{uuid.uuid4().hex[:8]}"
+    pool, acquired = await _try_acquire_redis_lock(instance_id)
+
+    if not acquired:
+        logger.info(
+            "migration lock held by another instance; waiting up to %ss",
+            _LOCK_WAIT_SECONDS,
+        )
+        await _wait_for_lock_clear(pool)
+        # Re-read applied set — the winner has finished writing by now.
+        return await _run_unlocked(db)
+
+    logger.info("migration runner: won lock as %s", instance_id)
+    try:
+        return await _run_unlocked(db)
+    finally:
+        await _release_redis_lock(pool, instance_id)
+
+
+async def _run_unlocked(db) -> dict:
     applied_ids = {
         doc["id"]
         async for doc in db[_COLLECTION].find(

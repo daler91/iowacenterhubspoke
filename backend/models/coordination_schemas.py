@@ -1,16 +1,22 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Literal
+
+# Defensive caps — same rationale as models/schemas.py.
+_MAX_NAME = 500
+_MAX_DESCRIPTION = 5000
+_MAX_NOTES = 5000
+_MAX_MESSAGE_BODY = 20000
 
 
 # ── Projects ──────────────────────────────────────────────────────────
 
 class ProjectCreate(BaseModel):
-    title: str
+    title: str = Field(..., max_length=_MAX_NAME)
     event_format: Literal["workshop", "series", "office_hours", "onboarding"]
     partner_org_id: str
     event_date: str  # ISO datetime string
-    community: Optional[str] = None  # auto-derived from partner org's location
-    venue_name: Optional[str] = None  # auto-derived from partner org name
+    community: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    venue_name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     template_id: Optional[str] = None
     schedule_id: Optional[str] = None
     class_id: Optional[str] = None
@@ -26,7 +32,7 @@ class PhaseAdvanceRequest(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     event_format: Optional[Literal[
         "workshop", "series", "office_hours", "onboarding"
     ]] = None
@@ -36,12 +42,12 @@ class ProjectUpdate(BaseModel):
     phase: Optional[Literal[
         "planning", "promotion", "delivery", "follow_up", "complete"
     ]] = None
-    community: Optional[str] = None
-    venue_name: Optional[str] = None
+    community: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    venue_name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     registration_count: Optional[int] = None
     attendance_count: Optional[int] = None
     warm_leads: Optional[int] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
 
 
 # ── Tasks ─────────────────────────────────────────────────────────────
@@ -50,25 +56,25 @@ TASK_STATUSES = ("to_do", "in_progress", "completed", "on_hold")
 
 
 class TaskCreate(BaseModel):
-    title: str
+    title: str = Field(..., max_length=_MAX_NAME)
     phase: Literal["planning", "promotion", "delivery", "follow_up"]
     owner: Literal["internal", "partner", "both"]
     due_date: str  # ISO datetime string
-    details: Optional[str] = ""
-    description: Optional[str] = ""
+    details: Optional[str] = Field(default="", max_length=_MAX_DESCRIPTION)
+    description: Optional[str] = Field(default="", max_length=_MAX_DESCRIPTION)
     assigned_to: Optional[str] = None
     status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = "to_do"
 
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     phase: Optional[Literal[
         "planning", "promotion", "delivery", "follow_up"
     ]] = None
     owner: Optional[Literal["internal", "partner", "both"]] = None
     due_date: Optional[str] = None
-    details: Optional[str] = None
-    description: Optional[str] = None
+    details: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
+    description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     assigned_to: Optional[str] = None
     sort_order: Optional[int] = None
     status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = None
@@ -81,7 +87,7 @@ class TaskReorder(BaseModel):
 
 
 class TaskCommentCreate(BaseModel):
-    body: str
+    body: str = Field(..., max_length=_MAX_MESSAGE_BODY)
     parent_comment_id: Optional[str] = None
 
 
@@ -97,44 +103,44 @@ class VenueDetails(BaseModel):
 
 
 class PartnerOrgCreate(BaseModel):
-    name: str
-    community: str
+    name: str = Field(..., max_length=_MAX_NAME)
+    community: str = Field(..., max_length=_MAX_NAME)
     location_id: Optional[str] = None
     venue_details: Optional[VenueDetails] = None
-    co_branding: Optional[str] = ""
+    co_branding: Optional[str] = Field(default="", max_length=_MAX_DESCRIPTION)
     status: Literal[
         "prospect", "onboarding", "active", "inactive"
     ] = "prospect"
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field(default="", max_length=_MAX_NOTES)
 
 
 class PartnerOrgUpdate(BaseModel):
-    name: Optional[str] = None
-    community: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    community: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     location_id: Optional[str] = None
     venue_details: Optional[VenueDetails] = None
-    co_branding: Optional[str] = None
+    co_branding: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     status: Optional[Literal[
         "prospect", "onboarding", "active", "inactive"
     ]] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
 
 
 # ── Partner Contacts ──────────────────────────────────────────────────
 
 class PartnerContactCreate(BaseModel):
-    name: str
+    name: str = Field(..., max_length=_MAX_NAME)
     email: EmailStr
-    phone: Optional[str] = ""
-    role: Optional[str] = ""
+    phone: Optional[str] = Field(default="", max_length=50)
+    role: Optional[str] = Field(default="", max_length=_MAX_NAME)
     is_primary: bool = False
 
 
 class PartnerContactUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    role: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    email: Optional[str] = Field(default=None, max_length=320)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    role: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     is_primary: Optional[bool] = None
 
 
@@ -147,8 +153,8 @@ class DocumentVisibilityUpdate(BaseModel):
 # ── Messages ──────────────────────────────────────────────────────────
 
 class MessageCreate(BaseModel):
-    channel: str
-    body: str
+    channel: str = Field(..., max_length=_MAX_NAME)
+    body: str = Field(..., max_length=_MAX_MESSAGE_BODY)
     visibility: Literal["internal", "shared"] = "shared"
 
 
@@ -161,23 +167,23 @@ class PortalAuthRequest(BaseModel):
 # ── Event Outcomes (Phase 2) ──────────────────────────────────────────
 
 class OutcomeCreate(BaseModel):
-    attendee_name: str
-    attendee_email: Optional[str] = None
-    attendee_phone: Optional[str] = None
+    attendee_name: str = Field(..., max_length=_MAX_NAME)
+    attendee_email: Optional[str] = Field(default=None, max_length=320)
+    attendee_phone: Optional[str] = Field(default=None, max_length=50)
     status: Literal[
         "attended", "contacted", "consultation", "converted", "lost"
     ] = "attended"
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field(default="", max_length=_MAX_NOTES)
 
 
 class OutcomeUpdate(BaseModel):
-    attendee_name: Optional[str] = None
-    attendee_email: Optional[str] = None
-    attendee_phone: Optional[str] = None
+    attendee_name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    attendee_email: Optional[str] = Field(default=None, max_length=320)
+    attendee_phone: Optional[str] = Field(default=None, max_length=50)
     status: Optional[Literal[
         "attended", "contacted", "consultation", "converted", "lost"
     ]] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
     contacted_at: Optional[str] = None
     consultation_at: Optional[str] = None
     converted_at: Optional[str] = None
@@ -191,11 +197,11 @@ class OutcomeBulkCreate(BaseModel):
 # ── Promotion Checklist (Phase 2) ─────────────────────────────────────
 
 class PromotionChecklistItemCreate(BaseModel):
-    channel: str
-    label: str
+    channel: str = Field(..., max_length=_MAX_NAME)
+    label: str = Field(..., max_length=_MAX_NAME)
     owner: Literal["internal", "partner", "both"] = "both"
     due_date: Optional[str] = None
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field(default="", max_length=_MAX_NOTES)
 
 
 class PromotionChecklistItemToggle(BaseModel):
