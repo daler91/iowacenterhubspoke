@@ -330,8 +330,9 @@ export default function UserManager() {
                             variant="ghost"
                             onClick={() => handleDelete(u.id)}
                             className="text-danger hover:text-danger hover:bg-danger-soft"
+                            aria-label={`Delete ${u.name || u.email}`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </Button>
                         )}
                         {u.id === user.id && (

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
 
 # Defensive caps — same rationale as models/schemas.py.
@@ -25,6 +25,28 @@ class ProjectCreate(BaseModel):
     start_time: Optional[str] = None  # HH:MM
     end_time: Optional[str] = None  # HH:MM
     auto_create_schedule: bool = False
+
+    @model_validator(mode="after")
+    def _require_fields_for_auto_schedule(self):  # NOSONAR(S3516)
+        """Auto-created schedules need a concrete employee list + time window.
+
+        Without this guard, ``auto_create_schedule=True`` paired with
+        ``employee_ids=[]`` (or missing start/end times) produces a malformed
+        schedule document downstream. Pydantic v2 ``mode="after"`` validators
+        are required to return ``self`` on every non-raising path — the
+        "always returns same value" warning is a false positive.
+        """
+        if not self.auto_create_schedule:
+            return self
+        if not self.employee_ids:
+            raise ValueError(
+                "auto_create_schedule=true requires a non-empty employee_ids list"
+            )
+        if not self.start_time or not self.end_time:
+            raise ValueError(
+                "auto_create_schedule=true requires both start_time and end_time"
+            )
+        return self
 
 
 class PhaseAdvanceRequest(BaseModel):

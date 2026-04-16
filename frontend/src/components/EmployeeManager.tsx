@@ -165,8 +165,9 @@ export default function EmployeeManager() {
                 data-testid={`view-employee-${emp.id}`}
                 onClick={() => { onViewProfile?.(emp.id); }}
                 className="text-muted-foreground hover:text-teal-600"
+                aria-label={`View ${emp.name}`}
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
               </Button>
               {isAdmin && (
                 <>
@@ -176,8 +177,9 @@ export default function EmployeeManager() {
                     data-testid={`edit-employee-${emp.id}`}
                     onClick={() => openEdit(emp)}
                     className="text-muted-foreground hover:text-indigo-600"
+                    aria-label={`Edit ${emp.name}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -185,8 +187,9 @@ export default function EmployeeManager() {
                     data-testid={`delete-employee-${emp.id}`}
                     onClick={() => setDeleteTarget(emp)}
                     className="text-muted-foreground hover:text-danger"
+                    aria-label={`Delete ${emp.name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </>
               )}

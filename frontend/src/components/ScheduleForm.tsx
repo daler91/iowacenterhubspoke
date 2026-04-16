@@ -66,18 +66,41 @@ function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: numb
   );
 }
 
-function WizardNextButton({ step, form, onNext }: Readonly<{
+function firstInvalidFieldId(
+  step: number,
+  form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string },
+): string | null {
+  if (step === 0) {
+    if (form.employee_ids.length === 0) return 'schedule-employee-select';
+    return null;
+  }
+  if (step === 1) {
+    if (!form.location_id) return 'schedule-location-select';
+    if (!form.date) return 'schedule-date-input';
+    if (!form.start_time) return 'schedule-start-time';
+    if (!form.end_time) return 'schedule-end-time';
+    return null;
+  }
+  return null;
+}
+
+function WizardNextButton({ step, form, onNext, onInvalid }: Readonly<{
   step: number;
   form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string };
   onNext: () => void;
+  onInvalid: (fieldId: string) => void;
 }>) {
   const handleClick = () => {
-    if (step === 0 && form.employee_ids.length === 0) {
-      toast.error('Select at least one employee');
-      return;
-    }
-    if (step === 1 && (!form.location_id || !form.date || !form.start_time || !form.end_time)) {
-      toast.error('Fill in location, date, and time');
+    const invalidId = firstInvalidFieldId(step, form);
+    if (invalidId) {
+      if (step === 0) toast.error('Select at least one employee');
+      else toast.error('Fill in location, date, and time');
+      onInvalid(invalidId);
+      // Move focus after the error toast mounts so the announcement order
+      // is "error toast, then focus" rather than the reverse.
+      setTimeout(() => {
+        document.getElementById(invalidId)?.focus();
+      }, 0);
       return;
     }
     onNext();
@@ -104,11 +127,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const [showSeriesDeleteConfirm, setShowSeriesDeleteConfirm] = useState(false);
   const hasSeries = !!editSchedule?.series_id;
   const [step, setStep] = useState(0);
+  const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null);
+  const [seriesDeleteSubmitting, setSeriesDeleteSubmitting] = useState(false);
   const isWizard = !editSchedule;
   const totalSteps = isWizard ? STEPS.length : 1;
 
   // Reset step when dialog opens/closes
-  useEffect(() => { if (open) setStep(0); }, [open]);
+  useEffect(() => { if (open) { setStep(0); setInvalidFieldId(null); } }, [open]);
 
   const {
     form, setForm,
@@ -181,6 +206,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 classes={classes}
                 selectedClass={selectedClass}
                 onAddClass={isAdmin ? () => setQuickClassOpen(true) : null}
+                invalidFieldId={invalidFieldId}
               />
             </section>
           )}
@@ -201,6 +227,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 previewConflicts={previewConflicts}
                 travelChain={travelChain}
                 onOverrideChange={handleOverrideChange}
+                invalidFieldId={invalidFieldId}
               />
             </section>
           )}
@@ -254,7 +281,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 {submitLabel}
               </Button>
             ) : (
-              <WizardNextButton step={step} form={form} onNext={() => setStep(step + 1)} />
+              <WizardNextButton
+                step={step}
+                form={form}
+                onNext={() => { setInvalidFieldId(null); setStep(step + 1); }}
+                onInvalid={setInvalidFieldId}
+              />
             )}
           </DialogFooter>
         </form>
@@ -283,10 +315,19 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             This will delete all future schedules in this recurring series. Past schedules will be preserved.
           </p>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowSeriesDeleteConfirm(false)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowSeriesDeleteConfirm(false)}
+              disabled={seriesDeleteSubmitting}
+            >
+              Cancel
+            </Button>
             <Button
               className="bg-danger hover:bg-danger/90 text-white"
+              disabled={seriesDeleteSubmitting}
               onClick={async () => {
+                if (seriesDeleteSubmitting) return;
+                setSeriesDeleteSubmitting(true);
                 try {
                   await schedulesAPI.deleteSeries(editSchedule.series_id);
                   toast.success('Future schedules in series deleted');
@@ -295,10 +336,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                   onOpenChange?.(false);
                 } catch {
                   toast.error('Failed to delete series');
+                } finally {
+                  setSeriesDeleteSubmitting(false);
                 }
               }}
             >
-              Delete All Future
+              {seriesDeleteSubmitting ? 'Deleting…' : 'Delete All Future'}
             </Button>
           </DialogFooter>
         </DialogContent>

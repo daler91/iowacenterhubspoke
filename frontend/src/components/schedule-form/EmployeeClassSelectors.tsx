@@ -9,7 +9,8 @@ const CREATE_CLASS_VALUE = '__add_new_class__';
 export function EmployeeClassSelectors({
   form, setForm,
   employees, classes,
-  selectedClass, onAddClass
+  selectedClass, onAddClass,
+  invalidFieldId,
 }) {
   const handleClassSelection = (value) => {
     if (value === CREATE_CLASS_VALUE) {
@@ -18,6 +19,7 @@ export function EmployeeClassSelectors({
     }
     setForm({ ...form, class_id: value });
   };
+  const employeeInvalid = invalidFieldId === 'schedule-employee-select';
 
   return (
     <>
@@ -28,6 +30,7 @@ export function EmployeeClassSelectors({
           employees={employees || []}
           selectedIds={form.employee_ids || []}
           onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
+          aria-invalid={employeeInvalid || undefined}
         />
       </div>
 
