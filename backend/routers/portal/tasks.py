@@ -13,6 +13,7 @@ from core.portal_auth import PortalContext
 from core.upload import stream_upload_to_disk
 from database import db
 from models.coordination_schemas import TaskCommentCreate
+from services.phase_advance import maybe_auto_advance_phase_for_task
 
 from ._shared import (
     INVALID_TOKEN,
@@ -83,6 +84,13 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
     }
     await db.tasks.update_one({"id": task_id}, {"$set": update})
     task.update(update)
+    if new_completed:
+        contact = ctx.get("contact") or {}
+        await maybe_auto_advance_phase_for_task(
+            project_id=project_id,
+            completed_task_phase=task.get("phase"),
+            actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
+        )
     return task
 
 
