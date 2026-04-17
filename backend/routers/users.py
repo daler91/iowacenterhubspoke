@@ -211,9 +211,45 @@ async def restore_user(user_id: str, user: AdminRequired):
     return {"message": "User restored"}
 
 
+async def _stream_collection_json(key: str, coll, query: dict):
+    """Emit ``,\\n  "key": [ row, row, ... ]`` lazily from a Mongo cursor."""
+    yield f',\n  "{key}": ['
+    first = True
+    async for doc in coll.find(query, {"_id": 0}):
+        prefix = "" if first else ","
+        first = False
+        yield f'{prefix}\n    {json.dumps(doc, default=str)}'
+    yield '\n  ]'
+
+
+async def _stream_user_export(user_doc: dict, user_id: str):
+    """Stream a GDPR Article-20 JSON bundle for ``user_id``.
+
+    Extracted from the endpoint so the route handler stays within Sonar's
+    cognitive-complexity budget. Yields a single well-formed JSON object
+    without ever materializing a collection list in memory.
+    """
+    generated = datetime.now(timezone.utc).isoformat()
+    yield '{\n  "generated_at": ' + json.dumps(generated)
+    yield ',\n  "user": ' + json.dumps(user_doc, default=str)
+    sections = (
+        ("schedules_created", db.schedules, {"created_by": user_id}),
+        ("projects_created", db.projects, {"created_by": user_id}),
+        ("activity_logs", db.activity_logs, {"user_id": user_id}),
+        ("notification_preferences", db.notification_preferences, {"principal_id": user_id}),
+    )
+    for key, coll, query in sections:
+        async for chunk in _stream_collection_json(key, coll, query):
+            yield chunk
+    yield '\n}\n'
+
+
 @router.get(
     "/me/export",
     summary="Export the authenticated user's data (GDPR Article 20)",
+    responses={
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
 )
 async def export_my_data(user: CurrentUser):
     """Stream a JSON bundle of everything we have on the authenticated user.
@@ -226,51 +262,8 @@ async def export_my_data(user: CurrentUser):
     user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
     if not user_doc:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
-
-    async def _stream_collection(key: str, coll, query: dict, is_last: bool):
-        """Emit ``"key": [ {...}, {...}, ... ]`` lazily from a cursor.
-
-        Uses ``json.dumps`` on each row so Mongo's BSON-to-dict round-trip
-        happens one document at a time. The ``is_last`` flag controls the
-        trailing comma between top-level keys.
-        """
-        yield f',\n  "{key}": ['
-        first = True
-        async for doc in coll.find(query, {"_id": 0}):
-            prefix = "" if first else ","
-            first = False
-            yield f'{prefix}\n    {json.dumps(doc, default=str)}'
-        yield '\n  ]'
-        if not is_last:
-            yield ''
-
-    async def _body():
-        generated = datetime.now(timezone.utc).isoformat()
-        yield '{\n  "generated_at": ' + json.dumps(generated)
-        yield ',\n  "user": ' + json.dumps(user_doc, default=str)
-        async for chunk in _stream_collection(
-            "schedules_created", db.schedules, {"created_by": user_id}, False,
-        ):
-            yield chunk
-        async for chunk in _stream_collection(
-            "projects_created", db.projects, {"created_by": user_id}, False,
-        ):
-            yield chunk
-        async for chunk in _stream_collection(
-            "activity_logs", db.activity_logs, {"user_id": user_id}, False,
-        ):
-            yield chunk
-        async for chunk in _stream_collection(
-            "notification_preferences",
-            db.notification_preferences,
-            {"principal_id": user_id},
-            True,
-        ):
-            yield chunk
-        yield '\n}\n'
-
     return StreamingResponse(
-        _body(),
+        _stream_user_export(user_doc, user_id),
         media_type="application/json",
         headers={
             "Content-Disposition": f'attachment; filename="user-{user_id}-export.json"',
@@ -283,6 +276,7 @@ async def export_my_data(user: CurrentUser):
     summary="Request account deletion (GDPR Article 17)",
     responses={
         400: {"model": ErrorResponse, "description": "Cannot request deletion for the last admin"},
+        404: {"model": ErrorResponse, "description": "User not found"},
     },
 )
 async def request_my_deletion(user: CurrentUser):
