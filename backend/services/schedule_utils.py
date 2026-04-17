@@ -16,6 +16,15 @@ def calculate_class_minutes(start_time: str, end_time: str) -> int:
     return time_to_minutes(end_time) - time_to_minutes(start_time)
 
 
+# Recurrence arithmetic uses ``datetime.date`` — not ``datetime`` — on
+# purpose. Dates are calendar days with no time component and no
+# timezone, so they are immune to DST transitions: adding 1 day across
+# a spring-forward or fall-back boundary still yields the next
+# wall-clock calendar date, which is exactly what "every Monday" or
+# "the 15th of each month" means to end users. If you're tempted to
+# switch this to ``datetime`` for a time-zone-aware recurrence, read
+# AGENT_REVIEW_REPORT.md Suggestion 6 first and pair it with a test
+# covering 2026-03-08 (US spring-forward) and 2026-11-01 (fall-back).
 def add_months(source_date, months: int):
     month_index = source_date.month - 1 + months
     year = source_date.year + (month_index // 12)

@@ -1,8 +1,10 @@
 import uuid
+import json
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from database import db
-from core.auth import AdminRequired, invalidate_pwd_cache
+from core.auth import AdminRequired, CurrentUser, invalidate_pwd_cache
 from core.constants import (
     ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER,
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
@@ -207,6 +209,113 @@ async def restore_user(user_id: str, user: AdminRequired):
     )
     logger.info(f"User {user_id} restored by {user['email']}")
     return {"message": "User restored"}
+
+
+async def _stream_collection_json(key: str, coll, query: dict):
+    """Emit ``,\\n  "key": [ row, row, ... ]`` lazily from a Mongo cursor."""
+    yield f',\n  "{key}": ['
+    first = True
+    async for doc in coll.find(query, {"_id": 0}):
+        prefix = "" if first else ","
+        first = False
+        yield f'{prefix}\n    {json.dumps(doc, default=str)}'
+    yield '\n  ]'
+
+
+async def _stream_user_export(user_doc: dict, user_id: str):
+    """Stream a GDPR Article-20 JSON bundle for ``user_id``.
+
+    Extracted from the endpoint so the route handler stays within Sonar's
+    cognitive-complexity budget. Yields a single well-formed JSON object
+    without ever materializing a collection list in memory.
+    """
+    generated = datetime.now(timezone.utc).isoformat()
+    yield '{\n  "generated_at": ' + json.dumps(generated)
+    yield ',\n  "user": ' + json.dumps(user_doc, default=str)
+    sections = (
+        ("schedules_created", db.schedules, {"created_by": user_id}),
+        ("projects_created", db.projects, {"created_by": user_id}),
+        ("activity_logs", db.activity_logs, {"user_id": user_id}),
+        ("notification_preferences", db.notification_preferences, {"principal_id": user_id}),
+    )
+    for key, coll, query in sections:
+        async for chunk in _stream_collection_json(key, coll, query):
+            yield chunk
+    yield '\n}\n'
+
+
+@router.get(
+    "/me/export",
+    summary="Export the authenticated user's data (GDPR Article 20)",
+    responses={
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
+)
+async def export_my_data(user: CurrentUser):
+    """Stream a JSON bundle of everything we have on the authenticated user.
+
+    Streams per-document so memory stays bounded regardless of history
+    size — a user with a million activity-log rows would otherwise OOM
+    the API worker if we materialized the full list before serializing.
+    """
+    user_id = user["user_id"]
+    user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+    return StreamingResponse(
+        _stream_user_export(user_doc, user_id),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="user-{user_id}-export.json"',
+        },
+    )
+
+
+@router.post(
+    "/me/request-delete",
+    summary="Request account deletion (GDPR Article 17)",
+    responses={
+        400: {"model": ErrorResponse, "description": "Cannot request deletion for the last admin"},
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
+)
+async def request_my_deletion(user: CurrentUser):
+    """Mark the account for admin-reviewed soft-delete.
+
+    Sets ``delete_requested_at`` on the user doc; an admin then uses the
+    existing ``DELETE /users/{id}`` flow to finalize (which soft-deletes
+    and redacts activity-log PII). Prevents the last admin from requesting
+    self-deletion to avoid locking the org out.
+    """
+    user_id = user["user_id"]
+    target = await db.users.find_one({"id": user_id, "deleted_at": None}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+    if target.get("role") == ROLE_ADMIN:
+        admin_count = await db.users.count_documents(
+            {"role": ROLE_ADMIN, "deleted_at": None}
+        )
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot request deletion for the last admin; promote another admin first.",
+            )
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"delete_requested_at": now}},
+    )
+    await log_activity(
+        action="user.delete.requested",
+        description=f"User {target.get('email', user_id)} requested account deletion",
+        entity_type="user",
+        entity_id=user_id,
+        user_name=user.get("name", user.get("email", "user")),
+        user_id=user_id,
+    )
+    logger.info(f"User {user_id} requested deletion")
+    return {"message": "Deletion request recorded; an administrator will review shortly."}
 
 
 @router.post(

@@ -6,8 +6,15 @@ import type { Location, Employee, ClassType, Schedule, DashboardStats, ActivityL
 function extractItems<T>(res: any): T[] {
   const data = res.data?.items ?? res.data;
   const result = Array.isArray(data) ? data : [];
-  if (result.length === 0 && res.data) {
-    console.warn('[extractItems] Returned empty array. Raw response data type:', typeof res.data, 'keys:', res.data && typeof res.data === 'object' ? Object.keys(res.data) : 'N/A', 'data:', JSON.stringify(res.data).slice(0, 200));
+  if (import.meta.env.DEV && result.length === 0 && res.data) {
+    // Dev-only diagnostic: surface API responses that look list-shaped
+    // but come back as `{}` or similar. Kept out of production builds so
+    // we don't leak response shapes (including email addresses) to users'
+    // browser consoles.
+    console.warn(
+      '[extractItems] empty array from response of type',
+      typeof res.data,
+    );
   }
   return result;
 }

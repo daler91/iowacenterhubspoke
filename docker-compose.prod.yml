@@ -1,0 +1,126 @@
+version: "3.8"
+
+# Production-oriented compose example.
+#
+# The dev compose (docker-compose.yml) pulls secrets from
+# backend/.env via env_file. Running that layout in production leaves
+# sensitive values readable via `docker inspect` and inheritable by any
+# child process in the container's namespace. This file uses Docker
+# secrets so credentials are mounted into /run/secrets/* read-only,
+# never appear in environment listings, and can be rotated without a
+# rebuild.
+#
+# Prep the host once before `docker compose -f docker-compose.prod.yml up`:
+#   mkdir -p ./secrets && chmod 700 ./secrets
+#   echo -n "<value>" > ./secrets/jwt_secret   # repeat for each secret below
+#   chmod 400 ./secrets/*
+#
+# The backend/docker-entrypoint-secrets.sh wrapper reads each mounted
+# secret file from /run/secrets/* and exports it as the plain env var
+# the app already reads (JWT_SECRET, CSRF_SECRET, etc.). This keeps the
+# app code unchanged.
+
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    entrypoint: ["/app/docker-entrypoint-secrets.sh"]
+    # The backend always binds 8080 inside the container. Compose
+    # expands ``${VAR}`` on the host shell before the container starts,
+    # so a developer who has PORT exported in their login shell would
+    # make the app bind to a surprising port while the published port
+    # stays 8080 — the backend becomes unreachable. Hard-code the
+    # internal bind and publish with "ports:" instead.
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: iowa_center_hub
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: production
+      # *_FILE values are read by docker-entrypoint-secrets.sh and
+      # exported as JWT_SECRET / CSRF_SECRET / etc. before uvicorn starts.
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CSRF_SECRET_FILE: /run/secrets/csrf_secret
+      TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    secrets:
+      - jwt_secret
+      - csrf_secret
+      - token_encryption_key
+      - smtp_password
+      - sentry_dsn
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/app/docker-entrypoint-secrets.sh"]
+    command: ["arq", "worker.WorkerSettings"]
+    # Override the image-level API HEALTHCHECK (which curls /health on
+    # port 8080). The worker container runs no HTTP server, so that
+    # probe fails forever and triggers restart churn. Probe the
+    # arq:heartbeat key in Redis instead — the worker writes it every
+    # cron tick, so a missing key past the 120s TTL means the worker
+    # loop is stuck. The python+redis combo is already in the image,
+    # so no extra packages are needed.
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import os, sys; import redis; r=redis.from_url(os.environ['REDIS_URL']); sys.exit(0 if r.exists('arq:heartbeat') else 1)\""
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: iowa_center_hub
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: production
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CSRF_SECRET_FILE: /run/secrets/csrf_secret
+      TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    secrets:
+      - jwt_secret
+      - csrf_secret
+      - token_encryption_key
+      - smtp_password
+      - sentry_dsn
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  csrf_secret:
+    file: ./secrets/csrf_secret
+  token_encryption_key:
+    file: ./secrets/token_encryption_key
+  smtp_password:
+    file: ./secrets/smtp_password
+  sentry_dsn:
+    file: ./secrets/sentry_dsn
+
+volumes:
+  mongo_data:

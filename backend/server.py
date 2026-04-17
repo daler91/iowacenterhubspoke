@@ -609,6 +609,37 @@ api_router.include_router(webhooks.router)
 api_router.include_router(notification_preferences.router)
 
 
+_WORKER_HEARTBEAT_KEY = "arq:heartbeat"
+_WORKER_HEARTBEAT_MAX_AGE_SECONDS = 90
+
+
+async def _check_worker_heartbeat() -> str:
+    """Return ``"ok"`` when the worker is alive, ``"stale"`` when its
+    last heartbeat is older than ``_WORKER_HEARTBEAT_MAX_AGE_SECONDS``,
+    ``"missing"`` when there's no heartbeat at all, and ``"unknown"``
+    when Redis itself is unreachable (so we don't misattribute a Redis
+    outage to a worker outage).
+    """
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool is None:
+            return "unknown"
+        raw = await pool.get(_WORKER_HEARTBEAT_KEY)
+        if raw is None:
+            return "missing"
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        from datetime import datetime, timezone
+        last = datetime.fromisoformat(raw)
+        age = (datetime.now(timezone.utc) - last).total_seconds()
+        if age > _WORKER_HEARTBEAT_MAX_AGE_SECONDS:
+            return "stale"
+        return "ok"
+    except Exception:
+        return "unknown"
+
+
 @api_router.get("/health", tags=["system"])
 async def health_check(request: Request):
     """Health check endpoint for load balancers and deployment monitoring.
@@ -617,19 +648,41 @@ async def health_check(request: Request):
     stale (or was never created because Redis was down at startup), so a
     transient Redis outage does not pin ``/health`` to 503 until the next
     container restart.
+
+    Worker liveness is inferred from the Redis heartbeat key the arq
+    worker writes on every cron tick. A stale or missing heartbeat flips
+    ``status`` to ``degraded`` so orchestrators can re-cycle the worker
+    pod without taking down the API.
     """
-    checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
+    checks = {"status": "healthy", "mongo": "ok", "redis": "ok", "worker": "ok"}
+    api_degraded = False
     try:
         await client.admin.command("ping")
     except Exception:
         checks["mongo"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
     if not await _probe_redis(request.app):
         checks["redis"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
-    status_code = 200 if checks["status"] == "healthy" else 503
+    worker_status = await _check_worker_heartbeat()
+    checks["worker"] = worker_status
+    # A stale or missing worker heartbeat is reported in the JSON so
+    # operators can see it and load balancers that inspect payload can
+    # recycle the worker pod — but we deliberately do NOT 503 the API
+    # here. Killing the API container because the *worker* is down would
+    # take scheduling offline for everyone even though the API itself is
+    # fine. Redis outages still flip the status, since API-critical
+    # features (CSRF validation, rate limiting) rely on Redis.
+    if api_degraded:
+        checks["status"] = "degraded"
+    elif worker_status in {"stale", "missing"}:
+        # API-healthy but worker signal is off: use a distinct status
+        # string so dashboards can alert without mis-scaling the API.
+        checks["status"] = "worker_degraded"
+
+    status_code = 503 if api_degraded else 200
     return JSONResponse(content=checks, status_code=status_code)
 
 # ========== APP SETUP ==========

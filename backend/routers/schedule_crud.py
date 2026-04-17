@@ -74,11 +74,21 @@ async def get_schedules(
     # Enrich with linked project summaries
     schedule_ids = [s["id"] for s in schedules]
     if schedule_ids:
+        # Cap large enough that any realistic single-page schedule list
+        # (usually <= 100 items) won't be truncated. Log a warning if we
+        # hit the cap so ops can tune this rather than silently dropping
+        # project links.
+        _LINKED_PROJECTS_LIMIT = 2000
         linked_projects = await db.projects.find(
             {"schedule_id": {"$in": schedule_ids}, "deleted_at": None},
             {"_id": 0, "schedule_id": 1, "id": 1, "title": 1, "phase": 1,
              "partner_org_id": 1, "task_total": 1, "task_completed": 1},
-        ).to_list(500)
+        ).to_list(_LINKED_PROJECTS_LIMIT)
+        if len(linked_projects) == _LINKED_PROJECTS_LIMIT:
+            logger.warning(
+                "linked_projects truncated at %d; consider raising the cap",
+                _LINKED_PROJECTS_LIMIT,
+            )
         project_map = {p["schedule_id"]: p for p in linked_projects}
         for s in schedules:
             proj = project_map.get(s["id"])
