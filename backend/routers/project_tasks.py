@@ -19,6 +19,7 @@ from services.notification_events import (
     notify_task_completed,
     notify_task_deleted,
 )
+from services.phase_advance import maybe_auto_advance_phase_for_task
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -261,6 +262,11 @@ async def update_task(
             await notify_task_assigned(updated, project, user)
         if updated.get("completed") and not prev.get("completed"):
             await notify_task_completed(updated, project, user)
+            await maybe_auto_advance_phase_for_task(
+                project_id=project_id,
+                completed_task_phase=updated.get("phase"),
+                actor=user,
+            )
 
     return updated
 
@@ -385,6 +391,11 @@ async def toggle_task_completion(
             {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
         ) or {"id": project_id}
         await notify_task_completed(task, project, user)
+        await maybe_auto_advance_phase_for_task(
+            project_id=project_id,
+            completed_task_phase=task.get("phase"),
+            actor=user,
+        )
     return task
 
 
