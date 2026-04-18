@@ -67,6 +67,12 @@ ADMIN_EMAILS = [e.strip().lower() for e in _admin_email_str.split(",") if e.stri
 LOGIN_LOCKOUT_THRESHOLD = int(os.getenv("LOGIN_LOCKOUT_THRESHOLD", "10"))
 LOGIN_LOCKOUT_WINDOW_MINUTES = int(os.getenv("LOGIN_LOCKOUT_WINDOW_MINUTES", "15"))
 
+# How recently a refresh-token jti must have been consumed for a second
+# presentation to count as a legitimate race (two tabs refreshing at once
+# before the rotated cookie lands) rather than a stolen-cookie replay.
+# Beyond this window we assume malice and revoke the whole chain.
+_REFRESH_RACE_GRACE_SECONDS = int(os.getenv("REFRESH_RACE_GRACE_SECONDS", "30"))
+
 
 async def _record_login_failure(email: str) -> None:
     """Increment the failure counter and extend the expiry window."""
@@ -439,12 +445,50 @@ async def refresh_session(request: Request, response: Response):
 
     if claimed is None:
         # Either the jti doesn't exist or it was already consumed.
-        # Distinguish: if the row exists at all, this is a genuine
-        # replay and we revoke the entire chain. If not, it was never
-        # ours to begin with — unknown token.
-        existing = await db.refresh_tokens.find_one({"jti": jti}, {"_id": 0, "user_id": 1})
+        # Distinguish:
+        #   * no row → unknown token, just 401.
+        #   * row exists and was consumed moments ago → legitimate
+        #     concurrent refresh (two tabs / double-click). The winner
+        #     has already rotated the cookie in the shared browser jar,
+        #     so we just ask the loser to retry.
+        #   * row exists and was consumed longer ago → genuine replay
+        #     (stolen cookie resurfacing) → revoke the whole chain.
+        existing = await db.refresh_tokens.find_one(
+            {"jti": jti}, {"_id": 0, "user_id": 1, "used_at": 1},
+        )
         if not existing:
             raise HTTPException(status_code=401, detail="Unknown refresh token")
+
+        used_at = existing.get("used_at")
+        age_seconds = None
+        if isinstance(used_at, str):
+            try:
+                used_dt = datetime.fromisoformat(used_at)
+                if used_dt.tzinfo is None:
+                    used_dt = used_dt.replace(tzinfo=timezone.utc)
+                age_seconds = (
+                    datetime.now(timezone.utc) - used_dt
+                ).total_seconds()
+            except ValueError:
+                age_seconds = None
+
+        if age_seconds is not None and age_seconds < _REFRESH_RACE_GRACE_SECONDS:
+            # Legit race. Don't revoke — the winning request already
+            # rotated the cookie; the browser will present the fresh
+            # one on the next call.
+            logger.info(
+                "Refresh race ignored (within grace window)",
+                extra={"entity": {
+                    "user_id": existing["user_id"],
+                    "jti_prefix": jti[:8],
+                    "age_seconds": round(age_seconds, 2),
+                }},
+            )
+            raise HTTPException(
+                status_code=401,
+                detail="Refresh already in flight — retry with the latest cookie.",
+            )
+
         await db.refresh_tokens.update_many(
             {"user_id": existing["user_id"], "used_at": None},
             {"$set": {
@@ -678,15 +722,31 @@ async def delete_my_account(user: CurrentUser, response: Response):
         raise HTTPException(status_code=404, detail="User not found")
 
     if user_doc.get("role") == _ADMIN:
-        admin_count = await db.users.count_documents({"role": _ADMIN})
-        if admin_count <= 1:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "You are the only admin. Promote another user to admin "
-                    "before deleting your account."
-                ),
-            )
+        # Atomic last-admin guard. A racy count-then-check lets two
+        # concurrent admin self-deletes both pass and leave a tenant
+        # with zero admins. Instead, *claim* by demoting the caller's
+        # own role with a CAS; then check how many admins remain. If
+        # the claim left zero, roll it back and 400 the caller. Doing
+        # this BEFORE any destructive writes means a losing racer
+        # hasn't anonymized any records — failure is clean.
+        claimed = await db.users.find_one_and_update(
+            {"id": user["user_id"], "role": _ADMIN},
+            {"$set": {"role": ROLE_VIEWER}},
+        )
+        if claimed is not None:
+            remaining = await db.users.count_documents({"role": _ADMIN})
+            if remaining == 0:
+                await db.users.update_one(
+                    {"id": user["user_id"]},
+                    {"$set": {"role": _ADMIN}},
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "You are the only admin. Promote another user to admin "
+                        "before deleting your account."
+                    ),
+                )
 
     now = datetime.now(timezone.utc).isoformat()
     anon_name = f"[deleted-user-{user['user_id'][:8]}]"
@@ -801,26 +861,9 @@ async def delete_my_account(user: CurrentUser, response: Response):
         )
 
     # Remove the user last so the foreign-key-like references above
-    # still resolve during the anonymization phase. Re-check the
-    # "last admin" invariant atomically here: the earlier
-    # count_documents guard can race if two admins call DELETE /me
-    # concurrently (both see admin_count == 2, both pass, both
-    # delete, tenant ends with zero admins and no self-service
-    # recovery). For admin callers, delete only if at least one
-    # OTHER admin still exists.
-    if user_doc.get("role") == _ADMIN:
-        other_admin_exists = await db.users.find_one(
-            {"role": _ADMIN, "id": {"$ne": user["user_id"]}},
-            {"_id": 0, "id": 1},
-        )
-        if not other_admin_exists:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Another admin was removed while this request was "
-                    "in flight. Promote a user to admin and try again."
-                ),
-            )
+    # still resolve during the anonymization phase. The last-admin
+    # invariant was already enforced atomically at the top of this
+    # handler via the role-demote CAS, before any destructive writes.
     await db.users.delete_one({"id": user["user_id"]})
     invalidate_pwd_cache(user["user_id"])
 

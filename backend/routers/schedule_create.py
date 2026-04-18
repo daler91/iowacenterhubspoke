@@ -473,6 +473,20 @@ async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     recurrence_rule = build_recurrence_rule(data)
     dates_to_schedule = build_recurrence_dates(data.date, recurrence_rule)
 
+    # DST sanity across the full expansion: a weekly 02:30 series crossing
+    # a spring-forward Sunday would otherwise land bogus occurrences that
+    # the initial single-date check above missed. All-or-nothing reject
+    # — a partial series with one non-existent slot is worse than failing
+    # the whole request up front. data.date has already been checked.
+    for occurrence_date in dates_to_schedule:
+        if occurrence_date == data.date:
+            continue
+        try:
+            validate_local_time_exists(occurrence_date, data.start_time)
+            validate_local_time_exists(occurrence_date, data.end_time)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     if len(dates_to_schedule) == 1:
         return await _handle_single_schedule(
             data,
