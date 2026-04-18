@@ -14,23 +14,34 @@ _IS_PRODUCTION = (
 # pytest is driving the process so tests can import real modules.
 _IS_TEST = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
+_ALLOW_UNENCRYPTED = os.environ.get("ALLOW_UNENCRYPTED_TOKENS") == "1"
+
+# Booting without a key in production is dangerous: previously encrypted
+# webhook secrets and refresh tokens come back as ciphertext (see
+# ``decrypt_token`` below), which silently breaks HMAC signing and OAuth
+# refresh. Fail-fast so ops notices. Fresh deployments with no encrypted
+# data yet can opt in with ``ALLOW_UNENCRYPTED_TOKENS=1``.
 if _IS_PRODUCTION and not _KEY and not _IS_TEST:
-    # Don't block boot here — the OAuth-conditional guard below still
-    # hard-fails when refresh tokens are actually in play, which is the
-    # case that matters for security. Deployments that haven't enabled
-    # OAuth yet shouldn't crash the server just because the key isn't
-    # provisioned.
-    logger.warning(
-        "TOKEN_ENCRYPTION_KEY is not set in production. Any tokens or"
-        " webhook secrets written to the database will be stored in"
-        " plaintext. Generate one with: python -c \"from cryptography.fernet"
-        " import Fernet; print(Fernet.generate_key().decode())\""
-    )
+    if _ALLOW_UNENCRYPTED:
+        logger.warning(
+            "TOKEN_ENCRYPTION_KEY is not set in production but"
+            " ALLOW_UNENCRYPTED_TOKENS=1. Tokens and webhook secrets will"
+            " be stored in plaintext, and any previously encrypted values"
+            " will be unreadable. This escape hatch is temporary."
+        )
+    else:
+        raise RuntimeError(
+            "TOKEN_ENCRYPTION_KEY is required in production. Set"
+            " ALLOW_UNENCRYPTED_TOKENS=1 to proceed without encryption"
+            " (fresh deployments only — previously encrypted values will"
+            " become unreadable). Generate one with: python -c"
+            " \"from cryptography.fernet import Fernet;"
+            " print(Fernet.generate_key().decode())\""
+        )
 
 _OAUTH_ENABLED = bool(
     os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("OUTLOOK_CLIENT_ID")
 )
-_ALLOW_UNENCRYPTED = os.environ.get("ALLOW_UNENCRYPTED_TOKENS") == "1"
 
 if _OAUTH_ENABLED and not _KEY:
     if _ALLOW_UNENCRYPTED:
