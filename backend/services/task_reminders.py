@@ -172,7 +172,7 @@ async def check_and_send_reminders() -> int:
     soon = (now + timedelta(hours=48)).isoformat()
 
     tasks = await db.tasks.find(
-        {"completed": False, "due_date": {"$lt": soon}},
+        {"completed": False, "due_date": {"$lt": soon}, "deleted_at": None},
         {"_id": 0},
     ).to_list(5000)
 

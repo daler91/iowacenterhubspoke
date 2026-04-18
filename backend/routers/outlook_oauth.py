@@ -99,7 +99,11 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
     refresh_token = tokens.get("refresh_token")
     access_token = tokens.get("access_token")
     if not refresh_token:
-        logger.error("No refresh_token in Microsoft OAuth response for employee %s", employee_id)
+        from core.logger import mask_id as _mask
+        logger.error(
+            "No refresh_token in Microsoft OAuth response",
+            extra={"entity": {"employee_id_masked": _mask(employee_id)}},
+        )
         return _redirect_with_status("error", "error_token")
 
     # Fetch the Microsoft account email to verify identity
@@ -113,10 +117,15 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
                 user_info = resp.json()
                 outlook_email = user_info.get("mail") or user_info.get("userPrincipalName")
     except Exception:
-        logger.warning("Failed to fetch Microsoft user info for employee %s", employee_id)
+        from core.logger import mask_id as _mask
+        logger.warning(
+            "Failed to fetch Microsoft user info",
+            extra={"entity": {"employee_id_masked": _mask(employee_id)}},
+        )
 
     # Store tokens on employee document (encrypted at rest)
     from core.token_vault import encrypt_token
+    from core.logger import mask_id
     update = {
         "outlook_refresh_token": encrypt_token(refresh_token),
         "outlook_calendar_connected": True,
@@ -125,7 +134,10 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
         update["outlook_calendar_email"] = outlook_email
 
     await db.employees.update_one({"id": employee_id}, {"$set": update})
-    logger.info("Outlook Calendar connected for employee %s (email: %s)", employee_id, outlook_email or "unknown")
+    logger.info(
+        "Outlook Calendar connected",
+        extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+    )
 
     return _redirect_with_status("success", "success")
 
@@ -157,7 +169,11 @@ async def outlook_disconnect(employee_id: str, user: SchedulerRequired):
             },
         },
     )
-    logger.info("Outlook Calendar disconnected for employee %s", employee_id)
+    from core.logger import mask_id
+    logger.info(
+        "Outlook Calendar disconnected",
+        extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+    )
     return {"message": "Outlook Calendar disconnected"}
 
 

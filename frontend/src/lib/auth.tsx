@@ -13,7 +13,13 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<any>;
-  register: (name: string, email: string, password: string, inviteToken?: string | null) => Promise<any>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    inviteToken?: string | null,
+    privacyPolicyAccepted?: boolean,
+  ) => Promise<any>;
   logout: () => Promise<void>;
 }
 
@@ -49,9 +55,16 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     return res.data;
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string, inviteToken: string | null = null) => {
-    const payload: Record<string, string> = { name, email, password };
+  const register = useCallback(async (
+    name: string,
+    email: string,
+    password: string,
+    inviteToken: string | null = null,
+    privacyPolicyAccepted = false,
+  ) => {
+    const payload: Record<string, string | boolean> = { name, email, password };
     if (inviteToken) payload.invite_token = inviteToken;
+    if (privacyPolicyAccepted) payload.privacy_policy_accepted = true;
     const res = await authAPI.register(payload);
     if (res.data.user) {
       setUser(res.data.user);

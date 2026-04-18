@@ -25,6 +25,8 @@ const COLUMNS = [
   { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
 
+const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
+
 // Hoisted so the options reference is stable across renders — otherwise
 // ``useSensor`` rebuilds the sensor descriptor on every parent render and
 // invalidates dnd-kit's internal memoization on the returned sensor array.
@@ -87,6 +89,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
         type="button"
         {...(selectionMode ? {} : { ...listeners, ...attributes })}
         data-testid={`kanban-card-${schedule.id}`}
+        aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
         onClick={() => {
           if (selectionMode) {
             toggleItem?.(schedule.id);
@@ -317,6 +320,9 @@ export default function KanbanBoard() {
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <p id={DND_INSTRUCTIONS_ID} className="sr-only">
+          Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
           const items = getColumnSchedules(col.id);

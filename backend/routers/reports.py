@@ -1,6 +1,8 @@
 import asyncio
+import io
 from datetime import datetime, timezone
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from collections import defaultdict
 from database import db
@@ -253,13 +255,10 @@ def _finalize_summaries(employee_summaries, class_totals):
     )
 
 
-@router.get("/reports/weekly-summary", summary="Get weekly summary report")
-async def get_weekly_summary(
-    user: CurrentUser,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    class_id: Optional[str] = None,
-):
+async def _compute_weekly_summary(
+    date_from: Optional[str], date_to: Optional[str], class_id: Optional[str],
+) -> dict:
+    """Shared aggregator used by both the JSON and PDF endpoints."""
     from datetime import date as dt_date, timedelta as td
 
     if not date_from:
@@ -267,17 +266,6 @@ async def get_weekly_summary(
         start = today - td(days=today.weekday())
         date_from = start.isoformat()
         date_to = (start + td(days=6)).isoformat()
-
-    logger.info(
-        f"Generating weekly summary report: {date_from} to {date_to}",
-        extra={
-            "context": {
-                "date_from": date_from,
-                "date_to": date_to,
-                "class_id": class_id,
-            }
-        },
-    )
 
     query = {"date": {"$gte": date_from, "$lte": date_to}, "deleted_at": None}
     if class_id:
@@ -310,6 +298,160 @@ async def get_weekly_summary(
         "class_totals": finalized_class_totals,
         "employees": sorted(result, key=lambda x: x["classes"], reverse=True),
     }
+
+
+@router.get("/reports/weekly-summary", summary="Get weekly summary report")
+async def get_weekly_summary(
+    user: CurrentUser,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    class_id: Optional[str] = None,
+):
+    logger.info(
+        f"Generating weekly summary report: {date_from} to {date_to}",
+        extra={
+            "context": {
+                "date_from": date_from,
+                "date_to": date_to,
+                "class_id": class_id,
+            }
+        },
+    )
+    return await _compute_weekly_summary(date_from, date_to, class_id)
+
+
+def _render_weekly_summary_pdf(data: dict) -> bytes:
+    """Render the weekly summary dict into a PDF using reportlab."""
+    # Imported lazily so the module still loads if reportlab isn't
+    # available at test time (e.g. in a minimal dev environment).
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    )
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter,
+        leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+        topMargin=0.6 * inch, bottomMargin=0.6 * inch,
+        title="Weekly Summary",
+    )
+    styles = getSampleStyleSheet()
+    h1 = ParagraphStyle(
+        "H1", parent=styles["Heading1"], fontSize=18, spaceAfter=6,
+    )
+    h2 = ParagraphStyle(
+        "H2", parent=styles["Heading2"], fontSize=13, spaceAfter=4,
+    )
+    body = styles["BodyText"]
+
+    period = data.get("period", {})
+    totals = data.get("totals", {})
+    story = []
+    story.append(Paragraph("Iowa Center — Weekly Summary", h1))
+    story.append(Paragraph(
+        f"Period: {period.get('from', '?')} \u2013 {period.get('to', '?')}", body,
+    ))
+    story.append(Paragraph(
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        body,
+    ))
+    story.append(Spacer(1, 0.2 * inch))
+
+    story.append(Paragraph("Totals", h2))
+    totals_table = Table(
+        [
+            ["Classes", totals.get("classes", 0)],
+            ["Class hours", totals.get("class_hours", 0)],
+            ["Drive hours", totals.get("drive_hours", 0)],
+            ["Employees active", totals.get("employees_active", 0)],
+        ],
+        colWidths=[2.5 * inch, 1.5 * inch],
+    )
+    totals_table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+    ]))
+    story.append(totals_table)
+    story.append(Spacer(1, 0.25 * inch))
+
+    class_totals = data.get("class_totals") or []
+    if class_totals:
+        story.append(Paragraph("By class", h2))
+        rows = [["Class", "Sessions", "Hours"]]
+        for ct in class_totals:
+            rows.append([
+                ct.get("class_name", "\u2014"),
+                ct.get("classes", 0),
+                ct.get("class_hours", 0),
+            ])
+        t = Table(rows, colWidths=[3.5 * inch, 1 * inch, 1 * inch], repeatRows=1)
+        t.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 0.25 * inch))
+
+    employees = data.get("employees") or []
+    if employees:
+        story.append(Paragraph("By employee", h2))
+        rows = [["Name", "Classes", "Class hrs", "Drive hrs"]]
+        for emp in employees:
+            rows.append([
+                emp.get("name", "\u2014"),
+                emp.get("classes", 0),
+                emp.get("class_hours", 0),
+                emp.get("drive_hours", 0),
+            ])
+        t = Table(
+            rows,
+            colWidths=[2.8 * inch, 1 * inch, 1 * inch, 1 * inch],
+            repeatRows=1,
+        )
+        t.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ]))
+        story.append(t)
+
+    if not class_totals and not employees:
+        story.append(Paragraph("No activity in this period.", body))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+@router.get(
+    "/reports/weekly-summary.pdf",
+    summary="Download the weekly summary as a PDF",
+)
+async def get_weekly_summary_pdf(
+    user: CurrentUser,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    class_id: Optional[str] = None,
+):
+    data = await _compute_weekly_summary(date_from, date_to, class_id)
+    # reportlab.build is CPU-bound but typically sub-second on these
+    # volumes — keep it in-thread to avoid the overhead of a worker hop.
+    pdf_bytes = _render_weekly_summary_pdf(data)
+    period = data["period"]
+    filename = f"weekly_summary_{period['from']}_to_{period['to']}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Coordination Reports ──────────────────────────────────────────────
@@ -405,7 +547,7 @@ async def coordination_partner_health(user: CurrentUser):
         completed_tasks = 0
         if project_ids:
             tasks = await db.tasks.find(
-                {"project_id": {"$in": project_ids}},
+                {"project_id": {"$in": project_ids}, "deleted_at": None},
                 {"_id": 0, "completed": 1, "completed_at": 1},
             ).to_list(5000)
             total_tasks = len(tasks)
@@ -441,7 +583,7 @@ async def coordination_partner_health(user: CurrentUser):
 )
 async def coordination_conversion_funnel(user: CurrentUser):
     outcomes = await db.event_outcomes.find(
-        {}, {"_id": 0, "status": 1},
+        {"deleted_at": None}, {"_id": 0, "status": 1},
     ).to_list(50000)
     total = len(outcomes)
     counts = {

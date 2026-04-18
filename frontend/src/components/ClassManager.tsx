@@ -9,6 +9,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { PageShell } from './ui/page-shell';
 import { classesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/utils';
 
@@ -72,7 +73,7 @@ export default function ClassManager() {
       onRefresh?.();
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save class');
+      toast.error(describeApiError(err, 'Couldn\u2019t save that class \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ export default function ClassManager() {
       toast.success('Class deleted');
       onRefresh?.();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete class');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete that class \u2014 please try again.'));
     }
   };
 

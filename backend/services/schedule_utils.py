@@ -1,10 +1,67 @@
 import calendar
+import os
 from typing import Optional
 from database import db
 from models.schemas import RecurrenceRule, ScheduleCreate
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Default to Central Time (Iowa) but leave overridable for tenants in
+# other zones without forcing a config change in code.
+SCHEDULE_TIMEZONE = os.environ.get("SCHEDULE_TIMEZONE", "America/Chicago")
+
+
+def validate_local_time_exists(date_str: str, time_str: str, tz_name: str | None = None) -> None:
+    """Reject times that don't exist in the local zone (DST spring-forward).
+
+    On the spring-forward Sunday a single hour (typically 02:00–02:59 in
+    Chicago) simply doesn't exist — the wall clock jumps from 01:59 to
+    03:00. Storing a ``02:30`` schedule for that date would quietly
+    de-reference an imaginary instant. Raises ``ValueError`` with a
+    human-readable explanation on failure.
+
+    Ambiguous fall-back times (1:30am occurring twice) are accepted —
+    they map to *a* real instant, just not a uniquely defined one;
+    fold=0 picks the earlier occurrence consistently.
+    """
+    # zoneinfo is stdlib on Python 3.9+ — the project pins 3.11.
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
+
+    try:
+        tz = ZoneInfo(tz_name or SCHEDULE_TIMEZONE)
+    except Exception:
+        # Unknown zone — skip validation rather than break scheduling.
+        return
+
+    try:
+        naive = _dt.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError as exc:
+        # Belt-and-suspenders: upstream schemas carry pattern validators
+        # for HH:MM / YYYY-MM-DD, but if a caller ever reaches us with a
+        # malformed value we raise instead of silently allowing the
+        # garbage to persist. A ValueError message that reads like a
+        # format issue is what the API handler expects to re-raise as
+        # 400.
+        raise ValueError(
+            f"Invalid date/time format: {date_str!r} {time_str!r} "
+            "(expected YYYY-MM-DD and HH:MM)"
+        ) from exc
+
+    # A "nonexistent" local time round-trips through UTC to a *different*
+    # wall-clock reading — the local hour shifts forward into the gap. An
+    # ambiguous fall-back time round-trips cleanly (fold=0 consistently
+    # picks the first occurrence both ways). So round-trip divergence
+    # uniquely identifies the spring-forward hole.
+    aware = naive.replace(tzinfo=tz)
+    round_tripped = aware.astimezone(ZoneInfo("UTC")).astimezone(tz)
+    if round_tripped.replace(tzinfo=None) != naive:
+        raise ValueError(
+            f"{date_str} {time_str} is inside the daylight-saving "
+            f"transition for {tz_name or SCHEDULE_TIMEZONE} and is not "
+            "a valid wall-clock time. Please pick a different time."
+        )
 
 
 def time_to_minutes(time_str: str) -> int:
@@ -25,11 +82,20 @@ def calculate_class_minutes(start_time: str, end_time: str) -> int:
 # switch this to ``datetime`` for a time-zone-aware recurrence, read
 # AGENT_REVIEW_REPORT.md Suggestion 6 first and pair it with a test
 # covering 2026-03-08 (US spring-forward) and 2026-11-01 (fall-back).
-def add_months(source_date, months: int):
+def add_months(source_date, months: int, *, anchor_day: Optional[int] = None):
+    """Add months, preserving an optional anchor day-of-month.
+
+    Without ``anchor_day`` (default) the function snaps to the last valid
+    day when the target month is too short: Jan 31 + 1 month → Feb 28,
+    Feb 28 + 1 month → Mar 28 (drift). Pass ``anchor_day`` to preserve
+    the original intent: Jan 31 + 1 month (anchor_day=31) → Feb 28,
+    Feb 28 + 1 month (anchor_day=31) → Mar 31.
+    """
     month_index = source_date.month - 1 + months
     year = source_date.year + (month_index // 12)
     month = month_index % 12 + 1
-    day = min(source_date.day, calendar.monthrange(year, month)[1])
+    target_day = anchor_day if anchor_day is not None else source_date.day
+    day = min(target_day, calendar.monthrange(year, month)[1])
     return source_date.replace(year=year, month=month, day=day)
 
 
@@ -87,16 +153,30 @@ def build_recurrence_rule(data: ScheduleCreate):
     return None
 
 
-def _build_monthly_dates(start_date, interval, occurrence_limit, end_date):
+def _build_monthly_dates(start_date, interval, occurrence_limit, end_date, *, preserve_day: bool = True):
+    """Generate monthly recurrence dates.
+
+    When ``preserve_day`` is True (the default) we anchor on the original
+    day-of-month so a "monthly on the 31st" series hits Jan 31, Feb 28/29,
+    Mar 31, Apr 30, May 31, ... rather than drifting to 28 after the
+    first short month. Set ``preserve_day=False`` to use naive "day after
+    last occurrence" behaviour.
+    """
     dates = []
     current = start_date
+    anchor_day = start_date.day if preserve_day else None
+    step = 0
     while True:
         if end_date and current > end_date:
             break
         dates.append(current.isoformat())
         if occurrence_limit and len(dates) >= occurrence_limit:
             break
-        current = add_months(current, interval)
+        step += interval
+        if preserve_day:
+            current = add_months(start_date, step, anchor_day=anchor_day)
+        else:
+            current = add_months(current, interval)
     return dates
 
 

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { authAPI } from '../lib/api';
+import { authAPI, REPLAY_LOGOUT_FLAG } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { toast } from 'sonner';
-import { MapPin, Clock, Users } from 'lucide-react';
+import { MapPin, Clock, Users, ShieldAlert } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -15,8 +16,23 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [replayLogout, setReplayLogout] = useState(false);
   const [inviteData, setInviteData] = useState<{ email: string; name?: string; role: string } | null>(null);
   const inviteToken = searchParams.get('invite');
+
+  // Read the one-shot "refresh-token replay detected" flag set by the
+  // api.ts interceptor and clear it so the banner only shows once.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(REPLAY_LOGOUT_FLAG)) {
+        setReplayLogout(true);
+        sessionStorage.removeItem(REPLAY_LOGOUT_FLAG);
+      }
+    } catch {
+      // sessionStorage unavailable (private mode) — nothing to surface.
+    }
+  }, []);
 
   useEffect(() => {
     if (!inviteToken) return;
@@ -43,27 +59,41 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Self-service signups must accept the privacy notice; invitation flows
+    // are exempt because the admin who issued the invite already agreed on
+    // the user's behalf.
+    if (!isLogin && !inviteData && !privacyAccepted) {
+      toast.error('Please review and accept the privacy notice to continue.');
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
         await login(form.email, form.password);
         toast.success('Welcome back!');
       } else {
-        const result = await register(form.name, form.email, form.password, inviteToken || null);
+        const result = await register(
+          form.name,
+          form.email,
+          form.password,
+          inviteToken || null,
+          privacyAccepted,
+        );
         if (result.pending) {
           toast.info('Registration submitted! An admin will review your account.');
           setIsLogin(true);
           setForm({ name: '', email: '', password: '' });
+          setPrivacyAccepted(false);
         } else {
           toast.success('Account created successfully!');
         }
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
       if (err.response?.status === 403) {
-        toast.warning(detail || 'Access denied');
+        const detail = err.response?.data?.detail;
+        toast.warning(typeof detail === 'string' && detail ? detail : 'Access denied');
       } else {
-        toast.error(detail || 'Something went wrong');
+        toast.error(describeApiError(err, 'Something went wrong. Please try again.'));
       }
     } finally {
       setLoading(false);
@@ -152,6 +182,24 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {replayLogout && (
+              <div
+                role="alert"
+                className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2"
+                data-testid="replay-logout-banner"
+              >
+                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <p className="text-sm text-amber-800 font-medium">
+                    All devices were signed out for safety
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    We detected a reused session cookie — if that wasn&rsquo;t you,
+                    someone may have copied an old cookie. Sign in again to continue.
+                  </p>
+                </div>
+              </div>
+            )}
             {inviteData && (
               <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
                 <p className="text-sm text-indigo-700 font-medium">
@@ -215,6 +263,27 @@ export default function LoginPage() {
                   className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
                 />
               </div>
+              {!isLogin && !inviteData && (
+                <label
+                  htmlFor="privacy-consent"
+                  className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer"
+                >
+                  <input
+                    id="privacy-consent"
+                    type="checkbox"
+                    data-testid="register-privacy-checkbox"
+                    checked={privacyAccepted}
+                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                    className="mt-0.5"
+                    required
+                  />
+                  <span>
+                    I understand HubSpoke stores my name and email, and may share
+                    location and calendar data with Google or Microsoft if I
+                    connect those integrations.
+                  </span>
+                </label>
+              )}
               <Button
                 type="submit"
                 data-testid="login-submit-button"

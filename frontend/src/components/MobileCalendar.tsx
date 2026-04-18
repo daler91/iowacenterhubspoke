@@ -78,6 +78,14 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                   <div key={schedule.id} className="relative">
                     <button
                       type="button"
+                      // In selection mode the whole row IS the toggle,
+                      // so express that on the button rather than
+                      // nesting a role="checkbox" inside (invalid HTML
+                      // anyway — buttons can't contain interactive
+                      // descendants). The inner indicator below is
+                      // purely visual.
+                      aria-pressed={selectionMode ? Boolean(selected) : undefined}
+                      aria-label={selectionMode ? `Select ${className}` : undefined}
                       className={cn(
                         "w-full text-left bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-800 transition-all",
                         selectionMode ? "cursor-pointer" : "cursor-pointer active:scale-[0.98]",
@@ -89,12 +97,15 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
                           {selectionMode && (
-                            <div className={cn(
-                              "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
-                              selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 dark:border-gray-600"
-                            )}>
-                              {selected && <Check className="w-3.5 h-3.5 text-white" />}
-                            </div>
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
+                                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 dark:border-gray-600"
+                              )}
+                            >
+                              {selected && <Check className="w-3.5 h-3.5 text-white" aria-hidden="true" />}
+                            </span>
                           )}
                           <h3 className="font-semibold text-slate-800 dark:text-gray-100">{className}</h3>
                         </div>

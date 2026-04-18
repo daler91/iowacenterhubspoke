@@ -2,6 +2,13 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, model_validato
 from typing import List, Literal, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
+# Format patterns shared by ScheduleCreate / ScheduleUpdate /
+# ScheduleRelocate. Centralised so a future date- or time-format
+# change (e.g. adding seconds) happens in one place — and so
+# SonarCloud stops flagging the duplicate literals.
+ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+HH_MM_TIME_PATTERN = r"^\d{2}:\d{2}$"
+
 # Defensive caps: unbounded free-text fields enable cheap disk/memory DOS
 # (a 10 MB notes value hits Mongo + every downstream notification payload).
 # These limits are generous for real user content but shut the door on
@@ -12,10 +19,19 @@ _MAX_NOTES = 5000
 
 
 class UserRegister(BaseModel):
-    name: str = Field(..., max_length=_MAX_NAME)
+    name: str = Field(..., min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=256)
     invite_token: Optional[str] = None
+    privacy_policy_accepted: bool = Field(
+        False,
+        description=(
+            "Must be true for self-service registration. The app shares data "
+            "with Google (Calendar + Distance Matrix) and Microsoft (Outlook) "
+            "when an employee opts into those integrations; accepting this "
+            "flag confirms the user has seen the privacy notice."
+        ),
+    )
 
     @field_validator("password")
     @classmethod
@@ -29,7 +45,7 @@ class UserRegister(BaseModel):
 
 class UserLogin(BaseModel):
     email: str
-    password: str
+    password: str = Field(..., max_length=256)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -37,33 +53,33 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str = Field(..., min_length=8)
+    token: str = Field(..., max_length=256)
+    new_password: str = Field(..., min_length=8, max_length=256)
 
 
 class LocationCreate(BaseModel):
-    city_name: str = Field(..., max_length=_MAX_NAME)
-    drive_time_minutes: int
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    city_name: str = Field(..., min_length=1, max_length=120)
+    drive_time_minutes: int = Field(..., ge=0, le=1440)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
 
 
 class LocationUpdate(BaseModel):
-    city_name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
-    drive_time_minutes: Optional[int] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    city_name: Optional[str] = Field(None, min_length=1, max_length=120)
+    drive_time_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
 
 
 class EmployeeCreate(BaseModel):
-    name: str = Field(..., max_length=_MAX_NAME)
+    name: str = Field(..., min_length=1, max_length=_MAX_NAME)
     email: Optional[str] = Field(default=None, max_length=320)
     phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = DEFAULT_EMPLOYEE_COLOR
 
 
 class EmployeeUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=_MAX_NAME)
     email: Optional[str] = Field(default=None, max_length=320)
     phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = None
@@ -79,38 +95,41 @@ class RecurrenceRule(BaseModel):
 
 
 class ClassCreate(BaseModel):
-    name: str = Field(..., max_length=_MAX_NAME)
+    name: str = Field(..., min_length=1, max_length=_MAX_NAME)
     description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = DEFAULT_CLASS_COLOR
 
 
 class ClassUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=_MAX_NAME)
     description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = None
 
 
 class ScheduleCreate(BaseModel):
     employee_id: Optional[str] = None  # backward compat: single employee
-    employee_ids: Optional[List[str]] = None  # preferred: multiple employees
+    employee_ids: Optional[List[str]] = Field(None, max_length=50)  # preferred: multiple employees
     location_id: str
     class_id: Optional[str] = None
-    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
-    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    date: str = Field(..., pattern=ISO_DATE_PATTERN)
+    start_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
+    end_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     force: Optional[bool] = False
     notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
-    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
-    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
+    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
     series_id: Optional[str] = None  # ID of recurrence series (set automatically for recurring schedules)
     recurrence: Optional[str] = None  # none, weekly, biweekly
     recurrence_end_date: Optional[str] = None  # YYYY-MM-DD
     recurrence_end_mode: Optional[str] = None
-    recurrence_occurrences: Optional[int] = None
+    recurrence_occurrences: Optional[int] = Field(None, ge=1, le=520)
     custom_recurrence: Optional[RecurrenceRule] = None
     force_outlook: Optional[bool] = False
     force_google: Optional[bool] = False
+    # Idempotency key: supply a unique UUID per user submission so retrying
+    # the same request does not create duplicate schedules.
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     @model_validator(mode="after")
     def _validate_time_range(self):
@@ -132,23 +151,33 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleUpdate(BaseModel):
-    employee_ids: Optional[List[str]] = None  # replace all employees
+    employee_ids: Optional[List[str]] = Field(None, max_length=50)
     employee_id: Optional[str] = None  # backward compat: sets single employee
     location_id: Optional[str] = None
     class_id: Optional[str] = None
-    date: Optional[str] = None
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
+    # Mirror ScheduleCreate's format patterns. The DST guard in
+    # ``validate_local_time_exists`` only detects semantic non-existence
+    # (02:30 on spring-forward); a bogus string like "garbage" is
+    # syntactically rejected, not semantically. Without the pattern
+    # filter here, PATCH /schedules/{id} with a bad time persists and
+    # later blows up downstream ``time_to_minutes`` calls.
+    date: Optional[str] = Field(None, pattern=ISO_DATE_PATTERN)
+    start_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
+    end_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
     notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
-    drive_to_override_minutes: Optional[int] = None  # override drive TO this class
-    drive_from_override_minutes: Optional[int] = None  # override drive FROM this class
+    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive FROM this class
     status: Optional[str] = None
     recurrence: Optional[str] = None
     recurrence_end_date: Optional[str] = None
     recurrence_end_mode: Optional[str] = None
-    recurrence_occurrences: Optional[int] = None
+    recurrence_occurrences: Optional[int] = Field(None, ge=1, le=520)
     custom_recurrence: Optional[RecurrenceRule] = None
     series_id: Optional[str] = None
+    # Optimistic concurrency: when provided, update only succeeds if the
+    # current document's version matches. Prevents silent overwrites on
+    # concurrent edits.
+    expected_version: Optional[int] = Field(None, ge=0)
 
 
 class StatusUpdate(BaseModel):
@@ -156,9 +185,11 @@ class StatusUpdate(BaseModel):
 
 
 class ScheduleRelocate(BaseModel):
-    date: str
-    start_time: str
-    end_time: str
+    # Same format constraints as ScheduleCreate so the relocate handler's
+    # DST guard doesn't silently accept a malformed time.
+    date: str = Field(..., pattern=ISO_DATE_PATTERN)
+    start_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
+    end_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     force: Optional[bool] = False
 
 
@@ -210,7 +241,7 @@ class ErrorResponse(BaseModel):
 
 
 class ScheduleImportItem(BaseModel):
-    employee_ids: List[str]
+    employee_ids: List[str] = Field(..., max_length=50)
     location_id: str
     class_id: Optional[str] = None
     date: str

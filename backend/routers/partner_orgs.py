@@ -8,7 +8,7 @@ from models.coordination_schemas import (
     PartnerOrgCreate, PartnerOrgUpdate,
     PartnerContactCreate, PartnerContactUpdate,
 )
-from core.auth import CurrentUser, AdminRequired
+from core.auth import CurrentUser, AdminRequired, SchedulerRequired
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
 from core.logger import get_logger
@@ -45,7 +45,7 @@ async def list_partner_orgs(
 
 
 @router.post("", summary="Create a partner organization")
-async def create_partner_org(data: PartnerOrgCreate, user: CurrentUser):
+async def create_partner_org(data: PartnerOrgCreate, user: SchedulerRequired):
     org_id = str(uuid.uuid4())
     doc = {
         "id": org_id,
@@ -128,7 +128,7 @@ async def _validate_status_transition(org_id: str, org: dict, new_status: str) -
         422: {"description": "Status transition blocked by missing requirements"},
     },
 )
-async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: CurrentUser):
+async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: SchedulerRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
@@ -190,7 +190,7 @@ async def list_contacts(org_id: str, user: CurrentUser):
     summary="Add a contact to a partner org",
     responses={404: {"description": ORG_NOT_FOUND}},
 )
-async def create_contact(org_id: str, data: PartnerContactCreate, user: CurrentUser):
+async def create_contact(org_id: str, data: PartnerContactCreate, user: SchedulerRequired):
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
@@ -224,7 +224,7 @@ async def create_contact(org_id: str, data: PartnerContactCreate, user: CurrentU
         404: {"description": CONTACT_NOT_FOUND},
     },
 )
-async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdate, user: CurrentUser):
+async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdate, user: SchedulerRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
@@ -243,7 +243,7 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
     summary="Send portal invite to a partner contact",
     responses={404: {"description": CONTACT_NOT_FOUND}},
 )
-async def send_portal_invite(org_id: str, contact_id: str, user: CurrentUser):
+async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequired):
     """Generate a magic link token and email it to the partner contact."""
     from services.email import send_portal_invite as send_invite_email
 
@@ -266,7 +266,7 @@ async def send_portal_invite(org_id: str, contact_id: str, user: CurrentUser):
         "id": str(uuid.uuid4()),
         "contact_id": contact_id,
         "token": token,
-        "expires_at": expires.isoformat(),
+        "expires_at": expires,
         "created_at": now.isoformat(),
         "last_used_at": None,
     })
@@ -319,7 +319,8 @@ async def get_partner_health(org_id: str, user: CurrentUser):
 
     if project_ids:
         tasks = await db.tasks.find(
-            {"project_id": {"$in": project_ids}}, {"_id": 0}
+            {"project_id": {"$in": project_ids}, "deleted_at": None},
+            {"_id": 0},
         ).to_list(5000)
         total_tasks = len(tasks)
         completed_tasks = sum(1 for t in tasks if t.get("completed"))

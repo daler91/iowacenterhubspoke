@@ -16,7 +16,11 @@ const AVAILABLE_FIELDS = [
   { id: 'start_time', label: 'Start Time' },
   { id: 'end_time', label: 'End Time' },
   { id: 'employee_name', label: 'Employee Name' },
-  { id: 'employee_email', label: 'Employee Email' },
+  {
+    id: 'employee_email',
+    label: 'Employee Email',
+    hint: 'PII \u2014 only include if you\u2019ll store the export securely.',
+  },
   { id: 'location_name', label: 'Location Name' },
   { id: 'class_name', label: 'Class Name' },
   { id: 'status', label: 'Status' },
@@ -95,20 +99,31 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
             <h4 className="font-medium text-sm mb-3">Columns to Export</h4>
             <div className="grid grid-cols-2 gap-3">
               {AVAILABLE_FIELDS.map((field) => (
-                <div key={field.id} className="flex items-center space-x-2">
+                <div key={field.id} className="flex items-start space-x-2">
                   <input
                     type="checkbox"
                     id={`field-${field.id}`}
                     checked={selectedFields.includes(field.id)}
                     onChange={() => toggleField(field.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary mt-0.5"
+                    aria-describedby={field.hint ? `field-${field.id}-hint` : undefined}
                   />
-                  <label
-                    htmlFor={`field-${field.id}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    {field.label}
-                  </label>
+                  <div className="min-w-0">
+                    <label
+                      htmlFor={`field-${field.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {field.label}
+                    </label>
+                    {field.hint && (
+                      <p
+                        id={`field-${field.id}-hint`}
+                        className="text-xs text-muted-foreground mt-0.5"
+                      >
+                        {field.hint}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

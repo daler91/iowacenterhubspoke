@@ -25,7 +25,13 @@ def _get_http_client() -> httpx.AsyncClient:
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 HUB_LAT = 41.5868
 HUB_LNG = -93.654
+# Real Google-API results stay cached for 30 days; Haversine estimates
+# only live for 1 day so the next request has a chance to hit the real
+# API once transient Google outages clear. An estimate is ~1.4× road
+# factor at 55 mph — fine as a *display* fallback, poor as a basis for
+# hard conflict enforcement.
 CACHE_TTL_DAYS = 30
+ESTIMATE_CACHE_TTL_DAYS = 1
 
 # In-memory LRU cache for drive times (avoids repeated MongoDB lookups)
 _MEM_CACHE_MAX = 500
@@ -135,36 +141,57 @@ def _hub_cache_key(lat, lng):
 
 
 async def _check_mongo_cache(cache_key):
-    """Check MongoDB cache for a valid drive time entry. Returns minutes or None."""
+    """Check MongoDB cache for a valid entry. Returns (minutes, source) or None."""
     cached = await db.drive_time_cache.find_one({"key": cache_key}, {"_id": 0})
     if not cached:
         return None
     created = cached.get("created_at", "")
     if not created:
         return None
+    source = cached.get("source", "api")
+    ttl_days = ESTIMATE_CACHE_TTL_DAYS if source == "estimate" else CACHE_TTL_DAYS
     try:
         age = (datetime.now(timezone.utc) - datetime.fromisoformat(created)).days
-        if age < CACHE_TTL_DAYS:
+        if age < ttl_days:
             _mem_set(cache_key, cached["drive_time_minutes"])
-            return cached["drive_time_minutes"]
+            return cached["drive_time_minutes"], source
     except (ValueError, TypeError):
         logger.warning("Invalid cached drive time entry for key %s", cache_key)
     return None
 
 
 async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=None):
-    """Get drive time between two coordinates. Checks in-memory cache, then MongoDB, then API, then estimates."""
-    # 1. In-memory LRU cache (instant, no I/O)
+    """Get drive time between two coordinates.
+
+    Returns ``(minutes, cached, source)`` where ``source`` is ``"api"``
+    when the value came from Google Distance Matrix and ``"estimate"``
+    when it came from the Haversine fallback. Callers that use the value
+    for hard conflict enforcement should check ``source`` and treat
+    estimates as advisory.
+    """
+    # 1. In-memory LRU cache (instant, no I/O). Only caches the minutes
+    #    value, not the source — fall through to Mongo if we need the tag.
     if cache_key:
         mem_hit = _mem_get(cache_key)
         if mem_hit is not None:
-            return mem_hit, True
+            # Best effort: look up the source from Mongo so callers can
+            # still distinguish. If Mongo is slow/down, assume "api"
+            # because estimates have a 1-day TTL and would fall through.
+            try:
+                mongo_entry = await db.drive_time_cache.find_one(
+                    {"key": cache_key}, {"_id": 0, "source": 1},
+                )
+                src = (mongo_entry or {}).get("source", "api")
+            except Exception:
+                src = "api"
+            return mem_hit, True, src
 
     # 2. MongoDB cache
     if cache_key:
         mongo_hit = await _check_mongo_cache(cache_key)
         if mongo_hit is not None:
-            return mongo_hit, True
+            minutes, src = mongo_hit
+            return minutes, True, src
 
     # 3. Google Distance Matrix API
     minutes = await _fetch_distance_matrix(from_lat, from_lng, to_lat, to_lng)
@@ -173,10 +200,12 @@ async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=N
         minutes = _estimate_drive_minutes(from_lat, from_lng, to_lat, to_lng)
         source = "estimate"
 
-    # 4. Store in both caches
+    # 4. Store in both caches. Estimates get the shorter TTL so the
+    #    next request has a chance to refresh with real data.
     if cache_key:
         from datetime import timedelta
         now = datetime.now(timezone.utc)
+        ttl = ESTIMATE_CACHE_TTL_DAYS if source == "estimate" else CACHE_TTL_DAYS
         _mem_set(cache_key, minutes)
         await db.drive_time_cache.update_one(
             {"key": cache_key},
@@ -185,16 +214,21 @@ async def get_drive_time_between(from_lat, from_lng, to_lat, to_lng, cache_key=N
                 "drive_time_minutes": minutes,
                 "source": source,
                 "created_at": now.isoformat(),
-                "expires_at": now + timedelta(days=CACHE_TTL_DAYS),
+                "expires_at": now + timedelta(days=ttl),
             }},
             upsert=True,
         )
 
-    return minutes, False
+    return minutes, False, source
 
 
-async def get_drive_time_between_locations(from_id, to_id):
-    """Get drive time between two location IDs."""
+async def get_drive_time_between_locations(from_id, to_id, *, include_source: bool = False):
+    """Get drive time between two location IDs.
+
+    Returns ``minutes`` by default; pass ``include_source=True`` to get
+    ``(minutes, source)`` so the caller can distinguish API-backed values
+    from Haversine estimates.
+    """
     locations = await db.locations.find(
         {"id": {"$in": [from_id, to_id]}, "deleted_at": None}, {"_id": 0}
     ).to_list(2)
@@ -204,24 +238,26 @@ async def get_drive_time_between_locations(from_id, to_id):
     to_loc = loc_map.get(to_id)
 
     if not from_loc or not to_loc:
-        return None
+        return (None, None) if include_source else None
     if not (from_loc.get("latitude") and from_loc.get("longitude")
             and to_loc.get("latitude") and to_loc.get("longitude")):
-        return None
+        return (None, None) if include_source else None
 
     key = _cache_key(from_id, to_id)
-    minutes, _ = await get_drive_time_between(
+    minutes, _cached, source = await get_drive_time_between(
         from_loc["latitude"], from_loc["longitude"],
         to_loc["latitude"], to_loc["longitude"],
         cache_key=key,
     )
+    if include_source:
+        return minutes, source
     return minutes
 
 
 async def get_drive_time_from_hub(lat, lng):
     """Get drive time from Hub (Des Moines) to given coordinates."""
     key = _hub_cache_key(lat, lng)
-    minutes, _ = await get_drive_time_between(
+    minutes, _cached, _source = await get_drive_time_between(
         HUB_LAT, HUB_LNG, lat, lng, cache_key=key,
     )
     return minutes

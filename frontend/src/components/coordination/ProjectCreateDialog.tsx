@@ -191,8 +191,10 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
               onValueChange={(v) => { setPartnerOrgId(v); markTouched('partnerOrgId'); }}
               placeholder="Select partner..."
               searchPlaceholder="Search partners..."
+              aria-invalid={showError('partnerOrgId', partnerOrgId)}
+              aria-describedby={showError('partnerOrgId', partnerOrgId) ? 'project-partner-error' : undefined}
             />
-            {showError('partnerOrgId', partnerOrgId) && <p className="text-xs text-danger mt-1">Partner organization is required</p>}
+            {showError('partnerOrgId', partnerOrgId) && <p id="project-partner-error" className="text-xs text-danger mt-1">Partner organization is required</p>}
           </div>
           <div>
             <Label htmlFor="project-class">Class</Label>

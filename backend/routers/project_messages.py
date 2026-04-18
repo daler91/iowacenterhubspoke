@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import MessageCreate
-from core.auth import CurrentUser
+from core.auth import CurrentUser, EditorRequired
 from core.pagination import Paginated, paginated_response
 from services.notification_events import notify_project_message
 from core.logger import get_logger
@@ -40,7 +40,7 @@ async def list_messages(
     pagination: Paginated,
     channel: Optional[str] = None,
 ):
-    query: dict = {"project_id": project_id}
+    query: dict = {"project_id": project_id, "deleted_at": None}
     if channel:
         query["channel"] = channel
     total = await db.messages.count_documents(query)
@@ -59,24 +59,31 @@ async def list_messages(
     summary="Send a message",
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
-async def send_message(project_id: str, data: MessageCreate, user: CurrentUser):
+async def send_message(project_id: str, data: MessageCreate, user: EditorRequired):
     project = await db.projects.find_one({"id": project_id, "deleted_at": None})
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    # JWT payload exposes the user id under ``user_id`` — there is
+    # no ``id`` key. The previous ``user.get("id", "")`` persisted the
+    # empty string on every message, which broke the anonymization
+    # filter in /auth/me AND made read_by=[""] match every subsequent
+    # reader whose id was also "".
+    sender_uid = user.get("user_id", "")
     doc = {
         "id": msg_id,
         "project_id": project_id,
         "channel": data.channel,
         "sender_type": "internal",
         "sender_name": user.get("name", "Unknown"),
-        "sender_id": user.get("id", ""),
+        "sender_id": sender_uid,
         "body": data.body,
         "visibility": data.visibility,
         "created_at": now,
-        "read_by": [user.get("id", "")],
+        "read_by": [sender_uid] if sender_uid else [],
+        "deleted_at": None,
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)

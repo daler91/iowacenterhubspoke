@@ -99,7 +99,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={btnCls(activeStates.isBold)}
         >
-          <Bold className="w-3.5 h-3.5" />
+          <Bold className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -108,7 +108,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={btnCls(activeStates.isItalic)}
         >
-          <Italic className="w-3.5 h-3.5" />
+          <Italic className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -117,7 +117,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={btnCls(activeStates.isUnderline)}
         >
-          <UnderlineIcon className="w-3.5 h-3.5" />
+          <UnderlineIcon className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
         <button
@@ -127,7 +127,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={btnCls(activeStates.isOrderedList)}
         >
-          <ListOrdered className="w-3.5 h-3.5" />
+          <ListOrdered className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -136,7 +136,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={btnCls(activeStates.isBulletList)}
         >
-          <List className="w-3.5 h-3.5" />
+          <List className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </div>
       <EditorContent editor={editor} />

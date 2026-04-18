@@ -24,6 +24,7 @@ google-auth==2.29.0
 aiofiles==24.1.0
 aiosmtplib==3.0.2
 openpyxl==3.1.5
+reportlab==4.2.5
 # Explicit pins to address pip-audit CVE findings in transitive deps:
 # starlette (<0.47.2 → CVE-2025-54121, <0.40.0 → CVE-2024-47874) comes in
 # via fastapi; pyasn1 (<0.6.3 → CVE-2026-30922) comes in via google-auth.

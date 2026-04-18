@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { toast } from 'sonner';
 import { classesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { cn } from '../lib/utils';
 
 const CLASS_COLORS = ['#0F766E', '#0EA5E9', '#F97316', '#DC2626', '#7C3AED', '#CA8A04', '#059669', '#475569'];
@@ -37,7 +38,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
       onCreated?.(res.data);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to create class');
+      toast.error(describeApiError(err, 'Couldn\u2019t create class \u2014 please try again.'));
     } finally {
       setLoading(false);
     }

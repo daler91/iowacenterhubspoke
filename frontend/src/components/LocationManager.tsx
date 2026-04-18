@@ -8,6 +8,7 @@ import { PageShell } from './ui/page-shell';
 import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { useAuth } from '../lib/auth';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import PlacesAutocomplete from './PlacesAutocomplete';
@@ -98,7 +99,7 @@ export default function LocationManager() {
       onRefresh();
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save location');
+      toast.error(describeApiError(err, 'Couldn\u2019t save that location \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -110,8 +111,7 @@ export default function LocationManager() {
       toast.success('Location deleted');
       onRefresh();
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      toast.error(detail || 'Failed to delete location');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete that location \u2014 it may still be used by schedules.'));
     } finally {
       setDeleteTarget(null);
     }

@@ -20,8 +20,15 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-PASSWORD_RESET_EXPIRY_HOURS = 1
-PORTAL_TOKEN_EXPIRY_DAYS = 7
+import os as _os  # noqa: E402
+
+# Password reset links default to 24 hours so a delayed email arrival
+# (mailbox filtering, offline device) doesn't force the user to restart
+# the flow. Override via PASSWORD_RESET_EXPIRY_HOURS.
+PASSWORD_RESET_EXPIRY_HOURS = int(_os.environ.get("PASSWORD_RESET_EXPIRY_HOURS", "24"))
+# Portal magic links default to 3 days. One-time-use behaviour is enforced
+# separately when the portal records last_used_at.
+PORTAL_TOKEN_EXPIRY_DAYS = int(_os.environ.get("PORTAL_TOKEN_EXPIRY_DAYS", "3"))
 
 
 async def send_password_reset_email(email: str) -> None:
@@ -41,12 +48,13 @@ async def send_password_reset_email(email: str) -> None:
     token = secrets.token_urlsafe(48)
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=PASSWORD_RESET_EXPIRY_HOURS)
+    # expires_at stored as native datetime so the MongoDB TTL index prunes rows automatically.
     await db.password_resets.insert_one({
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
         "email": user["email"],
         "token": token,
-        "expires_at": expires.isoformat(),
+        "expires_at": expires,
         "created_at": now.isoformat(),
         "used_at": None,
     })
@@ -91,7 +99,7 @@ async def send_partner_magic_link_email(email: str) -> None:
         "id": str(uuid.uuid4()),
         "contact_id": contact["id"],
         "token": token,
-        "expires_at": expires.isoformat(),
+        "expires_at": expires,
         "created_at": now.isoformat(),
         "last_used_at": None,
     })

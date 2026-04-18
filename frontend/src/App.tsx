@@ -35,6 +35,38 @@ function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+/**
+ * Role-gated route. Renders a not-authorised notice (inside the main
+ * shell, so the sidebar stays visible) when the user lacks the
+ * required role. Does NOT redirect — just blocks rendering of the
+ * page content. Catches the "scheduler lands on /users via deep
+ * link" case where the component's internal check would otherwise
+ * only show after the API call 403s.
+ */
+function RoleGate({
+  allowed,
+  children,
+}: Readonly<{ allowed: readonly string[]; children: ReactNode }>) {
+  const { user } = useAuth();
+  if (!user || !allowed.includes(user.role)) {
+    return (
+      <div
+        className="p-8 text-center"
+        role="alert"
+        aria-live="polite"
+      >
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
+          Not authorised
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          This page is only available to {allowed.join(' or ')} accounts.
+        </p>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 function PublicRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -118,14 +150,30 @@ function AppRoutes() {
             <Route path="employees/:id" element={<RouteBoundary><EmployeeProfile /></RouteBoundary>} />
             <Route path="locations/:id" element={<RouteBoundary><LocationProfile /></RouteBoundary>} />
             <Route path="classes/:id" element={<RouteBoundary><ClassProfile /></RouteBoundary>} />
-            <Route path="users" element={<RouteBoundary><UserManager /></RouteBoundary>} />
+            <Route path="users" element={
+              <RouteBoundary>
+                <RoleGate allowed={['admin']}><UserManager /></RoleGate>
+              </RouteBoundary>
+            } />
             <Route path="settings" element={<RouteBoundary><PersonalSettings /></RouteBoundary>} />
             <Route path="coordination" element={<RouteBoundary><CommunityDashboard /></RouteBoundary>} />
             <Route path="coordination/board" element={<RouteBoundary><ProjectBoard /></RouteBoundary>} />
             <Route path="coordination/projects/:id" element={<RouteBoundary><ProjectDetail /></RouteBoundary>} />
-            <Route path="coordination/partners" element={<RouteBoundary><PartnerManager /></RouteBoundary>} />
-            <Route path="coordination/partners/:id" element={<RouteBoundary><PartnerProfile /></RouteBoundary>} />
-            <Route path="coordination/webhooks" element={<RouteBoundary><WebhookManager /></RouteBoundary>} />
+            <Route path="coordination/partners" element={
+              <RouteBoundary>
+                <RoleGate allowed={['admin', 'scheduler']}><PartnerManager /></RoleGate>
+              </RouteBoundary>
+            } />
+            <Route path="coordination/partners/:id" element={
+              <RouteBoundary>
+                <RoleGate allowed={['admin', 'scheduler']}><PartnerProfile /></RoleGate>
+              </RouteBoundary>
+            } />
+            <Route path="coordination/webhooks" element={
+              <RouteBoundary>
+                <RoleGate allowed={['admin']}><WebhookManager /></RoleGate>
+              </RouteBoundary>
+            } />
           </Route>
           <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />

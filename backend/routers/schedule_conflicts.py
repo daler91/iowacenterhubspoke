@@ -271,16 +271,26 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
             employee_ids[0], data, drive_time
         )
 
-    # Multiple employees — per-employee breakdown
+    # Multiple employees — per-employee breakdown. Batch-fetch names once
+    # and parallelise conflict checks so the latency scales with the
+    # slowest employee, not the sum of all of them.
+    import asyncio
+
+    emp_docs = await db.employees.find(
+        {"id": {"$in": employee_ids}, "deleted_at": None},
+        {"_id": 0, "id": 1, "name": 1},
+    ).to_list(len(employee_ids))
+    name_map = {e["id"]: e.get("name", e["id"]) for e in emp_docs}
+
+    results = await asyncio.gather(*(
+        _check_conflicts_for_employee(emp_id, data, drive_time)
+        for emp_id in employee_ids
+    ))
+
     per_employee = {}
     any_conflicts = False
-    for emp_id in employee_ids:
-        result = await _check_conflicts_for_employee(
-            emp_id, data, drive_time
-        )
-        # Add employee name for frontend display
-        emp = await db.employees.find_one({"id": emp_id}, {"_id": 0, "name": 1})
-        result["employee_name"] = emp["name"] if emp else emp_id
+    for emp_id, result in zip(employee_ids, results):
+        result["employee_name"] = name_map.get(emp_id, emp_id)
         per_employee[emp_id] = result
         if result["has_conflicts"]:
             any_conflicts = True

@@ -1,6 +1,7 @@
+import os
 import uuid
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from database import db
@@ -13,6 +14,8 @@ from models.schemas import UserRoleUpdate, InviteCreate, ErrorResponse
 from services.notification_events import notify_role_changed
 from services.activity import log_activity, redact_user_from_activity
 from core.logger import get_logger
+
+INVITATION_EXPIRY_DAYS = int(os.environ.get("INVITATION_EXPIRY_DAYS", "14"))
 
 logger = get_logger(__name__)
 
@@ -342,6 +345,7 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
     if existing_invite:
         raise HTTPException(status_code=400, detail="An active invitation already exists for this email")
 
+    now = datetime.now(timezone.utc)
     invite_doc = {
         "id": str(uuid.uuid4()),
         "email": data.email,
@@ -349,14 +353,14 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
         "role": data.role,
         "token": str(uuid.uuid4()),
         "created_by": user["email"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
+        # Native datetime so the MongoDB TTL index prunes stale invitations.
+        "expires_at": now + timedelta(days=INVITATION_EXPIRY_DAYS),
         "status": "pending",
     }
     await db.invitations.insert_one(invite_doc)
     logger.info(f"Invitation created for {data.email} by {user['email']}")
 
-    # Auto-email the invitee; failure is non-fatal so the admin can still
-    # copy the link from the response.
     try:
         from services.email import send_user_invite, resolve_app_url
         invite_url = f"{resolve_app_url()}/login?invite={invite_doc['token']}"
@@ -366,20 +370,27 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
             role=data.role,
             invite_url=invite_url,
         )
+        email_sent = True
     except Exception as e:
-        logger.warning(
+        logger.error(
             "Failed to send user invitation email to %s: %s", data.email, e,
         )
+        email_sent = False
 
+    # Return *metadata* only — never the token. If the email fails, an
+    # admin can resend from the invitations list rather than copy-pasting
+    # a token out of the API response body (which would otherwise land in
+    # access logs and browser history).
     return {
         "id": invite_doc["id"],
         "email": invite_doc["email"],
         "name": invite_doc["name"],
         "role": invite_doc["role"],
-        "token": invite_doc["token"],
         "created_by": invite_doc["created_by"],
         "created_at": invite_doc["created_at"],
+        "expires_at": invite_doc["expires_at"].isoformat(),
         "status": invite_doc["status"],
+        "email_sent": email_sent,
     }
 
 
@@ -409,3 +420,144 @@ async def revoke_invitation(invite_id: str, user: AdminRequired):
     )
     logger.info(f"Invitation {invite_id} revoked by {user['email']}")
     return {"message": "Invitation revoked"}
+
+
+# ── Admin: active refresh-token sessions ─────────────────────────────
+
+@router.get(
+    "/{user_id}/sessions",
+    summary="List active refresh-token sessions for a user",
+    responses={404: {"model": ErrorResponse, "description": USER_NOT_FOUND}},
+)
+async def list_user_sessions(user_id: str, user: AdminRequired):
+    """Return every unrevoked refresh token for the target user.
+    ``jti_prefix`` is for display; ``jti`` is included so admins can
+    revoke individually if a targeted revocation API is added later."""
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+    cursor = db.refresh_tokens.find(
+        {"user_id": user_id, "used_at": None},
+        {"_id": 0, "jti": 1, "issued_at": 1, "expires_at": 1},
+    ).sort("issued_at", -1)
+    rows = await cursor.to_list(length=100)
+    sessions = []
+    for row in rows:
+        exp = row.get("expires_at")
+        if hasattr(exp, "isoformat"):
+            exp = exp.isoformat()
+        sessions.append({
+            "jti_prefix": row["jti"][:8],
+            "jti": row["jti"],
+            "issued_at": row.get("issued_at"),
+            "expires_at": exp,
+        })
+    return {"sessions": sessions}
+
+
+@router.post(
+    "/{user_id}/sessions/revoke-all",
+    summary="Revoke every active refresh token for a user",
+    responses={404: {"model": ErrorResponse, "description": USER_NOT_FOUND}},
+)
+async def revoke_user_sessions(user_id: str, user: AdminRequired):
+    """Force-sign-out the target user on every device. The user's
+    current access token remains valid until it expires (typically 4h);
+    revocation blocks any *renewal* via refresh."""
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.refresh_tokens.update_many(
+        {"user_id": user_id, "used_at": None},
+        {"$set": {"used_at": now, "revoked_reason": "admin_revoked"}},
+    )
+    logger.warning(
+        "Admin revoked all refresh tokens for user",
+        extra={"entity": {
+            "target_user_id": user_id,
+            "admin": user.get("email"),
+            "revoked_count": result.modified_count,
+        }},
+    )
+    return {"revoked_count": result.modified_count}
+
+
+# ── Admin: brute-force lockouts ──────────────────────────────────────
+
+def _parse_lockout_expiry(expires_raw) -> datetime | None:
+    """Normalize the stored expires_at to a UTC-aware datetime.
+
+    Legacy rows may store it as a naive datetime, ISO string, or miss
+    the field entirely — return None for anything we can't interpret
+    so the caller can skip the row cleanly.
+    """
+    if hasattr(expires_raw, "tzinfo"):
+        return (
+            expires_raw
+            if expires_raw.tzinfo
+            else expires_raw.replace(tzinfo=timezone.utc)
+        )
+    if isinstance(expires_raw, str):
+        try:
+            parsed = datetime.fromisoformat(expires_raw)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _mask_lockout_email(email: str) -> str:
+    if "@" not in email:
+        return email
+    return f"{email[:3]}\u2026@{email.split('@', 1)[-1]}"
+
+
+@router.get(
+    "/security/lockouts",
+    summary="List emails currently locked out by brute-force tracking",
+)
+async def list_lockouts(user: AdminRequired):
+    """Return login_failures rows past the threshold with an unexpired
+    window. Useful to spot credential-stuffing patterns that slip
+    under the per-IP SlowAPI limits."""
+    from routers.auth import LOGIN_LOCKOUT_THRESHOLD
+
+    rows = await db.login_failures.find(
+        {"count": {"$gte": LOGIN_LOCKOUT_THRESHOLD}},
+        {"_id": 0},
+    ).to_list(500)
+    now = datetime.now(timezone.utc)
+    active = []
+    for row in rows:
+        expires = _parse_lockout_expiry(row.get("expires_at"))
+        if expires is None or expires < now:
+            continue
+        email = row.get("email", "")
+        active.append({
+            "email_masked": _mask_lockout_email(email),
+            "email": email,  # full value — admin-only response
+            "count": row.get("count", 0),
+            "expires_at": expires.isoformat(),
+            "last_failure_at": row.get("last_failure_at"),
+        })
+    return {"lockouts": active, "count": len(active)}
+
+
+@router.delete(
+    "/security/lockouts/{email}",
+    summary="Clear a specific brute-force lockout by email",
+)
+async def clear_lockout(email: str, user: AdminRequired):
+    """Useful when a legitimate user trips the threshold by
+    fat-fingering their password."""
+    result = await db.login_failures.delete_many({"email": email.lower()})
+    logger.info(
+        "Admin cleared brute-force lockout",
+        extra={"entity": {
+            "email": email.lower(),
+            "admin": user.get("email"),
+            "cleared_count": result.deleted_count,
+        }},
+    )
+    return {"cleared_count": result.deleted_count}

@@ -22,6 +22,7 @@ import {
 } from './ui/alert-dialog';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { SCHEDULE_STATUS } from '../lib/constants';
 
 export default function BulkActionBar({ selectedCount, selectedIds, onComplete, onDeselectAll, employees, locations, classes }) {
@@ -38,7 +39,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       toast.success(`Deleted ${res.data.deleted_count} schedule(s)`);
       onComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete schedules');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete those schedules \u2014 please try again.'));
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -53,7 +54,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       toast.success(`Updated ${res.data.updated_count} schedule(s) to ${status.replace('_', ' ')}`);
       onComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update status');
+      toast.error(describeApiError(err, 'Couldn\u2019t update the status \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       toast.success(`Reassigned ${res.data.updated_count} schedule(s) to ${employeeName}`);
       onComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to reassign schedules');
+      toast.error(describeApiError(err, 'Couldn\u2019t reassign those schedules \u2014 please try again.'));
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -82,7 +83,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       toast.success(`Updated ${res.data.updated_count} schedule(s) to ${locationName}`);
       onComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update location');
+      toast.error(describeApiError(err, 'Couldn\u2019t update the location \u2014 please try again.'));
     } finally {
       setLoading(false);
       setConfirmAction(null);
@@ -97,7 +98,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
       toast.success(`Updated ${res.data.updated_count} schedule(s) to ${className}`);
       onComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update class');
+      toast.error(describeApiError(err, 'Couldn\u2019t update the class \u2014 please try again.'));
     } finally {
       setLoading(false);
       setConfirmAction(null);

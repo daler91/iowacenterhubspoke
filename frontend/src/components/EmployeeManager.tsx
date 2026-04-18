@@ -8,6 +8,7 @@ import { PageShell } from './ui/page-shell';
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { employeesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/utils';
 
@@ -71,7 +72,7 @@ export default function EmployeeManager() {
       onRefresh();
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save employee');
+      toast.error(describeApiError(err, 'Couldn\u2019t save that employee \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -83,8 +84,7 @@ export default function EmployeeManager() {
       toast.success('Employee deleted');
       onRefresh();
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      toast.error(detail || 'Failed to delete employee');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete that employee \u2014 they may still be assigned to schedules.'));
     } finally {
       setDeleteTarget(null);
     }

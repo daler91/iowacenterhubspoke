@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
-from core.auth import CurrentUser
+from core.auth import CurrentUser, SchedulerRequired
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER, ROLE_ADMIN
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
@@ -70,7 +70,7 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
     if not project_ids:
         return {}
     tasks = await db.tasks.find(
-        {"project_id": {"$in": project_ids}},
+        {"project_id": {"$in": project_ids}, "deleted_at": None},
         {"_id": 0, "project_id": 1, "completed": 1, "owner": 1, "due_date": 1},
     ).to_list(10000)
     now = datetime.now(timezone.utc).isoformat()
@@ -203,7 +203,12 @@ async def get_dashboard(
     if upcoming_ids:
         now = datetime.now(timezone.utc).isoformat()
         overdue_count = await db.tasks.count_documents(
-            {"project_id": {"$in": upcoming_ids}, "completed": False, "due_date": {"$lt": now}},
+            {
+                "project_id": {"$in": upcoming_ids},
+                "completed": False,
+                "due_date": {"$lt": now},
+                "deleted_at": None,
+            },
         )
 
     communities = _build_community_breakdown(all_projects)
@@ -333,6 +338,7 @@ async def _clone_template_tasks(
 async def _auto_create_schedule(
     project_doc: dict, data: ProjectCreate,
     location: dict | None, class_id: str,
+    created_by_user_id: str | None = None,
 ) -> str | None:
     """Auto-create a schedule linked to the project. Returns warning string or None."""
     if not location:
@@ -370,6 +376,7 @@ async def _auto_create_schedule(
             False, None,  # town_to_town, warning
             None,  # recurrence_rule
             location, employees, class_doc,
+            created_by_user_id=created_by_user_id,
         )
         await db.schedules.insert_one(sched_doc)
         sched_doc.pop("_id", None)
@@ -403,7 +410,7 @@ async def _auto_create_schedule(
         400: {"description": "Linked schedule or partner org not found"},
     },
 )
-async def create_project(data: ProjectCreate, user: CurrentUser):
+async def create_project(data: ProjectCreate, user: SchedulerRequired):
     # Validate and resolve partner org + location
     partner_org, location = await _resolve_partner_data(data.partner_org_id)
 
@@ -455,7 +462,10 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
         "notes": "",
         "created_at": now,
         "updated_at": now,
-        "created_by": user.get("id", ""),
+        # Use the JWT payload's canonical user id key (``user_id``).
+        # The prior ``user.get("id", "")`` default left every project
+        # attributed to the empty string.
+        "created_by": user.get("user_id", ""),
         "deleted_at": None,
     }
     await db.projects.insert_one(doc)
@@ -472,6 +482,7 @@ async def create_project(data: ProjectCreate, user: CurrentUser):
     ):
         schedule_warning = await _auto_create_schedule(
             doc, data, location, class_id,
+            created_by_user_id=user.get("user_id"),
         )
 
     # Clone tasks from template
@@ -507,7 +518,8 @@ async def get_project(project_id: str, user: CurrentUser):
 
     # Task counts per phase
     tasks = await db.tasks.find(
-        {"project_id": project_id}, {"_id": 0, "phase": 1, "completed": 1}
+        {"project_id": project_id, "deleted_at": None},
+        {"_id": 0, "phase": 1, "completed": 1},
     ).to_list(1000)
     phase_counts = {}
     for phase in PROJECT_PHASES:
@@ -552,7 +564,7 @@ async def get_project(project_id: str, user: CurrentUser):
         404: {"description": PROJECT_NOT_FOUND},
     },
 )
-async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser):
+async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRequired):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
@@ -599,7 +611,7 @@ async def update_project(project_id: str, data: ProjectUpdate, user: CurrentUser
     summary="Delete a project and associated tasks",
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
-async def delete_project(project_id: str, user: CurrentUser):
+async def delete_project(project_id: str, user: SchedulerRequired):
     # Snapshot before soft-delete so the notification can name the project
     # and still resolve the partner_org_id for recipient resolution.
     project_snapshot = await db.projects.find_one(
@@ -612,10 +624,21 @@ async def delete_project(project_id: str, user: CurrentUser):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    # Also soft-delete associated tasks, documents, messages
-    await db.tasks.delete_many({"project_id": project_id})
-    await db.documents.delete_many({"project_id": project_id})
-    await db.messages.delete_many({"project_id": project_id})
+    # Soft-delete associated tasks, documents, messages so the audit trail
+    # survives. Hard deletes would break any downstream report that cites
+    # a task or document that later vanished.
+    await db.tasks.update_many(
+        {"project_id": project_id, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    await db.documents.update_many(
+        {"project_id": project_id, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    await db.messages.update_many(
+        {"project_id": project_id, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
     await log_activity(
         "project_deleted", f"Project '{project_id}' deleted with associated data",
         "project", project_id, user.get("name", "System"),
@@ -636,7 +659,7 @@ async def delete_project(project_id: str, user: CurrentUser):
 )
 async def advance_phase(
     project_id: str,
-    user: CurrentUser,
+    user: SchedulerRequired,
     body: Optional[PhaseAdvanceRequest] = None,
 ):
     force = body.force if body else False
@@ -656,7 +679,7 @@ async def advance_phase(
 
     # Phase gate: check task completion in current phase
     tasks = await db.tasks.find(
-        {"project_id": project_id, "phase": current},
+        {"project_id": project_id, "phase": current, "deleted_at": None},
         {"_id": 0, "id": 1, "title": 1, "completed": 1},
     ).to_list(1000)
     incomplete_tasks = [t for t in tasks if not t.get("completed")]

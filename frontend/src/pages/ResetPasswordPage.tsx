@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { authAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -55,8 +56,7 @@ export default function ResetPasswordPage() {
       toast.success('Password reset! You can now sign in.');
       navigate('/login', { replace: true });
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      toast.error(detail || 'Could not reset password. The link may have expired.');
+      toast.error(describeApiError(err, 'Couldn\u2019t reset password \u2014 the link may have expired.'));
     } finally {
       setLoading(false);
     }

@@ -97,7 +97,11 @@ async def google_callback(request: Request, code: str = None, state: str = None,
     refresh_token = tokens.get("refresh_token")
     access_token = tokens.get("access_token")
     if not refresh_token:
-        logger.error("No refresh_token in Google OAuth response for employee %s", employee_id)
+        from core.logger import mask_id
+        logger.error(
+            "No refresh_token in Google OAuth response",
+            extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+        )
         return _redirect_with_status("error", "error_token")
 
     # Fetch the Google account email to verify identity
@@ -110,7 +114,11 @@ async def google_callback(request: Request, code: str = None, state: str = None,
             if resp.status_code == 200:
                 google_email = resp.json().get("email")
     except Exception:
-        logger.warning("Failed to fetch Google user info for employee %s", employee_id)
+        from core.logger import mask_id
+        logger.warning(
+            "Failed to fetch Google user info",
+            extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+        )
 
     # Store tokens on employee document (encrypted at rest)
     from core.token_vault import encrypt_token
@@ -122,7 +130,15 @@ async def google_callback(request: Request, code: str = None, state: str = None,
         update["google_calendar_email"] = google_email
 
     await db.employees.update_one({"id": employee_id}, {"$set": update})
-    logger.info("Google Calendar connected for employee %s (email: %s)", employee_id, google_email or "unknown")
+    # The employee_id is an internal UUID, not PII, but CodeQL flags
+    # raw IDs as private-clear-text on rule match. Mask the value so
+    # the log still carries a 4/4 correlation key but no grep-able
+    # primary key — the employee record itself holds full context.
+    from core.logger import mask_id
+    logger.info(
+        "Google Calendar connected",
+        extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+    )
 
     return _redirect_with_status("success", "success")
 
@@ -169,7 +185,11 @@ async def google_disconnect(employee_id: str, user: SchedulerRequired):
             },
         },
     )
-    logger.info("Google Calendar disconnected for employee %s", employee_id)
+    from core.logger import mask_id
+    logger.info(
+        "Google Calendar disconnected",
+        extra={"entity": {"employee_id_masked": mask_id(employee_id)}},
+    )
     return {"message": "Google Calendar disconnected"}
 
 

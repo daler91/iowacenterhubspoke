@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { PageShell } from './ui/page-shell';
-import { CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Copy, Mail } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Mail, LogOut, Lock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -37,8 +37,18 @@ export default function UserManager() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'viewer' });
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [generatedLink, setGeneratedLink] = useState(null);
+  const [invitationSent, setInvitationSent] = useState<{ email: string; emailSent: boolean } | null>(null);
   const [invitations, setInvitations] = useState([]);
+
+  // Sessions dialog — reached per-user via the "Sessions" button.
+  const [sessionsFor, setSessionsFor] = useState<{ id: string; email: string } | null>(null);
+  const [sessions, setSessions] = useState<Array<{ jti: string; jti_prefix: string; issued_at?: string; expires_at?: string }>>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [revokingSessions, setRevokingSessions] = useState(false);
+
+  // Active brute-force lockouts. Fetched alongside users and rendered
+  // inline above the user list when non-empty.
+  const [lockouts, setLockouts] = useState<Array<{ email: string; email_masked: string; count: number; expires_at: string }>>([]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -60,10 +70,20 @@ export default function UserManager() {
     }
   }, []);
 
+  const fetchLockouts = useCallback(async () => {
+    try {
+      const res = await usersAPI.listLockouts();
+      setLockouts(Array.isArray(res.data.lockouts) ? res.data.lockouts : []);
+    } catch {
+      // Silent — security lockouts are supplementary info on the page.
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
     fetchInvitations();
-  }, [fetchUsers, fetchInvitations]);
+    fetchLockouts();
+  }, [fetchUsers, fetchInvitations, fetchLockouts]);
 
   const handleApprove = async (userId) => {
     try {
@@ -113,28 +133,25 @@ export default function UserManager() {
     }
     setInviteLoading(true);
     try {
+      // Backend intentionally does NOT return the raw invite token any
+      // more — it sends the email directly. We show a confirmation
+      // panel; if the email fails the backend flags ``email_sent:false``
+      // and the admin can resend from the invitations list.
       const res = await usersAPI.invite({
         email: inviteForm.email,
         name: inviteForm.name || null,
         role: inviteForm.role,
       });
-      const link = `${globalThis.location.origin}/login?invite=${res.data.token}`;
-      setGeneratedLink(link);
+      setInvitationSent({
+        email: res.data.email,
+        emailSent: Boolean(res.data.email_sent),
+      });
       toast.success('Invitation created');
       fetchInvitations();
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to create invitation'));
     } finally {
       setInviteLoading(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedLink);
-      toast.success('Link copied to clipboard');
-    } catch {
-      toast.error('Failed to copy link');
     }
   };
 
@@ -150,8 +167,51 @@ export default function UserManager() {
 
   const closeInviteDialog = () => {
     setInviteDialogOpen(false);
-    setGeneratedLink(null);
+    setInvitationSent(null);
     setInviteForm({ email: '', name: '', role: 'viewer' });
+  };
+
+  const openSessions = async (u: { id: string; email: string }) => {
+    setSessionsFor(u);
+    setSessions([]);
+    setSessionsLoading(true);
+    try {
+      const res = await usersAPI.listSessions(u.id);
+      setSessions(Array.isArray(res.data.sessions) ? res.data.sessions : []);
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to load sessions'));
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const closeSessions = () => {
+    setSessionsFor(null);
+    setSessions([]);
+  };
+
+  const handleRevokeAllSessions = async () => {
+    if (!sessionsFor) return;
+    setRevokingSessions(true);
+    try {
+      const res = await usersAPI.revokeAllSessions(sessionsFor.id);
+      toast.success(`Revoked ${res.data.revoked_count || 0} session(s)`);
+      setSessions([]);
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to revoke sessions'));
+    } finally {
+      setRevokingSessions(false);
+    }
+  };
+
+  const handleClearLockout = async (email: string) => {
+    try {
+      await usersAPI.clearLockout(email);
+      toast.success(`Cleared lockout for ${email}`);
+      fetchLockouts();
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to clear lockout'));
+    }
   };
 
   // Derived lists must be computed before any conditional return so the hook
@@ -276,6 +336,48 @@ export default function UserManager() {
             </div>
           )}
 
+          {lockouts.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-danger" aria-hidden="true" />
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
+                  Security Lockouts ({lockouts.length})
+                </h2>
+              </div>
+              <div className="bg-danger-soft border border-danger/20 rounded-lg p-4 space-y-2">
+                <p className="text-xs text-danger">
+                  These accounts have hit the per-email failed-login threshold
+                  and are temporarily blocked from signing in. Clear a
+                  lockout if the user is locked out by mistake.
+                </p>
+                {lockouts.map((l) => (
+                  <div
+                    key={l.email}
+                    className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-3 shadow-sm"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-gray-100">
+                        {l.email}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                        {l.count} failures &middot; unlocks {new Date(l.expires_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleClearLockout(l.email)}
+                      className="border-spoke/30 text-spoke hover:bg-spoke-soft"
+                    >
+                      <Unlock className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+                      Clear
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">All Users</h2>
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -324,22 +426,34 @@ export default function UserManager() {
                         </Select>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {u.id !== user.id && (
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDelete(u.id)}
-                            className="text-danger hover:text-danger hover:bg-danger-soft"
-                            aria-label={`Delete ${u.name || u.email}`}
+                            onClick={() => openSessions({ id: u.id, email: u.email })}
+                            aria-label={`View sessions for ${u.email || 'user'}`}
+                            title="View active sessions"
+                            className="text-muted-foreground hover:text-indigo-600"
                           >
-                            <Trash2 className="w-4 h-4" aria-hidden="true" />
+                            <LogOut className="w-4 h-4" aria-hidden="true" />
                           </Button>
-                        )}
-                        {u.id === user.id && (
-                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                            <Shield className="w-3 h-3" /> You
-                          </span>
-                        )}
+                          {u.id !== user.id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(u.id)}
+                              aria-label={`Delete ${u.email || 'user'}`}
+                              className="text-danger hover:text-danger hover:bg-danger-soft"
+                            >
+                              <Trash2 className="w-4 h-4" aria-hidden="true" />
+                            </Button>
+                          )}
+                          {u.id === user.id && (
+                            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 ml-1">
+                              <Shield className="w-3 h-3" /> You
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -357,35 +471,29 @@ export default function UserManager() {
           <DialogHeader>
             <DialogTitle>Invite User</DialogTitle>
             <DialogDescription>
-              {generatedLink
-                ? 'Share this link with the person you want to invite.'
-                : 'Create an invitation link for a new user. They will be auto-approved when they register.'}
+              {invitationSent
+                ? 'The invitation has been created.'
+                : 'Create an invitation for a new user. We\u2019ll email them a signup link that auto-approves their account.'}
             </DialogDescription>
           </DialogHeader>
 
-          {generatedLink ? (
+          {invitationSent ? (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="invite-generated-link">Invitation Link</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="invite-generated-link"
-                    readOnly
-                    value={generatedLink}
-                    className="h-10 bg-gray-50 dark:bg-gray-800 text-sm font-mono"
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleCopyLink}
-                    aria-label="Copy invitation link"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
-                  >
-                    <Copy className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
-                  This link will allow the recipient to register and be automatically approved.
+              <div className="p-3 rounded-lg bg-spoke-soft border border-spoke/20">
+                <p className="text-sm font-medium text-spoke flex items-center gap-2">
+                  <Mail className="w-4 h-4" aria-hidden="true" />
+                  {invitationSent.emailSent
+                    ? `Invitation emailed to ${invitationSent.email}`
+                    : `Invitation created for ${invitationSent.email}`}
                 </p>
+                {!invitationSent.emailSent && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    We couldn&rsquo;t send the email right now. The invitation is
+                    still valid &mdash; you can resend it from the Pending
+                    Invitations list below, or ask the user to check their
+                    spam folder if they receive it later.
+                  </p>
+                )}
               </div>
               <DialogFooter>
                 <Button
@@ -448,6 +556,77 @@ export default function UserManager() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Active-session management for a single user. Opens when an admin
+          clicks the logout-icon button on a row. "Revoke all" invalidates
+          every refresh token for that user across every device; their
+          current access token lives until it expires (typically 4h). */}
+      <Dialog open={!!sessionsFor} onOpenChange={(o) => { if (!o) closeSessions(); }}>
+        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle>Active sessions</DialogTitle>
+            <DialogDescription>
+              {sessionsFor ? sessionsFor.email : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {sessionsLoading && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center justify-center py-8 text-sm text-muted-foreground"
+            >
+              <span className="sr-only">Loading sessions</span>
+              <span
+                aria-hidden="true"
+                className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"
+              />
+            </div>
+          )}
+          {!sessionsLoading && sessions.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No active sessions.
+            </p>
+          )}
+          {!sessionsLoading && sessions.length > 0 && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {sessions.map((s) => (
+                <div
+                  key={s.jti}
+                  className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3"
+                >
+                  <div>
+                    <p className="text-sm font-mono text-slate-900 dark:text-gray-100">
+                      {s.jti_prefix}&hellip;
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                      {s.issued_at
+                        ? `issued ${new Date(s.issued_at).toLocaleString()}`
+                        : 'issue time unknown'}
+                    </p>
+                  </div>
+                  {s.expires_at && (
+                    <p className="text-xs text-muted-foreground">
+                      expires {new Date(s.expires_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={closeSessions}>
+              Close
+            </Button>
+            <Button
+              onClick={handleRevokeAllSessions}
+              disabled={revokingSessions || sessions.length === 0}
+              className="bg-danger hover:bg-danger/90 text-white"
+            >
+              {revokingSessions ? 'Revoking\u2026' : 'Revoke all'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

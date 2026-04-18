@@ -1,5 +1,6 @@
 """Partner portal dashboard and project-list endpoints."""
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
@@ -23,9 +24,13 @@ router = APIRouter(prefix="/portal", tags=["portal"])
 async def portal_dashboard(ctx: PortalContext):
     org_id = ctx["partner_org_id"]
 
-    projects = await db.projects.find(
-        {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-    ).sort("event_date", 1).to_list(100)
+    projects = await (
+        db.projects.find(
+            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+        )
+        .sort("event_date", 1)
+        .to_list(100)
+    )
 
     project_ids = [p["id"] for p in projects]
     upcoming = [p for p in projects if p.get("phase") != "complete"]
@@ -35,16 +40,26 @@ async def portal_dashboard(ctx: PortalContext):
     overdue_tasks = 0
     now = datetime.now(timezone.utc).isoformat()
     if project_ids:
-        tasks = await db.tasks.find(
-            {
+        # The two counts query the same task set but with different
+        # date predicates — run them in parallel so dashboard latency
+        # is bounded by the slower query, not the sum.
+        open_cursor, overdue_cursor = await asyncio.gather(
+            db.tasks.count_documents({
                 "project_id": {"$in": project_ids},
                 "owner": {"$in": ["partner", "both"]},
                 "completed": False,
-            },
-            {"_id": 0},
-        ).to_list(1000)
-        open_tasks = len(tasks)
-        overdue_tasks = sum(1 for t in tasks if t.get("due_date", "") < now)
+                "deleted_at": None,
+            }),
+            db.tasks.count_documents({
+                "project_id": {"$in": project_ids},
+                "owner": {"$in": ["partner", "both"]},
+                "completed": False,
+                "deleted_at": None,
+                "due_date": {"$lt": now},
+            }),
+        )
+        open_tasks = open_cursor
+        overdue_tasks = overdue_cursor
 
     return {
         "org": ctx["org"],

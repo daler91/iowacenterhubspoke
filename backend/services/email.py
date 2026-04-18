@@ -1,8 +1,21 @@
 import os
 from html import escape
+from html import escape as _esc
+
 from core.logger import get_logger
 
+
 logger = get_logger(__name__)
+
+
+def _e(value: object) -> str:
+    """HTML-escape a user-controlled value before embedding in an
+    email body. Wraps ``html.escape`` so every template site is a
+    single short call — the goal is to make unsafe interpolations
+    visible the moment someone reads the code.
+    """
+    return _esc("" if value is None else str(value), quote=True)
+
 
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@iowacenter.org")
@@ -85,13 +98,17 @@ async def send_task_reminder(
     task_title: str, project_title: str,
     due_date: str, days_until: int,
 ) -> bool:
-    subject = f"Reminder: \"{task_title}\" is due in {days_until} day(s)"
+    # User-controlled strings are HTML-escaped before interpolation so
+    # a malicious task title like ``<img src=x onerror=...>`` can't
+    # execute in the recipient's mail client. Subjects are plain text
+    # per RFC 5322 so escaping there is defence-in-depth.
+    subject = f'Reminder: "{task_title}" is due in {days_until} day(s)'
     body = (
-        f"<p>Hi {contact_name},</p>"
+        f"<p>Hi {_e(contact_name)},</p>"
         f"<p>This is a reminder that the task "
-        f"<strong>{task_title}</strong> for "
-        f"<strong>{project_title}</strong> is due on "
-        f"{due_date}.</p>"
+        f"<strong>{_e(task_title)}</strong> for "
+        f"<strong>{_e(project_title)}</strong> is due on "
+        f"{_e(due_date)}.</p>"
         f"<p>Please complete it at your earliest convenience.</p>"
         f"{_SIGNATURE}"
     )
@@ -103,12 +120,12 @@ async def send_task_overdue(
     task_title: str, project_title: str,
     due_date: str, days_overdue: int,
 ) -> bool:
-    subject = f"Overdue: \"{task_title}\" was due {days_overdue} day(s) ago"
+    subject = f'Overdue: "{task_title}" was due {days_overdue} day(s) ago'
     body = (
-        f"<p>Hi {contact_name},</p>"
-        f"<p>The task <strong>{task_title}</strong> for "
-        f"<strong>{project_title}</strong> was due on "
-        f"{due_date} and is now <strong>{days_overdue} day(s) "
+        f"<p>Hi {_e(contact_name)},</p>"
+        f"<p>The task <strong>{_e(task_title)}</strong> for "
+        f"<strong>{_e(project_title)}</strong> was due on "
+        f"{_e(due_date)} and is now <strong>{days_overdue} day(s) "
         f"overdue</strong>.</p>"
         f"<p>Please complete it as soon as possible.</p>"
         f"{_SIGNATURE}"
@@ -121,18 +138,21 @@ async def send_portal_invite(
     portal_url: str,
 ) -> bool:
     """Send a portal access magic link to a partner contact."""
+    # Local import keeps this module's import graph flat — email_jobs
+    # imports services.email, so a top-level import would be circular.
+    from services.email_jobs import PORTAL_TOKEN_EXPIRY_DAYS
     subject = f"You're invited to the {org_name} partner portal"
     body = (
-        f"<p>Hi {contact_name},</p>"
-        f"<p>You've been invited to access the <strong>{org_name}</strong> "
+        f"<p>Hi {_e(contact_name)},</p>"
+        f"<p>You've been invited to access the <strong>{_e(org_name)}</strong> "
         f"partner portal for the Iowa Center for Economic Success.</p>"
         f"<p>Use the link below to view your upcoming classes, tasks, "
         f"shared documents, and messages:</p>"
-        f"<p><a href=\"{portal_url}\" "
-        f"style=\"{_BUTTON_STYLE}\">Open Partner Portal</a></p>"
-        f"<p style=\"color:#6b7280;font-size:13px;\">This link expires in "
-        f"7 days. If it expires, ask your Iowa Center contact to send a "
-        f"new one.</p>"
+        f'<p><a href="{_e(portal_url)}" '
+        f'style="{_BUTTON_STYLE}">Open Partner Portal</a></p>'
+        f'<p style="color:#6b7280;font-size:13px;">This link expires in '
+        f"{PORTAL_TOKEN_EXPIRY_DAYS} day(s). If it expires, ask your Iowa "
+        f"Center contact to send a new one.</p>"
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
@@ -145,14 +165,14 @@ async def send_user_invite(
     subject = "You're invited to the Iowa Center Hub"
     display_name = name or "there"
     body = (
-        f"<p>Hi {display_name},</p>"
+        f"<p>Hi {_e(display_name)},</p>"
         f"<p>You've been invited to join the Iowa Center for Economic "
-        f"Success scheduling hub as a <strong>{role}</strong>.</p>"
+        f"Success scheduling hub as a <strong>{_e(role)}</strong>.</p>"
         f"<p>Click the button below to create your account and get started:</p>"
-        f"<p><a href=\"{invite_url}\" "
-        f"style=\"{_BUTTON_STYLE}\">Accept Invitation</a></p>"
-        f"<p style=\"color:#6b7280;font-size:13px;\">If the button doesn't "
-        f"work, copy and paste this link into your browser:<br>{invite_url}</p>"
+        f'<p><a href="{_e(invite_url)}" '
+        f'style="{_BUTTON_STYLE}">Accept Invitation</a></p>'
+        f'<p style="color:#6b7280;font-size:13px;">If the button doesn\'t '
+        f"work, copy and paste this link into your browser:<br>{_e(invite_url)}</p>"
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
@@ -163,7 +183,7 @@ async def send_welcome_pending(to: str, name: str) -> bool:
     subject = "Your Iowa Center Hub registration is pending"
     display_name = name or "there"
     body = (
-        f"<p>Hi {display_name},</p>"
+        f"<p>Hi {_e(display_name)},</p>"
         f"<p>Thanks for signing up for the Iowa Center for Economic Success "
         f"scheduling hub. Your account has been created and is now waiting "
         f"for an administrator to review and approve it.</p>"
@@ -181,11 +201,11 @@ async def send_account_approved(
     subject = "Your Iowa Center Hub account is approved"
     display_name = escape(name) if name else "there"
     body = (
-        f"<p>Hi {display_name},</p>"
+        f"<p>Hi {_e(display_name)},</p>"
         f"<p>Good news — an administrator has approved your Iowa Center Hub "
         f"account. You can sign in any time using the button below.</p>"
-        f"<p><a href=\"{escape(login_url)}\" "
-        f"style=\"{_BUTTON_STYLE}\">Sign In</a></p>"
+        f'<p><a href="{_e(login_url)}" '
+        f'style="{_BUTTON_STYLE}">Sign In</a></p>'
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
@@ -214,19 +234,21 @@ async def send_account_rejected(to: str, name: str) -> bool:
 async def send_password_reset(
     to: str, name: str, reset_url: str,
 ) -> bool:
-    """Send a password reset link. Link expires in 1 hour."""
+    """Send a password reset link. Expiry comes from email_jobs so
+    the copy stays in sync with the actual token lifetime."""
+    from services.email_jobs import PASSWORD_RESET_EXPIRY_HOURS
     subject = "Reset your Iowa Center Hub password"
     display_name = name or "there"
     body = (
-        f"<p>Hi {display_name},</p>"
+        f"<p>Hi {_e(display_name)},</p>"
         f"<p>We received a request to reset the password on your Iowa "
         f"Center Hub account. Click the button below to choose a new "
         f"password:</p>"
-        f"<p><a href=\"{reset_url}\" "
-        f"style=\"{_BUTTON_STYLE}\">Reset Password</a></p>"
-        f"<p style=\"color:#6b7280;font-size:13px;\">This link expires in "
-        f"1 hour. If you didn't request a password reset, you can safely "
-        f"ignore this email.</p>"
+        f'<p><a href="{_e(reset_url)}" '
+        f'style="{_BUTTON_STYLE}">Reset Password</a></p>'
+        f'<p style="color:#6b7280;font-size:13px;">This link expires in '
+        f"{PASSWORD_RESET_EXPIRY_HOURS} hour(s). If you didn't request a "
+        f"password reset, you can safely ignore this email.</p>"
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)

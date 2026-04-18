@@ -364,7 +364,7 @@ export default function NotificationsPanel() {
                         className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   );

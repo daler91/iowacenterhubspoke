@@ -49,5 +49,8 @@ export default function useSelectionMode() {
     deselectAll,
     isSelected,
     clearSelection,
-  }), [selectionMode, selectedIds, selectedCount, toggleSelectionMode, toggleItem, selectAll, deselectAll, isSelected, clearSelection]);
+    // selectedCount is derived from selectedIds.size — listing it
+    // as its own dep is redundant and would only cause noise if the
+    // exhaustive-deps lint ever grew stricter.
+  }), [selectionMode, selectedIds, toggleSelectionMode, toggleItem, selectAll, deselectAll, isSelected, clearSelection]);
 }

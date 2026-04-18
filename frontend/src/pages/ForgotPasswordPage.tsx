@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -21,8 +22,7 @@ export default function ForgotPasswordPage() {
       setSubmitted(true);
       toast.success('If that email is registered, a reset link is on its way');
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      toast.error(detail || 'Something went wrong. Please try again.');
+      toast.error(describeApiError(err, 'Couldn\u2019t send reset link \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
