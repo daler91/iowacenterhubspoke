@@ -44,12 +44,16 @@ from routers import (  # noqa: E402
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
+# MongoDB query operator — extracted so Sonar stops flagging S1192 on
+# repeated literal use within this module's index/migration setup.
+_MONGO_EXISTS = "$exists"
+
 
 async def _run_startup_migrations():
     """Migrate existing users and promote admin if configured."""
     try:
         result = await db.users.update_many(
-            {"status": {"$exists": False}},
+            {"status": {_MONGO_EXISTS: False}},
             {"$set": {"status": USER_STATUS_APPROVED}}
         )
         if result.modified_count > 0:
@@ -95,7 +99,7 @@ async def _ensure_indexes():
             "idempotency_key",
             unique=True,
             partialFilterExpression={
-                "idempotency_key": {"$exists": True, "$type": "string"},
+                "idempotency_key": {_MONGO_EXISTS: True, "$type": "string"},
                 "deleted_at": None,
             },
             name="idempotency_key_live_unique",
@@ -200,7 +204,7 @@ async def _ensure_indexes():
         #   unsent after 30d is lost to ops; leaving it longer just bloats).
         # Partial filter skips rows without the BSON-Date field (old rows
         # written before this index existed).
-        ttl_partial_filter = {"created_at_date": {"$exists": True}}
+        ttl_partial_filter = {"created_at_date": {_MONGO_EXISTS: True}}
         await db.notifications.create_index(
             "created_at_date", expireAfterSeconds=60 * 60 * 24 * 365,
             partialFilterExpression=ttl_partial_filter,
