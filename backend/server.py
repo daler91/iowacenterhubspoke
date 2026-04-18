@@ -84,25 +84,32 @@ async def _ensure_indexes():
         await db.schedules.create_index([("location_id", 1), ("date", 1)])
         await db.schedules.create_index([("date", 1), ("status", 1)])
         await db.schedules.create_index([("deleted_at", 1)])
-        # Partial unique index on idempotency_key. Uniqueness is enforced
-        # only among LIVE (non-soft-deleted) schedules — if a user soft-
-        # deletes a schedule and retries with the same key, the new insert
-        # must succeed. Sparse-without-partial would fire a duplicate-key
-        # error on that retry. Older deploys may have the prior sparse-
-        # unique variant without the partial filter; drop it so Mongo
-        # doesn't refuse the new definition with IndexOptionsConflict.
-        try:
-            await db.schedules.drop_index("idempotency_key_1")
-        except Exception:
-            pass  # Index didn't exist — fresh DB or already replaced.
+        # Compound partial-unique index on (created_by_user_id,
+        # idempotency_key). Uniqueness is scoped PER-USER to match
+        # schedule-replay logic, which already filters by
+        # created_by_user_id — two different users submitting the
+        # same client-generated key must not collide. Uniqueness is
+        # also limited to LIVE (non-soft-deleted) schedules so a
+        # retry after soft-delete succeeds. Older deploys may carry
+        # the prior single-field variant (idempotency_key_1 or
+        # idempotency_key_live_unique); drop both so Mongo doesn't
+        # refuse the new definition with IndexOptionsConflict.
+        for stale_index in (
+            "idempotency_key_1",
+            "idempotency_key_live_unique",
+        ):
+            try:
+                await db.schedules.drop_index(stale_index)
+            except Exception:
+                pass  # Index didn't exist — fresh DB or already replaced.
         await db.schedules.create_index(
-            "idempotency_key",
+            [("created_by_user_id", 1), ("idempotency_key", 1)],
             unique=True,
             partialFilterExpression={
                 "idempotency_key": {_MONGO_EXISTS: True, "$type": "string"},
                 "deleted_at": None,
             },
-            name="idempotency_key_live_unique",
+            name="idempotency_key_per_user_live_unique",
         )
         # Compound (id, deleted_at) indexes so batch $in lookups don't collection-scan.
         await db.employees.create_index([("id", 1), ("deleted_at", 1)])

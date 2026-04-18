@@ -158,6 +158,16 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail='Invalid token')
 
+    # Enforce access/refresh separation. A refresh JWT is signed with
+    # the same JWT_SECRET but carries ``typ: refresh`` and is meant to
+    # be exchanged at /auth/refresh only — it must not grant access to
+    # authenticated endpoints. Without this check a stolen/logged
+    # refresh cookie could impersonate the user for the refresh
+    # token's full lifetime, and some handlers would crash on missing
+    # access-only claims (email/name).
+    if payload.get('typ') != 'access':
+        raise HTTPException(status_code=401, detail='Invalid token type')
+
     # Session invalidation: reject tokens issued before a password change
     # or belonging to a soft-deleted user account.
     token_iat = payload.get('iat', 0)

@@ -419,6 +419,71 @@ async def logout(request: Request, response: Response):
         },
     },
 )
+def _used_at_age_seconds(used_at) -> float | None:
+    """Return the number of seconds since a refresh-token's ``used_at``,
+    or ``None`` when the value is missing or unparseable."""
+    if not isinstance(used_at, str):
+        return None
+    try:
+        used_dt = datetime.fromisoformat(used_at)
+    except ValueError:
+        return None
+    if used_dt.tzinfo is None:
+        used_dt = used_dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - used_dt).total_seconds()
+
+
+async def _handle_refresh_claim_miss(
+    jti: str, now_iso: str, response: Response,
+) -> None:
+    """Decide whether a missed CAS is a legit race or a replay.
+
+    * no row → unknown token, 401.
+    * row exists + consumed within the grace window → two-tabs race;
+      401 the loser without revoking so its next call uses the
+      already-rotated cookie.
+    * row exists + consumed longer ago → stolen cookie resurfacing;
+      revoke the whole chain and sign out everywhere.
+
+    Always raises — never returns normally.
+    """
+    existing = await db.refresh_tokens.find_one(
+        {"jti": jti}, {"_id": 0, "user_id": 1, "used_at": 1},
+    )
+    if not existing:
+        raise HTTPException(status_code=401, detail="Unknown refresh token")
+
+    age_seconds = _used_at_age_seconds(existing.get("used_at"))
+    if age_seconds is not None and age_seconds < _REFRESH_RACE_GRACE_SECONDS:
+        logger.info(
+            "Refresh race ignored (within grace window)",
+            extra={"entity": {
+                "user_id": existing["user_id"],
+                "jti_prefix": jti[:8],
+                "age_seconds": round(age_seconds, 2),
+            }},
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh already in flight — retry with the latest cookie.",
+        )
+
+    await db.refresh_tokens.update_many(
+        {"user_id": existing["user_id"], "used_at": None},
+        {"$set": {"used_at": now_iso, "revoked_reason": "replay_detected"}},
+    )
+    response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
+    response.delete_cookie(key="refresh_token", httponly=True, samesite="lax", secure=True, path="/api")
+    logger.warning(
+        "Refresh token replay — all sessions revoked",
+        extra={"entity": {"user_id": existing["user_id"], "jti_prefix": jti[:8]}},
+    )
+    raise HTTPException(
+        status_code=401,
+        detail="Session reused — all devices have been signed out for safety. Sign in again.",
+    )
+
+
 @limiter.limit("20/minute")
 async def refresh_session(request: Request, response: Response):
     """Exchange a valid refresh cookie for a fresh access+refresh pair.
@@ -449,70 +514,8 @@ async def refresh_session(request: Request, response: Response):
         {"$set": {"used_at": now_iso}},
         projection={"_id": 0},
     )
-
     if claimed is None:
-        # Either the jti doesn't exist or it was already consumed.
-        # Distinguish:
-        #   * no row → unknown token, just 401.
-        #   * row exists and was consumed moments ago → legitimate
-        #     concurrent refresh (two tabs / double-click). The winner
-        #     has already rotated the cookie in the shared browser jar,
-        #     so we just ask the loser to retry.
-        #   * row exists and was consumed longer ago → genuine replay
-        #     (stolen cookie resurfacing) → revoke the whole chain.
-        existing = await db.refresh_tokens.find_one(
-            {"jti": jti}, {"_id": 0, "user_id": 1, "used_at": 1},
-        )
-        if not existing:
-            raise HTTPException(status_code=401, detail="Unknown refresh token")
-
-        used_at = existing.get("used_at")
-        age_seconds = None
-        if isinstance(used_at, str):
-            try:
-                used_dt = datetime.fromisoformat(used_at)
-                if used_dt.tzinfo is None:
-                    used_dt = used_dt.replace(tzinfo=timezone.utc)
-                age_seconds = (
-                    datetime.now(timezone.utc) - used_dt
-                ).total_seconds()
-            except ValueError:
-                age_seconds = None
-
-        if age_seconds is not None and age_seconds < _REFRESH_RACE_GRACE_SECONDS:
-            # Legit race. Don't revoke — the winning request already
-            # rotated the cookie; the browser will present the fresh
-            # one on the next call.
-            logger.info(
-                "Refresh race ignored (within grace window)",
-                extra={"entity": {
-                    "user_id": existing["user_id"],
-                    "jti_prefix": jti[:8],
-                    "age_seconds": round(age_seconds, 2),
-                }},
-            )
-            raise HTTPException(
-                status_code=401,
-                detail="Refresh already in flight — retry with the latest cookie.",
-            )
-
-        await db.refresh_tokens.update_many(
-            {"user_id": existing["user_id"], "used_at": None},
-            {"$set": {
-                "used_at": now_iso,
-                "revoked_reason": "replay_detected",
-            }},
-        )
-        response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
-        response.delete_cookie(key="refresh_token", httponly=True, samesite="lax", secure=True, path="/api")
-        logger.warning(
-            "Refresh token replay — all sessions revoked",
-            extra={"entity": {"user_id": existing["user_id"], "jti_prefix": jti[:8]}},
-        )
-        raise HTTPException(
-            status_code=401,
-            detail="Session reused — all devices have been signed out for safety. Sign in again.",
-        )
+        await _handle_refresh_claim_miss(jti, now_iso, response)
 
     user_doc = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user_doc or user_doc.get("status") != USER_STATUS_APPROVED:

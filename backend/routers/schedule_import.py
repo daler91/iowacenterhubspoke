@@ -320,6 +320,16 @@ def _prepare_import_row(item, loc_map, emp_map):
 
     Returns (prepared_entry, ref_error). Exactly one is None.
     """
+    # An empty employee_ids list skips the ``any(... is None ...)`` check
+    # below (any([]) is False) and would let a schedule with no
+    # assignees through to insert — downstream code assumes every
+    # schedule has at least one employee (conflict checks, employee
+    # stats, town-to-town sync), so fail the row up front.
+    if not item.employee_ids:
+        return None, {
+            "row": item.row_idx,
+            "error": "At least one employee is required",
+        }
     location = loc_map.get(item.location_id)
     emps = [emp_map.get(eid) for eid in item.employee_ids]
     if not location or any(e is None for e in emps):
