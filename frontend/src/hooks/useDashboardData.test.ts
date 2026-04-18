@@ -55,7 +55,7 @@ describe('useDashboardData', () => {
   });
 
   it('should return default formatted data when useSWR returns valid data', () => {
-    const { result } = renderHook(() => useDashboardData());
+    const { result } = renderHook(() => useDashboardData({ needActivity: true, needWorkload: true }));
 
     expect(result.current.locations).toEqual([{ id: 1, name: 'Location 1' }]);
     expect(result.current.employees).toEqual([{ id: 1, name: 'Employee 1' }]);
@@ -72,7 +72,7 @@ describe('useDashboardData', () => {
       return { data: undefined, mutate: jest.fn() };
     });
 
-    const { result } = renderHook(() => useDashboardData());
+    const { result } = renderHook(() => useDashboardData({ needActivity: true, needWorkload: true }));
 
     expect(result.current.locations).toEqual([]);
     expect(result.current.employees).toEqual([]);
@@ -84,7 +84,7 @@ describe('useDashboardData', () => {
   });
 
   it('should call the correct mutate functions in handleClassRefresh', () => {
-    const { result } = renderHook(() => useDashboardData());
+    const { result } = renderHook(() => useDashboardData({ needActivity: true, needWorkload: true }));
 
     act(() => {
       result.current.handleClassRefresh();
@@ -104,7 +104,7 @@ describe('useDashboardData', () => {
   });
 
   it('should call the correct mutate functions in handleScheduleSaved', () => {
-    const { result } = renderHook(() => useDashboardData());
+    const { result } = renderHook(() => useDashboardData({ needActivity: true, needWorkload: true }));
 
     act(() => {
       result.current.handleScheduleSaved();

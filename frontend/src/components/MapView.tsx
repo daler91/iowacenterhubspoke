@@ -1,12 +1,57 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { MapPin, Car, Navigation } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 const HUB = { lat: 41.5868, lng: -93.654 };
+// Stable empty-array reference so `SpokeMarker`'s memo doesn't invalidate when
+// a location has no schedules (a fresh `[]` would be a new ref each render).
+const EMPTY_LIST: never[] = [];
 
 import { useOutletContext, useNavigate } from 'react-router-dom';
+
+// Memoised so adding/updating a single schedule doesn't re-render every marker
+// on the map — only the one(s) whose `locSchedules` array reference changed.
+// `navigate` is a stable ref from react-router, so building the click handler
+// inline here is memo-safe (unlike passing `() => navigate(...)` from the
+// parent map, which would create a fresh function per render per marker).
+const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
+  return (
+    <AdvancedMarker position={{ lat: loc.latitude, lng: loc.longitude }} onClick={() => navigate(`/locations/${loc.id}`)}>
+      <div className="relative group cursor-pointer" data-testid={`spoke-marker-${loc.id}`}>
+        <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+          <Navigation className="w-5 h-5 text-white" />
+        </div>
+        {locSchedules.length > 0 && (
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+            {locSchedules.length}
+          </div>
+        )}
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]">
+            <p className="font-bold text-sm text-teal-700 dark:text-teal-400">{loc.city_name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Car className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
+            </div>
+            {locSchedules.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Today's Classes</p>
+                {locSchedules.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 mt-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />
+                    <span className="text-xs text-slate-600 dark:text-gray-300">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </AdvancedMarker>
+  );
+});
 
 export default function MapView() {
   const { locations, schedules } = useOutletContext();
@@ -16,14 +61,15 @@ export default function MapView() {
     [locations]
   );
 
-  // Count today's schedules per location
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Compute `todayStr` once per mount. Putting `new Date()` in the render body
+  // produced a fresh string (identity-equal, reference-unequal) that
+  // invalidated the `todayByLoc` memo on every render.
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const todayByLoc = useMemo(() => {
-    const map = {};
+    const map: Record<string, typeof schedules> = {};
     (schedules || []).forEach(s => {
       if (s.date === todayStr) {
-        if (!map[s.location_id]) map[s.location_id] = [];
-        map[s.location_id].push(s);
+        (map[s.location_id] ||= []).push(s);
       }
     });
     return map;
@@ -81,43 +127,14 @@ export default function MapView() {
             </AdvancedMarker>
 
             {/* Spoke markers */}
-            {validLocations.map(loc => {
-              const locSchedules = todayByLoc[loc.id] || [];
-              return (
-                <AdvancedMarker key={loc.id} position={{ lat: loc.latitude, lng: loc.longitude }} onClick={() => navigate(`/locations/${loc.id}`)}>
-                  <div className="relative group cursor-pointer" data-testid={`spoke-marker-${loc.id}`}>
-                    <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                      <Navigation className="w-5 h-5 text-white" />
-                    </div>
-                    {locSchedules.length > 0 && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
-                        {locSchedules.length}
-                      </div>
-                    )}
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]">
-                        <p className="font-bold text-sm text-teal-700 dark:text-teal-400">{loc.city_name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Car className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
-                        </div>
-                        {locSchedules.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Today's Classes</p>
-                            {locSchedules.map(s => (
-                              <div key={s.id} className="flex items-center gap-2 mt-1">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />
-                                <span className="text-xs text-slate-600 dark:text-gray-300">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </AdvancedMarker>
-              );
-            })}
+            {validLocations.map(loc => (
+              <SpokeMarker
+                key={loc.id}
+                loc={loc}
+                locSchedules={todayByLoc[loc.id] || EMPTY_LIST}
+                navigate={navigate}
+              />
+            ))}
           </Map>
         </APIProvider>
       </div>
