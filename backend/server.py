@@ -491,8 +491,16 @@ async def csrf_middleware(request: Request, call_next):
 
     response = await call_next(request)
 
-    # Rotate CSRF token on every response for stronger protection
-    csrf_token = generate_csrf_token()
+    # Rotate CSRF token on every response for stronger protection.
+    # The /csrf-token endpoint pins its return value into
+    # ``request.state.csrf_token_override`` so that the JSON body and
+    # the Set-Cookie header carry the *same* token — otherwise the
+    # SPA receives a token that's stale the moment this middleware
+    # overwrites the cookie, which 403s the next mutating request.
+    csrf_token = (
+        getattr(request.state, "csrf_token_override", None)
+        or generate_csrf_token()
+    )
     # Double-submit CSRF: the cookie MUST be readable by JS so the SPA can
     # echo its value in the X-CSRF-Token header on mutating requests. The
     # token itself is a random nonce + HMAC signature (see core/auth.py),
@@ -730,7 +738,12 @@ async def get_csrf_token(request: Request):
     the cookie to echo it. The HMAC signature on the token + the
     ``SameSite=Lax`` flag are the real defences.)
     """
-    token = request.cookies.get("csrf_token") or generate_csrf_token()
+    # Generate a fresh token here and pin the middleware to use the
+    # same value in its rotation, so the response body and Set-Cookie
+    # header agree. Returning the incoming cookie would be stale
+    # seconds later when the middleware rewrites the cookie.
+    token = generate_csrf_token()
+    request.state.csrf_token_override = token
     return {"csrf_token": token}
 
 

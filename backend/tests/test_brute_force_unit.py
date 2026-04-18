@@ -17,6 +17,10 @@ def _fake_db_with_login_failure(row):
     """Build a fake ``db`` whose ``login_failures.find_one`` returns ``row``."""
     fake = MagicMock()
     fake.login_failures.find_one = AsyncMock(return_value=row)
+    # ``_is_login_locked`` cleans up stale rows when the window has
+    # elapsed; stub the delete so the expired-window test doesn't
+    # choke on MagicMock-awaiting.
+    fake.login_failures.delete_one = AsyncMock(return_value=None)
     return fake
 
 

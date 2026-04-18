@@ -116,6 +116,13 @@ async def _is_login_locked(email: str) -> tuple[bool, int]:
     now = datetime.now(timezone.utc)
     remaining = int((expires - now).total_seconds())
     if remaining <= 0:
+        # Window has elapsed but the row is still here (Mongo's TTL
+        # sweep runs ~once/minute, so rows linger past their
+        # expires_at). Drop the stale row so the *next* failure starts
+        # a fresh count from 1 rather than ``$inc``-ing a count that's
+        # already at/over the threshold and immediately re-locking the
+        # account on a single typo.
+        await db.login_failures.delete_one({"email": email.lower()})
         return False, 0
     return True, remaining
 
