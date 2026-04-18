@@ -125,7 +125,7 @@ async def outlook_callback(request: Request, code: str = None, state: str = None
         update["outlook_calendar_email"] = outlook_email
 
     await db.employees.update_one({"id": employee_id}, {"$set": update})
-    logger.info("Outlook Calendar connected for employee %s (email: %s)", employee_id, outlook_email or "unknown")
+    logger.info("Outlook Calendar connected for employee %s", employee_id)
 
     return _redirect_with_status("success", "success")
 

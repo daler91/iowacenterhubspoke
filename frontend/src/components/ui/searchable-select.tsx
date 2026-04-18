@@ -19,6 +19,8 @@ interface SearchableSelectProps {
   readonly searchPlaceholder?: string;
   readonly emptyMessage?: string;
   readonly className?: string;
+  readonly 'aria-invalid'?: boolean;
+  readonly 'aria-describedby'?: string;
 }
 
 export function SearchableSelect({
@@ -30,9 +32,15 @@ export function SearchableSelect({
   searchPlaceholder = 'Search...',
   emptyMessage = 'No results found.',
   className,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: Readonly<SearchableSelectProps>) {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.value === value);
+  // Stable id for the popover's listbox so the combobox trigger can point
+  // aria-controls at it (required by WAI-ARIA). Falls back to a reasonable
+  // string when ``id`` isn't supplied.
+  const listboxId = id ? `${id}-listbox` : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,6 +48,11 @@ export function SearchableSelect({
         <button
           id={id}
           type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 dark:bg-gray-900 dark:border-gray-700',
             !selected && 'text-muted-foreground',
@@ -55,7 +68,7 @@ export function SearchableSelect({
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList id={listboxId}>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
               {options.map(option => (

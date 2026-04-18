@@ -229,6 +229,7 @@ async def generate_bulk_schedules(
     class_doc: dict,
     user_name: str,
     series_id: str = None,
+    created_by_user_id: str = None,
 ):
     from models.schemas import ScheduleCreate, RecurrenceRule
     from database import db
@@ -264,6 +265,7 @@ async def generate_bulk_schedules(
             data, sched_date, drive_time, town_to_town, town_to_town_warning,
             recurrence_rule, location, employees, class_doc,
             series_id=series_id,
+            created_by_user_id=created_by_user_id,
         )
         docs_to_insert.append(doc)
 
@@ -352,8 +354,32 @@ async def create_outlook_event(
     date: str, start_time: str, end_time: str, notes: str = "",
     employee_id: str = "",
 ):
+    """Idempotent create — if arq retries after a partial failure, we won't
+    create a duplicate event for a schedule that already has one mapped."""
     from services.outlook import create_outlook_event as _create
     from database import db
+
+    # Short-circuit if a previous attempt already persisted a mapping for
+    # this (schedule_id, employee_id). Otherwise a retry after a pool
+    # timeout between calendar-create and DB-update would double-book.
+    existing = await db.schedules.find_one(
+        {"id": schedule_id}, {"_id": 0, "calendar_events": 1, "outlook_event_id": 1},
+    )
+    if existing:
+        if employee_id:
+            mapped = (
+                (existing.get("calendar_events") or {})
+                .get(employee_id, {})
+                .get("outlook_event_id")
+            )
+        else:
+            mapped = existing.get("outlook_event_id")
+        if mapped:
+            logger.info(
+                "Outlook event already mapped for schedule %s (employee %s); skipping create",
+                schedule_id, employee_id or "-",
+            )
+            return
 
     employee = None
     if employee_id:
@@ -391,8 +417,28 @@ async def create_google_event(
     date: str, start_time: str, end_time: str, notes: str = "",
     employee_id: str = "",
 ):
+    """Idempotent create — see ``create_outlook_event`` for the rationale."""
     from services.google_calendar import create_google_event as _create
     from database import db
+
+    existing = await db.schedules.find_one(
+        {"id": schedule_id}, {"_id": 0, "calendar_events": 1, "google_calendar_event_id": 1},
+    )
+    if existing:
+        if employee_id:
+            mapped = (
+                (existing.get("calendar_events") or {})
+                .get(employee_id, {})
+                .get("google_calendar_event_id")
+            )
+        else:
+            mapped = existing.get("google_calendar_event_id")
+        if mapped:
+            logger.info(
+                "Google event already mapped for schedule %s (employee %s); skipping create",
+                schedule_id, employee_id or "-",
+            )
+            return
 
     employee = None
     if employee_id:
@@ -479,3 +525,10 @@ class WorkerSettings:
         arq.cron(process_task_reminders, hour=None, minute=0),
     ]
     redis_settings = RedisSettings.from_dsn(redis_url)
+    # Retry each failed job up to 3 times with arq's built-in exponential
+    # backoff. Without this the default is 5 retries, but with no backoff
+    # tuning — surfacing the explicit value keeps the policy reviewable.
+    max_tries = 3
+    # Drop job results from Redis after a day — keeps memory bounded while
+    # still allowing recent results to be fetched via ``Job.result()``.
+    keep_result = 86400

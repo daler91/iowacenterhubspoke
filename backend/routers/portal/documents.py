@@ -43,7 +43,8 @@ async def portal_project_documents(project_id: str, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
 
     docs = await db.documents.find(
-        {"project_id": project_id, "visibility": "shared"}, {"_id": 0}
+        {"project_id": project_id, "visibility": "shared", "deleted_at": None},
+        {"_id": 0},
     ).sort("uploaded_at", -1).to_list(200)
     return {"items": docs, "total": len(docs)}
 
@@ -121,6 +122,7 @@ async def portal_org_documents(ctx: PortalContext):
             "partner_org_id": ctx["partner_org_id"],
             "project_id": None,
             "visibility": "shared",
+            "deleted_at": None,
         },
         {"_id": 0},
     ).sort("uploaded_at", -1).to_list(200)

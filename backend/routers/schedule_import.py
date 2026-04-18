@@ -1,5 +1,6 @@
 """Schedule CSV import/export operations."""
 
+import asyncio
 import uuid
 import csv
 import io
@@ -7,12 +8,13 @@ import re as python_re
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 
 from database import db
 from models.schemas import ScheduleImportItem, ErrorResponse
 from core.auth import AdminRequired
+from core.rate_limit import limiter
 from core.upload import stream_upload_to_bytes
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
@@ -113,9 +115,12 @@ async def export_schedules(
     end_date: Optional[str] = None,
     employee_id: Optional[str] = None,
     location_id: Optional[str] = None,
+    # Default excludes employee_email to minimise PII in downloaded files.
+    # Callers that need the email column must explicitly include it in the
+    # fields parameter.
     fields: Optional[
         str
-    ] = "date,start_time,end_time,employee_name,employee_email,location_name,class_name,status,notes",
+    ] = "date,start_time,end_time,employee_name,location_name,class_name,status,notes",
 ):
     query = {"deleted_at": None}
 
@@ -235,11 +240,23 @@ async def _build_lookup_maps():
     summary="Preview CSV import (dry run)",
     responses={400: {"model": ErrorResponse, "description": "Invalid CSV file or missing required columns"}},
 )
+@limiter.limit("3/minute")
 async def import_schedules_preview(
-    current_user: AdminRequired, file: Annotated[UploadFile, File()]
+    request: Request,
+    current_user: AdminRequired,
+    file: Annotated[UploadFile, File()],
 ):
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
+    # Defence in depth: reject obvious non-CSV content types even when the
+    # filename wears a .csv extension. Browsers send ``text/csv``;
+    # ``application/vnd.ms-excel`` is the Excel-exported variant.
+    allowed_types = {"text/csv", "application/csv", "application/vnd.ms-excel", ""}
+    if file.content_type and file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported content type '{file.content_type}' — please upload a .csv file",
+        )
 
     content = await stream_upload_to_bytes(file)
     reader = _parse_csv_content(content)
@@ -278,104 +295,160 @@ async def import_schedules_preview(
 
 
 @router.post("/import", summary="Commit CSV import")
+@limiter.limit("3/minute")
 async def import_schedules_commit(
-    current_user: AdminRequired, items: list[ScheduleImportItem]
+    request: Request,
+    current_user: AdminRequired,
+    items: list[ScheduleImportItem],
 ):
+    """Atomic CSV import: validate and conflict-check ALL rows first, and
+    only insert if every row is clean.
+
+    Previous behaviour committed rows one-by-one, so a mid-batch failure
+    left partial data with no idempotency token — a retry would duplicate
+    the rows that had already landed. This implementation either commits
+    the full batch or leaves the database untouched.
+    """
     if not items:
         return {"inserted_count": 0, "errors": []}
+    if len(items) > 2000:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 2000 schedules per import — split large files into smaller batches.",
+        )
 
-    inserted_count = 0
-    errors = []
-
+    # Batch-fetch the referenced employees and locations in two queries
+    # instead of per-row lookups.
+    all_emp_ids: set[str] = set()
+    all_loc_ids: set[str] = set()
     for item in items:
+        all_emp_ids.update(item.employee_ids)
+        all_loc_ids.add(item.location_id)
+
+    emp_docs, loc_docs = await asyncio.gather(
+        db.employees.find(
+            {"id": {"$in": list(all_emp_ids)}, "deleted_at": None},
+        ).to_list(len(all_emp_ids) or 1),
+        db.locations.find(
+            {"id": {"$in": list(all_loc_ids)}, "deleted_at": None},
+        ).to_list(len(all_loc_ids) or 1),
+    )
+    emp_map = {e["id"]: e for e in emp_docs}
+    loc_map = {loc["id"]: loc for loc in loc_docs}
+
+    errors: list[dict] = []
+    prepared: list[dict] = []
+
+    # Stage 1: validate references + conflicts. Gather all conflict checks
+    # into a single asyncio.gather so the pre-flight finishes in ~max(check)
+    # rather than ~sum(check).
+    conflict_coros = []
+    conflict_meta = []  # (item_idx, emp_id, emp_name)
+    for idx, item in enumerate(items):
+        location = loc_map.get(item.location_id)
+        emps = [emp_map.get(eid) for eid in item.employee_ids]
+        if not location or any(e is None for e in emps):
+            errors.append({
+                "row": item.row_idx,
+                "error": "Employee(s) or Location no longer exists",
+            })
+            prepared.append(None)
+            continue
+        drive_minutes = location.get("drive_time_minutes", 0)
+        for emp in emps:
+            conflict_coros.append(check_conflicts(
+                emp["id"], item.date, item.start_time, item.end_time, drive_minutes,
+            ))
+            conflict_meta.append((idx, emp["id"], emp.get("name", "")))
+        prepared.append({"item": item, "location": location, "emps": emps})
+
+    conflict_by_idx: dict[int, str] = {}
+    if conflict_coros:
+        conflict_results = await asyncio.gather(*conflict_coros, return_exceptions=False)
+        for (idx, _emp_id, emp_name), found in zip(conflict_meta, conflict_results):
+            if found and idx not in conflict_by_idx:
+                item = items[idx]
+                conflict_by_idx[idx] = (
+                    f"Conflict with existing schedule for {emp_name} on "
+                    f"{item.date} at {item.start_time}"
+                )
+
+    # If ANY row has an error, reject the whole batch — atomicity is the
+    # contract that lets users retry safely.
+    for idx, msg in conflict_by_idx.items():
+        errors.append({"row": items[idx].row_idx, "error": msg})
+
+    if errors:
+        return {
+            "inserted_count": 0,
+            "errors": errors,
+            "rolled_back": True,
+            "message": "No schedules were imported — fix the errors and retry.",
+        }
+
+    # Stage 2: build documents and bulk-insert.
+    now = datetime.now(timezone.utc).isoformat()
+    docs: list[dict] = []
+    for entry in prepared:
+        if entry is None:
+            continue
+        item = entry["item"]
+        emps = entry["emps"]
+        emp_snapshots = [
+            {"id": e["id"], "name": e["name"], "color": e.get("color", "#4F46E5")}
+            for e in emps
+        ]
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "employee_ids": item.employee_ids,
+            "employees": emp_snapshots,
+            "location_id": item.location_id,
+            "class_id": item.class_id,
+            "date": item.date,
+            "start_time": item.start_time,
+            "end_time": item.end_time,
+            "notes": item.notes,
+            "status": STATUS_UPCOMING,
+            "recurrence": "none",
+            "recurrence_end_date": None,
+            "recurrence_end_mode": None,
+            "recurrence_occurrences": None,
+            "custom_recurrence": None,
+            "calendar_events": {},
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "version": 1,
+            # Stamp the importer so audit queries + per-user scoping stay
+            # consistent with manually-created schedules. CSV import isn't
+            # idempotency-keyed (the whole batch is atomic) so there's no
+            # idempotency_key field to set.
+            "created_by_user_id": current_user.get("user_id"),
+        })
+
+    if docs:
         try:
-            # Fetch all employees for this schedule
-            employees_list = await db.employees.find(
-                {"id": {"$in": item.employee_ids}, "deleted_at": None}
-            ).to_list(len(item.employee_ids))
-            location = await db.locations.find_one(
-                {"id": item.location_id, "deleted_at": None}
+            await db.schedules.insert_many(docs, ordered=False)
+        except Exception:
+            # Pre-flight validation already passed — a failure here is
+            # almost always a duplicate-key clash or a Mongo
+            # availability blip. Surface the batch size so ops can
+            # distinguish a one-row collision from a whole-import
+            # regression.
+            logger.exception(
+                "CSV import insert_many failed after validation passed",
+                extra={"entity": {
+                    "item_count": len(docs),
+                    "imported_by": current_user.get("user_id"),
+                }},
             )
-
-            if not employees_list or len(employees_list) != len(item.employee_ids) or not location:
-                errors.append(
-                    {
-                        "row": item.row_idx,
-                        "error": "Employee(s) or Location no longer exists",
-                    }
-                )
-                continue
-
-            drive_minutes = location.get("drive_time_minutes", 0)
-
-            # Check conflicts for each employee
-            has_conflict = False
-            for emp in employees_list:
-                conflict = await check_conflicts(
-                    emp["id"],
-                    item.date,
-                    item.start_time,
-                    item.end_time,
-                    drive_minutes,
-                )
-                if conflict:
-                    errors.append(
-                        {
-                            "row": item.row_idx,
-                            "error": (
-                                f"Conflict with existing schedule for "
-                                f"{emp.get('name')} on {item.date} at {item.start_time}"
-                            ),
-                        }
-                    )
-                    has_conflict = True
-                    break
-
-            if has_conflict:
-                continue
-
-            emp_snapshots = [
-                {"id": e["id"], "name": e["name"], "color": e.get("color", "#4F46E5")}
-                for e in employees_list
-            ]
-
-            new_schedule = {
-                "id": str(uuid.uuid4()),
-                "employee_ids": item.employee_ids,
-                "employees": emp_snapshots,
-                "location_id": item.location_id,
-                "class_id": item.class_id,
-                "date": item.date,
-                "start_time": item.start_time,
-                "end_time": item.end_time,
-                "notes": item.notes,
-                "status": STATUS_UPCOMING,
-                "recurrence": "none",
-                "recurrence_end_date": None,
-                "recurrence_end_mode": None,
-                "recurrence_occurrences": None,
-                "custom_recurrence": None,
-                "calendar_events": {},
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "deleted_at": None,
+            return {
+                "inserted_count": 0,
+                "errors": [{"row": None, "error": "Bulk insert failed — please retry."}],
+                "rolled_back": True,
             }
 
-            await db.schedules.insert_one(new_schedule)
-            inserted_count += 1
-
-        except Exception:
-            logger.exception(
-                "Error importing schedule row %s",
-                getattr(item, "row_idx", None),
-            )
-            errors.append(
-                {
-                    "row": item.row_idx,
-                    "error": "An internal error occurred while importing this row.",
-                }
-            )
-
+    inserted_count = len(docs)
     if inserted_count > 0:
         await log_activity(
             action="import_schedules",
@@ -385,4 +458,4 @@ async def import_schedules_commit(
             user_name=current_user["name"],
         )
 
-    return {"inserted_count": inserted_count, "errors": errors}
+    return {"inserted_count": inserted_count, "errors": []}

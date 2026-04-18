@@ -41,9 +41,10 @@ async def test_workload_stats_with_invalid_schedule_times(mock_db_fixture):
     )
     mock_db_fixture["employees"].find.return_value = emp_cursor_mock
 
-    # Setup mock schedules
+    # Setup mock schedules — the workload aggregator reads employee_ids
+    # (the multi-employee array), not the legacy employee_id scalar.
     valid_schedule = {
-        "employee_id": employee_id,
+        "employee_ids": [employee_id],
         "status": "completed",
         "start_time": "10:00",
         "end_time": "11:00",
@@ -54,7 +55,7 @@ async def test_workload_stats_with_invalid_schedule_times(mock_db_fixture):
     }
 
     invalid_schedule = {
-        "employee_id": employee_id,
+        "employee_ids": [employee_id],
         "status": "upcoming",
         "start_time": "invalid",
         "end_time": "invalid",
@@ -65,7 +66,7 @@ async def test_workload_stats_with_invalid_schedule_times(mock_db_fixture):
     }
 
     missing_keys_schedule = {
-        "employee_id": employee_id,
+        "employee_ids": [employee_id],
         "status": "completed",
         "date": "2024-03-21",
         "class_id": "class2",

@@ -9,6 +9,23 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_ANALYTICS_CAP = 5000
+
+
+def _warn_on_truncation(rows: list, query: dict, endpoint: str) -> None:
+    """Log a warning when an analytics query hits the hard cap.
+
+    Downstream math (trends, forecasts) silently produces misleading
+    numbers if the underlying row set is truncated; surfacing a
+    structured warning lets ops notice before stakeholders do.
+    """
+    if len(rows) >= _ANALYTICS_CAP:
+        logger.warning(
+            "Analytics query truncated at %d rows — results may be incomplete",
+            _ANALYTICS_CAP,
+            extra={"entity": {"endpoint": endpoint, "query": query}},
+        )
+
 
 def _linear_regression(y_vals: List[float]) -> Tuple[float, float]:
     """Ordinary least-squares slope/intercept for y over x = 0..n-1.
@@ -115,12 +132,18 @@ async def get_trends(
             "employee_ids": 1,
             "location_id": 1,
         },
-    ).to_list(5000)
+    ).to_list(_ANALYTICS_CAP)
+    _warn_on_truncation(schedules, query, "trends")
 
     period_fn = _week_key if period == "weekly" else _month_key
     data = _aggregate_schedules_by_period(schedules, period_fn)
 
-    return {"period": period, "weeks_back": weeks_back, "data": data}
+    return {
+        "period": period,
+        "weeks_back": weeks_back,
+        "data": data,
+        "truncated": len(schedules) >= _ANALYTICS_CAP,
+    }
 
 
 MAX_FORECAST_WEEKS = 52
@@ -153,7 +176,8 @@ async def get_forecast(
             "employee_ids": 1,
             "location_id": 1,
         },
-    ).to_list(5000)
+    ).to_list(_ANALYTICS_CAP)
+    _warn_on_truncation(schedules, query, "forecast")
     historical = _aggregate_schedules_by_period(schedules, _week_key)
 
     # Mark historical points
@@ -328,7 +352,12 @@ async def get_drive_optimization(
             "class_id": 1,
             "class_name": 1,
         },
-    ).to_list(5000)
+    ).to_list(_ANALYTICS_CAP)
+    _warn_on_truncation(
+        schedules,
+        {"date_from": date_from, "date_to": date_to},
+        "drive-optimization",
+    )
 
     locations = await db.locations.find(
         {"deleted_at": None},

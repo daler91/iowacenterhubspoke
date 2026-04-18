@@ -76,28 +76,79 @@ async def _ensure_indexes():
         await db.schedules.create_index([("location_id", 1), ("date", 1)])
         await db.schedules.create_index([("date", 1), ("status", 1)])
         await db.schedules.create_index([("deleted_at", 1)])
+        # Partial unique index on idempotency_key. Uniqueness is enforced
+        # only among LIVE (non-soft-deleted) schedules — if a user soft-
+        # deletes a schedule and retries with the same key, the new insert
+        # must succeed. Sparse-without-partial would fire a duplicate-key
+        # error on that retry. Older deploys may have the prior sparse-
+        # unique variant without the partial filter; drop it so Mongo
+        # doesn't refuse the new definition with IndexOptionsConflict.
+        try:
+            await db.schedules.drop_index("idempotency_key_1")
+        except Exception:
+            pass  # Index didn't exist — fresh DB or already replaced.
+        await db.schedules.create_index(
+            "idempotency_key",
+            unique=True,
+            partialFilterExpression={
+                "idempotency_key": {"$exists": True, "$type": "string"},
+                "deleted_at": None,
+            },
+            name="idempotency_key_live_unique",
+        )
+        # Compound (id, deleted_at) indexes so batch $in lookups don't collection-scan.
+        await db.employees.create_index([("id", 1), ("deleted_at", 1)])
         await db.employees.create_index([("deleted_at", 1)])
+        await db.locations.create_index([("id", 1), ("deleted_at", 1)])
         await db.locations.create_index([("deleted_at", 1)])
+        await db.classes.create_index([("id", 1), ("deleted_at", 1)])
         await db.classes.create_index([("deleted_at", 1)])
         await db.activity_logs.create_index([("timestamp", -1)])
         await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
+        # Retention: expire activity log entries after ACTIVITY_LOG_RETENTION_DAYS (default 90).
+        await db.activity_logs.create_index(
+            "expires_at", expireAfterSeconds=0
+        )
         await db.drive_time_cache.create_index("key", unique=True)
         await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("email")
-        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=600)
-        await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=600)
+        # Invitations expire 14 days after creation unless accepted/revoked.
+        await db.invitations.create_index("expires_at", expireAfterSeconds=0)
+        # Password-reset rows: prune used/expired entries automatically.
+        await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
+        await db.password_resets.create_index("token", unique=True)
+        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
+        await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
+        # Refresh-token store: jti is the primary key, expires_at drives
+        # TTL pruning, user_id supports mass revocation on password change.
+        await db.refresh_tokens.create_index("jti", unique=True)
+        await db.refresh_tokens.create_index("user_id")
+        await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # Per-email login failure tracking (for brute-force lockout).
+        await db.login_failures.create_index("email", unique=True)
+        await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
         # Coordination module indexes
         await db.projects.create_index([("partner_org_id", 1)])
         await db.projects.create_index([("phase", 1)])
         await db.projects.create_index([("community", 1)])
         await db.projects.create_index([("deleted_at", 1)])
+        # schedule_id is queried directly every time a schedule update
+        # needs to find its linked project (auto-link, relocate, status
+        # change). Without this the query collection-scans projects.
+        await db.projects.create_index([("schedule_id", 1), ("deleted_at", 1)])
         await db.tasks.create_index([("project_id", 1)])
         await db.tasks.create_index([("project_id", 1), ("phase", 1)])
         await db.tasks.create_index([("project_id", 1), ("completed", 1)])
         await db.partner_orgs.create_index([("community", 1)])
         await db.partner_orgs.create_index([("status", 1)])
         await db.partner_orgs.create_index([("deleted_at", 1)])
+        # Reverse lookup used by schedule auto-link: "does this location
+        # belong to an active/onboarding partner?" runs on every single-
+        # schedule create. Compound key covers the full filter.
+        await db.partner_orgs.create_index(
+            [("location_id", 1), ("status", 1), ("deleted_at", 1)],
+        )
         await db.partner_contacts.create_index([("partner_org_id", 1)])
         await db.task_attachments.create_index([("task_id", 1)])
         await db.task_comments.create_index([("task_id", 1), ("created_at", 1)])
@@ -347,12 +398,24 @@ async def general_exception_handler(request: Request, exc: Exception):
 from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 app.add_middleware(SlowAPIMiddleware)
 
+
+# SlowAPI 0.1.x expects ``request.state.view_rate_limit`` to exist on every
+# response so it can inject X-RateLimit-* headers. Endpoints that aren't
+# rate-limited never set this, so starlette's State raises AttributeError
+# when SlowAPIMiddleware reads it on the way out. Seed a ``None`` default
+# so the attribute is always readable.
+@app.middleware("http")
+async def _slowapi_state_init(request: Request, call_next):
+    if not hasattr(request.state, "view_rate_limit"):
+        request.state.view_rate_limit = None
+    return await call_next(request)
+
 from core.auth import generate_csrf_token, validate_csrf_token  # noqa: E402
 
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
-    "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/health",
-    "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/logout", "/api/v1/health",
+    "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/refresh", "/api/health",
+    "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/logout", "/api/v1/auth/refresh", "/api/v1/health",
 }
 
 
@@ -382,10 +445,16 @@ async def csrf_middleware(request: Request, call_next):
 
     # Rotate CSRF token on every response for stronger protection
     csrf_token = generate_csrf_token()
+    # Double-submit CSRF: the cookie MUST be readable by JS so the SPA can
+    # echo its value in the X-CSRF-Token header on mutating requests. The
+    # token itself is a random nonce + HMAC signature (see core/auth.py),
+    # so an attacker who steals the cookie via XSS also needs CSRF_SECRET
+    # to forge matching pairs, and XSS is a worse compromise than CSRF
+    # anyway. SameSite=Lax is the primary defence.
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
-        httponly=False,  # Must be readable by JavaScript
+        httponly=False,
         secure=True,
         samesite="lax",
         max_age=86400 * 7,
@@ -524,6 +593,53 @@ api_router.include_router(exports.router)
 api_router.include_router(event_outcomes.router)
 api_router.include_router(promotion_checklist.router)
 api_router.include_router(webhooks.router)
+
+
+@api_router.get("/csrf-token", tags=["system"])
+async def get_csrf_token(request: Request):
+    """Return the current CSRF token.
+
+    The ``csrf_token`` cookie is **intentionally not HttpOnly** — the
+    double-submit pattern requires the SPA to read the value from
+    ``document.cookie`` and echo it in the ``X-CSRF-Token`` header on
+    mutating requests, where the middleware compares the two. This
+    endpoint exists for clients that prefer not to parse
+    ``document.cookie`` directly and for forcing a rotation on demand.
+
+    (If you're tempted to "harden" the middleware by flipping
+    ``httponly=True``: don't. Every mutating request from the SPA
+    would 403 because the frontend would no longer be able to read
+    the cookie to echo it. The HMAC signature on the token + the
+    ``SameSite=Lax`` flag are the real defences.)
+    """
+    token = request.cookies.get("csrf_token") or generate_csrf_token()
+    return {"csrf_token": token}
+
+
+@api_router.get("/ready", tags=["system"])
+async def readiness_check(request: Request):
+    """Readiness probe — 503 if any hard dependency (Mongo, Redis) is down.
+
+    Distinct from ``/health`` so orchestrators can remove the pod from the
+    load balancer (readiness) without killing the container (liveness).
+    """
+    checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
+    try:
+        await client.admin.command("ping")
+    except Exception:
+        checks["mongo"] = "unavailable"
+        checks["status"] = "not_ready"
+    if not await _probe_redis(request.app):
+        checks["redis"] = "unavailable"
+        checks["status"] = "not_ready"
+    status_code = 200 if checks["status"] == "ready" else 503
+    return JSONResponse(content=checks, status_code=status_code)
+
+
+@api_router.get("/livez", tags=["system"])
+async def liveness_check():
+    """Liveness probe — process is alive. Always 200 if the app is up."""
+    return {"status": "alive"}
 
 
 @api_router.get("/health", tags=["system"])

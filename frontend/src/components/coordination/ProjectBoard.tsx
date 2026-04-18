@@ -23,6 +23,8 @@ import { toast } from 'sonner';
 import ProjectCreateDialog from './ProjectCreateDialog';
 import { SearchableSelect } from '../ui/searchable-select';
 
+const DND_INSTRUCTIONS_ID = 'project-board-dnd-instructions';
+
 function DroppableColumn({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
   return (
@@ -79,6 +81,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        aria-describedby={DND_INSTRUCTIONS_ID}
         className={cn(
           'p-3 mb-2 cursor-pointer hover:shadow-md transition-shadow border touch-none',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
@@ -293,6 +296,9 @@ export default function ProjectBoard() {
 
       {/* Kanban Columns */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <p id={DND_INSTRUCTIONS_ID} className="sr-only">
+          Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
+        </p>
         <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
             const allProjects = board?.columns?.[phase] ?? [];

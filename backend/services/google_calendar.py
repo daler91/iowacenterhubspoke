@@ -24,7 +24,17 @@ logger = logging.getLogger("google_calendar")
 
 # Token cache keyed by email
 _token_cache: dict[str, dict] = {}
-_token_lock = asyncio.Lock()
+# Per-email locks so one user's slow refresh doesn't stall every
+# other user on a module-wide mutex.
+_token_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(key: str) -> asyncio.Lock:
+    lock = _token_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _token_locks[key] = lock
+    return lock
 
 
 def _build_credentials() -> service_account.Credentials | None:
@@ -80,7 +90,7 @@ async def _get_access_token_service_account(email: str) -> str | None:
     if cached and cached["access_token"] and cached["expires_at"] > now + 300:
         return cached["access_token"]
 
-    async with _token_lock:
+    async with _lock_for(cache_key):
         cached = _token_cache.get(cache_key)
         if cached and cached["access_token"] and cached["expires_at"] > now + 300:
             return cached["access_token"]
@@ -112,7 +122,7 @@ async def _get_access_token_oauth(refresh_token: str, email: str) -> str | None:
     if cached and cached["access_token"] and cached["expires_at"] > now + 300:
         return cached["access_token"]
 
-    async with _token_lock:
+    async with _lock_for(cache_key):
         cached = _token_cache.get(cache_key)
         if cached and cached["access_token"] and cached["expires_at"] > now + 300:
             return cached["access_token"]
@@ -157,6 +167,33 @@ def _build_datetime(date: str, time_str: str) -> str:
     return f"{date}T{time_str}:00"
 
 
+def _tz_offset_for(date: str, time_str: str) -> str:
+    """Return the correct UTC offset (e.g. ``-06:00`` or ``-05:00``) for a
+    naive local wall-clock time on the given date in ``GOOGLE_CALENDAR_TIMEZONE``.
+
+    America/Chicago is UTC-6 in winter and UTC-5 during daylight saving,
+    so hard-coding an offset misreports freeBusy windows for half the year.
+    """
+    from datetime import datetime as _dt
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(GOOGLE_CALENDAR_TIMEZONE)
+    except Exception:
+        return "-06:00"
+    try:
+        naive = _dt.strptime(f"{date} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return "-06:00"
+    aware = naive.replace(tzinfo=tz)
+    off = aware.utcoffset()
+    if off is None:
+        return "-06:00"
+    total = int(off.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    total = abs(total)
+    return f"{sign}{total // 3600:02d}:{(total % 3600) // 60:02d}"
+
+
 async def check_google_availability(
     email: str, date: str, start_time: str, end_time: str,
     employee: dict | None = None,
@@ -166,9 +203,14 @@ async def check_google_availability(
         return []
 
     url = f"{GOOGLE_CALENDAR_API_BASE}/freeBusy"
+    # RFC3339 requires an offset; ``_tz_offset_for`` computes it from the
+    # configured timezone for the given date so DST transitions don't
+    # silently shift the query window by an hour.
+    start_offset = _tz_offset_for(date, start_time)
+    end_offset = _tz_offset_for(date, end_time)
     body = {
-        "timeMin": _build_datetime(date, start_time) + "-06:00",
-        "timeMax": _build_datetime(date, end_time) + "-06:00",
+        "timeMin": _build_datetime(date, start_time) + start_offset,
+        "timeMax": _build_datetime(date, end_time) + end_offset,
         "timeZone": GOOGLE_CALENDAR_TIMEZONE,
         "items": [{"id": email}],
     }
@@ -247,6 +289,12 @@ async def create_google_event(
 async def delete_google_event(
     email: str, event_id: str, employee: dict | None = None,
 ) -> bool:
+    """Delete a Google Calendar event idempotently.
+
+    A 404 means the event is already gone — that's a successful
+    outcome for a delete, not a failure, so return True. Any other
+    error surfaces as False and an exception log.
+    """
     token = await _get_access_token(email, employee)
     if not token:
         return False
@@ -257,8 +305,13 @@ async def delete_google_event(
             resp = await client.delete(url, headers={
                 "Authorization": f"Bearer {token}",
             }, timeout=10)
-            resp.raise_for_status()
+        if resp.status_code == 404 or resp.status_code == 410:
+            # Already deleted — treat as success to match the caller's
+            # "event has been removed from Google" expectation.
+            logger.info("Google Calendar event %s already deleted", event_id)
             return True
+        resp.raise_for_status()
+        return True
     except Exception:
         logger.exception("Failed to delete Google Calendar event %s", event_id)
         return False

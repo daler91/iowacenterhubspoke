@@ -6,7 +6,7 @@ from database import db
 from models.coordination_schemas import (
     OutcomeCreate, OutcomeUpdate, OutcomeBulkCreate,
 )
-from core.auth import CurrentUser
+from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -41,7 +41,7 @@ async def list_outcomes(
     status: Optional[str] = None,
 ):
     await _verify_project(project_id)
-    query: dict = {"project_id": project_id}
+    query: dict = {"project_id": project_id, "deleted_at": None}
     if status:
         query["status"] = status
     items = (
@@ -63,7 +63,7 @@ async def list_outcomes(
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def create_outcome(
-    project_id: str, data: OutcomeCreate, user: CurrentUser,
+    project_id: str, data: OutcomeCreate, user: EditorRequired,
 ):
     await _verify_project(project_id)
     now = datetime.now(timezone.utc).isoformat()
@@ -80,6 +80,7 @@ async def create_outcome(
         "converted_at": None,
         "created_at": now,
         "updated_at": now,
+        "deleted_at": None,
     }
     await db.event_outcomes.insert_one(doc)
     doc.pop("_id", None)
@@ -92,7 +93,7 @@ async def create_outcome(
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def bulk_create_outcomes(
-    project_id: str, data: OutcomeBulkCreate, user: CurrentUser,
+    project_id: str, data: OutcomeBulkCreate, user: EditorRequired,
 ):
     await _verify_project(project_id)
     now = datetime.now(timezone.utc).isoformat()
@@ -111,6 +112,7 @@ async def bulk_create_outcomes(
             "converted_at": None,
             "created_at": now,
             "updated_at": now,
+            "deleted_at": None,
         })
     if docs:
         await db.event_outcomes.insert_many(docs)
@@ -134,7 +136,7 @@ async def update_outcome(
     project_id: str,
     outcome_id: str,
     data: OutcomeUpdate,
-    user: CurrentUser,
+    user: EditorRequired,
 ):
     update_data = {
         k: v for k, v in data.model_dump().items() if v is not None
@@ -175,7 +177,7 @@ async def update_outcome(
         update_data[ts_field] = update_data["updated_at"]
 
     result = await db.event_outcomes.update_one(
-        {"id": outcome_id, "project_id": project_id},
+        {"id": outcome_id, "project_id": project_id, "deleted_at": None},
         {"$set": update_data},
     )
     if result.matched_count == 0:
@@ -192,12 +194,14 @@ async def update_outcome(
     responses={404: {"description": OUTCOME_NOT_FOUND}},
 )
 async def delete_outcome(
-    project_id: str, outcome_id: str, user: CurrentUser,
+    project_id: str, outcome_id: str, user: SchedulerRequired,
 ):
-    result = await db.event_outcomes.delete_one(
-        {"id": outcome_id, "project_id": project_id},
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.event_outcomes.update_one(
+        {"id": outcome_id, "project_id": project_id, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
     )
-    if result.deleted_count == 0:
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=OUTCOME_NOT_FOUND)
     return {"message": "Outcome deleted"}
 
@@ -210,7 +214,8 @@ async def delete_outcome(
 async def get_funnel(project_id: str, user: CurrentUser):
     await _verify_project(project_id)
     outcomes = await db.event_outcomes.find(
-        {"project_id": project_id}, {"_id": 0, "status": 1},
+        {"project_id": project_id, "deleted_at": None},
+        {"_id": 0, "status": 1},
     ).to_list(10000)
     total = len(outcomes)
     counts = {

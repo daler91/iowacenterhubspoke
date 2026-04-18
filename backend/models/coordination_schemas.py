@@ -1,24 +1,41 @@
-from pydantic import BaseModel, EmailStr
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List, Literal
+
+
+def _validate_event_date(value: str) -> str:
+    """Accept ISO date or ISO datetime strings only — surface a 400 instead
+    of silently falling back to 'now' when tasks are cloned from a template."""
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError) as e:
+        raise ValueError(
+            "event_date must be an ISO date (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SS)"
+        ) from e
+    return value
 
 
 # ── Projects ──────────────────────────────────────────────────────────
 
 class ProjectCreate(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=300)
     event_format: Literal["workshop", "series", "office_hours", "onboarding"]
     partner_org_id: str
-    event_date: str  # ISO datetime string
-    community: Optional[str] = None  # auto-derived from partner org's location
-    venue_name: Optional[str] = None  # auto-derived from partner org name
+    event_date: str  # ISO date or datetime string
+    community: Optional[str] = Field(None, max_length=120)
+    venue_name: Optional[str] = Field(None, max_length=200)
     template_id: Optional[str] = None
     schedule_id: Optional[str] = None
     class_id: Optional[str] = None
-    # Auto-schedule creation fields
-    employee_ids: Optional[List[str]] = None
-    start_time: Optional[str] = None  # HH:MM
-    end_time: Optional[str] = None  # HH:MM
+    employee_ids: Optional[List[str]] = Field(None, max_length=50)
+    start_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
+    end_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
     auto_create_schedule: bool = False
+
+    @field_validator("event_date")
+    @classmethod
+    def _check_event_date(cls, v):
+        return _validate_event_date(v)
 
 
 class PhaseAdvanceRequest(BaseModel):
@@ -26,7 +43,7 @@ class PhaseAdvanceRequest(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=300)
     event_format: Optional[Literal[
         "workshop", "series", "office_hours", "onboarding"
     ]] = None
@@ -36,12 +53,31 @@ class ProjectUpdate(BaseModel):
     phase: Optional[Literal[
         "planning", "promotion", "delivery", "follow_up", "complete"
     ]] = None
-    community: Optional[str] = None
-    venue_name: Optional[str] = None
-    registration_count: Optional[int] = None
-    attendance_count: Optional[int] = None
-    warm_leads: Optional[int] = None
-    notes: Optional[str] = None
+    community: Optional[str] = Field(None, max_length=120)
+    venue_name: Optional[str] = Field(None, max_length=200)
+    registration_count: Optional[int] = Field(None, ge=0, le=1_000_000)
+    attendance_count: Optional[int] = Field(None, ge=0, le=1_000_000)
+    warm_leads: Optional[int] = Field(None, ge=0, le=1_000_000)
+    notes: Optional[str] = Field(None, max_length=10_000)
+
+    @field_validator("event_date")
+    @classmethod
+    def _check_event_date(cls, v):
+        if v is None:
+            return v
+        return _validate_event_date(v)
+
+    @model_validator(mode="after")
+    def _warm_leads_bounded_by_attendance(self):
+        if (
+            self.warm_leads is not None
+            and self.attendance_count is not None
+            and self.warm_leads > self.attendance_count
+        ):
+            raise ValueError(
+                "warm_leads cannot exceed attendance_count"
+            )
+        return self
 
 
 # ── Tasks ─────────────────────────────────────────────────────────────
@@ -50,25 +86,25 @@ TASK_STATUSES = ("to_do", "in_progress", "completed", "on_hold")
 
 
 class TaskCreate(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=300)
     phase: Literal["planning", "promotion", "delivery", "follow_up"]
     owner: Literal["internal", "partner", "both"]
     due_date: str  # ISO datetime string
-    details: Optional[str] = ""
-    description: Optional[str] = ""
+    details: Optional[str] = Field("", max_length=10_000)
+    description: Optional[str] = Field("", max_length=10_000)
     assigned_to: Optional[str] = None
     status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = "to_do"
 
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=300)
     phase: Optional[Literal[
         "planning", "promotion", "delivery", "follow_up"
     ]] = None
     owner: Optional[Literal["internal", "partner", "both"]] = None
     due_date: Optional[str] = None
-    details: Optional[str] = None
-    description: Optional[str] = None
+    details: Optional[str] = Field(None, max_length=10_000)
+    description: Optional[str] = Field(None, max_length=10_000)
     assigned_to: Optional[str] = None
     sort_order: Optional[int] = None
     status: Optional[Literal["to_do", "in_progress", "completed", "on_hold"]] = None
@@ -81,59 +117,59 @@ class TaskReorder(BaseModel):
 
 
 class TaskCommentCreate(BaseModel):
-    body: str
+    body: str = Field(..., min_length=1, max_length=10_000)
 
 
 # ── Partner Orgs ──────────────────────────────────────────────────────
 
 class VenueDetails(BaseModel):
-    capacity: Optional[int] = None
-    av_setup: Optional[str] = ""
+    capacity: Optional[int] = Field(None, ge=0, le=1_000_000)
+    av_setup: Optional[str] = Field("", max_length=2000)
     wifi: Optional[bool] = None
-    parking: Optional[str] = ""
-    accessibility: Optional[str] = ""
-    signage: Optional[str] = ""
+    parking: Optional[str] = Field("", max_length=2000)
+    accessibility: Optional[str] = Field("", max_length=2000)
+    signage: Optional[str] = Field("", max_length=2000)
 
 
 class PartnerOrgCreate(BaseModel):
-    name: str
-    community: str
+    name: str = Field(..., min_length=1, max_length=300)
+    community: str = Field(..., min_length=1, max_length=120)
     location_id: Optional[str] = None
     venue_details: Optional[VenueDetails] = None
-    co_branding: Optional[str] = ""
+    co_branding: Optional[str] = Field("", max_length=2000)
     status: Literal[
         "prospect", "onboarding", "active", "inactive"
     ] = "prospect"
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field("", max_length=10_000)
 
 
 class PartnerOrgUpdate(BaseModel):
-    name: Optional[str] = None
-    community: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=300)
+    community: Optional[str] = Field(None, min_length=1, max_length=120)
     location_id: Optional[str] = None
     venue_details: Optional[VenueDetails] = None
-    co_branding: Optional[str] = None
+    co_branding: Optional[str] = Field(None, max_length=2000)
     status: Optional[Literal[
         "prospect", "onboarding", "active", "inactive"
     ]] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=10_000)
 
 
 # ── Partner Contacts ──────────────────────────────────────────────────
 
 class PartnerContactCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=200)
     email: EmailStr
-    phone: Optional[str] = ""
-    role: Optional[str] = ""
+    phone: Optional[str] = Field("", max_length=40)
+    role: Optional[str] = Field("", max_length=120)
     is_primary: bool = False
 
 
 class PartnerContactUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    role: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    email: Optional[str] = Field(None, max_length=320)
+    phone: Optional[str] = Field(None, max_length=40)
+    role: Optional[str] = Field(None, max_length=120)
     is_primary: Optional[bool] = None
 
 
@@ -146,8 +182,8 @@ class DocumentVisibilityUpdate(BaseModel):
 # ── Messages ──────────────────────────────────────────────────────────
 
 class MessageCreate(BaseModel):
-    channel: str
-    body: str
+    channel: str = Field(..., min_length=1, max_length=120)
+    body: str = Field(..., min_length=1, max_length=20_000)
     visibility: Literal["internal", "shared"] = "shared"
 
 
@@ -160,23 +196,23 @@ class PortalAuthRequest(BaseModel):
 # ── Event Outcomes (Phase 2) ──────────────────────────────────────────
 
 class OutcomeCreate(BaseModel):
-    attendee_name: str
-    attendee_email: Optional[str] = None
-    attendee_phone: Optional[str] = None
+    attendee_name: str = Field(..., min_length=1, max_length=200)
+    attendee_email: Optional[str] = Field(None, max_length=320)
+    attendee_phone: Optional[str] = Field(None, max_length=40)
     status: Literal[
         "attended", "contacted", "consultation", "converted", "lost"
     ] = "attended"
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field("", max_length=5000)
 
 
 class OutcomeUpdate(BaseModel):
-    attendee_name: Optional[str] = None
-    attendee_email: Optional[str] = None
-    attendee_phone: Optional[str] = None
+    attendee_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    attendee_email: Optional[str] = Field(None, max_length=320)
+    attendee_phone: Optional[str] = Field(None, max_length=40)
     status: Optional[Literal[
         "attended", "contacted", "consultation", "converted", "lost"
     ]] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=5000)
     contacted_at: Optional[str] = None
     consultation_at: Optional[str] = None
     converted_at: Optional[str] = None
@@ -184,17 +220,17 @@ class OutcomeUpdate(BaseModel):
 
 
 class OutcomeBulkCreate(BaseModel):
-    attendees: List[OutcomeCreate]
+    attendees: List[OutcomeCreate] = Field(..., max_length=1000)
 
 
 # ── Promotion Checklist (Phase 2) ─────────────────────────────────────
 
 class PromotionChecklistItemCreate(BaseModel):
-    channel: str
-    label: str
+    channel: str = Field(..., min_length=1, max_length=120)
+    label: str = Field(..., min_length=1, max_length=300)
     owner: Literal["internal", "partner", "both"] = "both"
     due_date: Optional[str] = None
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field("", max_length=5000)
 
 
 class PromotionChecklistItemToggle(BaseModel):
@@ -204,12 +240,12 @@ class PromotionChecklistItemToggle(BaseModel):
 # ── Webhooks (Phase 2) ────────────────────────────────────────────────
 
 class WebhookCreate(BaseModel):
-    url: str
-    events: List[str]
+    url: str = Field(..., min_length=1, max_length=2000)
+    events: List[str] = Field(..., max_length=50)
     active: bool = True
 
 
 class WebhookUpdate(BaseModel):
-    url: Optional[str] = None
-    events: Optional[List[str]] = None
+    url: Optional[str] = Field(None, min_length=1, max_length=2000)
+    events: Optional[List[str]] = Field(None, max_length=50)
     active: Optional[bool] = None

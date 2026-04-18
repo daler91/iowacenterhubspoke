@@ -89,11 +89,16 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
                           {selectionMode && (
-                            <div className={cn(
-                              "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
-                              selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 dark:border-gray-600"
-                            )}>
-                              {selected && <Check className="w-3.5 h-3.5 text-white" />}
+                            <div
+                              role="checkbox"
+                              aria-checked={!!selected}
+                              aria-label={`Select ${className}`}
+                              className={cn(
+                                "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
+                                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 dark:border-gray-600"
+                              )}
+                            >
+                              {selected && <Check className="w-3.5 h-3.5 text-white" aria-hidden="true" />}
                             </div>
                           )}
                           <h3 className="font-semibold text-slate-800 dark:text-gray-100">{className}</h3>

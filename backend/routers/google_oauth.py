@@ -122,7 +122,9 @@ async def google_callback(request: Request, code: str = None, state: str = None,
         update["google_calendar_email"] = google_email
 
     await db.employees.update_one({"id": employee_id}, {"$set": update})
-    logger.info("Google Calendar connected for employee %s (email: %s)", employee_id, google_email or "unknown")
+    # Log the employee_id only — the external email is stored on the employee
+    # record for display but kept out of log aggregation for privacy.
+    logger.info("Google Calendar connected for employee %s", employee_id)
 
     return _redirect_with_status("success", "success")
 

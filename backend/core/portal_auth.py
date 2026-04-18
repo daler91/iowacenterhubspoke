@@ -7,13 +7,33 @@ INVALID_TOKEN = "Invalid or expired portal link"
 _LAST_USED_THROTTLE_SECONDS = 600  # 10 minutes
 
 
+def _to_aware_datetime(value) -> datetime | None:
+    """Accept native datetime or ISO string and return an aware UTC datetime."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
 async def validate_portal_token(token: str) -> dict:
     """Validate a portal token string and return contact + org context."""
     token_doc = await db.portal_tokens.find_one({"token": token}, {"_id": 0})
     if not token_doc:
         raise HTTPException(status_code=401, detail=INVALID_TOKEN)
-    if token_doc.get("expires_at", "") < datetime.now(timezone.utc).isoformat():
-        raise HTTPException(status_code=401, detail="Portal link has expired")
+
+    expires = _to_aware_datetime(token_doc.get("expires_at"))
+    if not expires or expires < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=401,
+            detail="Portal link has expired — please request a new one",
+        )
 
     contact = await db.partner_contacts.find_one(
         {"id": token_doc["contact_id"], "deleted_at": None}, {"_id": 0}
@@ -29,14 +49,19 @@ async def validate_portal_token(token: str) -> dict:
 
     # Throttle last_used_at writes to once per 10 minutes
     now = datetime.now(timezone.utc)
-    last_used = token_doc.get("last_used_at")
-    if not last_used or (now - datetime.fromisoformat(last_used)).total_seconds() > _LAST_USED_THROTTLE_SECONDS:
+    last_used = _to_aware_datetime(token_doc.get("last_used_at"))
+    if not last_used or (now - last_used).total_seconds() > _LAST_USED_THROTTLE_SECONDS:
         await db.portal_tokens.update_one(
             {"token": token},
             {"$set": {"last_used_at": now.isoformat()}},
         )
 
-    return {"contact": contact, "org": org, "partner_org_id": org["id"]}
+    return {
+        "contact": contact,
+        "org": org,
+        "partner_org_id": org["id"],
+        "contact_id": contact["id"],
+    }
 
 
 async def get_portal_context_from_bearer(authorization: str = Header(default="")) -> dict:

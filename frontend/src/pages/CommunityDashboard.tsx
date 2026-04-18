@@ -107,8 +107,17 @@ export default function CommunityDashboard() {
         {dashboard.communities.map(community => (
           <Card
             key={community.community}
-            className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+            role="button"
+            tabIndex={0}
+            aria-label={`Open board for ${community.community}`}
+            className="p-4 cursor-pointer hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-hub focus-visible:outline-none"
             onClick={() => navigate(`/coordination/board?community=${encodeURIComponent(community.community)}`)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigate(`/coordination/board?community=${encodeURIComponent(community.community)}`);
+              }
+            }}
           >
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{community.community}</h3>
             <div className="flex gap-4 text-sm mb-3">
@@ -164,8 +173,17 @@ export default function CommunityDashboard() {
               {dashboard.upcoming_projects.map(project => (
                 <tr
                   key={project.id}
-                  className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open project ${project.title}`}
+                  className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer focus-visible:bg-gray-100 dark:focus-visible:bg-gray-800 focus-visible:outline-none"
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/coordination/projects/${project.id}`);
+                    }
+                  }}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
                   <td className="px-4 py-3 text-slate-500">{project.community}</td>

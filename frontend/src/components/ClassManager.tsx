@@ -9,6 +9,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { PageShell } from './ui/page-shell';
 import { classesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/utils';
 
@@ -72,7 +73,7 @@ export default function ClassManager() {
       onRefresh?.();
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save class');
+      toast.error(describeApiError(err, 'Couldn\u2019t save that class \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ export default function ClassManager() {
       toast.success('Class deleted');
       onRefresh?.();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete class');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete that class \u2014 please try again.'));
     }
   };
 
@@ -149,8 +150,9 @@ export default function ClassManager() {
                 data-testid={`view-class-${classItem.id}`}
                 onClick={() => onViewProfile(classItem.id)}
                 className="text-muted-foreground hover:text-teal-600"
+                aria-label={`View ${classItem.name}`}
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
               </Button>
               {isAdmin && (
                 <>
@@ -160,8 +162,9 @@ export default function ClassManager() {
                     data-testid={`edit-class-${classItem.id}`}
                     onClick={() => openEdit(classItem)}
                     className="text-muted-foreground hover:text-indigo-600"
+                    aria-label={`Edit ${classItem.name}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -169,8 +172,9 @@ export default function ClassManager() {
                     data-testid={`delete-class-${classItem.id}`}
                     onClick={() => setDeleteTarget(classItem)}
                     className="text-muted-foreground hover:text-danger"
+                    aria-label={`Delete ${classItem.name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </>
               )}

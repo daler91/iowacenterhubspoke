@@ -10,6 +10,26 @@ _logger = logging.getLogger(__name__)
 _pool = None
 
 
+async def _close_pool_quietly(pool) -> None:
+    """Best-effort close so a replaced pool doesn't leak its
+    connection. arq's pool is a redis client underneath and supports
+    ``aclose``; older versions expose ``close``. Swallow both errors
+    and any AttributeError for forward/backward compat."""
+    if pool is None:
+        return
+    for method_name in ("aclose", "close"):
+        method = getattr(pool, method_name, None)
+        if method is None:
+            continue
+        try:
+            result = method()
+            if hasattr(result, "__await__"):
+                await result
+            return
+        except Exception:
+            pass
+
+
 async def get_redis_pool():
     global _pool
     if _pool is not None:
@@ -18,6 +38,9 @@ async def get_redis_pool():
             await _pool.ping()
             return _pool
         except Exception:
+            # Pool is stale — close it before dropping the reference so
+            # the underlying connections/file descriptors don't leak.
+            await _close_pool_quietly(_pool)
             _pool = None
     redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     try:

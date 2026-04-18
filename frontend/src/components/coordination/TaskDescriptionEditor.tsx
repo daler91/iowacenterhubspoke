@@ -76,7 +76,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={btnCls(editor.isActive('bold'))}
         >
-          <Bold className="w-3.5 h-3.5" />
+          <Bold className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -84,7 +84,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={btnCls(editor.isActive('italic'))}
         >
-          <Italic className="w-3.5 h-3.5" />
+          <Italic className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -92,7 +92,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={btnCls(editor.isActive('underline'))}
         >
-          <UnderlineIcon className="w-3.5 h-3.5" />
+          <UnderlineIcon className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
         <button
@@ -101,7 +101,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={btnCls(editor.isActive('orderedList'))}
         >
-          <ListOrdered className="w-3.5 h-3.5" />
+          <ListOrdered className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -109,7 +109,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={btnCls(editor.isActive('bulletList'))}
         >
-          <List className="w-3.5 h-3.5" />
+          <List className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </div>
       <EditorContent editor={editor} />

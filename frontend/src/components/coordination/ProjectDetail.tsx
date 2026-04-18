@@ -37,6 +37,8 @@ import ExportButton from './ExportButton';
 import TaskDetailModal from './TaskDetailModal';
 import ProjectEditDialog from './ProjectEditDialog';
 
+const DND_INSTRUCTIONS_ID = 'project-detail-dnd-instructions';
+
 function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
   return (
@@ -103,6 +105,7 @@ function TaskCard({
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        aria-describedby={DND_INSTRUCTIONS_ID}
         style={style}
         className={cn(
           'p-3 mb-2 border transition-shadow hover:shadow-md cursor-pointer relative group touch-none',
@@ -127,9 +130,10 @@ function TaskCard({
             <DropdownMenuTrigger asChild>
               <button
                 onClick={e => e.stopPropagation()}
+                aria-label="Task options"
                 className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
@@ -296,11 +300,11 @@ function AddTaskInline({
           className="text-sm h-8"
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
         />
-        <Button size="sm" onClick={handleAdd} disabled={loading} className="h-8 px-2 bg-indigo-600 text-white">
-          <Check className="w-3.5 h-3.5" />
+        <Button size="sm" onClick={handleAdd} disabled={loading} aria-label="Add task" className="h-8 px-2 bg-indigo-600 text-white">
+          <Check className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} className="h-8 px-2">
-          <X className="w-3.5 h-3.5" />
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} aria-label="Cancel" className="h-8 px-2">
+          <X className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
       </div>
       <div className="flex items-center gap-2">
@@ -383,12 +387,18 @@ export default function ProjectDetail() {
 
   if (projectLoading || tasksLoading) {
     return (
-      <output
-        className="flex items-center justify-center h-64"
+      <div
+        role="status"
+        aria-live="polite"
         aria-label="Loading project"
+        className="flex items-center justify-center h-64"
       >
-        <span className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin" />
-      </output>
+        <span
+          aria-hidden="true"
+          className="w-8 h-8 border-3 border-hub border-t-transparent rounded-full animate-spin"
+        />
+        <span className="sr-only">Loading project</span>
+      </div>
     );
   }
 
@@ -418,9 +428,10 @@ export default function ProjectDetail() {
             variant="ghost"
             size="sm"
             onClick={() => setShowEditDialog(true)}
+            aria-label="Edit project"
             className="h-7 px-2 text-muted-foreground hover:text-indigo-600"
           >
-            <Pencil className="w-3.5 h-3.5" />
+            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
           </Button>
         </div>
         <p className="text-sm text-slate-500 mt-1">
@@ -475,6 +486,9 @@ export default function ProjectDetail() {
 
       {/* Task Kanban */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <p id={DND_INSTRUCTIONS_ID} className="sr-only">
+          Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
+        </p>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
             const phaseTasks = tasksByPhase[phase] ?? [];

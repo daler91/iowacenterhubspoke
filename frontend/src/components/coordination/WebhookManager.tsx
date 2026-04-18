@@ -5,8 +5,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Plus, Trash2, Play, Copy } from 'lucide-react';
-import api from '../../lib/api';
+import { Plus, Trash2, Play, Copy, KeyRound } from 'lucide-react';
+import api, { webhooksAPI } from '../../lib/api';
 import { toast } from 'sonner';
 
 interface WebhookSub {
@@ -29,6 +29,13 @@ export default function WebhookManager() {
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createdSecret, setCreatedSecret] = useState('');
+  // Shared one-time-reveal dialog state — used by both the initial
+  // create flow and the rotate-secret flow. ``rotatedFor`` captures
+  // which subscription owns the revealed secret so we can title the
+  // dialog correctly.
+  const [rotatedSecret, setRotatedSecret] = useState('');
+  const [rotatedFor, setRotatedFor] = useState<string>('');
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
 
   const loadSubs = () => {
     api.get(BACKEND).then(res => setSubs(res.data.items || []))
@@ -77,6 +84,30 @@ export default function WebhookManager() {
     }
   };
 
+  const handleRotate = async (sub: WebhookSub) => {
+    // Rotation is one-way: the old secret is replaced and never
+    // retrievable again, so confirm before firing. Deliveries signed
+    // with the old key will fail verification at the receiver until
+    // the receiver is updated.
+    if (!globalThis.confirm(
+      `Rotate the signing secret for ${sub.url}? Deliveries will start failing `
+      + 'at the receiver until you update the secret there.',
+    )) {
+      return;
+    }
+    setRotatingId(sub.id);
+    try {
+      const res = await webhooksAPI.rotateSecret(sub.id);
+      setRotatedSecret(res.data.secret);
+      setRotatedFor(sub.url);
+      toast.success('Secret rotated');
+    } catch {
+      toast.error('Failed to rotate secret');
+    } finally {
+      setRotatingId(null);
+    }
+  };
+
   const toggleEvent = (event: string) => {
     setSelectedEvents(prev =>
       prev.includes(event)
@@ -122,11 +153,22 @@ export default function WebhookManager() {
                 )}
               </div>
               <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" onClick={() => handleTest(sub.id)} title="Send test">
-                  <Play className="w-3.5 h-3.5" />
+                <Button size="sm" variant="ghost" onClick={() => handleTest(sub.id)} title="Send test" aria-label="Send test webhook">
+                  <Play className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-danger" title="Delete">
-                  <Trash2 className="w-3.5 h-3.5" />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleRotate(sub)}
+                  disabled={rotatingId === sub.id}
+                  title="Rotate signing secret"
+                  aria-label="Rotate webhook signing secret"
+                  className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                >
+                  <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-danger" title="Delete" aria-label="Delete webhook">
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -136,6 +178,45 @@ export default function WebhookManager() {
           <p className="text-sm text-muted-foreground text-center py-8">No webhooks configured</p>
         )}
       </div>
+
+      {/* One-time reveal dialog for a rotated secret. Reuses the same
+          visual treatment as the create-time reveal so admins learn
+          the "save it now" pattern once. */}
+      <Dialog open={!!rotatedSecret} onOpenChange={(o) => { if (!o) { setRotatedSecret(''); setRotatedFor(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New signing secret</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500 break-all">
+              For <span className="font-mono text-xs">{rotatedFor}</span>.
+              Save it now &mdash; it won&rsquo;t be shown again.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded font-mono break-all">
+                {rotatedSecret}
+              </code>
+              <Button
+                size="sm" variant="outline"
+                onClick={() => { navigator.clipboard.writeText(rotatedSecret); toast.success('Copied'); }}
+                aria-label="Copy rotated secret"
+              >
+                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+            <p className="text-xs text-amber-700">
+              Update this value in your webhook receiver now. Deliveries
+              signed with the old secret will fail verification until you do.
+            </p>
+            <Button
+              onClick={() => { setRotatedSecret(''); setRotatedFor(''); }}
+              className="w-full"
+            >
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={() => { setShowCreate(false); setCreatedSecret(''); }}>
@@ -155,8 +236,9 @@ export default function WebhookManager() {
                 <Button
                   size="sm" variant="outline"
                   onClick={() => { navigator.clipboard.writeText(createdSecret); toast.success('Copied'); }}
+                  aria-label="Copy webhook secret"
                 >
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
               </div>
               <Button onClick={() => { setShowCreate(false); setCreatedSecret(''); }} className="w-full">

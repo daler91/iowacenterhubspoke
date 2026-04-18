@@ -55,9 +55,10 @@ export function EmployeeMultiSelect({ id, employees, selectedIds, onSelectionCha
                 <button
                   type="button"
                   onClick={(e) => removeEmployee(emp.id, e)}
+                  aria-label={`Remove ${emp.name}`}
                   className="ml-0.5 hover:text-indigo-900"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3" aria-hidden="true" />
                 </button>
               </span>
             ))}

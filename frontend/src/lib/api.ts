@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig } from 'axios';
+import { toast } from 'sonner';
 import type {
   ApiListParams,
   ClassCreate,
@@ -67,10 +68,74 @@ export function shouldRedirectOn401(
 }
 
 let lastRedirectAt = 0;
+
+// Concurrent 401s should share a single in-flight refresh call so we don't
+// spam the /auth/refresh endpoint (and risk tripping the replay detector
+// on our own rotation). The Promise is resolved with true iff the refresh
+// succeeded, false otherwise.
+let refreshInFlight: Promise<boolean> | null = null;
+
+// Sentinel set when the server detected refresh-token replay. Login
+// page reads this on mount to show a one-time warning.
+export const REPLAY_LOGOUT_FLAG = 'hubspoke_replay_logout';
+
+async function attemptRefresh(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
+      return true;
+    } catch (err: unknown) {
+      // When the backend detects a reused refresh token it revokes every
+      // active session for that user and returns 401 with a specific
+      // message. Bubble that up to the UI as a warning toast + a session
+      // flag so the subsequent /login redirect can explain what happened.
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
+      const detail = axiosErr.response?.data?.detail;
+      if (
+        axiosErr.response?.status === 401
+        && typeof detail === 'string'
+        && detail.toLowerCase().includes('reused')
+      ) {
+        try {
+          sessionStorage.setItem(REPLAY_LOGOUT_FLAG, '1');
+        } catch {
+          // Private-mode storage quota exceeded — fall through to toast.
+        }
+        toast.warning(
+          'For your safety, all devices were signed out. Please sign in again.',
+          { duration: 8000 },
+        );
+      }
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const status = error.response?.status;
+    const config = error.config as (AxiosRequestConfig & { _retriedAfterRefresh?: boolean }) | undefined;
+    const url: string = typeof config?.url === 'string' ? config.url : '';
+
+    if (status === 401 && config && !config._retriedAfterRefresh) {
+      // Don't try to refresh on auth endpoints themselves — that's what
+      // caused the 401 in the first place.
+      const isAuthEndpoint = url.includes('/auth/login')
+        || url.includes('/auth/register')
+        || url.includes('/auth/refresh')
+        || url.includes('/auth/me');
+      if (!isAuthEndpoint) {
+        const refreshed = await attemptRefresh();
+        if (refreshed) {
+          config._retriedAfterRefresh = true;
+          return api.request(config);
+        }
+      }
       const now = Date.now();
       if (shouldRedirectOn401(globalThis.location.pathname, now, lastRedirectAt)) {
         lastRedirectAt = now;
@@ -229,6 +294,17 @@ export const usersAPI = {
   invite: (data: UserInvitePayload) => api.post('/users/invite', data),
   getInvitations: () => api.get('/users/invitations'),
   revokeInvitation: (id: string) => api.delete(`/users/invitations/${id}`),
+  // Refresh-token session management
+  listSessions: (userId: string) => api.get(`/users/${userId}/sessions`),
+  revokeAllSessions: (userId: string) => api.post(`/users/${userId}/sessions/revoke-all`),
+  // Per-email brute-force lockout state
+  listLockouts: () => api.get('/users/security/lockouts'),
+  clearLockout: (email: string) => api.delete(`/users/security/lockouts/${encodeURIComponent(email)}`),
+};
+
+// Webhooks (admin)
+export const webhooksAPI = {
+  rotateSecret: (webhookId: string) => api.post(`/webhooks/${webhookId}/rotate-secret`),
 };
 
 export default api;

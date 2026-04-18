@@ -41,7 +41,11 @@ async def portal_project_messages(
 ):
     await _require_partner_project(project_id, ctx)
 
-    query = {"project_id": project_id, "visibility": {"$ne": "internal"}}
+    query = {
+        "project_id": project_id,
+        "visibility": {"$ne": "internal"},
+        "deleted_at": None,
+    }
     if channel:
         query["channel"] = channel
     total = await db.messages.count_documents(query)

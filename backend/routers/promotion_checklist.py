@@ -5,7 +5,7 @@ from database import db
 from models.coordination_schemas import (
     PromotionChecklistItemCreate, PromotionChecklistItemToggle,
 )
-from core.auth import CurrentUser
+from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from core.constants import DEFAULT_PROMOTION_CHANNELS
 from core.logger import get_logger
 
@@ -77,7 +77,7 @@ async def get_checklist(project_id: str, user: CurrentUser):
 async def add_item(
     project_id: str,
     data: PromotionChecklistItemCreate,
-    user: CurrentUser,
+    user: EditorRequired,
 ):
     await _get_or_create_checklist(project_id)
     new_item = {
@@ -112,7 +112,7 @@ async def toggle_item(
     project_id: str,
     item_id: str,
     data: PromotionChecklistItemToggle,
-    user: CurrentUser,
+    user: EditorRequired,
 ):
     doc = await db.promotion_checklists.find_one(
         {"project_id": project_id}, {"_id": 0},
@@ -156,7 +156,7 @@ async def toggle_item(
     responses={404: {"description": ITEM_NOT_FOUND}},
 )
 async def delete_item(
-    project_id: str, item_id: str, user: CurrentUser,
+    project_id: str, item_id: str, user: SchedulerRequired,
 ):
     result = await db.promotion_checklists.update_one(
         {"project_id": project_id},

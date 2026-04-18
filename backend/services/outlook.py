@@ -29,6 +29,19 @@ _token_lock = asyncio.Lock()
 # OAuth per-employee token cache
 _oauth_token_cache: dict[str, dict] = {}
 _oauth_token_lock = asyncio.Lock()
+# Per-email locks serialise refreshes for *one* user without blocking
+# every other user on a slow token exchange. A module-wide lock was a
+# head-of-line hazard: one stalled Microsoft response stalls every
+# other employee's Graph call.
+_oauth_token_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(key: str) -> asyncio.Lock:
+    lock = _oauth_token_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _oauth_token_locks[key] = lock
+    return lock
 
 
 async def _get_access_token_client_credentials() -> str | None:
@@ -64,7 +77,14 @@ async def _get_access_token_client_credentials() -> str | None:
 
 
 async def _refresh_outlook_oauth_token(refresh_token: str) -> dict | None:
-    """Exchange a refresh token for a new access token via OAuth 2.0."""
+    """Exchange a refresh token for a new access token via OAuth 2.0.
+
+    Azure AD rotates refresh tokens by default — the response carries
+    both a new ``access_token`` and a new ``refresh_token`` that
+    supersedes the one we sent. Callers must persist the rotated
+    refresh token back to the employee record or the next exchange
+    will fail with an invalidated-grant error.
+    """
     try:
         client = _get_http_client()
         resp = await client.post(OUTLOOK_OAUTH_TOKEN_URL, data={
@@ -79,10 +99,27 @@ async def _refresh_outlook_oauth_token(refresh_token: str) -> dict | None:
         return {
             "access_token": data["access_token"],
             "expires_in": data.get("expires_in", 3600),
+            # May be absent in rare configurations; passthrough None in
+            # that case so the caller skips the DB write.
+            "refresh_token": data.get("refresh_token"),
         }
     except Exception:
         logger.exception("Failed to refresh Outlook OAuth token")
         return None
+
+
+async def _persist_rotated_refresh_token(email: str, new_refresh_token: str) -> None:
+    """Encrypt the rotated refresh token and write it back to the
+    employee record so the next exchange uses the current grant."""
+    try:
+        from database import db
+        from core.token_vault import encrypt_token
+        await db.employees.update_one(
+            {"email": email, "deleted_at": None},
+            {"$set": {"outlook_refresh_token": encrypt_token(new_refresh_token)}},
+        )
+    except Exception:
+        logger.exception("Failed to persist rotated Outlook refresh token")
 
 
 async def _get_access_token_oauth(refresh_token: str, email: str) -> str | None:
@@ -93,7 +130,9 @@ async def _get_access_token_oauth(refresh_token: str, email: str) -> str | None:
     if cached and cached["access_token"] and cached["expires_at"] > now + 300:
         return cached["access_token"]
 
-    async with _oauth_token_lock:
+    async with _lock_for(cache_key):
+        # Double-check under the per-email lock so concurrent requests
+        # for the same user coalesce onto one refresh.
         cached = _oauth_token_cache.get(cache_key)
         if cached and cached["access_token"] and cached["expires_at"] > now + 300:
             return cached["access_token"]
@@ -105,6 +144,10 @@ async def _get_access_token_oauth(refresh_token: str, email: str) -> str | None:
             "access_token": result["access_token"],
             "expires_at": now + result["expires_in"] - 300,
         }
+        # Persist the rotated refresh token before returning so a
+        # process restart uses the currently-valid grant.
+        if result.get("refresh_token") and result["refresh_token"] != refresh_token:
+            await _persist_rotated_refresh_token(email, result["refresh_token"])
         return result["access_token"]
 
 
@@ -175,7 +218,14 @@ async def check_outlook_availability(
         resp.raise_for_status()
         data = resp.json()
     except Exception:
-        logger.exception("Outlook getSchedule failed for user")
+        # Fail OPEN (return no conflicts) but surface a warning so ops
+        # can spot Graph outages. Failing closed would block every
+        # schedule create during a Microsoft blip — the trade-off
+        # here is "rare double-book on outage" vs "total scheduling
+        # outage when a third-party API hiccups." We pick the former.
+        logger.warning(
+            "Outlook getSchedule unreachable — availability treated as free",
+        )
         return []
 
     conflicts = []
@@ -258,6 +308,10 @@ async def delete_outlook_event(
         resp = await client.delete(url, headers={
             "Authorization": f"Bearer {token}",
         }, timeout=10)
+        if resp.status_code in (404, 410):
+            # Already gone — idempotent delete success.
+            logger.info("Outlook event %s already deleted", event_id)
+            return True
         resp.raise_for_status()
         return True
     except Exception:

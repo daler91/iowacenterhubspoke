@@ -200,7 +200,7 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
             className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white h-8 w-8 shrink-0"
             aria-label="Send message"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3.5 h-3.5" aria-hidden="true" />
           </Button>
         </div>
       </div>
@@ -533,14 +533,14 @@ export default function TaskDetailModal({
                           className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
                           aria-label={`Download ${att.filename}`}
                         >
-                          <Download className="w-3.5 h-3.5" />
+                          <Download className="w-3.5 h-3.5" aria-hidden="true" />
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
                           className="text-slate-400 hover:text-danger p-1 rounded transition-colors"
                           aria-label={`Delete ${att.filename}`}
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                       </div>
                     ))}

@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import DocumentVisibilityUpdate
 from core.upload import stream_upload_to_disk
-from core.auth import CurrentUser
+from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -38,7 +38,7 @@ async def list_documents(
     user: CurrentUser,
     visibility: Optional[str] = None,
 ):
-    query = {"project_id": project_id}
+    query = {"project_id": project_id, "deleted_at": None}
     if visibility:
         query["visibility"] = visibility
     docs = await db.documents.find(query, {"_id": 0}).sort("uploaded_at", -1).to_list(500)
@@ -52,7 +52,7 @@ async def list_documents(
 )
 async def upload_document(
     project_id: str,
-    user: CurrentUser,
+    user: EditorRequired,
     file: Annotated[UploadFile, File(...)],
     visibility: Annotated[str, Form()] = "shared",
 ):
@@ -80,6 +80,7 @@ async def upload_document(
         "uploaded_by": user.get("name", "System"),
         "uploaded_at": now,
         "version": 1,
+        "deleted_at": None,
     }
     await db.documents.insert_one(doc)
     doc.pop("_id", None)
@@ -97,10 +98,10 @@ async def upload_document(
 )
 async def update_visibility(
     project_id: str, doc_id: str,
-    data: DocumentVisibilityUpdate, user: CurrentUser,
+    data: DocumentVisibilityUpdate, user: EditorRequired,
 ):
     result = await db.documents.update_one(
-        {"id": doc_id, "project_id": project_id},
+        {"id": doc_id, "project_id": project_id, "deleted_at": None},
         {"$set": {"visibility": data.visibility}},
     )
     if result.matched_count == 0:
@@ -114,16 +115,18 @@ async def update_visibility(
     summary="Delete a document",
     responses={404: {"description": DOC_NOT_FOUND}},
 )
-async def delete_document(project_id: str, doc_id: str, user: CurrentUser):
-    doc = await db.documents.find_one({"id": doc_id, "project_id": project_id})
+async def delete_document(project_id: str, doc_id: str, user: SchedulerRequired):
+    # Soft-delete keeps the audit record; the file on disk stays until an
+    # admin-triggered purge so a mistaken delete can be recovered.
+    doc = await db.documents.find_one(
+        {"id": doc_id, "project_id": project_id, "deleted_at": None}
+    )
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
-    # Remove file from disk — only use the stored basename, never user input
-    stored = os.path.basename(doc.get("file_path", ""))
-    file_path = os.path.join(UPLOAD_DIR, stored)
-    if stored and os.path.exists(file_path):
-        os.remove(file_path)
-    await db.documents.delete_one({"id": doc_id})
+    now = datetime.now(timezone.utc).isoformat()
+    await db.documents.update_one(
+        {"id": doc_id}, {"$set": {"deleted_at": now}}
+    )
     await log_activity(
         "document_deleted", f"Document '{doc.get('filename')}' deleted",
         "document", doc_id, user.get("name", "System"),
@@ -138,7 +141,8 @@ async def delete_document(project_id: str, doc_id: str, user: CurrentUser):
 )
 async def download_document(project_id: str, doc_id: str, user: CurrentUser):
     doc = await db.documents.find_one(
-        {"id": doc_id, "project_id": project_id}, {"_id": 0}
+        {"id": doc_id, "project_id": project_id, "deleted_at": None},
+        {"_id": 0},
     )
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)

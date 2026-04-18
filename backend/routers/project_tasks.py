@@ -9,7 +9,7 @@ from database import db, ROOT_DIR
 from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
-from core.auth import CurrentUser
+from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from core.pagination import Paginated, paginated_response
 from core.upload import stream_upload_to_disk
 from services.activity import log_activity
@@ -48,7 +48,12 @@ async def _verify_project(project_id: str):
 
 async def _verify_task(project_id: str, task_id: str):
     task = await db.tasks.find_one(
-        {"id": task_id, "project_id": project_id}, {"_id": 0},
+        {
+            "id": task_id,
+            "project_id": project_id,
+            "deleted_at": None,
+        },
+        {"_id": 0},
     )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
@@ -83,7 +88,7 @@ async def list_tasks(
     completed: Optional[bool] = None,
 ):
     await _verify_project(project_id)
-    query: dict = {"project_id": project_id}
+    query: dict = {"project_id": project_id, "deleted_at": None}
     if phase:
         query["phase"] = phase
     if owner:
@@ -96,6 +101,8 @@ async def list_tasks(
         .to_list(1000)
     )
     # Batch-enrich with counts
+    # task_ids comes from the non-deleted task query above, so attachments/
+    # comments are naturally scoped to live tasks.
     task_ids = [t["id"] for t in tasks]
     att_counts: dict = {}
     cmt_counts: dict = {}
@@ -122,11 +129,14 @@ async def list_tasks(
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def create_task(
-    project_id: str, data: TaskCreate, user: CurrentUser,
+    project_id: str, data: TaskCreate, user: EditorRequired,
 ):
     await _verify_project(project_id)
     last_task = (
-        await db.tasks.find({"project_id": project_id}, {"sort_order": 1})
+        await db.tasks.find(
+            {"project_id": project_id, "deleted_at": None},
+            {"sort_order": 1},
+        )
         .sort("sort_order", -1)
         .limit(1)
         .to_list(1)
@@ -155,6 +165,7 @@ async def create_task(
         "spotlight": False,
         "at_risk": False,
         "created_at": now,
+        "deleted_at": None,
     }
     await db.tasks.insert_one(doc)
     doc.pop("_id", None)
@@ -202,7 +213,7 @@ async def get_task_detail(
     },
 )
 async def update_task(
-    project_id: str, task_id: str, data: TaskUpdate, user: CurrentUser,
+    project_id: str, task_id: str, data: TaskUpdate, user: EditorRequired,
 ):
     update_data = {
         k: v for k, v in data.model_dump().items() if v is not None
@@ -221,7 +232,7 @@ async def update_task(
             update_data["completed_at"] = None
             update_data["completed_by"] = None
     result = await db.tasks.update_one(
-        {"id": task_id, "project_id": project_id},
+        {"id": task_id, "project_id": project_id, "deleted_at": None},
         {"$set": update_data},
     )
     if result.matched_count == 0:
@@ -236,10 +247,15 @@ async def update_task(
     responses={404: {"description": TASK_NOT_FOUND}},
 )
 async def toggle_task_completion(
-    project_id: str, task_id: str, user: CurrentUser,
+    project_id: str, task_id: str, user: EditorRequired,
 ):
     task = await db.tasks.find_one(
-        {"id": task_id, "project_id": project_id}, {"_id": 0},
+        {
+            "id": task_id,
+            "project_id": project_id,
+            "deleted_at": None,
+        },
+        {"_id": 0},
     )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
@@ -265,12 +281,16 @@ async def toggle_task_completion(
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def reorder_tasks(
-    project_id: str, data: TaskReorder, user: CurrentUser,
+    project_id: str, data: TaskReorder, user: EditorRequired,
 ):
     await _verify_project(project_id)
     for idx, task_id in enumerate(data.task_ids):
         await db.tasks.update_one(
-            {"id": task_id, "project_id": project_id},
+            {
+                "id": task_id,
+                "project_id": project_id,
+                "deleted_at": None,
+            },
             {"$set": {"sort_order": idx}},
         )
     return {"message": "Tasks reordered", "count": len(data.task_ids)}
@@ -282,16 +302,22 @@ async def reorder_tasks(
     responses={404: {"description": TASK_NOT_FOUND}},
 )
 async def delete_task(
-    project_id: str, task_id: str, user: CurrentUser,
+    project_id: str, task_id: str, user: SchedulerRequired,
 ):
-    result = await db.tasks.delete_one(
-        {"id": task_id, "project_id": project_id},
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.tasks.update_one(
+        {
+            "id": task_id,
+            "project_id": project_id,
+            "deleted_at": None,
+        },
+        {"$set": {"deleted_at": now}},
     )
-    if result.deleted_count == 0:
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
-    # Clean up attachments and comments
-    await db.task_attachments.delete_many({"task_id": task_id})
-    await db.task_comments.delete_many({"task_id": task_id})
+    # Attachments and comments are preserved — they still belong to the
+    # now-deleted task in the audit trail. List endpoints hide them by
+    # filtering on the task's deleted_at.
     await log_activity(
         "task_deleted", f"Task '{task_id}' deleted",
         "task", task_id, user.get("name", "System"),
@@ -327,7 +353,7 @@ async def list_task_attachments(
 async def upload_task_attachment(
     project_id: str,
     task_id: str,
-    user: CurrentUser,
+    user: EditorRequired,
     file: Annotated[UploadFile, File(...)],
 ):
     await _verify_task(project_id, task_id)
@@ -363,7 +389,7 @@ async def upload_task_attachment(
     responses={404: {"description": ATTACHMENT_NOT_FOUND}},
 )
 async def delete_task_attachment(
-    project_id: str, task_id: str, att_id: str, user: CurrentUser,
+    project_id: str, task_id: str, att_id: str, user: SchedulerRequired,
 ):
     att = await db.task_attachments.find_one(
         {"id": att_id, "task_id": task_id},
@@ -433,7 +459,7 @@ async def post_task_comment(
     project_id: str,
     task_id: str,
     data: TaskCommentCreate,
-    user: CurrentUser,
+    user: EditorRequired,
 ):
     await _verify_task(project_id, task_id)
     comment_id = str(uuid.uuid4())
@@ -444,7 +470,9 @@ async def post_task_comment(
         "project_id": project_id,
         "sender_type": "internal",
         "sender_name": user.get("name", "Unknown"),
-        "sender_id": user.get("id", ""),
+        # JWT payload key is ``user_id``, not ``id``. The old default
+        # stored an empty string and broke /auth/me anonymization.
+        "sender_id": user.get("user_id", ""),
         "body": data.body,
         "created_at": now,
     }

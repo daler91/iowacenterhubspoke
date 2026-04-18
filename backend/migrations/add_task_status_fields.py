@@ -17,24 +17,46 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
+_BATCH_SIZE = 1000
+
+
 async def run(db) -> int:
     """Apply the migration against an existing database handle.
 
     Idempotent: only touches tasks missing the ``status`` field.
+
+    Streams the task list via an async cursor and splits the work into
+    ``bulk_write`` batches so a collection with hundreds of thousands of
+    rows doesn't load into memory or hold the event loop through a single
+    50k round-trip to Mongo.
     """
-    tasks = await db.tasks.find(
+    from pymongo import UpdateOne
+
+    cursor = db.tasks.find(
         {"status": {"$exists": False}},
         {"_id": 0, "id": 1, "completed": 1},
-    ).to_list(50000)
+    )
 
+    batch: list = []
     updated = 0
-    for t in tasks:
+
+    async def _flush(ops: list) -> int:
+        if not ops:
+            return 0
+        result = await db.tasks.bulk_write(ops, ordered=False)
+        return result.modified_count or 0
+
+    async for t in cursor:
         status = "completed" if t.get("completed") else "to_do"
-        await db.tasks.update_one(
+        batch.append(UpdateOne(
             {"id": t["id"]},
             {"$set": {"status": status, "spotlight": False, "at_risk": False}},
-        )
-        updated += 1
+        ))
+        if len(batch) >= _BATCH_SIZE:
+            updated += await _flush(batch)
+            batch = []
+
+    updated += await _flush(batch)
 
     logger.info("Migrated %d tasks (added status/spotlight/at_risk fields)", updated)
     return updated

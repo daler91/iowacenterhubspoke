@@ -28,6 +28,8 @@ const PX_PER_HOUR = CALENDAR.PX_PER_HOUR_WEEK;
 const START_HOUR = CALENDAR.START_HOUR;
 const { minutesToTop, snapYToMinutes } = createScaleHelpers(PX_PER_HOUR);
 
+const DND_INSTRUCTIONS_ID = 'calendar-week-dnd-instructions';
+
 // ─── Draggable schedule block ─────────────────────────────────────────────
 const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo, overlapInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -97,6 +99,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               {...(selectionMode ? {} : { ...listeners, ...attributes })}
               type="button"
               data-testid={`class-block-${schedule.id}`}
+              aria-describedby={!selectionMode && canEdit ? DND_INSTRUCTIONS_ID : undefined}
               className={cn(
                 "schedule-block class-block active:cursor-grabbing group appearance-none border-0 p-0 text-left",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1",
@@ -383,6 +386,9 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      <p id={DND_INSTRUCTIONS_ID} className="sr-only">
+        Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
+      </p>
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-week">
         {/* Header row */}
         <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">

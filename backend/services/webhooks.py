@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from database import db
 from core.queue import get_redis_pool
 from core.logger import get_logger
+from core.token_vault import decrypt_token
 
 logger = get_logger(__name__)
 
@@ -91,7 +92,9 @@ async def deliver_webhook(
     except HTTPException:
         logger.warning("Webhook delivery skipped — URL failed SSRF validation")
         return
-    secret = sub.get("secret", "")
+    # Secret is Fernet-encrypted at rest; decrypt at signing time.
+    raw_secret = sub.get("secret", "") or ""
+    secret = decrypt_token(raw_secret) if raw_secret else ""
     body = json.dumps({"event": event, "data": payload})
 
     # HMAC signature

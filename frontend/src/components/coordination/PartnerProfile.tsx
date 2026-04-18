@@ -29,11 +29,17 @@ export default function PartnerProfile() {
   const [addingContact, setAddingContact] = useState(false);
   const [sendingInvite, setSendingInvite] = useState<string | null>(null);
 
+  // Alias ``id`` as ``orgId`` up front so both handlers below can
+  // reference it safely. Previously ``orgId`` was declared further
+  // down and ``handleAddContact`` crashed on invocation because the
+  // const was TDZ'd at the point of use.
+  const orgId = id;
+
   const handleSendInvite = async (contactId: string) => {
-    if (!id) return;
+    if (!orgId) return;
     setSendingInvite(contactId);
     try {
-      const res = await partnerOrgsAPI.sendInvite(id, contactId);
+      const res = await partnerOrgsAPI.sendInvite(orgId, contactId);
       toast.success(res.data.message, {
         description: 'Portal link has been generated and emailed.',
         duration: 6000,
@@ -46,6 +52,10 @@ export default function PartnerProfile() {
   };
 
   const handleAddContact = async () => {
+    if (!orgId) {
+      toast.error('Cannot add a contact without a partner organization');
+      return;
+    }
     if (!contactForm.name || !contactForm.email) {
       toast.error('Name and email are required');
       return;
@@ -92,8 +102,6 @@ export default function PartnerProfile() {
   if (isLoading) status = { kind: 'loading', variant: 'cards' };
   else if (!partnerOrg || !id) status = { kind: 'error', error: new Error('Partner organization not found') };
   else status = { kind: 'ready' };
-
-  const orgId = id;
 
   const statusActions = partnerOrg ? (
     <DropdownMenu>

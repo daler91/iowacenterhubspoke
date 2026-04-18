@@ -81,7 +81,7 @@ async def export_tasks(
 ):
     import pandas as pd
 
-    query: dict = {}
+    query: dict = {"deleted_at": None}
     if project_id:
         query["project_id"] = project_id
     if completed is not None:

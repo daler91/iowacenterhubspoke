@@ -75,7 +75,7 @@ async def bulk_update_status(
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
-        {"$set": {"status": data.status}},
+        {"$set": {"status": data.status}, "$inc": {"version": 1}},
     )
     updated_count = result.modified_count
     if updated_count > 0:
@@ -99,23 +99,42 @@ async def bulk_update_status(
 
 
 async def _check_reassign_conflicts(schedules, employees):
-    """Pre-flight conflict check for bulk reassignment."""
+    """Pre-flight conflict check for bulk reassignment.
+
+    Each (schedule, new_employee) pair is an independent read against Mongo.
+    Sequential awaits scale O(N*M) in latency; ``asyncio.gather`` parallelises
+    the pool so the total time is bounded by the slowest check + connection
+    pool capacity. A 100-schedule × 5-employee reassign drops from ~25s to
+    roughly the single-check latency.
+    """
+    import asyncio
+
+    pairs = [
+        (sched, emp)
+        for sched in schedules
+        for emp in employees
+        if emp["id"] not in sched.get("employee_ids", [])
+    ]
+    if not pairs:
+        return []
+
+    results = await asyncio.gather(*(
+        check_conflicts(
+            emp["id"], sched["date"], sched["start_time"], sched["end_time"],
+            sched.get("drive_time_minutes", 0), exclude_id=sched["id"],
+        )
+        for sched, emp in pairs
+    ))
+
     conflicts = []
-    for sched in schedules:
-        for emp in employees:
-            if emp["id"] in sched.get("employee_ids", []):
-                continue
-            found = await check_conflicts(
-                emp["id"], sched["date"], sched["start_time"], sched["end_time"],
-                sched.get("drive_time_minutes", 0), exclude_id=sched["id"],
-            )
-            if found:
-                conflicts.append({
-                    "schedule_id": sched["id"],
-                    "date": sched["date"],
-                    "employee_name": emp["name"],
-                    "conflicts": found,
-                })
+    for (sched, emp), found in zip(pairs, results):
+        if found:
+            conflicts.append({
+                "schedule_id": sched["id"],
+                "date": sched["date"],
+                "employee_name": emp["name"],
+                "conflicts": found,
+            })
     return conflicts
 
 
@@ -162,16 +181,22 @@ async def bulk_reassign_schedules(
             "$set": {
                 "employee_ids": employee_ids,
                 "employees": employees_snapshot,
-            }
+            },
+            "$inc": {"version": 1},
         },
     )
     updated_count = result.modified_count
 
-    # Recalculate town-to-town for affected employees/dates
+    # Recalculate town-to-town for affected employees/dates — parallelise
+    # so a 5-employee × 10-date reassign is one round trip, not 50.
+    import asyncio
+
     affected_dates = {s["date"] for s in schedules}
-    for emp_id in employee_ids:
-        for d in affected_dates:
-            await _sync_same_day_town_to_town(emp_id, d)
+    await asyncio.gather(*(
+        _sync_same_day_town_to_town(emp_id, d)
+        for emp_id in employee_ids
+        for d in affected_dates
+    ))
 
     if updated_count > 0:
         logger.info(
@@ -250,6 +275,7 @@ async def bulk_update_location(
             # Strip the legacy override so bulk-relocated schedules reset to
             # the new location's default drive time (matches old behaviour).
             "$unset": {"travel_override_minutes": ""},
+            "$inc": {"version": 1},
         },
     )
     updated_count = result.modified_count
@@ -301,7 +327,8 @@ async def bulk_update_class(
                 "class_name": class_doc["name"],
                 "class_color": class_doc.get("color", "#0F766E"),
                 "class_description": class_doc.get("description"),
-            }
+            },
+            "$inc": {"version": 1},
         },
     )
     updated_count = result.modified_count

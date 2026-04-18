@@ -145,19 +145,68 @@ async def update_schedule(
     schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    # expected_version is a control field, not a document field — pop it
+    # out of the $set payload before anything else so it can't leak into
+    # the stored schedule.
+    expected_version = update_data.pop("expected_version", None)
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
 
     old_schedule = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
+    if not old_schedule:
+        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+
+    # DST sanity on the new slot: reject 02:30 on a spring-forward day
+    # BEFORE we mutate anything. Honour either field arriving individually
+    # — the caller may only be shifting the end, not the whole window.
+    from services.schedule_utils import validate_local_time_exists
+    _effective_date = update_data.get("date") or old_schedule.get("date")
+    for _field in ("start_time", "end_time"):
+        if _field in update_data:
+            try:
+                validate_local_time_exists(_effective_date, update_data[_field])
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Optimistic concurrency: if the client sent an expected_version, the
+    # update only lands when the server-side version matches. This stops
+    # two concurrent editors from silently clobbering each other.
+    current_version = old_schedule.get("version", 0)
+    if expected_version is not None and expected_version != current_version:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Schedule was updated by someone else — reload and try again.",
+                "current_version": current_version,
+                "your_version": expected_version,
+            },
+        )
 
     await resolve_update_relations(schedule_id, update_data)
+    update_data["version"] = current_version + 1
 
-    result = await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None}, {"$set": update_data}
-    )
+    match_filter = {"id": schedule_id, "deleted_at": None}
+    if expected_version is not None:
+        match_filter["version"] = current_version
+
+    result = await db.schedules.update_one(match_filter, {"$set": update_data})
     if result.matched_count == 0:
+        # Could be a 404 (schedule gone) or 409 (version raced) — probe
+        # again to distinguish and return the right code.
+        still_exists = await db.schedules.find_one(
+            {"id": schedule_id, "deleted_at": None}, {"_id": 0, "version": 1},
+        )
+        if still_exists and expected_version is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Schedule was updated by someone else — reload and try again.",
+                    "current_version": still_exists.get("version", 0),
+                    "your_version": expected_version,
+                },
+            )
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
     await sync_town_to_town_if_needed(schedule_id, update_data)
@@ -278,7 +327,7 @@ async def update_schedule_status(
         raise HTTPException(status_code=400, detail="Invalid status")
     result = await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
-        {"$set": {"status": data.status}},
+        {"$set": {"status": data.status}, "$inc": {"version": 1}},
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
@@ -371,8 +420,33 @@ async def update_series(
 ):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    # expected_version never applies across a series — the field is for
+    # single-doc concurrency; strip it so it doesn't leak into $set.
+    update_data.pop("expected_version", None)
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+
+    # DST sanity: if the caller is changing start/end times, each future
+    # occurrence in the series needs to land on a valid local wall-clock
+    # time. Reject the whole request if ANY occurrence would fall in a
+    # spring-forward hole — a partial series with one bogus slot is worse
+    # than an all-or-nothing reject.
+    new_start = update_data.get("start_time")
+    new_end = update_data.get("end_time")
+    if new_start or new_end:
+        from services.schedule_utils import validate_local_time_exists
+        future_dates = await db.schedules.distinct(
+            "date",
+            {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+        )
+        for sched_date in future_dates:
+            try:
+                if new_start:
+                    validate_local_time_exists(sched_date, new_start)
+                if new_end:
+                    validate_local_time_exists(sched_date, new_end)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Resolve relations (location name, employee snapshots, class snapshot)
     # Use a representative schedule to resolve drive overrides
@@ -385,7 +459,7 @@ async def update_series(
 
     result = await db.schedules.update_many(
         {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
-        {"$set": update_data},
+        {"$set": update_data, "$inc": {"version": 1}},
     )
     updated_count = result.modified_count
     if updated_count > 0:
@@ -427,6 +501,14 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
 async def relocate_schedule(
     schedule_id: str, data: ScheduleRelocate, user: SchedulerRequired
 ):
+    # Reject DST-nonexistent times on the new slot before we mutate anything.
+    from services.schedule_utils import validate_local_time_exists
+    try:
+        validate_local_time_exists(data.date, data.start_time)
+        validate_local_time_exists(data.date, data.end_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     schedule = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
@@ -437,7 +519,14 @@ async def relocate_schedule(
 
     await db.schedules.update_one(
         {"id": schedule_id, "deleted_at": None},
-        {"$set": {"date": data.date, "start_time": data.start_time, "end_time": data.end_time}},
+        {
+            "$set": {
+                "date": data.date,
+                "start_time": data.start_time,
+                "end_time": data.end_time,
+            },
+            "$inc": {"version": 1},
+        },
     )
     logger.info(
         f"Schedule relocated: {schedule_id}",
@@ -449,6 +538,22 @@ async def relocate_schedule(
         await _sync_same_day_town_to_town(emp_id, data.date)
         if old_date and old_date != data.date:
             await _sync_same_day_town_to_town(emp_id, old_date)
+
+    # Mirror the update_schedule behaviour: if this schedule backs a
+    # coordination project, keep the project's event_date in sync.
+    if old_date != data.date:
+        linked = await db.projects.find_one(
+            {"schedule_id": schedule_id, "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if linked:
+            await db.projects.update_one(
+                {"id": linked["id"]},
+                {"$set": {
+                    "event_date": data.date,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
 
     updated = await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}

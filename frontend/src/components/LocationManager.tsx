@@ -8,6 +8,7 @@ import { PageShell } from './ui/page-shell';
 import { MapPin, Plus, Pencil, Trash2, Car, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { locationsAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { useAuth } from '../lib/auth';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import PlacesAutocomplete from './PlacesAutocomplete';
@@ -96,7 +97,7 @@ export default function LocationManager() {
       onRefresh();
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save location');
+      toast.error(describeApiError(err, 'Couldn\u2019t save that location \u2014 please try again.'));
     } finally {
       setLoading(false);
     }
@@ -108,8 +109,7 @@ export default function LocationManager() {
       toast.success('Location deleted');
       onRefresh();
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      toast.error(detail || 'Failed to delete location');
+      toast.error(describeApiError(err, 'Couldn\u2019t delete that location \u2014 it may still be used by schedules.'));
     } finally {
       setDeleteTarget(null);
     }
@@ -187,8 +187,9 @@ export default function LocationManager() {
                 data-testid={`view-location-${loc.id}`}
                 onClick={() => onViewProfile(loc.id)}
                 className="text-muted-foreground hover:text-teal-600"
+                aria-label={`View ${loc.city_name}`}
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
               </Button>
               {isAdmin && (
                 <>
@@ -198,8 +199,9 @@ export default function LocationManager() {
                     data-testid={`edit-location-${loc.id}`}
                     onClick={() => openEdit(loc)}
                     className="text-muted-foreground hover:text-indigo-600"
+                    aria-label={`Edit ${loc.city_name}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -207,8 +209,9 @@ export default function LocationManager() {
                     data-testid={`delete-location-${loc.id}`}
                     onClick={() => setDeleteTarget(loc)}
                     className="text-muted-foreground hover:text-danger"
+                    aria-label={`Delete ${loc.city_name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 </>
               )}

@@ -25,6 +25,8 @@ const COLUMNS = [
   { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
 
+const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
+
 function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelected, toggleItem }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: schedule.id,
@@ -82,6 +84,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         type="button"
         {...(selectionMode ? {} : { ...listeners, ...attributes })}
         data-testid={`kanban-card-${schedule.id}`}
+        aria-describedby={!selectionMode ? DND_INSTRUCTIONS_ID : undefined}
         onClick={() => {
           if (selectionMode) {
             toggleItem?.(schedule.id);
@@ -312,6 +315,9 @@ export default function KanbanBoard() {
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <p id={DND_INSTRUCTIONS_ID} className="sr-only">
+          Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
           const items = getColumnSchedules(col.id);

@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from './ui/dialog';
 import { schedulesAPI } from '../lib/api';
+import { describeApiError } from '../lib/error-messages';
 import { toast } from 'sonner';
 import { Upload, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -127,7 +128,7 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
       }
     } catch (error) {
       console.error('Preview error:', error);
-      toast.error(error.response?.data?.detail || 'Failed to process CSV file');
+      toast.error(describeApiError(error, 'Couldn\u2019t process that CSV file \u2014 please check the format and try again.'));
     } finally {
       setIsUploading(false);
     }
@@ -149,7 +150,7 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
       handleClose();
     } catch (error) {
       console.error('Import commit error:', error);
-      toast.error('Failed to import schedules');
+      toast.error(describeApiError(error, 'Couldn\u2019t import those schedules \u2014 please try again.'));
     } finally {
       setIsCommitting(false);
     }

@@ -1,6 +1,7 @@
 """Schedule creation: single and recurring (bulk) schedule creation."""
 
 import uuid
+from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from database import db
@@ -13,6 +14,7 @@ from services.schedule_utils import (
     check_conflicts,
     check_outlook_conflicts,
     check_google_conflicts,
+    validate_local_time_exists,
 )
 from routers.schedule_helpers import (
     logger,
@@ -23,6 +25,96 @@ from routers.schedule_helpers import (
     _sync_same_day_town_to_town,
     _enqueue_calendar_events_for_all,
 )
+
+
+async def _auto_link_partner_project(
+    schedule_doc: dict,
+    location: dict,
+    class_doc: dict | None,
+    user: dict,
+) -> str | None:
+    """Create a draft project for a schedule landing at a partner-org venue.
+
+    The report flagged schedules and coordination as decoupled — partners
+    never learn a class is coming because someone has to remember to spin
+    up the project manually. This closes the loop: if the schedule's
+    location belongs to an active partner org AND no project already
+    points at this schedule, a ``planning`` project is created and linked.
+
+    Non-fatal: any failure is logged and the schedule still stands. We
+    never want a coordination issue to block the core scheduling path.
+    """
+    try:
+        partner_org = await db.partner_orgs.find_one(
+            {
+                "location_id": location["id"],
+                "status": {"$in": ["active", "onboarding"]},
+                "deleted_at": None,
+            },
+            {"_id": 0},
+        )
+        if not partner_org:
+            return None
+
+        existing = await db.projects.find_one(
+            {"schedule_id": schedule_doc["id"], "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if existing:
+            return existing["id"]
+
+        project_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        title = (
+            f"{class_doc['name']} at {partner_org['name']}"
+            if class_doc else f"Class at {partner_org['name']}"
+        )
+        project_doc = {
+            "id": project_id,
+            "title": title,
+            "event_format": "workshop",
+            "partner_org_id": partner_org["id"],
+            "partner_org_name": partner_org["name"],
+            "template_id": None,
+            "schedule_id": schedule_doc["id"],
+            "class_id": schedule_doc.get("class_id"),
+            "event_date": schedule_doc["date"],
+            "phase": "planning",
+            "community": partner_org.get("community", location.get("city_name", "")),
+            "venue_name": partner_org["name"],
+            "venue_details": partner_org.get("venue_details", {}),
+            "location_id": location["id"],
+            "registration_count": 0,
+            "attendance_count": None,
+            "warm_leads": None,
+            "notes": "Auto-created from schedule.",
+            "created_at": now,
+            "updated_at": now,
+            "created_by": user.get("user_id", ""),
+            "auto_created_from_schedule": True,
+            "deleted_at": None,
+        }
+        await db.projects.insert_one(project_doc)
+        logger.info(
+            "Auto-created partner project from schedule",
+            extra={"entity": {
+                "project_id": project_id,
+                "schedule_id": schedule_doc["id"],
+                "partner_org_id": partner_org["id"],
+            }},
+        )
+        await log_activity(
+            "project_auto_created",
+            f"Project '{title}' auto-created from schedule at {location.get('city_name', '?')}",
+            "project", project_id, user.get("name", "System"),
+        )
+        return project_id
+    except Exception:
+        logger.exception(
+            "Auto-link partner project failed — schedule created anyway",
+            extra={"entity": {"schedule_id": schedule_doc["id"]}},
+        )
+        return None
 
 
 async def _check_internal_conflicts(employees, date, start_time, end_time, drive_time):
@@ -114,9 +206,16 @@ async def _handle_single_schedule(
         employees,
         class_doc,
         town_to_town_drive_minutes=town_to_town_drive_minutes,
+        created_by_user_id=user.get("user_id"),
     )
     await db.schedules.insert_one(doc)
     doc.pop("_id", None)
+
+    # Auto-create a partner-coordination project if the location is a
+    # partner venue — keeps scheduling and coordination in sync.
+    auto_project_id = await _auto_link_partner_project(doc, location, class_doc, user)
+    if auto_project_id:
+        doc["linked_project_id"] = auto_project_id
 
     # Create calendar events for all employees
     _enqueue_calendar_events_for_all(employees, location, class_doc, doc)
@@ -180,6 +279,7 @@ async def _handle_bulk_background(
         class_doc=class_doc,
         user_name=user.get("name", "System"),
         series_id=series_id,
+        created_by_user_id=user.get("user_id"),
     )
     logger.info(
         "Bulk schedules enqueued",
@@ -267,6 +367,7 @@ async def _handle_bulk_synchronous(
             class_doc,
             town_to_town_drive_minutes=tt_drive_minutes,
             series_id=series_id,
+            created_by_user_id=user.get("user_id"),
         )
         docs_to_insert.append(doc)
 
@@ -303,6 +404,57 @@ async def _handle_bulk_synchronous(
 async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
     """Create one or more schedules. Supports recurrence patterns and multiple employees.
     Each schedule document contains all employees (attendees model)."""
+    # DST sanity: reject schedules scheduled at an hour that doesn't exist
+    # on the spring-forward Sunday (e.g. 02:30 in America/Chicago).
+    try:
+        validate_local_time_exists(data.date, data.start_time)
+        validate_local_time_exists(data.date, data.end_time)
+    except ValueError as exc:
+        logger.info(
+            "DST-invalid time rejected on schedule creation",
+            extra={"entity": {
+                "date": data.date,
+                "start_time": data.start_time,
+                "end_time": data.end_time,
+            }},
+        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Idempotency: if the client provided a key and we've already processed
+    # this request, return the previous result instead of creating a duplicate
+    # schedule on a network-retry. Scope the lookup to the same user so a
+    # different submitter can't replay someone else's key and leak their
+    # schedule back.
+    if data.idempotency_key:
+        existing = await db.schedules.find_one(
+            {
+                "idempotency_key": data.idempotency_key,
+                "created_by_user_id": user.get("user_id"),
+                "deleted_at": None,
+            },
+            {"_id": 0},
+        )
+        if existing:
+            # Re-attach the linked project id that the original create added
+            # in memory — side effects (project create, calendar events,
+            # activity log) already fired on the first call; we only need to
+            # rehydrate response-shape fields the frontend expects.
+            linked = await db.projects.find_one(
+                {"schedule_id": existing["id"], "deleted_at": None},
+                {"_id": 0, "id": 1},
+            )
+            if linked:
+                existing["linked_project_id"] = linked["id"]
+            existing["replayed"] = True
+            logger.info(
+                "Idempotent schedule-create replay served",
+                extra={"entity": {
+                    "schedule_id": existing["id"],
+                    "user_id": user.get("user_id"),
+                }},
+            )
+            return existing
+
     location, employees, class_doc = await _fetch_schedule_entities(data)
 
     drive_time = (

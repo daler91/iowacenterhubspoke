@@ -9,7 +9,7 @@ import jwt
 from datetime import datetime, timezone
 from fastapi import HTTPException, Depends, Header, Request
 from typing import Annotated, Optional, List
-from core.constants import ROLE_ADMIN, ROLE_SCHEDULER
+from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_EDITOR
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
@@ -46,15 +46,24 @@ def validate_csrf_token(token: str) -> bool:
     return hmac.compare_digest(sig, expected)
 
 
+_BCRYPT_ROUNDS = int(os.environ.get('BCRYPT_ROUNDS', '14'))
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode('utf-8')
 
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-TOKEN_LIFETIME_SECONDS = 86400  # 1 day
+TOKEN_LIFETIME_SECONDS = int(os.environ.get('JWT_LIFETIME_SECONDS', '14400'))  # 4 hours default
+# Refresh token lives much longer so users don't get logged out every 4h.
+# It is stored separately in an HttpOnly cookie and carries a ``typ: refresh``
+# claim so the /auth/refresh handler can distinguish it from access tokens.
+REFRESH_TOKEN_LIFETIME_SECONDS = int(
+    os.environ.get('JWT_REFRESH_LIFETIME_SECONDS', str(60 * 60 * 24 * 30))  # 30 days
+)
 
 
 def create_token(user_id: str, email: str, name: str, role: str = '', iat: float = None) -> str:
@@ -68,8 +77,48 @@ def create_token(user_id: str, email: str, name: str, role: str = '', iat: float
         'jti': str(_uuid.uuid4()),
         'iat': int(iat or now_ts),
         'exp': now_ts + TOKEN_LIFETIME_SECONDS,
+        'typ': 'access',
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: str, iat: float = None) -> tuple[str, str]:
+    """Issue a refresh token. Returns (jwt_string, jti).
+
+    The jti is returned so the handler can record it in MongoDB — refresh
+    tokens are one-time-use; rotating the token on each refresh gives us
+    token theft detection (if the old jti is presented after rotation, we
+    know a stolen token was used).
+    """
+    import uuid as _uuid
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    jti = str(_uuid.uuid4())
+    payload = {
+        'user_id': user_id,
+        'jti': jti,
+        'iat': int(iat or now_ts),
+        'exp': now_ts + REFRESH_TOKEN_LIFETIME_SECONDS,
+        'typ': 'refresh',
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM), jti
+
+
+def decode_refresh_token(token: str) -> dict:
+    """Decode and validate a refresh token's signature/expiry.
+
+    Raises HTTPException(401) on anything but a well-formed, unexpired
+    refresh token. Revocation (``used_at`` or rotated jti) is checked
+    separately by the handler.
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status_code=401, detail='Refresh token expired') from e
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail='Invalid refresh token') from e
+    if payload.get('typ') != 'refresh':
+        raise HTTPException(status_code=401, detail='Not a refresh token')
+    return payload
 
 
 async def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
@@ -152,3 +201,6 @@ class RoleRequired:
 
 AdminRequired = Annotated[dict, Depends(RoleRequired([ROLE_ADMIN]))]
 SchedulerRequired = Annotated[dict, Depends(RoleRequired([ROLE_ADMIN, ROLE_SCHEDULER]))]
+# Editor+ — can update task state and coordination content; cannot destroy
+# shared records, manage users, or create/delete projects/partners.
+EditorRequired = Annotated[dict, Depends(RoleRequired([ROLE_ADMIN, ROLE_SCHEDULER, ROLE_EDITOR]))]

@@ -78,11 +78,18 @@ def _build_schedule_doc(
     class_doc,
     town_to_town_drive_minutes=None,
     series_id=None,
+    created_by_user_id: str | None = None,
 ):
     """Build a schedule document with multiple employees."""
     employee_ids = [e["id"] for e in employees]
+    idempotency_key = getattr(data, "idempotency_key", None)
     return {
         "id": str(uuid.uuid4()),
+        "idempotency_key": idempotency_key,
+        # Persist the creator so idempotency replays are scoped per-user —
+        # otherwise another user could submit the same key and receive the
+        # original creator's schedule.
+        "created_by_user_id": created_by_user_id,
         "employee_ids": employee_ids,
         "employees": _build_employees_snapshot(employees),
         "location_id": data.location_id,
@@ -109,6 +116,9 @@ def _build_schedule_doc(
         "series_id": series_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "deleted_at": None,
+        # Version starts at 1 so the optimistic concurrency check in
+        # ``update_schedule`` has something meaningful to compare.
+        "version": 1,
         **get_class_snapshot(class_doc),
     }
 
