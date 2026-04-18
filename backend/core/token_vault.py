@@ -15,9 +15,16 @@ _IS_PRODUCTION = (
 _IS_TEST = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 if _IS_PRODUCTION and not _KEY and not _IS_TEST:
-    raise RuntimeError(
-        "TOKEN_ENCRYPTION_KEY is required in production. "
-        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    # Don't block boot here — the OAuth-conditional guard below still
+    # hard-fails when refresh tokens are actually in play, which is the
+    # case that matters for security. Deployments that haven't enabled
+    # OAuth yet shouldn't crash the server just because the key isn't
+    # provisioned.
+    logger.warning(
+        "TOKEN_ENCRYPTION_KEY is not set in production. Any tokens or"
+        " webhook secrets written to the database will be stored in"
+        " plaintext. Generate one with: python -c \"from cryptography.fernet"
+        " import Fernet; print(Fernet.generate_key().decode())\""
     )
 
 _OAUTH_ENABLED = bool(
