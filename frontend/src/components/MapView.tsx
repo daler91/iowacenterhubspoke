@@ -61,10 +61,10 @@ export default function MapView() {
     [locations]
   );
 
-  // Compute `todayStr` once per mount. Putting `new Date()` in the render body
-  // produced a fresh string (identity-equal, reference-unequal) that
-  // invalidated the `todayByLoc` memo on every render.
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Recompute on every render so a tab left open past midnight rolls over to
+  // the new day. `todayStr` is a string primitive, so useMemo below compares
+  // it by value — same-day renders hit the cache, next-day renders invalidate.
+  const todayStr = new Date().toISOString().split('T')[0];
   const todayByLoc = useMemo(() => {
     const map: Record<string, typeof schedules> = {};
     (schedules || []).forEach(s => {
