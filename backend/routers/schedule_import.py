@@ -294,7 +294,153 @@ async def import_schedules_preview(
     }
 
 
-@router.post("/import", summary="Commit CSV import")
+async def _collect_import_ref_maps(items: list[ScheduleImportItem]):
+    """Batch-fetch employees and locations referenced by the import."""
+    all_emp_ids: set[str] = set()
+    all_loc_ids: set[str] = set()
+    for item in items:
+        all_emp_ids.update(item.employee_ids)
+        all_loc_ids.add(item.location_id)
+    emp_docs, loc_docs = await asyncio.gather(
+        db.employees.find(
+            {"id": {"$in": list(all_emp_ids)}, "deleted_at": None},
+        ).to_list(len(all_emp_ids) or 1),
+        db.locations.find(
+            {"id": {"$in": list(all_loc_ids)}, "deleted_at": None},
+        ).to_list(len(all_loc_ids) or 1),
+    )
+    return (
+        {e["id"]: e for e in emp_docs},
+        {loc["id"]: loc for loc in loc_docs},
+    )
+
+
+def _prepare_import_row(item, loc_map, emp_map):
+    """Classify a single row as ready-to-check or missing-refs.
+
+    Returns (prepared_entry, ref_error). Exactly one is None.
+    """
+    location = loc_map.get(item.location_id)
+    emps = [emp_map.get(eid) for eid in item.employee_ids]
+    if not location or any(e is None for e in emps):
+        return None, {
+            "row": item.row_idx,
+            "error": "Employee(s) or Location no longer exists",
+        }
+    return {"item": item, "location": location, "emps": emps}, None
+
+
+async def _resolve_conflict_errors(items, conflict_coros, conflict_meta):
+    """Run conflict checks concurrently and surface one error per row."""
+    if not conflict_coros:
+        return []
+    results = await asyncio.gather(*conflict_coros, return_exceptions=False)
+    seen: set[int] = set()
+    errors: list[dict] = []
+    for (idx, _emp_id, emp_name), found in zip(conflict_meta, results):
+        if not found or idx in seen:
+            continue
+        seen.add(idx)
+        item = items[idx]
+        errors.append({
+            "row": item.row_idx,
+            "error": (
+                f"Conflict with existing schedule for {emp_name} on "
+                f"{item.date} at {item.start_time}"
+            ),
+        })
+    return errors
+
+
+async def _preflight_import(items, emp_map, loc_map):
+    """Validate references and conflict-check every row.
+
+    Stage 1 of the atomic import: builds the prepared-row list and the
+    combined error list. Callers abort the whole batch if any errors
+    came back.
+    """
+    errors: list[dict] = []
+    prepared: list[dict | None] = []
+    conflict_coros = []
+    conflict_meta: list[tuple[int, str, str]] = []
+    for idx, item in enumerate(items):
+        entry, ref_error = _prepare_import_row(item, loc_map, emp_map)
+        if ref_error is not None:
+            errors.append(ref_error)
+            prepared.append(None)
+            continue
+        prepared.append(entry)
+        drive_minutes = entry["location"].get("drive_time_minutes", 0)
+        for emp in entry["emps"]:
+            conflict_coros.append(check_conflicts(
+                emp["id"], item.date, item.start_time, item.end_time, drive_minutes,
+            ))
+            conflict_meta.append((idx, emp["id"], emp.get("name", "")))
+    errors.extend(await _resolve_conflict_errors(items, conflict_coros, conflict_meta))
+    return prepared, errors
+
+
+def _build_import_doc(entry, user_id: str, now: str) -> dict:
+    item = entry["item"]
+    emp_snapshots = [
+        {"id": e["id"], "name": e["name"], "color": e.get("color", "#4F46E5")}
+        for e in entry["emps"]
+    ]
+    return {
+        "id": str(uuid.uuid4()),
+        "employee_ids": item.employee_ids,
+        "employees": emp_snapshots,
+        "location_id": item.location_id,
+        "class_id": item.class_id,
+        "date": item.date,
+        "start_time": item.start_time,
+        "end_time": item.end_time,
+        "notes": item.notes,
+        "status": STATUS_UPCOMING,
+        "recurrence": "none",
+        "recurrence_end_date": None,
+        "recurrence_end_mode": None,
+        "recurrence_occurrences": None,
+        "custom_recurrence": None,
+        "calendar_events": {},
+        "created_at": now,
+        "updated_at": now,
+        "deleted_at": None,
+        "version": 1,
+        # Stamp the importer so audit queries + per-user scoping stay
+        # consistent with manually-created schedules. CSV import isn't
+        # idempotency-keyed (the whole batch is atomic) so there's no
+        # idempotency_key field to set.
+        "created_by_user_id": user_id,
+    }
+
+
+async def _bulk_insert_import_docs(docs: list[dict], user_id: str) -> bool:
+    """Insert the validated batch. Returns False on DB-level failure."""
+    if not docs:
+        return True
+    try:
+        await db.schedules.insert_many(docs, ordered=False)
+        return True
+    except Exception:
+        # Pre-flight validation already passed — a failure here is
+        # almost always a duplicate-key clash or a Mongo availability
+        # blip. Surface the batch size so ops can distinguish a one-row
+        # collision from a whole-import regression.
+        logger.exception(
+            "CSV import insert_many failed after validation passed",
+            extra={"entity": {"item_count": len(docs), "imported_by": user_id}},
+        )
+        return False
+
+
+@router.post(
+    "/import",
+    summary="Commit CSV import",
+    responses={
+        400: {"model": ErrorResponse, "description": "Batch too large (>2000 rows)"},
+    },
+)
 @limiter.limit("3/minute")
 async def import_schedules_commit(
     request: Request,
@@ -317,67 +463,11 @@ async def import_schedules_commit(
             detail="Maximum 2000 schedules per import — split large files into smaller batches.",
         )
 
-    # Batch-fetch the referenced employees and locations in two queries
-    # instead of per-row lookups.
-    all_emp_ids: set[str] = set()
-    all_loc_ids: set[str] = set()
-    for item in items:
-        all_emp_ids.update(item.employee_ids)
-        all_loc_ids.add(item.location_id)
-
-    emp_docs, loc_docs = await asyncio.gather(
-        db.employees.find(
-            {"id": {"$in": list(all_emp_ids)}, "deleted_at": None},
-        ).to_list(len(all_emp_ids) or 1),
-        db.locations.find(
-            {"id": {"$in": list(all_loc_ids)}, "deleted_at": None},
-        ).to_list(len(all_loc_ids) or 1),
-    )
-    emp_map = {e["id"]: e for e in emp_docs}
-    loc_map = {loc["id"]: loc for loc in loc_docs}
-
-    errors: list[dict] = []
-    prepared: list[dict] = []
-
-    # Stage 1: validate references + conflicts. Gather all conflict checks
-    # into a single asyncio.gather so the pre-flight finishes in ~max(check)
-    # rather than ~sum(check).
-    conflict_coros = []
-    conflict_meta = []  # (item_idx, emp_id, emp_name)
-    for idx, item in enumerate(items):
-        location = loc_map.get(item.location_id)
-        emps = [emp_map.get(eid) for eid in item.employee_ids]
-        if not location or any(e is None for e in emps):
-            errors.append({
-                "row": item.row_idx,
-                "error": "Employee(s) or Location no longer exists",
-            })
-            prepared.append(None)
-            continue
-        drive_minutes = location.get("drive_time_minutes", 0)
-        for emp in emps:
-            conflict_coros.append(check_conflicts(
-                emp["id"], item.date, item.start_time, item.end_time, drive_minutes,
-            ))
-            conflict_meta.append((idx, emp["id"], emp.get("name", "")))
-        prepared.append({"item": item, "location": location, "emps": emps})
-
-    conflict_by_idx: dict[int, str] = {}
-    if conflict_coros:
-        conflict_results = await asyncio.gather(*conflict_coros, return_exceptions=False)
-        for (idx, _emp_id, emp_name), found in zip(conflict_meta, conflict_results):
-            if found and idx not in conflict_by_idx:
-                item = items[idx]
-                conflict_by_idx[idx] = (
-                    f"Conflict with existing schedule for {emp_name} on "
-                    f"{item.date} at {item.start_time}"
-                )
+    emp_map, loc_map = await _collect_import_ref_maps(items)
+    prepared, errors = await _preflight_import(items, emp_map, loc_map)
 
     # If ANY row has an error, reject the whole batch — atomicity is the
     # contract that lets users retry safely.
-    for idx, msg in conflict_by_idx.items():
-        errors.append({"row": items[idx].row_idx, "error": msg})
-
     if errors:
         return {
             "inserted_count": 0,
@@ -386,67 +476,16 @@ async def import_schedules_commit(
             "message": "No schedules were imported — fix the errors and retry.",
         }
 
-    # Stage 2: build documents and bulk-insert.
     now = datetime.now(timezone.utc).isoformat()
-    docs: list[dict] = []
-    for entry in prepared:
-        if entry is None:
-            continue
-        item = entry["item"]
-        emps = entry["emps"]
-        emp_snapshots = [
-            {"id": e["id"], "name": e["name"], "color": e.get("color", "#4F46E5")}
-            for e in emps
-        ]
-        docs.append({
-            "id": str(uuid.uuid4()),
-            "employee_ids": item.employee_ids,
-            "employees": emp_snapshots,
-            "location_id": item.location_id,
-            "class_id": item.class_id,
-            "date": item.date,
-            "start_time": item.start_time,
-            "end_time": item.end_time,
-            "notes": item.notes,
-            "status": STATUS_UPCOMING,
-            "recurrence": "none",
-            "recurrence_end_date": None,
-            "recurrence_end_mode": None,
-            "recurrence_occurrences": None,
-            "custom_recurrence": None,
-            "calendar_events": {},
-            "created_at": now,
-            "updated_at": now,
-            "deleted_at": None,
-            "version": 1,
-            # Stamp the importer so audit queries + per-user scoping stay
-            # consistent with manually-created schedules. CSV import isn't
-            # idempotency-keyed (the whole batch is atomic) so there's no
-            # idempotency_key field to set.
-            "created_by_user_id": current_user.get("user_id"),
-        })
+    user_id = current_user.get("user_id")
+    docs = [_build_import_doc(e, user_id, now) for e in prepared if e is not None]
 
-    if docs:
-        try:
-            await db.schedules.insert_many(docs, ordered=False)
-        except Exception:
-            # Pre-flight validation already passed — a failure here is
-            # almost always a duplicate-key clash or a Mongo
-            # availability blip. Surface the batch size so ops can
-            # distinguish a one-row collision from a whole-import
-            # regression.
-            logger.exception(
-                "CSV import insert_many failed after validation passed",
-                extra={"entity": {
-                    "item_count": len(docs),
-                    "imported_by": current_user.get("user_id"),
-                }},
-            )
-            return {
-                "inserted_count": 0,
-                "errors": [{"row": None, "error": "Bulk insert failed — please retry."}],
-                "rolled_back": True,
-            }
+    if not await _bulk_insert_import_docs(docs, user_id):
+        return {
+            "inserted_count": 0,
+            "errors": [{"row": None, "error": "Bulk insert failed — please retry."}],
+            "rolled_back": True,
+        }
 
     inserted_count = len(docs)
     if inserted_count > 0:

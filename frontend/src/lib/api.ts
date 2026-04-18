@@ -142,7 +142,7 @@ api.interceptors.response.use(
         globalThis.location.href = '/login';
       }
     }
-    return Promise.reject(error);
+    throw error;
   }
 );
 

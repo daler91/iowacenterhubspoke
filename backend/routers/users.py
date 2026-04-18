@@ -296,6 +296,34 @@ async def revoke_user_sessions(user_id: str, user: AdminRequired):
 
 # ── Admin: brute-force lockouts ──────────────────────────────────────
 
+def _parse_lockout_expiry(expires_raw) -> datetime | None:
+    """Normalize the stored expires_at to a UTC-aware datetime.
+
+    Legacy rows may store it as a naive datetime, ISO string, or miss
+    the field entirely — return None for anything we can't interpret
+    so the caller can skip the row cleanly.
+    """
+    if hasattr(expires_raw, "tzinfo"):
+        return (
+            expires_raw
+            if expires_raw.tzinfo
+            else expires_raw.replace(tzinfo=timezone.utc)
+        )
+    if isinstance(expires_raw, str):
+        try:
+            parsed = datetime.fromisoformat(expires_raw)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _mask_lockout_email(email: str) -> str:
+    if "@" not in email:
+        return email
+    return f"{email[:3]}\u2026@{email.split('@', 1)[-1]}"
+
+
 @router.get(
     "/security/lockouts",
     summary="List emails currently locked out by brute-force tracking",
@@ -313,27 +341,12 @@ async def list_lockouts(user: AdminRequired):
     now = datetime.now(timezone.utc)
     active = []
     for row in rows:
-        expires_raw = row.get("expires_at")
-        if hasattr(expires_raw, "tzinfo"):
-            expires = expires_raw if expires_raw.tzinfo else expires_raw.replace(tzinfo=timezone.utc)
-        elif isinstance(expires_raw, str):
-            try:
-                expires = datetime.fromisoformat(expires_raw)
-                if expires.tzinfo is None:
-                    expires = expires.replace(tzinfo=timezone.utc)
-            except ValueError:
-                continue
-        else:
-            continue
-        if expires < now:
+        expires = _parse_lockout_expiry(row.get("expires_at"))
+        if expires is None or expires < now:
             continue
         email = row.get("email", "")
-        masked = (
-            f"{email[:3]}\u2026@{email.split('@', 1)[-1]}"
-            if "@" in email else email
-        )
         active.append({
-            "email_masked": masked,
+            "email_masked": _mask_lockout_email(email),
             "email": email,  # full value — admin-only response
             "count": row.get("count", 0),
             "expires_at": expires.isoformat(),

@@ -150,6 +150,81 @@ async def validate_invite(token: str):
     }
 
 
+async def _validate_invitation(data: UserRegister) -> dict | None:
+    """Look up the pending invitation matching ``data.invite_token``.
+
+    Returns the raw invitation doc (not yet claimed) or None when the
+    request is not an invitation flow. Raises 400 on any mismatch so
+    the caller doesn't need to distinguish failure modes.
+    """
+    if not data.invite_token:
+        return None
+    invitation = await db.invitations.find_one(
+        {"token": data.invite_token, "status": "pending"}, {"_id": 0}
+    )
+    if not invitation or _invitation_is_expired(invitation):
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation link")
+    if invitation["email"].lower() != data.email.lower():
+        raise HTTPException(status_code=400, detail="Email does not match invitation")
+    return invitation
+
+
+async def _claim_invitation_or_raise(token: str) -> dict:
+    """Atomically flip the invitation's status pending→accepted.
+
+    Two concurrent registers can't both win — only the request whose
+    CAS matches ``status: pending`` proceeds. Callers that lose the
+    race get a 400 and must ask the admin for a fresh link.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    claimed = await db.invitations.find_one_and_update(
+        {"token": token, "status": "pending"},
+        {"$set": {"status": "accepted", "accepted_at": now_iso}},
+        projection={"_id": 0},
+        return_document=True,
+    )
+    if not claimed:
+        raise HTTPException(
+            status_code=400, detail="This invitation has already been accepted.",
+        )
+    return claimed
+
+
+def _derive_role_and_status(
+    claimed_invitation: dict | None, is_admin_email: bool,
+) -> tuple[str, str]:
+    """Decide the new user's role + status from the registration path."""
+    if claimed_invitation:
+        return claimed_invitation["role"], USER_STATUS_APPROVED
+    if is_admin_email:
+        return ROLE_ADMIN, USER_STATUS_APPROVED
+    return ROLE_VIEWER, USER_STATUS_PENDING
+
+
+async def _release_invitation(token: str) -> None:
+    """Roll the invitation back to pending on user-insert failure.
+
+    Matches on the ``accepted`` status so a successful concurrent
+    register from a different request isn't clobbered.
+    """
+    await db.invitations.update_one(
+        {"token": token, "status": "accepted"},
+        {"$set": {"status": "pending"}, "$unset": {"accepted_at": ""}},
+    )
+
+
+async def _send_pending_welcome_quietly(email: str, name: str) -> None:
+    """Email the self-service registrant a "received, awaiting review"
+    acknowledgement. Failures are logged but never break registration."""
+    try:
+        from services.email import send_welcome_pending
+        await send_welcome_pending(to=email, name=name)
+    except Exception as e:
+        logger.warning(
+            "Failed to send pending-welcome email to %s: %s", email, e,
+        )
+
+
 @router.post(
     "/register",
     summary="Register a new user account",
@@ -163,20 +238,12 @@ async def register(request: Request, data: UserRegister, response: Response):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     is_admin_email = data.email.lower() in ADMIN_EMAILS
+    invitation_lookup = await _validate_invitation(data)
 
-    # Self-service registrants must accept the privacy notice. Invitation
-    # flows and admin-email bootstrap are exempt because the invitation
-    # itself + the admin-email allowlist is out-of-band consent.
-    invitation_lookup: dict | None = None
-    if data.invite_token:
-        invitation_lookup = await db.invitations.find_one(
-            {"token": data.invite_token, "status": "pending"}, {"_id": 0}
-        )
-        if not invitation_lookup or _invitation_is_expired(invitation_lookup):
-            raise HTTPException(status_code=400, detail="Invalid or expired invitation link")
-        if invitation_lookup["email"].lower() != data.email.lower():
-            raise HTTPException(status_code=400, detail="Email does not match invitation")
-    elif not is_admin_email and not data.privacy_policy_accepted:
+    # Self-service registrants must accept the privacy notice.
+    # Invitation flows and admin-email bootstrap are exempt because the
+    # invitation + the admin-email allowlist is out-of-band consent.
+    if not invitation_lookup and not is_admin_email and not data.privacy_policy_accepted:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -187,39 +254,14 @@ async def register(request: Request, data: UserRegister, response: Response):
             ),
         )
 
-    # Atomic invitation claim — closes the TOCTOU window where two concurrent
-    # requests both see "pending" and both create a user. Only the request
-    # that wins the CAS update proceeds past this point.
-    claimed_invitation: dict | None = None
-    if invitation_lookup:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        claimed_invitation = await db.invitations.find_one_and_update(
-            {
-                "token": data.invite_token,
-                "status": "pending",
-            },
-            {"$set": {"status": "accepted", "accepted_at": now_iso}},
-            projection={"_id": 0},
-            return_document=True,
-        )
-        if not claimed_invitation:
-            # Lost the race — another request already accepted this invitation.
-            raise HTTPException(
-                status_code=400,
-                detail="This invitation has already been accepted.",
-            )
+    claimed_invitation = (
+        await _claim_invitation_or_raise(data.invite_token)
+        if invitation_lookup else None
+    )
 
     user_id = str(uuid.uuid4())
-    if claimed_invitation:
-        role = claimed_invitation["role"]
-        status = USER_STATUS_APPROVED
-    elif is_admin_email:
-        role = ROLE_ADMIN
-        status = USER_STATUS_APPROVED
-    else:
-        role = ROLE_VIEWER
-        status = USER_STATUS_PENDING
-
+    role, status = _derive_role_and_status(claimed_invitation, is_admin_email)
+    now_iso = datetime.now(timezone.utc).isoformat()
     user_doc = {
         "id": user_id,
         "name": data.name,
@@ -227,23 +269,18 @@ async def register(request: Request, data: UserRegister, response: Response):
         "password_hash": hash_password(data.password),
         "role": role,
         "status": status,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now_iso,
         "privacy_policy_accepted_at": (
-            datetime.now(timezone.utc).isoformat()
-            if data.privacy_policy_accepted or claimed_invitation
-            else None
+            now_iso if data.privacy_policy_accepted or claimed_invitation else None
         ),
     }
     try:
         await db.users.insert_one(user_doc)
     except Exception:
-        # If user insert fails after we already claimed the invitation,
-        # release it so the user can retry with the same link.
+        # If the user insert fails after we already claimed the
+        # invitation, roll it back so the user can retry the link.
         if claimed_invitation:
-            await db.invitations.update_one(
-                {"token": data.invite_token, "status": "accepted"},
-                {"$set": {"status": "pending"}, "$unset": {"accepted_at": ""}},
-            )
+            await _release_invitation(data.invite_token)
         raise
     logger.info("User registered", extra={"entity": {"user_id": user_id}})
 
@@ -252,15 +289,9 @@ async def register(request: Request, data: UserRegister, response: Response):
         return {
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
         }
-    else:
-        try:
-            from services.email import send_welcome_pending
-            await send_welcome_pending(to=data.email, name=data.name)
-        except Exception as e:
-            logger.warning(
-                "Failed to send pending-welcome email to %s: %s", data.email, e,
-            )
-        return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
+
+    await _send_pending_welcome_quietly(data.email, data.name)
+    return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
 
 
 @router.post(
@@ -269,6 +300,7 @@ async def register(request: Request, data: UserRegister, response: Response):
     responses={
         401: {"model": ErrorResponse, "description": "Invalid credentials"},
         403: {"model": ErrorResponse, "description": "Account pending approval or denied"},
+        429: {"model": ErrorResponse, "description": "Too many failed login attempts — temporary lockout"},
     },
 )
 @limiter.limit("5/minute")
@@ -317,7 +349,13 @@ async def login(request: Request, data: UserLogin, response: Response):
     }
 
 
-@router.post("/logout", summary="Log out and clear session")
+@router.post(
+    "/logout",
+    summary="Log out and clear session",
+    responses={
+        401: {"model": ErrorResponse, "description": "Refresh token invalid or expired"},
+    },
+)
 @limiter.limit("5/minute")
 async def logout(request: Request, response: Response):
     """Clear the session cookies to end the session."""
@@ -338,7 +376,20 @@ async def logout(request: Request, response: Response):
     return {"message": "Logged out successfully"}
 
 
-@router.post("/refresh", summary="Rotate refresh token and issue a new access token")
+@router.post(
+    "/refresh",
+    summary="Rotate refresh token and issue a new access token",
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": (
+                "No refresh cookie, token invalid/expired, unknown jti, "
+                "replay detected (all sessions revoked), or user no "
+                "longer active"
+            ),
+        },
+    },
+)
 @limiter.limit("20/minute")
 async def refresh_session(request: Request, response: Response):
     """Exchange a valid refresh cookie for a fresh access+refresh pair.
@@ -581,6 +632,16 @@ async def export_my_data(user: CurrentUser):
 @router.delete(
     "/me",
     summary="Delete the current user's account and anonymize their data (GDPR Art. 17)",
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": (
+                "Caller is the last admin — another admin must exist "
+                "before self-delete is allowed"
+            ),
+        },
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
 )
 async def delete_my_account(user: CurrentUser, response: Response):
     """Self-service account deletion.

@@ -2,6 +2,13 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, model_validato
 from typing import List, Literal, Optional
 from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE_NEVER
 
+# Format patterns shared by ScheduleCreate / ScheduleUpdate /
+# ScheduleRelocate. Centralised so a future date- or time-format
+# change (e.g. adding seconds) happens in one place — and so
+# SonarCloud stops flagging the duplicate literals.
+ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+HH_MM_TIME_PATTERN = r"^\d{2}:\d{2}$"
+
 
 class UserRegister(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
@@ -96,9 +103,9 @@ class ScheduleCreate(BaseModel):
     employee_ids: Optional[List[str]] = Field(None, max_length=50)  # preferred: multiple employees
     location_id: str
     class_id: Optional[str] = None
-    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
-    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    date: str = Field(..., pattern=ISO_DATE_PATTERN)
+    start_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
+    end_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     force: Optional[bool] = False
     notes: Optional[str] = Field(None, max_length=5000)
     drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
@@ -146,9 +153,9 @@ class ScheduleUpdate(BaseModel):
     # syntactically rejected, not semantically. Without the pattern
     # filter here, PATCH /schedules/{id} with a bad time persists and
     # later blows up downstream ``time_to_minutes`` calls.
-    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
-    start_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
-    end_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
+    date: Optional[str] = Field(None, pattern=ISO_DATE_PATTERN)
+    start_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
+    end_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
     notes: Optional[str] = Field(None, max_length=5000)
     drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
     drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
@@ -172,9 +179,9 @@ class StatusUpdate(BaseModel):
 class ScheduleRelocate(BaseModel):
     # Same format constraints as ScheduleCreate so the relocate handler's
     # DST guard doesn't silently accept a malformed time.
-    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
-    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    date: str = Field(..., pattern=ISO_DATE_PATTERN)
+    start_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
+    end_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     force: Optional[bool] = False
 
 

@@ -58,3 +58,21 @@ def setup_logging():
 
 def get_logger(name):
     return logging.getLogger(name)
+
+
+def mask_id(value: object | None) -> str:
+    """Return a non-reversible short form of an identifier for logging.
+
+    The IDs we attach to log entries (user_id, schedule_id, project_id,
+    etc.) are internal UUIDs — not PII by any reasonable definition —
+    but CodeQL's clear-text-logging rule flags them on name match. This
+    helper produces the same 4-dot-4 mask everywhere so we keep log
+    correlation without tripping the scanner. Short values (less than
+    9 chars, so no room for a 4/4 split) collapse to ``redacted``.
+    """
+    if value is None:
+        return "redacted"
+    text = str(value)
+    if len(text) <= 8:
+        return "redacted"
+    return f"{text[:4]}...{text[-4:]}"

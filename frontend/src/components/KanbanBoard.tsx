@@ -84,7 +84,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
         type="button"
         {...(selectionMode ? {} : { ...listeners, ...attributes })}
         data-testid={`kanban-card-${schedule.id}`}
-        aria-describedby={!selectionMode ? DND_INSTRUCTIONS_ID : undefined}
+        aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
         onClick={() => {
           if (selectionMode) {
             toggleItem?.(schedule.id);

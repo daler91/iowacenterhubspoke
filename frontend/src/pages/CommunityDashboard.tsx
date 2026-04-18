@@ -105,6 +105,10 @@ export default function CommunityDashboard() {
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Communities</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         {dashboard.communities.map(community => (
+          // Card wraps a styled <div>; converting to a real <button>
+          // would require removing all card styling. Use the
+          // role-based alternative with full keyboard support instead.
+          // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
           <Card
             key={community.community}
             role="button"
@@ -171,6 +175,11 @@ export default function CommunityDashboard() {
             </thead>
             <tbody>
               {dashboard.upcoming_projects.map(project => (
+                // A `<tr>` can't be replaced with a `<button>` without
+                // breaking table structure, so the "whole row is
+                // clickable" pattern uses the WAI-ARIA alternative:
+                // role=button + tabIndex + Enter/Space handling.
+                // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
                 <tr
                   key={project.id}
                   role="button"

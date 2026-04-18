@@ -45,6 +45,14 @@ export function SearchableSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
+        {/*
+          WAI-ARIA 1.2 combobox pattern: a button that opens a filtered
+          listbox. `<select multiple>` does not support type-ahead
+          filtering or rich option rendering (sublabel), so SonarCloud's
+          jsx-a11y/prefer-tag-over-role suggestion to replace this with
+          a native element doesn't fit this component.
+        */}
+        {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
         <button
           id={id}
           type="button"

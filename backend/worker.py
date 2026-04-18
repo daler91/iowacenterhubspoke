@@ -375,9 +375,16 @@ async def create_outlook_event(
         else:
             mapped = existing.get("outlook_event_id")
         if mapped:
+            # Mask IDs — CodeQL flags raw UUID interpolation even on
+            # internal identifiers. The mask still gives ops a 4/4
+            # correlation key for cross-service log-joining.
+            from core.logger import mask_id
             logger.info(
-                "Outlook event already mapped for schedule %s (employee %s); skipping create",
-                schedule_id, employee_id or "-",
+                "Outlook event already mapped; skipping create",
+                extra={"entity": {
+                    "schedule_id_masked": mask_id(schedule_id),
+                    "employee_scoped": bool(employee_id),
+                }},
             )
             return
 
@@ -434,9 +441,13 @@ async def create_google_event(
         else:
             mapped = existing.get("google_calendar_event_id")
         if mapped:
+            from core.logger import mask_id
             logger.info(
-                "Google event already mapped for schedule %s (employee %s); skipping create",
-                schedule_id, employee_id or "-",
+                "Google event already mapped; skipping create",
+                extra={"entity": {
+                    "schedule_id_masked": mask_id(schedule_id),
+                    "employee_scoped": bool(employee_id),
+                }},
             )
             return
 

@@ -95,12 +95,16 @@ async def _auto_link_partner_project(
             "deleted_at": None,
         }
         await db.projects.insert_one(project_doc)
+        # Mask the identifiers so CodeQL's clear-text-logging rule
+        # doesn't trip on UUID values. The 4/4 prefix/suffix still
+        # gives ops enough to correlate across services/logs.
+        from core.logger import mask_id
         logger.info(
             "Auto-created partner project from schedule",
             extra={"entity": {
-                "project_id": project_id,
-                "schedule_id": schedule_doc["id"],
-                "partner_org_id": partner_org["id"],
+                "project_id_masked": mask_id(project_id),
+                "schedule_id_masked": mask_id(schedule_doc.get("id")),
+                "partner_org_id_masked": mask_id(partner_org.get("id")),
             }},
         )
         await log_activity(
@@ -110,9 +114,10 @@ async def _auto_link_partner_project(
         )
         return project_id
     except Exception:
+        from core.logger import mask_id
         logger.exception(
             "Auto-link partner project failed — schedule created anyway",
-            extra={"entity": {"schedule_id": schedule_doc["id"]}},
+            extra={"entity": {"schedule_id_masked": mask_id(schedule_doc.get("id"))}},
         )
         return None
 
