@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from pymongo import ReturnDocument
 
 from database import db
 from models.schemas import (
@@ -16,6 +17,7 @@ from models.schemas import (
 from core.auth import CurrentUser, SchedulerRequired
 from core.pagination import Paginated
 from services.activity import log_activity
+from services.notification_events import notify_schedule_changed
 from services.schedule_utils import check_conflicts
 from core.constants import (
     STATUS_UPCOMING,
@@ -72,11 +74,21 @@ async def get_schedules(
     # Enrich with linked project summaries
     schedule_ids = [s["id"] for s in schedules]
     if schedule_ids:
+        # Cap large enough that any realistic single-page schedule list
+        # (usually <= 100 items) won't be truncated. Log a warning if we
+        # hit the cap so ops can tune this rather than silently dropping
+        # project links.
+        _LINKED_PROJECTS_LIMIT = 2000
         linked_projects = await db.projects.find(
             {"schedule_id": {"$in": schedule_ids}, "deleted_at": None},
             {"_id": 0, "schedule_id": 1, "id": 1, "title": 1, "phase": 1,
              "partner_org_id": 1, "task_total": 1, "task_completed": 1},
-        ).to_list(500)
+        ).to_list(_LINKED_PROJECTS_LIMIT)
+        if len(linked_projects) == _LINKED_PROJECTS_LIMIT:
+            logger.warning(
+                "linked_projects truncated at %d; consider raising the cap",
+                _LINKED_PROJECTS_LIMIT,
+            )
         project_map = {p["schedule_id"]: p for p in linked_projects}
         for s in schedules:
             proj = project_map.get(s["id"])
@@ -307,6 +319,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
             schedule_id,
             user.get("name", "System"),
         )
+        await notify_schedule_changed(schedule, "cancelled", user)
     return {"message": "Schedule deleted"}
 
 
@@ -510,7 +523,7 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
     responses={
         400: {"model": ErrorResponse, "description": "DST-invalid local time"},
         404: {"model": ErrorResponse, "description": SCHEDULE_NOT_FOUND},
-        409: {"model": ErrorResponse, "description": "Conflict at new time"},
+        409: {"model": ErrorResponse, "description": "Conflict at new time or concurrent relocation"},
     },
 )
 async def relocate_schedule(
@@ -532,8 +545,18 @@ async def relocate_schedule(
 
     await _check_relocate_conflicts(schedule, data, schedule_id)
 
-    await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None},
+    # Optimistic concurrency: the update only succeeds if the schedule is
+    # still anchored at the snapshot we conflict-checked against. A racing
+    # relocate against the same row will see filter-miss and 409.
+    original_date = schedule.get("date")
+    original_start = schedule.get("start_time")
+    updated = await db.schedules.find_one_and_update(
+        {
+            "id": schedule_id,
+            "deleted_at": None,
+            "date": original_date,
+            "start_time": original_start,
+        },
         {
             "$set": {
                 "date": data.date,
@@ -542,13 +565,20 @@ async def relocate_schedule(
             },
             "$inc": {"version": 1},
         },
+        projection={"_id": 0},
+        return_document=ReturnDocument.AFTER,
     )
+    if not updated:
+        raise HTTPException(
+            status_code=409,
+            detail="Schedule changed during relocation; please retry.",
+        )
     logger.info(
         f"Schedule relocated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}},
     )
 
-    old_date = schedule.get("date")
+    old_date = original_date
     for emp_id in schedule.get("employee_ids", []):
         await _sync_same_day_town_to_town(emp_id, data.date)
         if old_date and old_date != data.date:
@@ -557,22 +587,7 @@ async def relocate_schedule(
     # Mirror the update_schedule behaviour: if this schedule backs a
     # coordination project, keep the project's event_date in sync.
     if old_date != data.date:
-        linked = await db.projects.find_one(
-            {"schedule_id": schedule_id, "deleted_at": None},
-            {"_id": 0, "id": 1},
-        )
-        if linked:
-            await db.projects.update_one(
-                {"id": linked["id"]},
-                {"$set": {
-                    "event_date": data.date,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }},
-            )
-
-    updated = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
+        await _sync_linked_project_date(schedule_id, data.date)
 
     await sync_relocate_calendar(schedule, updated)
 
@@ -582,5 +597,8 @@ async def relocate_schedule(
         "schedule",
         schedule_id,
         user.get("name", "System"),
+    )
+    await notify_schedule_changed(
+        updated or schedule, "relocated", user, extra={"new_date": data.date},
     )
     return updated

@@ -52,7 +52,12 @@ def _patch_pwd_cache_lookup(monkeypatch):
         from core import auth as _auth
     except ImportError:
         return
-    monkeypatch.setattr(_auth, "_get_pwd_changed_ts", AsyncMock(return_value=None))
+    # Returns ``(changed_ts, is_deleted)``; ``(None, False)`` means
+    # "no password change, user is live" — the correct no-op state for
+    # synthetic test tokens.
+    monkeypatch.setattr(
+        _auth, "_get_pwd_changed_ts", AsyncMock(return_value=(None, False)),
+    )
 
 
 @pytest.fixture

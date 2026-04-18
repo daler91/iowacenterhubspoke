@@ -6,6 +6,7 @@ from database import db
 from models.coordination_schemas import MessageCreate
 from core.auth import CurrentUser, EditorRequired
 from core.pagination import Paginated, paginated_response
+from services.notification_events import notify_project_message
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -86,4 +87,5 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
+    await notify_project_message(doc, project, user)
     return doc

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake, CalendarDays } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -27,7 +27,12 @@ const COLUMNS = [
 
 const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
 
-function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelected, toggleItem }) {
+// Hoisted so the options reference is stable across renders — otherwise
+// ``useSensor`` rebuilds the sensor descriptor on every parent render and
+// invalidates dnd-kit's internal memoization on the returned sensor array.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 8 } };
+
+const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelected, toggleItem }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: schedule.id,
     data: { schedule },
@@ -182,7 +187,7 @@ function KanbanCard({ schedule, onStatusChange, onEdit, selectionMode, isSelecte
       )}
     </div>
   );
-}
+});
 
 function DroppableColumn({ id, children }: Readonly<{ id: string; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -249,7 +254,7 @@ export default function KanbanBoard() {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
     useSensor(KeyboardSensor),
   );
 

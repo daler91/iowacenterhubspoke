@@ -173,6 +173,7 @@ export interface TaskComment {
   sender_name: string;
   sender_id: string;
   body: string;
+  parent_comment_id?: string | null;
   created_at: string;
 }
 

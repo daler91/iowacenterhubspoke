@@ -16,6 +16,7 @@ import type { PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Messag
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
+import NotificationPreferences from '../NotificationPreferences';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 
@@ -177,7 +178,7 @@ export default function PortalDashboard() {
   }
 
   return (
-    <PortalLayout org={org} contact={contact} activeTab={activeTab} onTabChange={setActiveTab}>
+    <PortalLayout org={org} contact={contact} activeTab={activeTab} onTabChange={setActiveTab} token={token}>
       {/* Overview Tab */}
       {activeTab === 'overview' && dashboardData && (
         <div>
@@ -423,6 +424,21 @@ export default function PortalDashboard() {
               <Send className="w-4 h-4" aria-hidden="true" />
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Settings Tab — notification preferences. Partners don't get
+          password/calendar settings (magic-link auth), so this tab is
+          dedicated to communication controls. */}
+      {activeTab === 'settings' && (
+        <div className="max-w-2xl">
+          <Card className="p-4 sm:p-6">
+            <h2 className="text-lg font-semibold mb-1">Notifications</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Choose which emails and in-portal alerts you receive.
+            </p>
+            <NotificationPreferences mode="portal" portalToken={token} />
+          </Card>
         </div>
       )}
     </PortalLayout>

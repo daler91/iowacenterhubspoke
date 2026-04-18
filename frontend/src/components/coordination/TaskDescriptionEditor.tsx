@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, useEditorState, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import {
@@ -59,6 +59,23 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
     }
   }, [value, editor]);
 
+  // Tiptap v3's React bindings intentionally don't re-render on every
+  // transaction (for perf), so `editor.isActive(...)` read inline during
+  // render returns the INITIAL state and never updates — which is why the
+  // toolbar highlights were showing stale/wrong active states.
+  // `useEditorState` subscribes to the exact flags we care about and
+  // re-renders only when they change.
+  const activeStates = useEditorState({
+    editor,
+    selector: ({ editor }) => ({
+      isBold: editor?.isActive('bold') ?? false,
+      isItalic: editor?.isActive('italic') ?? false,
+      isUnderline: editor?.isActive('underline') ?? false,
+      isOrderedList: editor?.isActive('orderedList') ?? false,
+      isBulletList: editor?.isActive('bulletList') ?? false,
+    }),
+  });
+
   if (!editor) return null;
 
   const btnCls = (active: boolean) => cn(
@@ -67,30 +84,38 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
     active && 'bg-slate-200 dark:bg-slate-700 text-hub',
   );
 
+  // Prevent toolbar buttons from stealing focus from the editor. Without this,
+  // every click blurs the editor (firing onBlur → save → parent mutate → reload
+  // flicker) and disrupts the current selection mid-format.
+  const preventBlur = (e: React.MouseEvent) => e.preventDefault();
+
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900 focus-within:border-slate-300 dark:focus-within:border-slate-600 transition-colors">
       <div className="border-b border-slate-200 dark:border-slate-700 px-2 py-1 flex items-center gap-0.5 bg-slate-50 dark:bg-slate-800/60">
         <button
           type="button"
           aria-label="Bold"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={btnCls(editor.isActive('bold'))}
+          className={btnCls(activeStates.isBold)}
         >
           <Bold className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
           aria-label="Italic"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={btnCls(editor.isActive('italic'))}
+          className={btnCls(activeStates.isItalic)}
         >
           <Italic className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
           aria-label="Underline"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          className={btnCls(editor.isActive('underline'))}
+          className={btnCls(activeStates.isUnderline)}
         >
           <UnderlineIcon className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
@@ -98,16 +123,18 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         <button
           type="button"
           aria-label="Numbered list"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={btnCls(editor.isActive('orderedList'))}
+          className={btnCls(activeStates.isOrderedList)}
         >
           <ListOrdered className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           type="button"
           aria-label="Bulleted list"
+          onMouseDown={preventBlur}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={btnCls(editor.isActive('bulletList'))}
+          className={btnCls(activeStates.isBulletList)}
         >
           <List className="w-3.5 h-3.5" aria-hidden="true" />
         </button>

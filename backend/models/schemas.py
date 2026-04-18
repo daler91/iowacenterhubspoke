@@ -9,6 +9,14 @@ from core.constants import DEFAULT_EMPLOYEE_COLOR, DEFAULT_CLASS_COLOR, END_MODE
 ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 HH_MM_TIME_PATTERN = r"^\d{2}:\d{2}$"
 
+# Defensive caps: unbounded free-text fields enable cheap disk/memory DOS
+# (a 10 MB notes value hits Mongo + every downstream notification payload).
+# These limits are generous for real user content but shut the door on
+# abuse.
+_MAX_NAME = 500
+_MAX_DESCRIPTION = 5000
+_MAX_NOTES = 5000
+
 
 class UserRegister(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
@@ -64,16 +72,16 @@ class LocationUpdate(BaseModel):
 
 
 class EmployeeCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
-    email: Optional[str] = Field(None, max_length=320)
-    phone: Optional[str] = Field(None, max_length=40)
+    name: str = Field(..., min_length=1, max_length=_MAX_NAME)
+    email: Optional[str] = Field(default=None, max_length=320)
+    phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = DEFAULT_EMPLOYEE_COLOR
 
 
 class EmployeeUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    email: Optional[str] = Field(None, max_length=320)
-    phone: Optional[str] = Field(None, max_length=40)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=_MAX_NAME)
+    email: Optional[str] = Field(default=None, max_length=320)
+    phone: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = None
 
 
@@ -87,14 +95,14 @@ class RecurrenceRule(BaseModel):
 
 
 class ClassCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=5000)
+    name: str = Field(..., min_length=1, max_length=_MAX_NAME)
+    description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = DEFAULT_CLASS_COLOR
 
 
 class ClassUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=5000)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=_MAX_NAME)
+    description: Optional[str] = Field(default=None, max_length=_MAX_DESCRIPTION)
     color: Optional[str] = None
 
 
@@ -107,9 +115,9 @@ class ScheduleCreate(BaseModel):
     start_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     end_time: str = Field(..., pattern=HH_MM_TIME_PATTERN)
     force: Optional[bool] = False
-    notes: Optional[str] = Field(None, max_length=5000)
-    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
-    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
+    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive FROM this class
     schedule_id: Optional[str] = None  # ID of schedule being edited (for conflict check)
     series_id: Optional[str] = None  # ID of recurrence series (set automatically for recurring schedules)
     recurrence: Optional[str] = None  # none, weekly, biweekly
@@ -156,9 +164,9 @@ class ScheduleUpdate(BaseModel):
     date: Optional[str] = Field(None, pattern=ISO_DATE_PATTERN)
     start_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
     end_time: Optional[str] = Field(None, pattern=HH_MM_TIME_PATTERN)
-    notes: Optional[str] = Field(None, max_length=5000)
-    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
-    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
+    drive_to_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive TO this class
+    drive_from_override_minutes: Optional[int] = Field(None, ge=0, le=1440)  # override drive FROM this class
     status: Optional[str] = None
     recurrence: Optional[str] = None
     recurrence_end_date: Optional[str] = None
@@ -217,7 +225,7 @@ class UserRoleUpdate(BaseModel):
 
 class InviteCreate(BaseModel):
     email: EmailStr
-    name: Optional[str] = Field(None, max_length=200)
+    name: Optional[str] = Field(default=None, max_length=_MAX_NAME)
     role: str
 
 
@@ -240,5 +248,33 @@ class ScheduleImportItem(BaseModel):
     start_time: str
     end_time: str
     force: Optional[bool] = False
-    notes: Optional[str] = Field(None, max_length=5000)
+    notes: Optional[str] = Field(default=None, max_length=_MAX_NOTES)
     row_idx: int
+
+
+# ── Notification preferences ───────────────────────────────────────────
+#
+# Stored shape lives on the principal document (user or partner contact).
+# Incoming updates are validated loosely — unknown type keys are sanitized
+# out by ``services.notification_prefs.sanitize_update`` rather than 422'd,
+# so a stale frontend doesn't break the endpoint.
+
+
+class NotificationDigestSettings(BaseModel):
+    daily_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    weekly_day: Optional[
+        Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    ] = None
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    """Request body for updating a principal's notification preferences.
+
+    ``types`` is a free-form mapping of ``type_key -> {channel -> freq}``.
+    Validation of keys/channels/frequencies happens in
+    ``services.notification_prefs.sanitize_update`` so that unknown keys
+    from an older/newer client are silently ignored rather than rejected.
+    """
+
+    digest: Optional[NotificationDigestSettings] = None
+    types: Optional[dict] = None

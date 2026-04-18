@@ -30,6 +30,10 @@ const { minutesToTop, snapYToMinutes } = createScaleHelpers(PX_PER_HOUR);
 
 const DND_INSTRUCTIONS_ID = 'calendar-week-dnd-instructions';
 
+// Hoisted so the options reference is stable across renders — see the
+// matching comment in KanbanBoard.tsx.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+
 // ─── Draggable schedule block ─────────────────────────────────────────────
 const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit, selectionMode, isSelected, toggleItem, onEditSchedule, chainInfo, overlapInfo }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -291,7 +295,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
     useSensor(KeyboardSensor),
   );
 

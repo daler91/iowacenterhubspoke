@@ -1,10 +1,11 @@
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
-from database import db
-from core.logger import get_logger
+from typing import Optional
 
-logger = get_logger(__name__)
+from database import db
+
+DELETED_USER_PLACEHOLDER = "Deleted user"
 
 ACTIVITY_LOG_RETENTION_DAYS = int(os.environ.get("ACTIVITY_LOG_RETENTION_DAYS", "90"))
 
@@ -15,7 +16,7 @@ async def log_activity(
     entity_type: str,
     entity_id: str,
     user_name: str = "System",
-    user_id: str | None = None,
+    user_id: Optional[str] = None,
 ):
     """Write one audit row.
 
@@ -38,7 +39,32 @@ async def log_activity(
         "expires_at": now + timedelta(days=ACTIVITY_LOG_RETENTION_DAYS),
     }
     await db.activity_logs.insert_one(doc)
-    logger.info(
-        "Activity logged",
-        extra={"entity": {"type": entity_type, "id": entity_id, "action": action}}
+
+
+async def redact_user_from_activity(user_id: str, user_name: str) -> int:
+    """Mask a deleted user's PII across historical activity logs.
+
+    Matches by user_id (new rows) and by user_name (legacy rows without
+    user_id). Over-matching on a shared name is intentional — privacy wins
+    over audit-trail precision.
+    """
+    or_clauses = [{"user_id": user_id}]
+    if user_name:
+        or_clauses.append({"user_name": user_name, "user_id": None})
+    result = await db.activity_logs.update_many(
+        {"$or": or_clauses},
+        {"$set": {"user_name": DELETED_USER_PLACEHOLDER, "user_id": None}},
     )
+    return result.modified_count
+
+
+async def hydrate_user_name(user_id: Optional[str], user_name: Optional[str]) -> str:
+    """Return a display name for an activity-log row, honoring soft-deletes."""
+    if not user_id:
+        return user_name or DELETED_USER_PLACEHOLDER
+    owner = await db.users.find_one(
+        {"id": user_id}, {"_id": 0, "deleted_at": 1, "name": 1}
+    )
+    if not owner or owner.get("deleted_at"):
+        return DELETED_USER_PLACEHOLDER
+    return owner.get("name") or user_name or DELETED_USER_PLACEHOLDER

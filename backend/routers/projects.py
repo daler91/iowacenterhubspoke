@@ -5,9 +5,13 @@ from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
 from core.auth import CurrentUser, SchedulerRequired
-from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER
+from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER, ROLE_ADMIN
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
+from services.notification_events import (
+    notify_project_deleted,
+    notify_project_phase_advanced,
+)
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -608,6 +612,11 @@ async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRe
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def delete_project(project_id: str, user: SchedulerRequired):
+    # Snapshot before soft-delete so the notification can name the project
+    # and still resolve the partner_org_id for recipient resolution.
+    project_snapshot = await db.projects.find_one(
+        {"id": project_id, "deleted_at": None}, {"_id": 0},
+    )
     now = datetime.now(timezone.utc).isoformat()
     result = await db.projects.update_one(
         {"id": project_id, "deleted_at": None},
@@ -634,6 +643,8 @@ async def delete_project(project_id: str, user: SchedulerRequired):
         "project_deleted", f"Project '{project_id}' deleted with associated data",
         "project", project_id, user.get("name", "System"),
     )
+    if project_snapshot:
+        await notify_project_deleted(project_snapshot, user)
     return {"message": "Project deleted"}
 
 
@@ -642,6 +653,7 @@ async def delete_project(project_id: str, user: SchedulerRequired):
     summary="Advance project to next phase",
     responses={
         400: {"description": "Project is already complete"},
+        403: {"description": "Only admins can force-advance past incomplete tasks"},
         404: {"description": PROJECT_NOT_FOUND},
     },
 )
@@ -688,14 +700,38 @@ async def advance_phase(
             "next_phase": next_phase,
         }
 
+    # Force-advance past incomplete tasks is admin-only and audited. Scheduler/
+    # editor roles can only advance when every task in the current phase is
+    # already completed.
+    force_with_incomplete = force and bool(incomplete_tasks)
+    if force_with_incomplete and user.get("role") != ROLE_ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins can force-advance past incomplete tasks.",
+        )
+
     now = datetime.now(timezone.utc).isoformat()
     await db.projects.update_one(
         {"id": project_id},
         {"$set": {"phase": next_phase, "updated_at": now}},
     )
-    await log_activity(
-        "project_phase_advanced",
-        f"Project advanced from {current} to {next_phase}",
-        "project", project_id, user.get("name", "System"),
-    )
+    if force_with_incomplete:
+        skipped_titles = ", ".join(t["title"] for t in incomplete_tasks)
+        await log_activity(
+            "project_phase_force_advanced",
+            (
+                f"Force-advanced {current} -> {next_phase} skipping "
+                f"{len(incomplete_tasks)} incomplete task(s): {skipped_titles}"
+            ),
+            "project", project_id, user.get("name", "System"),
+            user_id=user.get("user_id"),
+        )
+    else:
+        await log_activity(
+            "project_phase_advanced",
+            f"Project advanced from {current} to {next_phase}",
+            "project", project_id, user.get("name", "System"),
+            user_id=user.get("user_id"),
+        )
+    await notify_project_phase_advanced(project, current, next_phase, user)
     return {"warning": False, "phase": next_phase, "previous_phase": current}

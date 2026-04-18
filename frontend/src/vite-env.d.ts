@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_BACKEND_URL?: string;
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
   readonly VITE_SENTRY_DSN?: string;
+  readonly VITE_POSTHOG_KEY?: string;
+  readonly VITE_POSTHOG_HOST?: string;
   /** Legacy CRA name kept as a fallback in ``api.ts``. Remove once callers migrate. */
   readonly REACT_APP_BACKEND_URL?: string;
 }

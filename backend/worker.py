@@ -496,6 +496,17 @@ async def process_task_reminders(ctx):
     return await check_and_send_reminders()
 
 
+async def process_notification_digests(ctx):
+    """Cron job: flush queued daily/weekly notification digests.
+
+    Runs every hour. The digest service only sends to principals whose
+    configured ``digest.daily_hour`` / ``digest.weekly_day`` matches now,
+    so the hour-granularity cadence is the natural choice.
+    """
+    from services.digest import process_digests
+    return await process_digests()
+
+
 async def deliver_webhook_job(ctx, subscription_id, event, payload):
     """Background job: deliver a webhook to a subscriber."""
     from services.webhooks import deliver_webhook
@@ -523,6 +534,29 @@ async def send_partner_magic_link_email_job(ctx, email):
     return await send_partner_magic_link_email(email)
 
 
+WORKER_HEARTBEAT_KEY = "arq:heartbeat"
+# Key TTL set deliberately higher than the cron cadence so a single missed
+# tick doesn't flip the liveness signal, but short enough that a truly
+# dead worker is detected within ~2 minutes.
+WORKER_HEARTBEAT_TTL_SECONDS = 120
+
+
+async def emit_worker_heartbeat(ctx) -> None:
+    """Cron job: stamp a Redis key so ``/health`` can tell whether a worker
+    is live. Without this, dead workers look healthy — jobs enqueue fine
+    into Redis but no process picks them up.
+    """
+    from datetime import datetime, timezone
+    redis_pool = ctx.get("redis")
+    if redis_pool is None:
+        return
+    await redis_pool.set(
+        WORKER_HEARTBEAT_KEY,
+        datetime.now(timezone.utc).isoformat(),
+        ex=WORKER_HEARTBEAT_TTL_SECONDS,
+    )
+
+
 class WorkerSettings:
     functions = [
         generate_bulk_schedules, sync_schedules_denormalized,
@@ -534,6 +568,10 @@ class WorkerSettings:
     ]
     cron_jobs = [
         arq.cron(process_task_reminders, hour=None, minute=0),
+        arq.cron(process_notification_digests, hour=None, minute=5),
+        # Heartbeat every minute; /health flags "degraded" if the key is
+        # missing or older than 90s.
+        arq.cron(emit_worker_heartbeat, hour=None, minute=None),
     ]
     redis_settings = RedisSettings.from_dsn(redis_url)
     # Retry each failed job up to 3 times with arq's built-in exponential

@@ -11,18 +11,40 @@ from fastapi import HTTPException, Depends, Header, Request
 from typing import Annotated, Optional, List
 from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_EDITOR
 
+
+def _looks_multi_worker() -> bool:
+    """Best-effort detection of a multi-process deployment.
+
+    A per-process random fallback secret is only safe when exactly one
+    worker is serving requests — otherwise a JWT signed by worker A will
+    fail verification on worker B. We refuse the fallback when Railway is
+    detected or when UVICORN_WORKERS/WEB_CONCURRENCY is >1, in addition to
+    the explicit ``ENVIRONMENT=production`` flag.
+    """
+    if os.environ.get('ENVIRONMENT') == 'production':
+        return True
+    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_DEPLOYMENT_ID'):
+        return True
+    for key in ('UVICORN_WORKERS', 'WEB_CONCURRENCY', 'GUNICORN_WORKERS'):
+        raw = os.environ.get(key)
+        if raw and raw.isdigit() and int(raw) > 1:
+            return True
+    return False
+
+
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
-    if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT'):
+    if _looks_multi_worker():
         raise ValueError(
             "CRITICAL: JWT_SECRET environment variable is missing."
-            " It must be explicitly set in production environments."
+            " It must be explicitly set in production or any multi-worker deployment"
+            " (Railway, UVICORN_WORKERS>1, WEB_CONCURRENCY>1)."
         )
     JWT_SECRET = secrets.token_urlsafe(32)
     logging.warning(
-        "JWT_SECRET environment variable is missing. Using a randomly generated secret."
-        " All user sessions will be invalidated when the server restarts."
-        " Do not use this configuration in production."
+        "JWT_SECRET is missing — using a per-process random secret."
+        " This is single-process dev only: tokens will not survive a restart"
+        " and requests balanced to sibling workers will 401."
     )
 JWT_ALGORITHM = 'HS256'
 
@@ -137,50 +159,146 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
         raise HTTPException(status_code=401, detail='Invalid token')
 
     # Session invalidation: reject tokens issued before a password change
+    # or belonging to a soft-deleted user account.
     token_iat = payload.get('iat', 0)
-    if token_iat:
-        changed_ts = await _get_pwd_changed_ts(payload['user_id'])
-        if changed_ts and token_iat < changed_ts:
-            raise HTTPException(
-                status_code=401,
-                detail='Session invalidated by password change. Please log in again.'
-            )
+    changed_ts, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
+    if is_deleted:
+        raise HTTPException(status_code=401, detail='Account deactivated')
+    if token_iat and changed_ts and token_iat < changed_ts:
+        raise HTTPException(
+            status_code=401,
+            detail='Session invalidated by password change. Please log in again.'
+        )
 
     return payload
 
 
 # ── Password-change timestamp cache ──────────────────────────────────
-# In-process only. Multi-worker deployments will see stale reads for up to
-# ``_PWD_CACHE_TTL`` seconds per worker after a password change. Password
-# change/reset handlers call ``invalidate_pwd_cache(user_id)`` to clear the
-# local entry immediately so the issuing worker cannot revalidate an old JWT.
-_pwd_change_cache: dict[str, tuple[float, float | None]] = {}  # user_id -> (cached_at, changed_ts)
-_PWD_CACHE_TTL = 300  # 5 minutes
+# Two-layer: L1 is per-process (30s TTL) and L2 is Redis (15-min TTL). On
+# a password change / user-delete / user-restore, ``invalidate_pwd_cache``
+# drops the L1 entry on the issuing worker AND writes a Redis marker that
+# sibling workers read on their next L1 miss, so cross-worker staleness
+# is capped at ``_PWD_CACHE_TTL`` seconds. Redis is best-effort: if the
+# cluster is down we still serve from Mongo and degrade to the L1-only
+# behavior.
+_pwd_change_cache: dict[str, tuple[float, float | None, bool]] = {}  # user_id -> (cached_at, changed_ts, is_deleted)
+_PWD_CACHE_TTL = 30  # seconds; short enough that cross-worker staleness is bounded
+_REDIS_MARKER_TTL = 900  # seconds; long enough to outlive the longest expected L1 gap
+_REDIS_CHANGED_PREFIX = "auth:pwd_changed:"
+_REDIS_DELETED_PREFIX = "auth:user_deleted:"
 
 
-async def _get_pwd_changed_ts(user_id: str) -> float | None:
-    """Get cached password_changed_at timestamp, refreshing from DB if stale."""
+async def _read_redis_markers(user_id: str) -> tuple[float | None, bool | None]:
+    """Return (changed_ts, is_deleted) from Redis, or (None, None) on miss.
+
+    ``is_deleted=None`` distinguishes "no marker present" from
+    "marker says not deleted" so the caller can still fall through to
+    Mongo for authoritative deleted-state when Redis has no info.
+    """
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool is None:
+            return None, None
+        changed_raw = await pool.get(f"{_REDIS_CHANGED_PREFIX}{user_id}")
+        deleted_raw = await pool.get(f"{_REDIS_DELETED_PREFIX}{user_id}")
+        changed_ts: float | None = None
+        if changed_raw is not None:
+            if isinstance(changed_raw, bytes):
+                changed_raw = changed_raw.decode()
+            try:
+                changed_ts = datetime.fromisoformat(changed_raw).timestamp()
+            except ValueError:
+                changed_ts = None
+        is_deleted: bool | None = None
+        if deleted_raw is not None:
+            if isinstance(deleted_raw, bytes):
+                deleted_raw = deleted_raw.decode()
+            is_deleted = deleted_raw == "1"
+        return changed_ts, is_deleted
+    except Exception as exc:
+        logging.debug("auth redis read failed for %s: %s", user_id, exc)
+        return None, None
+
+
+async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
+    """Get (password_changed_at timestamp, is_deleted) for a user.
+
+    L1 (in-process) → L2 (Redis) → L3 (Mongo). A Redis hit refreshes L1;
+    a Mongo read also warms Redis so sibling workers benefit on the next
+    miss.
+    """
     now = _time.monotonic()
     cached = _pwd_change_cache.get(user_id)
     if cached and (now - cached[0]) < _PWD_CACHE_TTL:
-        return cached[1]
+        return cached[1], cached[2]
+
+    redis_changed, redis_deleted = await _read_redis_markers(user_id)
+
+    # Always confirm deletion against Mongo — Redis is a hint, not the source
+    # of truth. If restore_user raced a Redis write that silently failed, a
+    # stale ``auth:user_deleted`` marker would otherwise keep the restored
+    # user blocked with 401 until the marker TTL expired.
     from database import db
-    user_doc = await db.users.find_one({"id": user_id}, {"password_changed_at": 1})
-    changed_ts = None
+    user_doc = await db.users.find_one(
+        {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
+    )
+    is_deleted = bool(user_doc and user_doc.get('deleted_at'))
+    changed_ts: float | None = redis_changed
     if user_doc and user_doc.get('password_changed_at'):
-        changed_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
-    _pwd_change_cache[user_id] = (now, changed_ts)
-    return changed_ts
+        mongo_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
+        # Prefer the later of the two — Redis marker may pre-date Mongo on
+        # a race where the write landed but hasn't propagated yet.
+        changed_ts = max(changed_ts or 0.0, mongo_ts) or None
+
+    # If Redis said "deleted" but Mongo says otherwise, clear the stale
+    # marker so sibling workers don't keep consulting it.
+    if redis_deleted is True and not is_deleted:
+        try:
+            from core.queue import get_redis_pool
+            pool = await get_redis_pool()
+            if pool is not None:
+                await pool.delete(f"{_REDIS_DELETED_PREFIX}{user_id}")
+        except Exception as exc:
+            logging.debug("auth redis stale-marker cleanup failed for %s: %s", user_id, exc)
+
+    _pwd_change_cache[user_id] = (now, changed_ts, is_deleted)
+    return changed_ts, is_deleted
 
 
-def invalidate_pwd_cache(user_id: str) -> None:
-    """Drop the cached password-change timestamp for ``user_id``.
+async def invalidate_pwd_cache(user_id: str, *, is_deleted: Optional[bool] = None) -> None:
+    """Drop the L1 auth cache and broadcast the change via Redis.
 
-    Called from the auth router immediately after a ``password_changed_at``
-    write so subsequent requests in the same process do not serve a stale
-    cache entry and let the old JWT ride another ``_PWD_CACHE_TTL`` seconds.
+    Called after every ``password_changed_at`` write and after soft-delete
+    / restore of a user account. ``is_deleted`` controls the deletion
+    marker in Redis:
+
+    * ``None`` (default): only refresh the pwd_changed timestamp.
+    * ``True``: also set the deleted marker (soft-delete).
+    * ``False``: also clear the deleted marker (restore).
+
+    Redis failures are logged at DEBUG and swallowed — L1 invalidation on
+    the issuing worker still succeeds, so the local behavior is correct
+    even when Redis is unreachable.
     """
     _pwd_change_cache.pop(user_id, None)
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool is None:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await pool.set(
+            f"{_REDIS_CHANGED_PREFIX}{user_id}", now_iso, ex=_REDIS_MARKER_TTL,
+        )
+        if is_deleted is True:
+            await pool.set(
+                f"{_REDIS_DELETED_PREFIX}{user_id}", "1", ex=_REDIS_MARKER_TTL,
+            )
+        elif is_deleted is False:
+            await pool.delete(f"{_REDIS_DELETED_PREFIX}{user_id}")
+    except Exception as exc:
+        logging.debug("auth redis broadcast failed for %s: %s", user_id, exc)
 
 
 CurrentUser = Annotated[dict, Depends(get_current_user)]

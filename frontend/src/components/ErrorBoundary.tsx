@@ -1,5 +1,10 @@
 import React from "react";
 import { AlertTriangle } from "lucide-react";
+import {
+  hasAttemptedChunkReload,
+  isChunkLoadError,
+  reloadOnceForStaleChunk,
+} from "@/lib/chunkError";
 
 interface ErrorBoundaryProps {
   readonly children: React.ReactNode;
@@ -35,6 +40,12 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+    // A failed lazy `import()` surfaces here when a new deploy rotated
+    // chunk hashes out from under this still-open tab. A single hard
+    // reload (guarded so we never loop) recovers.
+    if (isChunkLoadError(error) && !hasAttemptedChunkReload()) {
+      reloadOnceForStaleChunk();
+    }
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
@@ -54,6 +65,10 @@ class ErrorBoundary extends React.Component<
     this.setState({ hasError: false, error: null });
   };
 
+  handleReload = () => {
+    globalThis.location.reload();
+  };
+
   render() {
     if (this.state.hasError && this.state.error) {
       if (this.props.fallback) {
@@ -62,6 +77,14 @@ class ErrorBoundary extends React.Component<
           reset: this.reset,
         });
       }
+      const chunkError = isChunkLoadError(this.state.error);
+      const heading = chunkError
+        ? "This page was updated."
+        : "Something went wrong.";
+      const body = chunkError
+        ? "A new version of the app is available. Reload to continue."
+        : "We hit an unexpected error while loading this page. Try again, or reload if the problem sticks around.";
+      const rawMessage = this.state.error?.message;
       return (
         <div
           className="p-6 m-4 border border-danger/30 bg-danger-soft rounded-lg"
@@ -74,19 +97,47 @@ class ErrorBoundary extends React.Component<
             />
             <div className="flex-1">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Something went wrong.
+                {heading}
               </h2>
               <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
-                {this.state.error?.message ||
-                  "An unexpected error occurred."}
+                {body}
               </p>
-              <button
-                type="button"
-                onClick={this.reset}
-                className="mt-4 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium rounded-lg transition-colors"
-              >
-                Try again
-              </button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {chunkError ? (
+                  <button
+                    type="button"
+                    onClick={this.handleReload}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Reload now
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={this.reset}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Try again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={this.handleReload}
+                      className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Reload page
+                    </button>
+                  </>
+                )}
+              </div>
+              {!chunkError && rawMessage && (
+                <details className="mt-4 text-xs text-slate-500 dark:text-muted-foreground">
+                  <summary className="cursor-pointer">Show technical details</summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px]">
+                    {rawMessage}
+                  </pre>
+                </details>
+              )}
             </div>
           </div>
         </div>

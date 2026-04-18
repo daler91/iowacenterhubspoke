@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';
 import {
   Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
-  AlertTriangle, Lock, Star, User as UserIcon, MessageSquare,
+  AlertTriangle, Lock, Star, User as UserIcon, MessageSquare, Reply,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
@@ -22,13 +22,17 @@ import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 
 
+function formatCommentDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    day: 'numeric', month: 'short', year: '2-digit',
+  });
+}
+
 function groupCommentsByDate(comments: TaskComment[]) {
   const groups: Array<{ date: string; items: TaskComment[] }> = [];
   let currentDate = '';
   for (const c of comments) {
-    const d = new Date(c.created_at).toLocaleDateString('en-US', {
-      day: 'numeric', month: 'short', year: '2-digit',
-    });
+    const d = formatCommentDate(c.created_at);
     if (d !== currentDate) {
       currentDate = d;
       groups.push({ date: d, items: [] });
@@ -36,6 +40,167 @@ function groupCommentsByDate(comments: TaskComment[]) {
     groups.at(-1)!.items.push(c);
   }
   return groups;
+}
+
+// Build a map of parent_comment_id → ordered children. Comments whose parent
+// is missing from the payload (orphans) are promoted to roots so they remain
+// visible. Roots live under the `null` key.
+function buildChildrenMap(comments: TaskComment[]) {
+  const ids = new Set(comments.map(c => c.id));
+  const map = new Map<string | null, TaskComment[]>();
+  for (const c of comments) {
+    const parent = c.parent_comment_id && ids.has(c.parent_comment_id)
+      ? c.parent_comment_id
+      : null;
+    const bucket = map.get(parent) ?? [];
+    bucket.push(c);
+    map.set(parent, bucket);
+  }
+  for (const bucket of map.values()) {
+    bucket.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+  return map;
+}
+
+// Collect every descendant of a root and return them as a single flat list
+// sorted chronologically. Matches Slack's thread view: one root at the top,
+// then every reply (and reply-to-reply) at a shared indent level in the order
+// they were posted. The data tree is preserved via `parent_comment_id` so we
+// can flip back to a tree view later without a migration.
+function collectDescendants(
+  rootId: string,
+  childrenMap: Map<string | null, TaskComment[]>,
+): TaskComment[] {
+  const out: TaskComment[] = [];
+  const walk = (id: string) => {
+    for (const child of childrenMap.get(id) ?? []) {
+      out.push(child);
+      walk(child.id);
+    }
+  };
+  walk(rootId);
+  out.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return out;
+}
+
+// Compact relative timestamp for the thread summary bar. Falls back to a
+// full date for anything older than ~6 days so "30d ago" doesn't stretch on.
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (diffMs < 45_000) return 'just now';
+  const mins = Math.round(diffMs / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatCommentDate(iso);
+}
+
+// ── Comment Node ─────────────────────────────────────────────────────
+// Renders a single comment (root or reply). Never recurses — the caller
+// flattens each thread via `collectDescendants` and renders descendants
+// inside one expandable container, so the "N replies" summary, the single
+// left rail, and the root-only Reply button all live at the thread level.
+function CommentNode({
+  comment, isRoot, onReply, parentDate,
+}: Readonly<{
+  comment: TaskComment;
+  isRoot: boolean;
+  onReply?: (c: TaskComment) => void;
+  parentDate: string;
+}>) {
+  const ownDate = formatCommentDate(comment.created_at);
+  const time = new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Replies inherit their root's date header, so when a reply crosses a day
+  // boundary relative to its root, surface the date inline so readers don't
+  // misread the chronology.
+  const crossesDayBoundary = ownDate !== parentDate;
+  return (
+    <div id={`comment-${comment.id}`} className="flex gap-2 mb-3">
+      <div className={cn(
+        'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
+        comment.sender_type === 'partner'
+          ? 'bg-ownership-partner-soft text-ownership-partner'
+          : 'bg-ownership-internal-soft text-ownership-internal',
+      )}>
+        {(comment.sender_name || '?').charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
+          <span className="text-[10px] text-muted-foreground">
+            {crossesDayBoundary ? `${ownDate} · ${time}` : time}
+          </span>
+          {isRoot && onReply && (
+            <button
+              type="button"
+              onClick={() => onReply(comment)}
+              className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+              aria-label={`Reply to ${comment.sender_name}`}
+            >
+              <Reply className="w-3 h-3" /> Reply
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Thread Summary ───────────────────────────────────────────────────
+// Collapsed-thread indicator shown under a root comment when its thread has
+// replies but is not expanded. Click expands the replies inline.
+function ThreadSummary({
+  descendants, onExpand,
+}: Readonly<{
+  descendants: TaskComment[];
+  onExpand: () => void;
+}>) {
+  // Unique senders in reply order, up to 3 avatars.
+  const seen = new Set<string>();
+  const avatars: TaskComment[] = [];
+  for (const d of descendants) {
+    const key = d.sender_id || d.sender_name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    avatars.push(d);
+    if (avatars.length === 3) break;
+  }
+  const last = descendants.at(-1);
+  const count = descendants.length;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+    >
+      <div className="flex -space-x-1.5">
+        {avatars.map(a => (
+          <span
+            key={a.id}
+            className={cn(
+              'w-5 h-5 rounded-md border border-white dark:border-slate-900 flex items-center justify-center text-[9px] font-semibold',
+              a.sender_type === 'partner'
+                ? 'bg-ownership-partner-soft text-ownership-partner'
+                : 'bg-ownership-internal-soft text-ownership-internal',
+            )}
+          >
+            {(a.sender_name || '?').charAt(0).toUpperCase()}
+          </span>
+        ))}
+      </div>
+      <span className="font-semibold group-hover:underline">
+        {count} {count === 1 ? 'reply' : 'replies'}
+      </span>
+      {last && (
+        <span className="text-[10px] text-muted-foreground font-normal">
+          Last reply {timeAgo(last.created_at)}
+        </span>
+      )}
+    </button>
+  );
 }
 
 // ── Field Card ───────────────────────────────────────────────────────
@@ -104,23 +269,65 @@ function FlagPillSwitch({
 // ── Conversations Panel ──────────────────────────────────────────────
 function ConversationsPanel({ comments, onPostComment }: Readonly<{
   comments: TaskComment[];
-  onPostComment: (body: string) => Promise<void>;
+  onPostComment: (body: string, parentCommentId?: string | null) => Promise<string | null | void>;
 }>) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
+  const [lastPostedId, setLastPostedId] = useState<string | null>(null);
+  // Root comment ids whose thread is currently expanded. Threads default to
+  // collapsed (Slack-style summary) and open on demand — either by clicking
+  // the summary bar, by clicking Reply on the root, or after posting a reply
+  // (so the new message renders under the existing open thread).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
-  const groups = groupCommentsByDate(comments);
+  const childrenMap = buildChildrenMap(comments);
+  const roots = childrenMap.get(null) ?? [];
+  const groups = groupCommentsByDate(roots);
 
+  const openThread = (rootId: string) =>
+    setExpanded(prev => {
+      if (prev.has(rootId)) return prev;
+      const next = new Set(prev);
+      next.add(rootId);
+      return next;
+    });
+  const toggleThread = (rootId: string) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(rootId)) next.delete(rootId); else next.add(rootId);
+      return next;
+    });
+
+  // When a reply is posted to an older thread, the new node renders somewhere
+  // mid-panel rather than at the end. Scroll to the specific new comment when
+  // we know its id; otherwise fall back to the end-ref behavior so initial
+  // load and brand-new root comments still pin to the bottom.
   useEffect(() => {
+    if (lastPostedId) {
+      const el = document.getElementById(`comment-${lastPostedId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setLastPostedId(null);
+        return;
+      }
+    }
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments.length]);
+  }, [comments.length, lastPostedId]);
 
   const handleSend = async () => {
     if (!body.trim()) return;
     setSending(true);
     try {
-      await onPostComment(body.trim());
+      // Capture before clearing so we can expand the target thread after the
+      // post completes — otherwise the scroll-to-new-comment effect runs
+      // against a collapsed thread and can't find the element.
+      const target = replyingTo;
+      const newId = await onPostComment(body.trim(), target?.id ?? null);
       setBody('');
+      setReplyingTo(null);
+      if (target) openThread(target.id);
+      if (typeof newId === 'string') setLastPostedId(newId);
     } finally {
       setSending(false);
     }
@@ -156,27 +363,53 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                 <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
               </div>
-              {group.items.map((cmt) => (
-                <div key={cmt.id} className="flex gap-2 mb-3">
-                  <div className={cn(
-                    'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
-                    cmt.sender_type === 'partner'
-                      ? 'bg-ownership-partner-soft text-ownership-partner'
-                      : 'bg-ownership-internal-soft text-ownership-internal',
-                  )}>
-                    {(cmt.sender_name || '?').charAt(0).toUpperCase()}
+              {group.items.map(root => {
+                const descendants = collectDescendants(root.id, childrenMap);
+                const hasReplies = descendants.length > 0;
+                const isExpanded = expanded.has(root.id);
+                const rootDate = formatCommentDate(root.created_at);
+                return (
+                  <div
+                    key={root.id}
+                    className={cn(
+                      'rounded-lg mb-2 transition-colors',
+                      hasReplies && 'bg-white/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 p-2',
+                    )}
+                  >
+                    <CommentNode
+                      comment={root}
+                      isRoot
+                      onReply={(c) => { setReplyingTo(c); openThread(c.id); }}
+                      parentDate={group.date}
+                    />
+                    {hasReplies && !isExpanded && (
+                      <ThreadSummary
+                        descendants={descendants}
+                        onExpand={() => toggleThread(root.id)}
+                      />
+                    )}
+                    {hasReplies && isExpanded && (
+                      <div className="ml-4 border-l border-indigo-100 dark:border-indigo-900/50 pl-3 mt-1">
+                        {descendants.map(d => (
+                          <CommentNode
+                            key={d.id}
+                            comment={d}
+                            isRoot={false}
+                            parentDate={rootDate}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => toggleThread(root.id)}
+                          className="text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 hover:underline mb-1"
+                        >
+                          Hide replies
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cmt.sender_name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(cmt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{cmt.body}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))
         )}
@@ -184,12 +417,28 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
       </div>
 
       <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+        {replyingTo && (
+          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800/60 text-[11px] text-indigo-700 dark:text-indigo-300 w-fit max-w-full">
+            <Reply className="w-3 h-3 shrink-0" />
+            <span className="truncate">
+              Replying to <span className="font-semibold">{replyingTo.sender_name}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="ml-0.5 p-0.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800/60 transition-colors shrink-0"
+              aria-label="Cancel reply"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
           <textarea
             value={body}
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Type a message..."
+            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message...'}
             rows={1}
             className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
           />
@@ -235,6 +484,13 @@ export default function TaskDetailModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Keep a ref to the latest onClose so loadTask doesn't need it in its deps.
+  // The parent passes a fresh arrow for onClose on every render, which previously
+  // flipped loadTask's identity and made the open-effect flash the spinner on
+  // every parent re-render (e.g. after mutateTasks).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   const loadTask = useCallback(async () => {
     if (!projectId || !taskId) return;
     try {
@@ -249,18 +505,21 @@ export default function TaskDetailModal({
       setAssignedTo(t.assigned_to || '');
     } catch {
       toast.error('Task not found');
-      onClose();
+      onCloseRef.current();
     } finally {
       setLoading(false);
     }
-  }, [projectId, taskId, onClose]);
+  }, [projectId, taskId]);
 
+  // loadTask is intentionally omitted from deps: it is stable for the
+  // (projectId, taskId) pair via useCallback, and including it would
+  // re-trigger the spinner on unrelated parent re-renders.
   useEffect(() => {
     if (open && taskId) {
       setLoading(true);
       loadTask();
     }
-  }, [open, taskId, loadTask]);
+  }, [open, taskId, projectId]);
 
   const saveField = async (field: string, value: string | boolean) => {
     try {
@@ -272,12 +531,50 @@ export default function TaskDetailModal({
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!newStatus) return;
+    if (!newStatus || !task) return;
+    const next = newStatus as TaskStatus;
+    const originalId = task.id;
+    const prevStatus = task.status;
+    const prevCompleted = task.completed;
+    setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { status: newStatus });
-      await loadTask();
       onUpdated();
+      // Pull the server-computed completion metadata (completed_at /
+      // completed_by) for the footer. We deliberately avoid loadTask()
+      // here: loadTask resets ALL local fields (so it would clobber an
+      // in-flight blur-save of title/description/details) and its catch
+      // closes the modal on any transient fetch error. This narrow merge
+      // only touches status/completion fields and silently tolerates a
+      // transient failure.
+      try {
+        const res = await projectTasksAPI.getOne(projectId, taskId);
+        const fresh = res.data;
+        setTask(prev => {
+          // Don't merge into a different task: the modal may have switched
+          // to another task (close + reopen) while this refresh was in
+          // flight. Also bail if the user moved status on again.
+          if (prev?.id !== fresh.id || prev.status !== next) return prev;
+          return {
+            ...prev,
+            status: fresh.status,
+            completed: fresh.completed,
+            completed_at: fresh.completed_at,
+            completed_by: fresh.completed_by,
+          };
+        });
+      } catch {
+        // Non-fatal: the PATCH succeeded; the footer metadata will catch
+        // up on the next full reload.
+      }
     } catch {
+      // Roll back optimistic update, but only if we're still on the same
+      // task AND the value we optimistically set is still current. Skip if
+      // the modal has switched tasks or the user has moved status on again.
+      setTask(prev => {
+        if (prev?.id !== originalId || prev.status !== next) return prev;
+        return { ...prev, status: prevStatus, completed: prevCompleted };
+      });
       toast.error('Failed to update status');
     }
   };
@@ -291,11 +588,20 @@ export default function TaskDetailModal({
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
+    const originalId = task.id;
+    const prevValue = task[field];
+    setTask(prev => prev ? { ...prev, [field]: value } : prev);
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
-      await loadTask();
       onUpdated();
     } catch {
+      // Roll back only if we're still on the same task AND our optimistic
+      // value is still current. Skip if the modal switched tasks or the
+      // user toggled again before this request failed.
+      setTask(prev => {
+        if (prev?.id !== originalId || prev[field] !== value) return prev;
+        return { ...prev, [field]: prevValue };
+      });
       toast.error('Failed to update');
     }
   };
@@ -340,7 +646,7 @@ export default function TaskDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
@@ -351,7 +657,7 @@ export default function TaskDetailModal({
             <span className="w-7 h-7 border-2 border-hub border-t-transparent rounded-full animate-spin" />
           </output>
         ) : (
-          <div className="flex h-full">
+          <div className="flex min-h-0">
             {/* ── Left: Task Info ──────────────────────────────── */}
             <div className="flex-1 overflow-y-auto px-7 pt-7 pb-3">
               {/* Project name */}
@@ -598,9 +904,10 @@ export default function TaskDetailModal({
             {/* ── Right: Conversations ──────────────────────────── */}
             <ConversationsPanel
               comments={task.comments ?? []}
-              onPostComment={async (body) => {
-                await projectTasksAPI.postComment(projectId, taskId, body);
+              onPostComment={async (body, parentCommentId) => {
+                const res = await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
                 await loadTask();
+                return res.data?.id ?? null;
               }}
             />
           </div>

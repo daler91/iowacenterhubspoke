@@ -1,6 +1,8 @@
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Response
 from database import db
 from models.schemas import (
@@ -150,7 +152,7 @@ async def validate_invite(token: str):
     }
 
 
-async def _validate_invitation(data: UserRegister) -> dict | None:
+async def _validate_invitation(data: UserRegister) -> Optional[dict]:
     """Look up the pending invitation matching ``data.invite_token``.
 
     Returns the raw invitation doc (not yet claimed) or None when the
@@ -191,7 +193,7 @@ async def _claim_invitation_or_raise(token: str) -> dict:
 
 
 def _derive_role_and_status(
-    claimed_invitation: dict | None, is_admin_email: bool,
+    claimed_invitation: Optional[dict], is_admin_email: bool,
 ) -> tuple[str, str]:
     """Decide the new user's role + status from the registration path."""
     if claimed_invitation:
@@ -213,16 +215,26 @@ async def _release_invitation(token: str) -> None:
     )
 
 
-async def _send_pending_welcome_quietly(email: str, name: str) -> None:
-    """Email the self-service registrant a "received, awaiting review"
-    acknowledgement. Failures are logged but never break registration."""
+async def _send_pending_notifications(user_doc: dict) -> None:
+    """Fire the post-registration notifications for a pending user.
+
+    Two independent non-fatal calls: the courtesy "we got your application"
+    email to the applicant, and the admin-fanout notification. Either can
+    fail without blocking registration.
+    """
+    email = user_doc.get("email", "")
+    name = user_doc.get("name", "")
+    user_id = user_doc.get("id", "")
     try:
         from services.email import send_welcome_pending
         await send_welcome_pending(to=email, name=name)
     except Exception as e:
-        logger.warning(
-            "Failed to send pending-welcome email to %s: %s", email, e,
-        )
+        logger.warning("Failed to send pending-welcome email to %s: %s", email, e)
+    try:
+        from services.notification_events import notify_new_user_pending
+        await notify_new_user_pending(user_doc)
+    except Exception as e:
+        logger.warning("Failed to notify admins of pending user %s: %s", user_id, e)
 
 
 @router.post(
@@ -290,8 +302,12 @@ async def register(request: Request, data: UserRegister, response: Response):
             "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
         }
 
-    await _send_pending_welcome_quietly(data.email, data.name)
-    return {"message": "Registration submitted. An admin must approve your account.", "pending": True}
+    # Self-service registration awaiting admin approval.
+    await _send_pending_notifications(user_doc)
+    return {
+        "message": "Registration submitted. An admin must approve your account.",
+        "pending": True,
+    }
 
 
 @router.post(
@@ -553,7 +569,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
             "password_changed_at": now.isoformat(),
         }},
     )
-    invalidate_pwd_cache(row["user_id"])
+    await invalidate_pwd_cache(row["user_id"])
     # Invalidate ALL outstanding reset tokens for this user, not just the one
     # that was submitted. Otherwise a second leaked link could still be used
     # to reset the password again after a successful reset.
@@ -866,7 +882,7 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
             "password_changed_at": now.isoformat(),
         }}
     )
-    invalidate_pwd_cache(user['user_id'])
+    await invalidate_pwd_cache(user['user_id'])
     logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Revoke all outstanding refresh tokens for this user so other devices

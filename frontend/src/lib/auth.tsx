@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { authAPI } from './api';
+import { resetPostHog } from './consent';
 
 interface AuthUser {
   id: string;
@@ -77,6 +78,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     } catch {
       // Ignore logout errors
     }
+    // Clear analytics identity before dropping the user state so no further
+    // events are attributed to the previous session.
+    await resetPostHog();
     setUser(null);
   }, []);
 

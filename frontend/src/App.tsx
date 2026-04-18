@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ConsentBanner from "./components/ConsentBanner";
 
 /**
  * Wraps a route element in an ErrorBoundary keyed on the current path so a
@@ -74,6 +75,7 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const PrivacyPage = lazy(() => import("./pages/Privacy"));
 const MapView = lazy(() => import("./components/MapView"));
 const KanbanBoard = lazy(() => import("./components/KanbanBoard"));
 const CalendarView = lazy(() => import("./components/CalendarView"));
@@ -98,8 +100,16 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
-          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div
+          className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Loading page</span>
         </div>
       }>
         <Routes>
@@ -166,6 +176,7 @@ function AppRoutes() {
             } />
           </Route>
           <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />
         </Routes>
       </Suspense>
     </BrowserRouter>
@@ -177,6 +188,7 @@ function App() {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <AuthProvider>
         <AppRoutes />
+        <ConsentBanner />
         <Toaster position="top-right" richColors />
       </AuthProvider>
     </ThemeProvider>

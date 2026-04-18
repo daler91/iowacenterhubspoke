@@ -2,6 +2,12 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List, Literal
 
+# Defensive caps — same rationale as models/schemas.py.
+_MAX_NAME = 500
+_MAX_DESCRIPTION = 5000
+_MAX_NOTES = 5000
+_MAX_MESSAGE_BODY = 20000
+
 
 def _validate_event_date(value: str) -> str:
     """Accept ISO date or ISO datetime strings only — surface a 400 instead
@@ -36,6 +42,28 @@ class ProjectCreate(BaseModel):
     @classmethod
     def _check_event_date(cls, v):
         return _validate_event_date(v)
+
+    @model_validator(mode="after")
+    def _require_fields_for_auto_schedule(self):  # NOSONAR(S3516)
+        """Auto-created schedules need a concrete employee list + time window.
+
+        Without this guard, ``auto_create_schedule=True`` paired with
+        ``employee_ids=[]`` (or missing start/end times) produces a malformed
+        schedule document downstream. Pydantic v2 ``mode="after"`` validators
+        are required to return ``self`` on every non-raising path — the
+        "always returns same value" warning is a false positive.
+        """
+        if not self.auto_create_schedule:
+            return self
+        if not self.employee_ids:
+            raise ValueError(
+                "auto_create_schedule=true requires a non-empty employee_ids list"
+            )
+        if not self.start_time or not self.end_time:
+            raise ValueError(
+                "auto_create_schedule=true requires both start_time and end_time"
+            )
+        return self
 
 
 class PhaseAdvanceRequest(BaseModel):
@@ -118,6 +146,7 @@ class TaskReorder(BaseModel):
 
 class TaskCommentCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=10_000)
+    parent_comment_id: Optional[str] = None
 
 
 # ── Partner Orgs ──────────────────────────────────────────────────────

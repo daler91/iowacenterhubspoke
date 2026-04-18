@@ -11,10 +11,13 @@ from datetime import datetime, timezone
 _sentry_dsn = os.getenv("SENTRY_DSN")
 if _sentry_dsn:
     import sentry_sdk
+    from core.sentry_scrub import sentry_before_send
     sentry_sdk.init(
         dsn=_sentry_dsn,
         traces_sample_rate=0.2,
         environment=os.getenv("ENVIRONMENT", "development"),
+        send_default_pii=False,
+        before_send=sentry_before_send,
     )
 
 from core.logger import setup_logging, get_logger, request_id_var  # noqa: E402
@@ -37,6 +40,7 @@ from routers import (  # noqa: E402
     partner_orgs, projects, project_tasks, project_docs,
     project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
+    notification_preferences,
 )
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
 
@@ -109,6 +113,8 @@ async def _ensure_indexes():
         await db.activity_logs.create_index(
             "expires_at", expireAfterSeconds=0
         )
+        await db.activity_logs.create_index([("user_id", 1)])
+        await db.users.create_index([("deleted_at", 1)])
         await db.drive_time_cache.create_index("key", unique=True)
         await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
         await db.invitations.create_index("token", unique=True)
@@ -152,6 +158,7 @@ async def _ensure_indexes():
         await db.partner_contacts.create_index([("partner_org_id", 1)])
         await db.task_attachments.create_index([("task_id", 1)])
         await db.task_comments.create_index([("task_id", 1), ("created_at", 1)])
+        await db.task_comments.create_index([("task_id", 1), ("parent_comment_id", 1)])
         # Phase 2 collections
         await db.email_reminders.create_index(
             [("task_id", 1), ("threshold_key", 1)], unique=True)
@@ -169,6 +176,43 @@ async def _ensure_indexes():
         await db.messages.create_index([("project_id", 1), ("created_at", -1)])
         await db.portal_tokens.create_index("token", unique=True)
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # Notification subsystem
+        await db.notifications.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("created_at", -1)],
+        )
+        await db.notifications.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("read_at", 1), ("dismissed_at", 1)],
+        )
+        await db.notification_queue.create_index(
+            [("principal_kind", 1), ("principal_id", 1), ("frequency", 1), ("sent_at", 1)],
+        )
+        await db.notifications_sent.create_index(
+            [("principal_kind", 1), ("principal_id", 1),
+             ("type_key", 1), ("channel", 1), ("dedup_key", 1)],
+            unique=True,
+        )
+        # TTL cleanup for notification subsystem — prevents unbounded growth.
+        # - Inbox items: keep 1 year (plenty for user history, short enough
+        #   that a user can still see old context but we don't hoard forever).
+        # - Dedup ledger: keep 90 days (well past any reasonable re-trigger
+        #   window for cron-driven reminders).
+        # - Queue failures: keep 30 days (digest runs hourly, anything still
+        #   unsent after 30d is lost to ops; leaving it longer just bloats).
+        # Partial filter skips rows without the BSON-Date field (old rows
+        # written before this index existed).
+        ttl_partial_filter = {"created_at_date": {"$exists": True}}
+        await db.notifications.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 365,
+            partialFilterExpression=ttl_partial_filter,
+        )
+        await db.notifications_sent.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 90,
+            partialFilterExpression=ttl_partial_filter,
+        )
+        await db.notification_queue.create_index(
+            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 30,
+            partialFilterExpression=ttl_partial_filter,
+        )
         logger.info("Ensured indexes on all collections")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
@@ -549,8 +593,46 @@ async def request_id_middleware(request: Request, call_next):
     finally:
         request_id_var.reset(token)
 
+
+def _validate_cors_origin(origin: str) -> None:
+    """Refuse wildcard / partial / non-http origins at startup.
+
+    ``allow_credentials=True`` paired with a wildcard or sloppy match would
+    let any site read credentialed API responses. FastAPI already rejects
+    ``*`` at the middleware level, but substring wildcards like
+    ``https://*.example.com`` and path components are silently accepted —
+    this catches them before the middleware sees them.
+    """
+    from urllib.parse import urlparse
+
+    if "*" in origin:
+        raise RuntimeError(
+            f"CORS_ORIGINS contains wildcard '*' in {origin!r}; refuse startup."
+            " Enumerate each allowed origin explicitly."
+        )
+    parsed = urlparse(origin)
+    if parsed.scheme not in ("http", "https"):
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} has non-http(s) scheme {parsed.scheme!r}."
+        )
+    if not parsed.netloc:
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} is missing a host."
+        )
+    if parsed.path and parsed.path != "/":
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} includes a path; strip it down to scheme+host."
+        )
+    if parsed.query or parsed.fragment:
+        raise RuntimeError(
+            f"CORS_ORIGINS entry {origin!r} includes query/fragment; strip it."
+        )
+
+
 cors_origins_str = os.getenv("CORS_ORIGINS", "")
 origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+for _origin in origins:
+    _validate_cors_origin(_origin)
 if not origins:
     _env = os.getenv("ENVIRONMENT", "development")
     if _env == "production" or os.getenv("RAILWAY_ENVIRONMENT"):
@@ -593,6 +675,38 @@ api_router.include_router(exports.router)
 api_router.include_router(event_outcomes.router)
 api_router.include_router(promotion_checklist.router)
 api_router.include_router(webhooks.router)
+api_router.include_router(notification_preferences.router)
+
+
+_WORKER_HEARTBEAT_KEY = "arq:heartbeat"
+_WORKER_HEARTBEAT_MAX_AGE_SECONDS = 90
+
+
+async def _check_worker_heartbeat() -> str:
+    """Return ``"ok"`` when the worker is alive, ``"stale"`` when its
+    last heartbeat is older than ``_WORKER_HEARTBEAT_MAX_AGE_SECONDS``,
+    ``"missing"`` when there's no heartbeat at all, and ``"unknown"``
+    when Redis itself is unreachable (so we don't misattribute a Redis
+    outage to a worker outage).
+    """
+    try:
+        from core.queue import get_redis_pool
+        pool = await get_redis_pool()
+        if pool is None:
+            return "unknown"
+        raw = await pool.get(_WORKER_HEARTBEAT_KEY)
+        if raw is None:
+            return "missing"
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        from datetime import datetime, timezone
+        last = datetime.fromisoformat(raw)
+        age = (datetime.now(timezone.utc) - last).total_seconds()
+        if age > _WORKER_HEARTBEAT_MAX_AGE_SECONDS:
+            return "stale"
+        return "ok"
+    except Exception:
+        return "unknown"
 
 
 @api_router.get("/csrf-token", tags=["system"])
@@ -650,19 +764,41 @@ async def health_check(request: Request):
     stale (or was never created because Redis was down at startup), so a
     transient Redis outage does not pin ``/health`` to 503 until the next
     container restart.
+
+    Worker liveness is inferred from the Redis heartbeat key the arq
+    worker writes on every cron tick. A stale or missing heartbeat flips
+    ``status`` to ``degraded`` so orchestrators can re-cycle the worker
+    pod without taking down the API.
     """
-    checks = {"status": "healthy", "mongo": "ok", "redis": "ok"}
+    checks = {"status": "healthy", "mongo": "ok", "redis": "ok", "worker": "ok"}
+    api_degraded = False
     try:
         await client.admin.command("ping")
     except Exception:
         checks["mongo"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
     if not await _probe_redis(request.app):
         checks["redis"] = "unavailable"
-        checks["status"] = "degraded"
+        api_degraded = True
 
-    status_code = 200 if checks["status"] == "healthy" else 503
+    worker_status = await _check_worker_heartbeat()
+    checks["worker"] = worker_status
+    # A stale or missing worker heartbeat is reported in the JSON so
+    # operators can see it and load balancers that inspect payload can
+    # recycle the worker pod — but we deliberately do NOT 503 the API
+    # here. Killing the API container because the *worker* is down would
+    # take scheduling offline for everyone even though the API itself is
+    # fine. Redis outages still flip the status, since API-critical
+    # features (CSRF validation, rate limiting) rely on Redis.
+    if api_degraded:
+        checks["status"] = "degraded"
+    elif worker_status in {"stale", "missing"}:
+        # API-healthy but worker signal is off: use a distinct status
+        # string so dashboards can alert without mis-scaling the API.
+        checks["status"] = "worker_degraded"
+
+    status_code = 503 if api_degraded else 200
     return JSONResponse(content=checks, status_code=status_code)
 
 # ========== APP SETUP ==========
@@ -732,11 +868,44 @@ elif (_static_dir / "assets").exists():
                 rel = p.relative_to(_static_root_resolved).as_posix()
                 _allowed_files[rel] = str(p)
 
+    # Hashed Vite chunks are content-addressed; everything under /assets
+    # can be cached forever. index.html must NOT be cached — otherwise a
+    # browser holding onto stale HTML after a deploy keeps requesting
+    # chunk hashes that no longer exist, which is exactly how users end
+    # up with "Failed to fetch dynamically imported module" on idle tabs.
+    _CACHE_CONTROL_HEADER = "Cache-Control"
+    _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+    _HTML_CACHE = "no-cache"
+
+    _INDEX_HTML_PATH = str(_static_root_resolved / "index.html")
+
+    def _cache_for(full_path: str, resolved: str | None) -> str | None:
+        """Return the Cache-Control value for a served path, or None.
+
+        index.html (and the SPA fallback, which serves it) must revalidate
+        on every request so a new deploy is picked up immediately. Hashed
+        /assets/ files are content-addressed and safe to cache forever.
+        """
+        if (
+            resolved is None
+            or full_path == "index.html"
+            or full_path.endswith(".html")
+        ):
+            return _HTML_CACHE
+        if full_path.startswith("assets/"):
+            return _IMMUTABLE_CACHE
+        return None
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         # Look up the request path in the pre-built allow-set.
         # No user input is ever joined to a filesystem path.
         resolved = _allowed_files.get(full_path)
-        if resolved is not None:
-            return FileResponse(resolved)
-        return FileResponse(str(_static_root_resolved / "index.html"))
+        target = resolved if resolved is not None else _INDEX_HTML_PATH
+        cache_value = _cache_for(full_path, resolved)
+        headers = (
+            {_CACHE_CONTROL_HEADER: cache_value}
+            if cache_value is not None
+            else None
+        )
+        return FileResponse(target, headers=headers)

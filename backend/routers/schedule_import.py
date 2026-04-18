@@ -33,7 +33,7 @@ def _validate_import_row(
     emp_email = row_clean.get("employee_email", "").lower()
     loc_name = row_clean.get("location_name", "").lower()
     class_name = row_clean.get("class_name", "").lower()
-    notes = row_clean.get("notes", "")
+    notes = (row_clean.get("notes") or "")[:5000]
 
     if not date or not date_regex.match(date):
         row_errors.append(f"Invalid date format '{date}'. Expected YYYY-MM-DD")

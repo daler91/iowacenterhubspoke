@@ -25,11 +25,16 @@ export function LocationTimeSelectors({
   previewConflicts,
   travelChain,
   onOverrideChange,
+  invalidFieldId,
 }) {
   const hasConflicts =
     (previewConflicts?.outlook_conflicts?.length ?? 0) > 0 ||
     (previewConflicts?.google_conflicts?.length ?? 0) > 0 ||
     (previewConflicts?.conflicts?.length ?? 0) > 0;
+  const locationInvalid = invalidFieldId === 'schedule-location-select';
+  const dateInvalid = invalidFieldId === 'schedule-date-input';
+  const startInvalid = invalidFieldId === 'schedule-start-time';
+  const endInvalid = invalidFieldId === 'schedule-end-time';
   return (
     <>
       <div className="space-y-2">
@@ -40,6 +45,7 @@ export function LocationTimeSelectors({
             data-testid="schedule-location-select"
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             aria-describedby={selectedLocation ? 'schedule-location-drive' : undefined}
+            aria-invalid={locationInvalid || undefined}
           >
             <SelectValue placeholder="Select a location" />
           </SelectTrigger>
@@ -82,6 +88,7 @@ export function LocationTimeSelectors({
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
+            aria-invalid={dateInvalid || undefined}
           />
         </div>
         <div className="space-y-2">
@@ -95,6 +102,7 @@ export function LocationTimeSelectors({
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
+            aria-invalid={startInvalid || undefined}
           />
         </div>
         <div className="space-y-2">
@@ -108,6 +116,7 @@ export function LocationTimeSelectors({
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
+            aria-invalid={endInvalid || undefined}
           />
         </div>
       </div>

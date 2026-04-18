@@ -54,8 +54,11 @@ export const projectTasksAPI = {
   // Comments
   listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
-  postComment: (projectId: string, taskId: string, body: string) =>
-    api.post(`/projects/${projectId}/tasks/${taskId}/comments`, { body }),
+  postComment: (projectId: string, taskId: string, body: string, parentCommentId?: string | null) =>
+    api.post(`/projects/${projectId}/tasks/${taskId}/comments`, {
+      body,
+      parent_comment_id: parentCommentId ?? null,
+    }),
 };
 
 // ── Partner Organizations ────────────────────────────────────────────
@@ -164,4 +167,16 @@ export const portalAPI = {
   sendMessage: (projectId: string, token: string, data: { channel: string; body: string }) =>
     api.post(`/portal/projects/${projectId}/messages`, data, portalHeaders(token)),
   orgDocuments: (token: string) => api.get('/portal/org-documents', portalHeaders(token)),
+
+  // Notification preferences — same response shape as the internal endpoint,
+  // so reuse the types exported from lib/api.ts.
+  getNotificationPrefs: (token: string) =>
+    api.get('/portal/me/notification-preferences', portalHeaders(token)),
+  updateNotificationPrefs: (token: string, body: Record<string, unknown>) =>
+    api.put('/portal/me/notification-preferences', body, portalHeaders(token)),
+  inbox: (token: string) => api.get('/portal/notifications/inbox', portalHeaders(token)),
+  markInboxRead: (token: string, id: string) =>
+    api.post(`/portal/notifications/inbox/${id}/read`, null, portalHeaders(token)),
+  dismissInbox: (token: string, id: string) =>
+    api.post(`/portal/notifications/inbox/${id}/dismiss`, null, portalHeaders(token)),
 };

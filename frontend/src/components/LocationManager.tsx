@@ -50,7 +50,9 @@ export default function LocationManager() {
       const res = await locationsAPI.getDriveTimeFromHub(latitude, longitude);
       setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
     } catch {
-      console.warn('Auto-calculation of drive time failed; manual entry required');
+      toast.error(
+        'Drive time auto-calc failed. Please enter the minutes manually.',
+      );
     } finally {
       setCalculatingDrive(false);
     }
