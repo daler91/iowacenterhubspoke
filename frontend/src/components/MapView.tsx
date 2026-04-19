@@ -68,9 +68,15 @@ export default function MapView() {
   const todayByLoc = useMemo(() => {
     const map: Record<string, typeof schedules> = {};
     (schedules || []).forEach(s => {
-      if (s.date === todayStr) {
-        (map[s.location_id] ||= []).push(s);
+      if (s.date !== todayStr) return;
+      // Split the lazy-init out of the `.push(...)` call so there's no
+      // assignment inside a sub-expression (Sonar typescript:S6660).
+      let bucket = map[s.location_id];
+      if (!bucket) {
+        bucket = [];
+        map[s.location_id] = bucket;
       }
+      bucket.push(s);
     });
     return map;
   }, [schedules, todayStr]);

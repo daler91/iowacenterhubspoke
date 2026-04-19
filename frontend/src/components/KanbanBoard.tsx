@@ -24,6 +24,7 @@ const COLUMNS = [
   { id: SCHEDULE_STATUS.IN_PROGRESS, label: 'In Progress', color: COLORS.STATUS.IN_PROGRESS, lightColor: COLORS.STATUS_LIGHT.IN_PROGRESS, textColor: COLORS.STATUS_TEXT.IN_PROGRESS },
   { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
+const KNOWN_STATUSES = new Set<string>(COLUMNS.map(c => c.id));
 
 const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
 
@@ -276,8 +277,12 @@ export default function KanbanBoard() {
     const buckets: Record<string, typeof schedules> = {};
     for (const col of COLUMNS) buckets[col.id] = [];
     for (const s of schedules || []) {
-      const status = s.status || SCHEDULE_STATUS.UPCOMING;
-      (buckets[status] ||= []).push(s);
+      const raw = s.status || SCHEDULE_STATUS.UPCOMING;
+      // Drop unknown statuses into Upcoming so stale/legacy values never
+      // land in an uninitialised bucket. Keeps the hot loop free of any
+      // assignment-in-expression (Sonar typescript:S6660).
+      const status = KNOWN_STATUSES.has(raw) ? raw : SCHEDULE_STATUS.UPCOMING;
+      buckets[status].push(s);
     }
     for (const key of Object.keys(buckets)) {
       buckets[key].sort((a, b) =>
