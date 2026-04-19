@@ -264,12 +264,19 @@ async def check_conflicts(
     return conflicts
 
 
-async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+async def check_outlook_conflicts(
+    employee_id: str,
+    date: str,
+    start_time: str,
+    end_time: str,
+    employee: dict | None = None,
+) -> list:
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
     if not OUTLOOK_CALENDAR_ENABLED:
         return []
 
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if employee is None:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee or not employee.get("email"):
         return []
 
@@ -277,12 +284,19 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
     return await check_outlook_availability(employee["email"], date, start_time, end_time, employee=employee)
 
 
-async def check_google_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+async def check_google_conflicts(
+    employee_id: str,
+    date: str,
+    start_time: str,
+    end_time: str,
+    employee: dict | None = None,
+) -> list:
     from core.google_config import GOOGLE_CALENDAR_ENABLED
     if not GOOGLE_CALENDAR_ENABLED:
         return []
 
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if employee is None:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee or not employee.get("google_calendar_connected"):
         return []
 
