@@ -141,7 +141,10 @@ async def delete_document(project_id: str, doc_id: str, user: SchedulerRequired)
     summary="Download a document",
     responses={404: {"description": DOC_NOT_FOUND}},
 )
-async def download_document(project_id: str, doc_id: str, user: CurrentUser):
+async def download_document(
+    project_id: str, doc_id: str, user: CurrentUser,
+    inline: bool = False,
+):
     doc = await db.documents.find_one(
         {"id": doc_id, "project_id": project_id, "deleted_at": None},
         {"_id": 0},
@@ -152,4 +155,8 @@ async def download_document(project_id: str, doc_id: str, user: CurrentUser):
     file_path = os.path.join(UPLOAD_DIR, stored)
     if not stored or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
-    return FileResponse(file_path, filename=doc.get("filename", "download"))
+    return FileResponse(
+        file_path,
+        filename=doc.get("filename", "download"),
+        content_disposition_type="inline" if inline else "attachment",
+    )

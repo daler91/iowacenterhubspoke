@@ -94,7 +94,10 @@ async def portal_upload_document(
         404: {"description": "Document not found"},
     },
 )
-async def portal_download_document(project_id: str, doc_id: str, ctx: PortalContext):
+async def portal_download_document(
+    project_id: str, doc_id: str, ctx: PortalContext,
+    inline: bool = False,
+):
     await _require_partner_project(project_id, ctx)
 
     doc = await db.documents.find_one(
@@ -108,7 +111,11 @@ async def portal_download_document(project_id: str, doc_id: str, ctx: PortalCont
     if not stored or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
 
-    return FileResponse(file_path, filename=doc.get("filename", "download"))
+    return FileResponse(
+        file_path,
+        filename=doc.get("filename", "download"),
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 @router.get(

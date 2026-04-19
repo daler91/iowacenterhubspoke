@@ -65,3 +65,40 @@ export function describeApiError(
   if (status && GENERIC_BY_STATUS[status]) return GENERIC_BY_STATUS[status];
   return fallback;
 }
+
+// Upload flows have richer failure modes than a generic JSON POST:
+// the browser may hit a proxy-level 413 before reaching our handler,
+// timeouts feel different when a file is in flight, and 400s almost
+// always mean "wrong file type." Layer those hints on top of the base
+// describer — always prefer the server's ``detail`` when present so we
+// don't override real error text like "File too large (10 MB max)".
+export function describeUploadError(
+  err: unknown,
+  fallback: string = 'Upload failed',
+): string {
+  if (!err || typeof err !== 'object') return fallback;
+  const e = err as AxiosLikeError;
+
+  if (!e.response) {
+    if (e.code === 'ERR_NETWORK' || e.code === 'ECONNABORTED') {
+      return 'Upload interrupted — check your connection and try again. Larger files take longer.';
+    }
+    return e.message || fallback;
+  }
+
+  const detail = extractDetail(e);
+  if (detail) return detail;
+
+  const status = e.response.status;
+  if (status === 413) {
+    return 'File too large (10 MB max) — pick a smaller file or compress it.';
+  }
+  if (status === 400) {
+    return "That file type isn't supported. Use PDF, image, Word, Excel, CSV, or plain text.";
+  }
+  if (status === 404) {
+    return 'That item no longer exists — it may have been deleted.';
+  }
+  if (status && GENERIC_BY_STATUS[status]) return GENERIC_BY_STATUS[status];
+  return fallback;
+}
