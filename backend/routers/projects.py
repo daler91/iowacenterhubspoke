@@ -52,6 +52,13 @@ async def list_templates(user: CurrentUser):
 # ── Helpers ───────────────────────────────────────────────────────────
 
 _EMPTY_STATS = {"total": 0, "completed": 0, "partner_overdue": 0}
+_AGG_MATCH = "$match"
+_AGG_GROUP = "$group"
+_AGG_IF_NULL = "$ifNull"
+_AGG_COUNT = "$count"
+_ATTENDANCE_FIELD = "$attendance_count"
+_WARM_LEADS_FIELD = "$warm_leads"
+_CLASS_ID_FIELD = "$class_id"
 
 
 def _accumulate_task_stat(stats: dict, task: dict, now: str) -> None:
@@ -118,40 +125,124 @@ async def get_project_board(
     return {"columns": columns}
 
 
-def _build_community_breakdown(all_projects: list) -> list:
-    """Group projects by community with delivery and phase stats."""
-    communities: dict = {}
-    for p in all_projects:
-        c = p.get("community", "Unknown")
-        if c not in communities:
-            communities[c] = {
-                "community": c, "delivered": 0, "upcoming": 0,
-                "attendance": 0, "warm_leads": 0, "phases": {},
-            }
-        if p.get("phase") == "complete":
-            communities[c]["delivered"] += 1
-            communities[c]["attendance"] += p.get("attendance_count") or 0
-            communities[c]["warm_leads"] += p.get("warm_leads") or 0
-        else:
-            communities[c]["upcoming"] += 1
-            phase = p.get("phase", "planning")
-            communities[c]["phases"][phase] = communities[c]["phases"].get(phase, 0) + 1
-    return list(communities.values())
+async def _aggregate_completed_metrics() -> dict:
+    """Return completed count and totals from Mongo aggregation."""
+    pipeline = [
+        {_AGG_MATCH: {"deleted_at": None, "phase": "complete"}},
+        {
+            _AGG_GROUP: {
+                "_id": None,
+                "classes_delivered": {"$sum": 1},
+                "total_attendance": {
+                    "$sum": {_AGG_IF_NULL: [_ATTENDANCE_FIELD, 0]},
+                },
+                "warm_leads": {"$sum": {_AGG_IF_NULL: [_WARM_LEADS_FIELD, 0]}},
+            },
+        },
+    ]
+    rows = await db.projects.aggregate(pipeline).to_list(1)
+    if not rows:
+        return {"classes_delivered": 0, "total_attendance": 0, "warm_leads": 0}
+    row = rows[0]
+    return {
+        "classes_delivered": row.get("classes_delivered", 0),
+        "total_attendance": row.get("total_attendance", 0),
+        "warm_leads": row.get("warm_leads", 0),
+    }
 
 
-def _build_class_breakdown(completed: list) -> tuple[dict, list[str]]:
-    """Group completed projects by class_id. Returns (breakdown_dict, class_ids_to_enrich)."""
+async def _aggregate_community_breakdown() -> list:
+    """Group projects by community with delivery/upcoming and phase stats."""
+    pipeline = [
+        {_AGG_MATCH: {"deleted_at": None}},
+        {
+            _AGG_GROUP: {
+                "_id": {
+                    "community": {_AGG_IF_NULL: ["$community", "Unknown"]},
+                    "phase": {_AGG_IF_NULL: ["$phase", "planning"]},
+                },
+                "count": {"$sum": 1},
+                "attendance": {"$sum": {_AGG_IF_NULL: [_ATTENDANCE_FIELD, 0]}},
+                "warm_leads": {"$sum": {_AGG_IF_NULL: [_WARM_LEADS_FIELD, 0]}},
+            },
+        },
+        {
+            _AGG_GROUP: {
+                "_id": "$_id.community",
+                "parts": {
+                    "$push": {
+                        "phase": "$_id.phase",
+                        "count": "$count",
+                        "attendance": "$attendance",
+                        "warm_leads": "$warm_leads",
+                    },
+                },
+            },
+        },
+    ]
+    rows = []
+    async for row in db.projects.aggregate(pipeline):
+        rows.append(row)
+    communities: list = []
+    for row in rows:
+        info = {
+            "community": row["_id"],
+            "delivered": 0,
+            "upcoming": 0,
+            "attendance": 0,
+            "warm_leads": 0,
+            "phases": {},
+        }
+        for part in row.get("parts", []):
+            phase = part.get("phase", "planning")
+            count = part.get("count", 0)
+            if phase == "complete":
+                info["delivered"] += count
+                info["attendance"] += part.get("attendance", 0)
+                info["warm_leads"] += part.get("warm_leads", 0)
+            else:
+                info["upcoming"] += count
+                info["phases"][phase] = info["phases"].get(phase, 0) + count
+        communities.append(info)
+    return communities
+
+
+async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
+    """Group completed projects by class_id. Returns (breakdown, class_ids)."""
+    pipeline = [
+        {_AGG_MATCH: {"deleted_at": None, "phase": "complete"}},
+        {
+            _AGG_GROUP: {
+                "_id": {
+                    "$cond": [
+                        {
+                            "$or": [
+                                {"$eq": [_CLASS_ID_FIELD, None]},
+                                {"$eq": [_CLASS_ID_FIELD, ""]},
+                            ],
+                        },
+                        "unlinked",
+                        _CLASS_ID_FIELD,
+                    ],
+                },
+                "delivered": {"$sum": 1},
+                "attendance": {"$sum": {_AGG_IF_NULL: [_ATTENDANCE_FIELD, 0]}},
+                "warm_leads": {"$sum": {_AGG_IF_NULL: [_WARM_LEADS_FIELD, 0]}},
+            },
+        },
+    ]
+    rows = []
+    async for row in db.projects.aggregate(pipeline):
+        rows.append(row)
     breakdown: dict = {}
-    for p in completed:
-        cid = p.get("class_id") or "unlinked"
-        if cid not in breakdown:
-            breakdown[cid] = {
-                "class_id": cid if cid != "unlinked" else None,
-                "delivered": 0, "attendance": 0, "warm_leads": 0,
-            }
-        breakdown[cid]["delivered"] += 1
-        breakdown[cid]["attendance"] += p.get("attendance_count") or 0
-        breakdown[cid]["warm_leads"] += p.get("warm_leads") or 0
+    for row in rows:
+        cid = row["_id"]
+        breakdown[cid] = {
+            "class_id": cid if cid != "unlinked" else None,
+            "delivered": row.get("delivered", 0),
+            "attendance": row.get("attendance", 0),
+            "warm_leads": row.get("warm_leads", 0),
+        }
     class_ids = [k for k in breakdown if k != "unlinked"]
     return breakdown, class_ids
 
@@ -175,13 +266,65 @@ async def _enrich_class_breakdown(breakdown: dict, class_ids: list[str]) -> None
             info["class_name"] = "No class linked"
 
 
-async def _count_orphan_schedules(all_projects: list) -> int:
-    """Count completed schedules that have no linked project."""
-    linked_ids = [p["schedule_id"] for p in all_projects if p.get("schedule_id")]
-    query: dict = {"status": "completed", "deleted_at": None}
-    if linked_ids:
-        query["id"] = {"$nin": linked_ids}
-    return await db.schedules.count_documents(query)
+async def _count_orphan_schedules() -> int:
+    """Count completed schedules that have no linked non-deleted project."""
+    pipeline = [
+        {_AGG_MATCH: {"status": "completed", "deleted_at": None}},
+        {
+            "$lookup": {
+                "from": "projects",
+                "localField": "id",
+                "foreignField": "schedule_id",
+                "as": "linked_projects",
+            },
+        },
+        {
+            "$addFields": {
+                "active_link_count": {
+                    "$size": {
+                        "$filter": {
+                            "input": "$linked_projects",
+                            "as": "p",
+                            "cond": {"$eq": ["$$p.deleted_at", None]},
+                        },
+                    },
+                },
+            },
+        },
+        {_AGG_MATCH: {"active_link_count": 0}},
+        {_AGG_COUNT: "count"},
+    ]
+    rows = await db.schedules.aggregate(pipeline).to_list(1)
+    if not rows:
+        return 0
+    return rows[0].get("count", 0)
+
+
+async def _count_overdue_tasks_for_upcoming_projects(now_iso: str) -> int:
+    """Count overdue open tasks linked to non-complete, non-deleted projects."""
+    pipeline = [
+        {_AGG_MATCH: {"completed": False, "due_date": {"$lt": now_iso}, "deleted_at": None}},
+        {
+            "$lookup": {
+                "from": "projects",
+                "localField": "project_id",
+                "foreignField": "id",
+                "as": "project_docs",
+            },
+        },
+        {
+            _AGG_MATCH: {
+                "project_docs": {
+                    "$elemMatch": {"deleted_at": None, "phase": {"$ne": "complete"}},
+                },
+            },
+        },
+        {_AGG_COUNT: "count"},
+    ]
+    rows = await db.tasks.aggregate(pipeline).to_list(1)
+    if not rows:
+        return 0
+    return rows[0].get("count", 0)
 
 
 _DASHBOARD_AGG_FIELDS = {
@@ -205,38 +348,29 @@ async def get_dashboard(
     active_partners = await db.partner_orgs.count_documents(
         {"deleted_at": None, "status": "active"},
     )
-
-    completed = [p for p in all_projects if p.get("phase") == "complete"]
-    upcoming_ids = [p["id"] for p in all_projects if p.get("phase") != "complete"]
-    upcoming_count = len(upcoming_ids)
-    total_attendance = sum(p.get("attendance_count") or 0 for p in completed)
-    total_warm_leads = sum(p.get("warm_leads") or 0 for p in completed)
+    completed_metrics = await _aggregate_completed_metrics()
+    upcoming_count = await db.projects.count_documents(
+        {"deleted_at": None, "phase": {"$ne": "complete"}},
+    )
 
     overdue_count = 0
-    if upcoming_ids:
+    if upcoming_count:
         now = datetime.now(timezone.utc).isoformat()
-        overdue_count = await db.tasks.count_documents(
-            {
-                "project_id": {"$in": upcoming_ids},
-                "completed": False,
-                "due_date": {"$lt": now},
-                "deleted_at": None,
-            },
-        )
+        overdue_count = await _count_overdue_tasks_for_upcoming_projects(now)
 
     upcoming_projects = await db.projects.find(
         {"deleted_at": None, "phase": {"$ne": "complete"}}, {"_id": 0},
     ).sort("event_date", 1).limit(20).to_list(20)
 
-    communities = _build_community_breakdown(all_projects)
-    class_breakdown, class_ids = _build_class_breakdown(completed)
+    communities = await _aggregate_community_breakdown()
+    class_breakdown, class_ids = await _aggregate_class_breakdown()
     await _enrich_class_breakdown(class_breakdown, class_ids)
-    orphan_completed = await _count_orphan_schedules(all_projects)
+    orphan_completed = await _count_orphan_schedules()
 
     return {
-        "classes_delivered": len(completed),
-        "total_attendance": total_attendance,
-        "warm_leads": total_warm_leads,
+        "classes_delivered": completed_metrics["classes_delivered"],
+        "total_attendance": completed_metrics["total_attendance"],
+        "warm_leads": completed_metrics["warm_leads"],
         "active_partners": active_partners,
         "upcoming_classes": upcoming_count,
         "overdue_alert_count": overdue_count,
