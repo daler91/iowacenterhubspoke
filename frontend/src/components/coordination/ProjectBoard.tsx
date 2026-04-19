@@ -160,6 +160,13 @@ export default function ProjectBoard() {
   );
 
   const communities = useMemo(() => {
+    // Prefer the backend-supplied full facet list so the filter
+    // dropdown stays complete when a phase is truncated. Fall back to
+    // deriving from the visible columns when the backend is older than
+    // the paginated /board endpoint.
+    if (board?.facets?.communities) {
+      return [...board.facets.communities].sort((a, b) => a.localeCompare(b));
+    }
     if (!board?.columns) return [];
     const set = new Set<string>();
     Object.values(board.columns).flat().forEach(p => set.add(p.community));

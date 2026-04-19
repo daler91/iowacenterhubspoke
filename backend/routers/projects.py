@@ -118,6 +118,27 @@ _BOARD_PHASE_LIMIT_DEFAULT = 50
 _BOARD_PHASE_LIMIT_MAX = 200
 
 
+def _phase_match(phase: str) -> dict:
+    """Build the phase predicate for a single board column.
+
+    The legacy implementation used ``phase != complete`` then defaulted
+    ``phase.get("phase", "planning")`` in Python, so legacy/imported
+    projects with a null or missing ``phase`` field rendered under
+    Planning. The exact-equality queries we use for the paged fetches
+    would silently hide those records, so the Planning predicate is
+    widened to also match null / missing / empty values.
+    """
+    if phase == "planning":
+        return {
+            "$or": [
+                {"phase": "planning"},
+                {"phase": {"$in": [None, ""]}},
+                {"phase": {"$exists": False}},
+            ],
+        }
+    return {"phase": phase}
+
+
 async def _fetch_phase_projects(
     base_query: dict, phase: str, limit: int,
 ) -> tuple[str, list, bool]:
@@ -128,7 +149,7 @@ async def _fetch_phase_projects(
     discarded before returning; the flag tells the caller whether the
     UI should display a "more available" indicator for that column.
     """
-    phase_query = {**base_query, "phase": phase}
+    phase_query = {**base_query, **_phase_match(phase)}
     rows = (
         await db.projects.find(phase_query, {"_id": 0})
         .sort("updated_at", -1)
@@ -161,11 +182,22 @@ async def get_project_board(
         query["class_id"] = class_id
 
     active_phases = [p for p in PROJECT_PHASES if p != "complete"]
-    # Fan one paged query out per phase in parallel. Each query is
-    # bounded at phase_limit+1 and hits the existing `phase` index.
-    phase_results = await asyncio.gather(
-        *[_fetch_phase_projects(query, phase, phase_limit) for phase in active_phases]
-    )
+    # Facet query runs against the full active-project set (not the
+    # paged columns) so the filter dropdown stays complete even when a
+    # phase is truncated — otherwise users couldn't narrow the filters
+    # to reach projects that landed past the cap.
+    facets_query = {**query, "phase": {"$ne": "complete"}}
+
+    # Fan one paged query out per phase in parallel plus the facets
+    # query. Each phase query is bounded at phase_limit+1 and hits the
+    # existing `phase` index.
+    tasks = [
+        _fetch_phase_projects(query, phase, phase_limit) for phase in active_phases
+    ]
+    tasks.append(db.projects.distinct("community", facets_query))
+    results = await asyncio.gather(*tasks)
+    phase_results = results[: len(active_phases)]
+    community_facets = results[-1]
 
     all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
     task_stats = await _build_task_stats(all_ids)
@@ -185,6 +217,9 @@ async def get_project_board(
         "columns": columns,
         "phase_truncated": phase_truncated,
         "phase_limit": phase_limit,
+        "facets": {
+            "communities": sorted(c for c in community_facets if c),
+        },
     }
 
 
