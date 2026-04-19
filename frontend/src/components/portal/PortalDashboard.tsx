@@ -68,17 +68,22 @@ export default function PortalDashboard() {
 
   const loadTasks = async () => {
     if (!token || !dashboardData?.projects) return;
-    const results = await Promise.all(
-      dashboardData.projects.map(async (p) => {
-        try {
-          const res = await portalAPI.projectTasks(p.id, token);
-          return [p.id, res.data.items || []] as const;
-        } catch {
-          return [p.id, []] as const;
-        }
-      })
-    );
-    setAllTasks(Object.fromEntries(results));
+    // Single bulk request instead of N parallel /tasks calls. Backend
+    // groups tasks by project_id and authz-clamps to projects this token
+    // actually owns.
+    const projectIds = dashboardData.projects.map(p => p.id);
+    try {
+      const res = await portalAPI.bulkProjectTasks(projectIds, token);
+      const items = (res.data?.items || {}) as Record<string, unknown[]>;
+      // Make sure every project has an entry, even if it has no tasks.
+      const filled: Record<string, unknown[]> = {};
+      projectIds.forEach(id => { filled[id] = items[id] || []; });
+      setAllTasks(filled);
+    } catch {
+      const empty: Record<string, unknown[]> = {};
+      projectIds.forEach(id => { empty[id] = []; });
+      setAllTasks(empty);
+    }
   };
 
   const loadDocuments = async () => {

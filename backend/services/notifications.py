@@ -371,3 +371,21 @@ async def mark_all_read(principal_kind: PrincipalKind, principal_id: str) -> int
         {"$set": {"read_at": datetime.now(timezone.utc).isoformat()}},
     )
     return result.modified_count
+
+
+async def dismiss_all(principal_kind: PrincipalKind, principal_id: str) -> int:
+    """Dismiss every undismissed inbox row in one round-trip.
+
+    The frontend used to fan out one DELETE per row when the user clicked
+    "Dismiss all" — this update_many gives us the same result without N
+    sequential network calls.
+    """
+    result = await db.notifications.update_many(
+        {
+            "principal_kind": principal_kind,
+            "principal_id": principal_id,
+            "dismissed_at": None,
+        },
+        {"$set": {"dismissed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return result.modified_count

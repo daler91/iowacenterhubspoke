@@ -70,6 +70,53 @@ async def portal_project_tasks(project_id: str, ctx: PortalContext):
     return {"items": tasks, "total": len(tasks)}
 
 
+@router.post(
+    "/projects/tasks/bulk",
+    summary="Partner's tasks for multiple projects in one round-trip",
+    responses={401: {"description": INVALID_TOKEN}},
+)
+async def portal_project_tasks_bulk(
+    payload: dict, ctx: PortalContext,
+):
+    """Return ``{ project_id: [tasks...] }`` for every project the caller
+    actually owns.
+
+    The dashboard previously fanned out one /projects/{id}/tasks request
+    per project, which scaled with the partner's project count. Here we
+    do a single ``$in`` query and bucket the results in Python.
+    """
+    requested = payload.get("project_ids") or []
+    if not isinstance(requested, list) or not requested:
+        return {"items": {}}
+    # Authz: clamp the requested set to the caller's own projects so a
+    # malicious id list can't reach into another partner's data.
+    owned_cursor = db.projects.find(
+        {
+            "id": {"$in": requested},
+            "partner_org_id": ctx["partner_org_id"],
+            "deleted_at": None,
+        },
+        {"_id": 0, "id": 1},
+    )
+    owned_ids = [p["id"] async for p in owned_cursor]
+    if not owned_ids:
+        return {"items": {}}
+    tasks = await db.tasks.find(
+        {
+            "project_id": {"$in": owned_ids},
+            "owner": {"$in": ["partner", "both"]},
+            "deleted_at": None,
+        },
+        {"_id": 0},
+    ).sort("sort_order", 1).to_list(2000)
+    bucketed: dict[str, list] = {pid: [] for pid in owned_ids}
+    for t in tasks:
+        bucket = bucketed.get(t.get("project_id"))
+        if bucket is not None:
+            bucket.append(t)
+    return {"items": bucketed}
+
+
 @router.patch(
     "/projects/{project_id}/tasks/{task_id}/complete",
     summary="Partner completes a task",

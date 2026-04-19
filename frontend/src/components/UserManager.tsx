@@ -80,9 +80,11 @@ export default function UserManager() {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-    fetchInvitations();
-    fetchLockouts();
+    // Run the three independent fetches in parallel — serialising them
+    // forced first paint to wait for ~3× the slowest single round-trip.
+    Promise.all([fetchUsers(), fetchInvitations(), fetchLockouts()]).catch(() => {
+      // Each fetch already surfaces its own error; nothing to do here.
+    });
   }, [fetchUsers, fetchInvitations, fetchLockouts]);
 
   const handleApprove = async (userId) => {

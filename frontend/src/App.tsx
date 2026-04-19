@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
+import { SWRConfig } from "swr";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
@@ -183,14 +184,26 @@ function AppRoutes() {
   );
 }
 
+// Single source of truth for SWR behaviour. Per-hook overrides used to
+// drift (coordination at 2s, dashboard at 15s) and caused redundant
+// fetches on every nav. Hooks can still override locally when they
+// genuinely need different semantics.
+const swrConfig = {
+  dedupingInterval: 15000,
+  revalidateOnFocus: false,
+  errorRetryCount: 3,
+};
+
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <AuthProvider>
-        <AppRoutes />
-        <ConsentBanner />
-        <Toaster position="top-right" richColors />
-      </AuthProvider>
+      <SWRConfig value={swrConfig}>
+        <AuthProvider>
+          <AppRoutes />
+          <ConsentBanner />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
+      </SWRConfig>
     </ThemeProvider>
   );
 }

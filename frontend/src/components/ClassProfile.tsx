@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Users, Filter, GraduationCap, Flame,
@@ -27,22 +27,24 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const fetchStats = useCallback(() => {
-    if (!classId) return;
+  useEffect(() => {
+    if (!classId) return undefined;
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
     const params = {};
     if (dateFrom) params.start_date = dateFrom;
     if (dateTo) params.end_date = dateTo;
-    api.get(`/classes/${classId}/stats`, { params })
-      .then(res => setData(res.data))
-      .catch(err => { setData(null); setError(err instanceof Error ? err : new Error('Failed to load class profile.')); })
-      .finally(() => setLoading(false));
+    api.get(`/classes/${classId}/stats`, { params, signal: controller.signal })
+      .then(res => { if (!controller.signal.aborted) setData(res.data); })
+      .catch(err => {
+        if (controller.signal.aborted || err?.code === 'ERR_CANCELED') return;
+        setData(null);
+        setError(err instanceof Error ? err : new Error('Failed to load class profile.'));
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [classId, dateFrom, dateTo]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
 
   const isEmbedded = !!propOnBack;
   const breadcrumbs = isEmbedded ? undefined : [

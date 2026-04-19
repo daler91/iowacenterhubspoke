@@ -232,7 +232,7 @@ async def _ensure_indexes():
 async def _seed_default_locations():
     """Seed default locations if the collection is empty."""
     try:
-        count = await db.locations.count_documents({})
+        count = await db.locations.estimated_document_count()
         if count == 0:
             default_locations = [
                 {"id": str(uuid.uuid4()), "city_name": "Oskaloosa",
@@ -294,7 +294,7 @@ async def _ensure_redis_client(app: FastAPI):
         client_ = _async_redis.from_url(
             redis_url,
             socket_connect_timeout=2,
-            max_connections=5,
+            max_connections=20,
         )
         await client_.ping()
     except Exception as e:

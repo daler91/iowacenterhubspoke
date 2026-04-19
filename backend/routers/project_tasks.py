@@ -73,18 +73,6 @@ async def _verify_task(project_id: str, task_id: str):
     return task
 
 
-async def _enrich_task(task: dict) -> dict:
-    """Add attachment_count and comment_count to a task."""
-    tid = task["id"]
-    task["attachment_count"] = await db.task_attachments.count_documents(
-        {"task_id": tid},
-    )
-    task["comment_count"] = await db.task_comments.count_documents(
-        {"task_id": tid},
-    )
-    return task
-
-
 # ── CRUD ──────────────────────────────────────────────────────────────
 
 

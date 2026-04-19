@@ -303,21 +303,41 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const schedulesByDay = useMemo(() => {
-    const map = {};
     const allSchedules = schedules || [];
-    if (allSchedules.length > 0) {
-      const sampleDates = allSchedules.slice(0, 5).map(s => s.date);
-      const weekDates = days.map(d => format(d, 'yyyy-MM-dd'));
-      console.log('[CalendarWeek] Total schedules:', allSchedules.length, '| Week dates:', weekDates, '| Sample schedule dates:', sampleDates);
-    } else {
-      console.warn('[CalendarWeek] schedules array is EMPTY');
+    if (import.meta.env.DEV) {
+      if (allSchedules.length > 0) {
+        const sampleDates = allSchedules.slice(0, 5).map(s => s.date);
+        const weekDates = days.map(d => format(d, 'yyyy-MM-dd'));
+        console.log('[CalendarWeek] Total schedules:', allSchedules.length, '| Week dates:', weekDates, '| Sample schedule dates:', sampleDates);
+      } else {
+        console.warn('[CalendarWeek] schedules array is EMPTY');
+      }
     }
-    days.forEach(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      map[dateStr] = allSchedules.filter(s => s.date === dateStr);
-    });
+    // Single O(n) bucket pass instead of O(days × schedules) per-day filter,
+    // then ensure every visible day has an entry so the render code below
+    // doesn't have to deal with `undefined`.
+    const map = {};
+    days.forEach(day => { map[format(day, 'yyyy-MM-dd')] = []; });
+    for (const s of allSchedules) {
+      if (map[s.date] !== undefined) map[s.date].push(s);
+    }
     return map;
   }, [schedules, days]);
+
+  // Hoisting drive-chain + overlap layout out of the day render loop means
+  // a re-render triggered by drag indicator state (which fires per-frame)
+  // doesn't recompute these per day until the underlying schedules change.
+  const layoutByDay = useMemo(() => {
+    const out = {};
+    for (const dateStr in schedulesByDay) {
+      const daySchedules = schedulesByDay[dateStr];
+      out[dateStr] = {
+        driveChain: computeDriveChain(daySchedules),
+        overlapLayout: computeOverlapLayout(daySchedules),
+      };
+    }
+    return out;
+  }, [schedulesByDay]);
 
   const handleDragStart = useCallback((event) => {
     const schedule = event.active.data.current?.schedule;
@@ -442,8 +462,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
               const dateStr = format(day, 'yyyy-MM-dd');
               const daySchedules = schedulesByDay[dateStr] || [];
               const indicatorMinutes = dropIndicator.dateStr === dateStr ? dropIndicator.minutes : null;
-              const driveChain = computeDriveChain(daySchedules);
-              const overlapLayout = computeOverlapLayout(daySchedules);
+              const { driveChain, overlapLayout } = layoutByDay[dateStr];
               return (
                 <DroppableDay key={dateStr} dateStr={dateStr} dropIndicatorMinutes={indicatorMinutes} isToday={isSameDay(day, now)} currentTimeMinutes={currentTimeMinutes}>
                   <TooltipProvider delayDuration={200}>

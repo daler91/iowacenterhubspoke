@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
@@ -146,8 +146,12 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onProjectPrompt: () => navigate('/coordination/board?create=true') });
 
-  const selectedLocation = locations?.find(l => l.id === form.location_id);
-  const selectedClass = classes?.find(c => c.id === form.class_id);
+  // Map lookups so per-keystroke reads of the selected location/class are
+  // O(1) — the .find() variant scaled with the size of the option lists.
+  const locationMap = useMemo(() => new Map((locations || []).map(l => [l.id, l])), [locations]);
+  const classMap = useMemo(() => new Map((classes || []).map(c => [c.id, c])), [classes]);
+  const selectedLocation = form.location_id ? locationMap.get(form.location_id) : undefined;
+  const selectedClass = form.class_id ? classMap.get(form.class_id) : undefined;
 
   const handleQuickClassCreated = (classDoc) => {
     onClassCreated?.(classDoc);

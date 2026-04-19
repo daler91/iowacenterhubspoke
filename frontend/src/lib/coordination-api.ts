@@ -131,6 +131,8 @@ export const portalAPI = {
   projects: (token: string) => api.get('/portal/projects', portalHeaders(token)),
   projectTasks: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/tasks`, portalHeaders(token)),
+  bulkProjectTasks: (projectIds: string[], token: string) =>
+    api.post('/portal/projects/tasks/bulk', { project_ids: projectIds }, portalHeaders(token)),
   completeTask: (projectId: string, taskId: string, token: string) =>
     api.patch(`/portal/projects/${projectId}/tasks/${taskId}/complete`, null, portalHeaders(token)),
   taskDetail: (projectId: string, taskId: string, token: string) =>

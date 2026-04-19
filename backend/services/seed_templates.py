@@ -213,7 +213,7 @@ TEMPLATES = [
 async def seed_project_templates():
     """Insert default project templates if the collection is empty."""
     try:
-        count = await db.project_templates.count_documents({})
+        count = await db.project_templates.estimated_document_count()
         if count > 0:
             return
         now = datetime.now(timezone.utc).isoformat()

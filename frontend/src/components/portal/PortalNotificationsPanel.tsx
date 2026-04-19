@@ -77,7 +77,15 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
       }
     };
     fetchOnce();
-    const interval = setInterval(fetchOnce, 30000);
+    // Jitter the polling interval (±5s) so concurrent partner sessions
+    // don't synchronise into a thundering herd against the inbox endpoint.
+    // Skip the API call entirely when the tab is hidden — the visibility
+    // listener catches up when the user returns.
+    const pollMs = 25000 + Math.floor(Math.random() * 10000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchOnce();
+    }, pollMs);
     const onVisibility = () => { if (!document.hidden) fetchOnce(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {

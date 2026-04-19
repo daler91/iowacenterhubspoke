@@ -12,16 +12,23 @@ export type ConsentState = "granted" | "rejected" | "pending";
 export const CONSENT_STORAGE_KEY = "analytics_consent";
 export const CONSENT_CHANGED_EVENT = "analytics-consent-changed";
 
+// Module-level cache so repeated reads (ConsentBanner mount,
+// initPostHogIfConsented, hasAnalyticsConsent) don't all hit
+// localStorage. setConsent updates the cache atomically with the write.
+let _consentCache: ConsentState | undefined;
+
 export function getConsent(): ConsentState {
   if (globalThis.window === undefined) return "pending";
+  if (_consentCache !== undefined) return _consentCache;
   const raw = globalThis.localStorage.getItem(CONSENT_STORAGE_KEY);
-  if (raw === "granted" || raw === "rejected") return raw;
-  return "pending";
+  _consentCache = raw === "granted" || raw === "rejected" ? raw : "pending";
+  return _consentCache;
 }
 
 export function setConsent(state: Exclude<ConsentState, "pending">): void {
   if (globalThis.window === undefined) return;
   globalThis.localStorage.setItem(CONSENT_STORAGE_KEY, state);
+  _consentCache = state;
   globalThis.dispatchEvent(new CustomEvent(CONSENT_CHANGED_EVENT, { detail: state }));
 }
 

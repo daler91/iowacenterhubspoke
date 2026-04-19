@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, memo, useCallback } from 'react';
+
+const EMPTY_SCHEDULES = Object.freeze([]);
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, isSameMonth, isToday
@@ -6,7 +8,57 @@ import {
 import { cn } from '../lib/utils';
 import { COLORS } from '../lib/constants';
 
+const MonthCell = memo(function MonthCell({ day, dateStr, dayLabel, daySchedules, inMonth, today, onDateClick }) {
+  const visible = daySchedules.slice(0, 3);
+  return (
+    <button
+      type="button"
+      data-testid={`month-cell-${dateStr}`}
+      onClick={() => onDateClick(day)}
+      className={cn(
+        "min-h-[100px] p-2 cursor-pointer transition-colors hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 appearance-none border-0 bg-transparent text-left",
+        !inMonth && "bg-gray-50/50 dark:bg-gray-800/50"
+      )}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className={cn(
+          "text-sm font-medium",
+          today && "bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center",
+          !today && inMonth && "text-slate-700 dark:text-gray-200",
+          !today && !inMonth && "text-muted-foreground"
+        )}>
+          {dayLabel}
+        </span>
+        {daySchedules.length > 0 && (
+          <span className="text-[10px] text-muted-foreground font-medium">
+            {daySchedules.length}
+          </span>
+        )}
+      </div>
+      <div className="space-y-1">
+        {visible.map(s => {
+          const color = s.class_color || s.employees?.[0]?.color || COLORS.DEFAULT_CLASS;
+          return (
+            <div
+              key={s.id}
+              data-testid={`month-class-pill-${s.id}`}
+              className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
+              style={{ backgroundColor: `${color}20`, color }}
+            >
+              {s.class_name || s.location_name}
+            </div>
+          );
+        })}
+        {daySchedules.length > 3 && (
+          <p className="text-[10px] text-muted-foreground font-medium">+{daySchedules.length - 3} more</p>
+        )}
+      </div>
+    </button>
+  );
+});
+
 export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
+  const handleDateClick = useCallback((day) => onDateClick?.(day), [onDateClick]);
   const calStartTime = useMemo(() => startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }).getTime(), [currentDate]);
   const calEndTime = useMemo(() => endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }).getTime(), [currentDate]);
 
@@ -51,55 +103,17 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
           <div key={format(week[0], 'yyyy-MM-dd')} className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-800">
             {week.map(day => {
               const dateStr = format(day, 'yyyy-MM-dd');
-              const daySchedules = schedulesByDate[dateStr] || [];
-              const inMonth = isSameMonth(day, currentDate);
-              const today = isToday(day);
-
               return (
-                <button
-                  type="button"
+                <MonthCell
                   key={dateStr}
-                  data-testid={`month-cell-${dateStr}`}
-                  onClick={() => onDateClick?.(day)}
-                  className={cn(
-                    "min-h-[100px] p-2 cursor-pointer transition-colors hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 appearance-none border-0 bg-transparent text-left",
-                    !inMonth && "bg-gray-50/50 dark:bg-gray-800/50"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={cn(
-                      "text-sm font-medium",
-                      today && "bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center",
-                      !today && inMonth && "text-slate-700 dark:text-gray-200",
-                      !today && !inMonth && "text-muted-foreground"
-                    )}>
-                      {format(day, 'd')}
-                    </span>
-                    {daySchedules.length > 0 && (
-                      <span className="text-[10px] text-muted-foreground font-medium">
-                        {daySchedules.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    {daySchedules.slice(0, 3).map(s => (
-                      <div
-                        key={s.id}
-                        data-testid={`month-class-pill-${s.id}`}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
-                        style={{
-                          backgroundColor: `${s.class_color || s.employees?.[0]?.color || COLORS.DEFAULT_CLASS}20`,
-                          color: s.class_color || s.employees?.[0]?.color || COLORS.DEFAULT_CLASS,
-                        }}
-                      >
-                        {s.class_name || s.location_name}
-                      </div>
-                    ))}
-                    {daySchedules.length > 3 && (
-                      <p className="text-[10px] text-muted-foreground font-medium">+{daySchedules.length - 3} more</p>
-                    )}
-                  </div>
-                </button>
+                  day={day}
+                  dateStr={dateStr}
+                  dayLabel={format(day, 'd')}
+                  daySchedules={schedulesByDate[dateStr] || EMPTY_SCHEDULES}
+                  inMonth={isSameMonth(day, currentDate)}
+                  today={isToday(day)}
+                  onDateClick={handleDateClick}
+                />
               );
             })}
           </div>
