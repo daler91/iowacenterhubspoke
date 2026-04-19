@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { projectsAPI, partnerOrgsAPI, projectTasksAPI } from '../lib/coordination-api';
-import type { Project, PartnerOrg, Task, BoardData, DashboardMetrics } from '../lib/coordination-types';
+import type { Project, PartnerOrg, PartnerContact, Task, BoardData, DashboardMetrics } from '../lib/coordination-types';
 
 // SWR config (dedupingInterval, revalidateOnFocus, retries) is now
 // inherited from the <SWRConfig> in App.tsx so we don't drift apart from
@@ -81,4 +81,24 @@ export function usePartnerOrg(id: string | undefined) {
     () => partnerOrgsAPI.getOne(id!).then(res => res.data),
   );
   return { partnerOrg: data, mutatePartnerOrg: mutate, error, isLoading };
+}
+
+// Split contact + project lists out of the main partner-org fetch so
+// the profile page can render core org details without waiting on
+// either list, and so adding/editing a contact doesn't force a
+// refetch of the project history (and vice versa).
+export function usePartnerContacts(id: string | undefined) {
+  const { data, mutate, error, isLoading } = useSWR<PartnerContact[]>(
+    id ? `partner-org-${id}-contacts` : null,
+    () => partnerOrgsAPI.getContacts(id!).then(extractItems<PartnerContact>),
+  );
+  return { contacts: data ?? [], mutateContacts: mutate, error, isLoading };
+}
+
+export function usePartnerProjects(id: string | undefined, limit: number = 20) {
+  const { data, mutate, error, isLoading } = useSWR<Project[]>(
+    id ? `partner-org-${id}-projects-${limit}` : null,
+    () => partnerOrgsAPI.getProjects(id!, limit).then(extractItems<Project>),
+  );
+  return { projects: data ?? [], mutateProjects: mutate, error, isLoading };
 }

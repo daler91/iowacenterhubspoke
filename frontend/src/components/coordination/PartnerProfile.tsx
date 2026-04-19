@@ -11,7 +11,11 @@ import { Plus, User, MapPin, Calendar, ChevronDown, Send } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '../ui/dropdown-menu';
-import { usePartnerOrg } from '../../hooks/useCoordinationData';
+import {
+  usePartnerOrg,
+  usePartnerContacts,
+  usePartnerProjects,
+} from '../../hooks/useCoordinationData';
 import { partnerOrgsAPI } from '../../lib/coordination-api';
 import {
   STATUS_BADGE_COLORS, PHASE_LABELS, PHASE_COLORS,
@@ -24,6 +28,13 @@ export default function PartnerProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { partnerOrg, mutatePartnerOrg, isLoading } = usePartnerOrg(id);
+  // Contacts and recent-project history are fetched in parallel
+  // alongside the core org request rather than bundled into it, so
+  // the profile page renders the hero + org-details card as soon as
+  // the (small) org doc arrives — the two list queries fill in
+  // independently.
+  const { contacts, mutateContacts, isLoading: contactsLoading } = usePartnerContacts(id);
+  const { projects, isLoading: projectsLoading } = usePartnerProjects(id);
   const [showAddContact, setShowAddContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', role: '', is_primary: false });
   const [addingContact, setAddingContact] = useState(false);
@@ -66,7 +77,10 @@ export default function PartnerProfile() {
       toast.success('Contact added');
       setShowAddContact(false);
       setContactForm({ name: '', email: '', phone: '', role: '', is_primary: false });
-      mutatePartnerOrg();
+      // Only refetch the contacts list — the main org doc and the
+      // projects list haven't changed, so there's no reason to
+      // invalidate them.
+      mutateContacts();
     } catch {
       toast.error('Failed to add contact');
     } finally {
@@ -206,35 +220,41 @@ export default function PartnerProfile() {
             </Button>
           </div>
           <div className="space-y-3">
-            {(partnerOrg.contacts ?? []).map(contact => (
-              <div key={contact.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                <div className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm shrink-0">
-                  {contact.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                    {contact.name}
-                    {contact.is_primary && (
-                      <Badge variant="secondary" className="ml-2 text-[10px]">Primary</Badge>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-500">{contact.email}</p>
-                  {contact.role && <p className="text-xs text-muted-foreground">{contact.role}</p>}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 text-xs"
-                  disabled={sendingInvite === contact.id}
-                  onClick={() => handleSendInvite(contact.id)}
-                >
-                  <Send className="w-3 h-3 mr-1" />
-                  {sendingInvite === contact.id ? 'Sending...' : 'Invite'}
-                </Button>
-              </div>
-            ))}
-            {(!partnerOrg.contacts || partnerOrg.contacts.length === 0) && (
-              <p className="text-sm text-muted-foreground text-center py-4">No contacts yet</p>
+            {contactsLoading && contacts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading contacts...</p>
+            ) : (
+              <>
+                {contacts.map(contact => (
+                  <div key={contact.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <div className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm shrink-0">
+                      {contact.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {contact.name}
+                        {contact.is_primary && (
+                          <Badge variant="secondary" className="ml-2 text-[10px]">Primary</Badge>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-500">{contact.email}</p>
+                      {contact.role && <p className="text-xs text-muted-foreground">{contact.role}</p>}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 text-xs"
+                      disabled={sendingInvite === contact.id}
+                      onClick={() => handleSendInvite(contact.id)}
+                    >
+                      <Send className="w-3 h-3 mr-1" />
+                      {sendingInvite === contact.id ? 'Sending...' : 'Invite'}
+                    </Button>
+                  </div>
+                ))}
+                {contacts.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No contacts yet</p>
+                )}
+              </>
             )}
           </div>
         </Card>
@@ -245,7 +265,9 @@ export default function PartnerProfile() {
         <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
           <Calendar className="w-4 h-4" /> Project History
         </h2>
-        {(partnerOrg.projects ?? []).length > 0 ? (
+        {projectsLoading && projects.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Loading project history...</p>
+        ) : projects.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -257,7 +279,7 @@ export default function PartnerProfile() {
                 </tr>
               </thead>
               <tbody>
-                {partnerOrg.projects!.map(project => (
+                {projects.map(project => (
                   <tr
                     key={project.id}
                     className="border-b last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
