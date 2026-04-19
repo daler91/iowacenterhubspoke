@@ -141,7 +141,7 @@ async def _check_external_conflicts(employees, data, date_to_schedule):
     for emp in employees:
         if not data.force_outlook:
             outlook = await check_outlook_conflicts(
-                emp["id"], date_to_schedule, data.start_time, data.end_time
+                emp["id"], date_to_schedule, data.start_time, data.end_time, employee=emp
             )
             if outlook:
                 per_employee.setdefault(emp["id"], {})["outlook"] = outlook
@@ -149,7 +149,7 @@ async def _check_external_conflicts(employees, data, date_to_schedule):
 
         if not data.force_google:
             google = await check_google_conflicts(
-                emp["id"], date_to_schedule, data.start_time, data.end_time
+                emp["id"], date_to_schedule, data.start_time, data.end_time, employee=emp
             )
             if google:
                 per_employee.setdefault(emp["id"], {})["google"] = google
