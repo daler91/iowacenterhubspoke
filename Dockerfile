@@ -21,6 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 COPY --chown=appuser:appgroup backend/ ./
 COPY --chown=appuser:appgroup --from=frontend-build /app/frontend/build ./static
 
+# Pre-create the default uploads directory so the non-root runtime user can
+# write task / project / portal attachments. ``/app`` is owned by root, so
+# without this the first upload fails with EACCES when it tries to
+# ``mkdir /app/uploads``. Container-local storage is ephemeral — set the
+# ``UPLOAD_DIR`` env var to a mounted-volume path for persistent attachments.
+RUN mkdir -p /app/uploads && chown appuser:appgroup /app/uploads
+
 USER appuser
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]

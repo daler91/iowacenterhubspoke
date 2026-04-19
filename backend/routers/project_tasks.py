@@ -41,7 +41,12 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 # schema rename touches one spot.
 _ASSIGNED_TO = "assigned_to"
 
-UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
+# Storage location for attachments. Defaults to ``<repo>/uploads`` so local
+# dev just works, but operators can point at a writable mounted volume via
+# the ``UPLOAD_DIR`` env var — essential on container deploys where the
+# image filesystem is read-only for the runtime user (e.g. Railway, where
+# ``/app`` is owned by root but the app runs as appuser).
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
 
