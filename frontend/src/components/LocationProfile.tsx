@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Car, MapPin, Users, Filter,
@@ -41,22 +41,26 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const fetchStats = useCallback(() => {
-    if (!locationId) return;
+  useEffect(() => {
+    if (!locationId) return undefined;
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
     const params = {};
     if (dateFrom) params.start_date = dateFrom;
     if (dateTo) params.end_date = dateTo;
-    api.get(`/locations/${locationId}/stats`, { params })
-      .then(res => setData(res.data))
-      .catch(err => { setData(null); setError(err instanceof Error ? err : new Error('Failed to load location profile.')); })
-      .finally(() => setLoading(false));
+    api.get(`/locations/${locationId}/stats`, { params, signal: controller.signal })
+      .then(res => { if (!controller.signal.aborted) setData(res.data); })
+      .catch(err => {
+        if (controller.signal.aborted || err?.code === 'ERR_CANCELED') return;
+        setData(null);
+        setError(err instanceof Error ? err : new Error('Failed to load location profile.'));
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    // Cancel the in-flight request when filters change rapidly so a slow
+    // earlier response can't overwrite a faster newer one.
+    return () => controller.abort();
   }, [locationId, dateFrom, dateTo]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
 
   const isEmbedded = !!propOnBack;
   const breadcrumbs = isEmbedded ? undefined : [

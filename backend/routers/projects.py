@@ -183,22 +183,34 @@ async def _count_orphan_schedules(all_projects: list) -> int:
     return await db.schedules.count_documents(query)
 
 
+_DASHBOARD_AGG_FIELDS = {
+    "_id": 0, "id": 1, "phase": 1, "community": 1, "event_date": 1,
+    "attendance_count": 1, "warm_leads": 1, "class_id": 1, "schedule_id": 1,
+}
+_DASHBOARD_PROJECT_LIMIT = 5000
+
+
 @router.get("/dashboard", summary="Multi-community dashboard metrics")
 async def get_dashboard(
     user: CurrentUser, period: int = 90,
 ):
-    all_projects = await db.projects.find({"deleted_at": None}, {"_id": 0}).to_list(2000)
-    partner_orgs = await db.partner_orgs.find(
-        {"deleted_at": None, "status": "active"}, {"_id": 0}
-    ).to_list(500)
+    # Slim projection — only the fields the in-memory aggregations below
+    # actually read. Full upcoming-project records are fetched separately
+    # (DB-side sort + limit 20) so we don't pay for fields we won't use.
+    all_projects = await db.projects.find(
+        {"deleted_at": None}, _DASHBOARD_AGG_FIELDS,
+    ).to_list(_DASHBOARD_PROJECT_LIMIT)
+    truncated = len(all_projects) >= _DASHBOARD_PROJECT_LIMIT
+    active_partners = await db.partner_orgs.count_documents(
+        {"deleted_at": None, "status": "active"},
+    )
 
     completed = [p for p in all_projects if p.get("phase") == "complete"]
-    upcoming = [p for p in all_projects if p.get("phase") != "complete"]
+    upcoming_ids = [p["id"] for p in all_projects if p.get("phase") != "complete"]
+    upcoming_count = len(upcoming_ids)
     total_attendance = sum(p.get("attendance_count") or 0 for p in completed)
     total_warm_leads = sum(p.get("warm_leads") or 0 for p in completed)
 
-    # Count overdue tasks across upcoming projects
-    upcoming_ids = [p["id"] for p in upcoming]
     overdue_count = 0
     if upcoming_ids:
         now = datetime.now(timezone.utc).isoformat()
@@ -211,6 +223,10 @@ async def get_dashboard(
             },
         )
 
+    upcoming_projects = await db.projects.find(
+        {"deleted_at": None, "phase": {"$ne": "complete"}}, {"_id": 0},
+    ).sort("event_date", 1).limit(20).to_list(20)
+
     communities = _build_community_breakdown(all_projects)
     class_breakdown, class_ids = _build_class_breakdown(completed)
     await _enrich_class_breakdown(class_breakdown, class_ids)
@@ -220,14 +236,15 @@ async def get_dashboard(
         "classes_delivered": len(completed),
         "total_attendance": total_attendance,
         "warm_leads": total_warm_leads,
-        "active_partners": len(partner_orgs),
-        "upcoming_classes": len(upcoming),
+        "active_partners": active_partners,
+        "upcoming_classes": upcoming_count,
         "overdue_alert_count": overdue_count,
         "orphan_completed_schedules": orphan_completed,
         "class_breakdown": list(class_breakdown.values()),
         "communities": communities,
-        "upcoming_projects": sorted(upcoming, key=lambda x: x.get("event_date", ""))[:20],
+        "upcoming_projects": upcoming_projects,
         "trends": _build_trends(all_projects, period),
+        "truncated": truncated,
     }
 
 

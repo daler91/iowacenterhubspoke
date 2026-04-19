@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { Car, AlertTriangle, ChevronLeft, ChevronRight, Clock, MapPin, User, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -52,12 +52,22 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
     }
   };
 
+  // Bucket once per `schedules` change instead of filtering + sorting on
+  // every carousel render (renderDay is called 3× per swipe).
+  const sortedSchedulesByDate = useMemo(() => {
+    const map = new Map();
+    for (const s of schedules || []) {
+      let arr = map.get(s.date);
+      if (!arr) { arr = []; map.set(s.date, arr); }
+      arr.push(s);
+    }
+    map.forEach(arr => arr.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)));
+    return map;
+  }, [schedules]);
+
   const renderDay = (date, index) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    let daySchedules = (schedules || []).filter(s => s.date === dateStr);
-
-    // Sort schedules by start time
-    daySchedules.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+    const daySchedules = sortedSchedulesByDate.get(dateStr) || [];
 
     return (
       <div className="flex-[0_0_100%] min-w-0" key={index}>

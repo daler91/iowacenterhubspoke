@@ -184,8 +184,12 @@ async def get_forecast(
     for h in historical:
         h["is_forecast"] = False
 
+    truncated = len(schedules) >= _ANALYTICS_CAP
     if len(historical) < 2:
-        return {"historical": historical, "forecast": [], "method": "insufficient_data"}
+        return {
+            "historical": historical, "forecast": [],
+            "method": "insufficient_data", "truncated": truncated,
+        }
 
     # Linear regression on each metric (closed-form least squares over x = 0..n-1).
     classes_slope, classes_intercept = _linear_regression([h["classes"] for h in historical])
@@ -206,7 +210,10 @@ async def get_forecast(
             "is_forecast": True,
         })
 
-    return {"historical": historical, "forecast": forecast, "method": "linear_regression"}
+    return {
+        "historical": historical, "forecast": forecast,
+        "method": "linear_regression", "truncated": truncated,
+    }
 
 
 def _compute_driver_totals(schedules):

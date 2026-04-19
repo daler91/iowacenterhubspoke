@@ -164,38 +164,39 @@ async def export_schedules(
             "location_name",
         ]
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(field_list)
-
-    for s in schedules:
-        loc = loc_map.get(s.get("location_id"), {})
-        cls = class_map.get(s.get("class_id"), {})
-
-        emp_names, emp_emails = _collect_employee_info(s, emp_map)
-
-        row_data = {
-            "date": s.get("date", ""),
-            "start_time": s.get("start_time", ""),
-            "end_time": s.get("end_time", ""),
-            "employee_name": ", ".join(emp_names) if emp_names else "Unknown",
-            "employee_email": ", ".join(emp_emails) if emp_emails else "",
-            "location_name": loc.get("city_name", "Unknown"),
-            "class_name": cls.get("name", ""),
-            "status": s.get("status", ""),
-            "notes": s.get("notes", ""),
-        }
-
-        row = [row_data.get(f, "") for f in field_list]
-        writer.writerow(row)
-
-    output.seek(0)
+    def _row_generator():
+        # Yield the CSV row by row through a per-iteration buffer so the
+        # full export never materialises in memory. For large exports the
+        # response starts streaming as soon as the header is written.
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(field_list)
+        yield buf.getvalue()
+        for s in schedules:
+            loc = loc_map.get(s.get("location_id"), {})
+            cls = class_map.get(s.get("class_id"), {})
+            emp_names, emp_emails = _collect_employee_info(s, emp_map)
+            row_data = {
+                "date": s.get("date", ""),
+                "start_time": s.get("start_time", ""),
+                "end_time": s.get("end_time", ""),
+                "employee_name": ", ".join(emp_names) if emp_names else "Unknown",
+                "employee_email": ", ".join(emp_emails) if emp_emails else "",
+                "location_name": loc.get("city_name", "Unknown"),
+                "class_name": cls.get("name", ""),
+                "status": s.get("status", ""),
+                "notes": s.get("notes", ""),
+            }
+            buf.seek(0)
+            buf.truncate()
+            writer.writerow([row_data.get(f, "") for f in field_list])
+            yield buf.getvalue()
 
     filename = f"schedules_export_{datetime.now().strftime('%Y%m%d')}.csv"
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
 
     return StreamingResponse(
-        iter([output.getvalue()]), media_type="text/csv", headers=headers
+        _row_generator(), media_type="text/csv", headers=headers,
     )
 
 

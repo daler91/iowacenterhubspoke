@@ -20,9 +20,20 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Cache the parsed CSRF token against the cookie string identity. The
+// raw cookie is short and string-comparable, so we only re-run the regex
+// when document.cookie actually changes (which happens on every CSRF
+// rotation). Saves a regex execution on every mutating request.
+let _csrfCookieSnapshot: string | null = null;
+let _csrfTokenCache: string | null = null;
+
 function getCsrfToken(): string | null {
-  const match = /(?:^|; )csrf_token=([^;]*)/.exec(document.cookie);
-  return match ? decodeURIComponent(match[1]) : null;
+  const cookie = document.cookie;
+  if (cookie === _csrfCookieSnapshot) return _csrfTokenCache;
+  _csrfCookieSnapshot = cookie;
+  const match = /(?:^|; )csrf_token=([^;]*)/.exec(cookie);
+  _csrfTokenCache = match ? decodeURIComponent(match[1]) : null;
+  return _csrfTokenCache;
 }
 
 api.interceptors.request.use((config) => {
@@ -260,6 +271,7 @@ export const notificationsAPI = {
   markRead: (id: string) => api.post(`/notifications/inbox/${id}/read`),
   dismiss: (id: string) => api.post(`/notifications/inbox/${id}/dismiss`),
   markAllRead: () => api.post('/notifications/inbox/mark-all-read'),
+  dismissAll: () => api.post('/notifications/inbox/dismiss-all'),
 };
 
 // Notification preferences — shape mirrors the backend registry/effective view.

@@ -37,7 +37,14 @@ const bootAnalytics = () => {
   }
 };
 if (typeof globalThis.requestIdleCallback === 'function') {
-  globalThis.requestIdleCallback(bootAnalytics, { timeout: 3000 });
+  // Drop the deadline on fast connections so PostHog initialises sooner
+  // and we don't lose the first batch of events to the gap; fall back to
+  // the conservative budget on slow / unknown connections so the bundle
+  // doesn't muscle in on hydration.
+  type ConnLike = { effectiveType?: string };
+  const conn = (navigator as unknown as { connection?: ConnLike }).connection;
+  const fast = conn?.effectiveType === '4g' || conn?.effectiveType === '5g';
+  globalThis.requestIdleCallback(bootAnalytics, { timeout: fast ? 1500 : 3000 });
 } else {
   setTimeout(bootAnalytics, 1000);
 }

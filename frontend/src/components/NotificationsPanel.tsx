@@ -196,18 +196,15 @@ export default function NotificationsPanel() {
   };
 
   const handleDismissAll = async () => {
-    // Mirror per-row dismissal: hide live alerts client-side and actually
-    // remove each inbox row server-side. "Dismiss all" should empty the
-    // panel — just marking read still left items visible, which defeats
-    // the point of the button.
+    // Hide live alerts client-side, then collapse all inbox dismissals
+    // into a single backend round-trip via the bulk endpoint instead of
+    // fanning out N DELETEs.
     setDismissedLive(new Set(liveItems.map(n => n.id)));
-    const toDismiss = inboxItems;
-    // Optimistic clear so the panel empties immediately.
     setInboxItems([]);
     try {
-      await Promise.all(toDismiss.map(n => notificationsAPI.dismiss(n.id)));
+      await notificationsAPI.dismissAll();
     } catch {
-      // Any failed dismissals will reappear on the next 30s poll.
+      // Any failed dismissals will reappear on the next poll.
     }
   };
 

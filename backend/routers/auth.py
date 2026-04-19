@@ -291,7 +291,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "id": user_id,
         "name": data.name,
         "email": data.email,
-        "password_hash": hash_password(data.password),
+        "password_hash": await hash_password(data.password),
         "role": role,
         "status": status,
         "created_at": now_iso,
@@ -355,7 +355,7 @@ async def login(request: Request, data: UserLogin, response: Response):
         )
 
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
-    if not user or not verify_password(data.password, user['password_hash']):
+    if not user or not await verify_password(data.password, user['password_hash']):
         await _record_login_failure(data.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -619,7 +619,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     await db.users.update_one(
         {"id": row["user_id"]},
         {"$set": {
-            "password_hash": hash_password(data.new_password),
+            "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
         }},
     )
@@ -924,14 +924,14 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not verify_password(data.current_password, user_doc['password_hash']):
+    if not await verify_password(data.current_password, user_doc['password_hash']):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     now = datetime.now(timezone.utc)
     await db.users.update_one(
         {"id": user['user_id']},
         {"$set": {
-            "password_hash": hash_password(data.new_password),
+            "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
         }}
     )

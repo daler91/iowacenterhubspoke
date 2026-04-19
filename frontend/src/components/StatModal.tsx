@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { format } from 'date-fns';
 import {
   Dialog,
@@ -10,11 +11,25 @@ import { Badge } from './ui/badge';
 import { Users, MapPin, Clock, BookOpen } from 'lucide-react';
 import { EntityLink } from './ui/entity-link';
 
+const UNKNOWN_CLASS = { name: 'Unknown Class', color: '#ccc' };
+const UNKNOWN_LOCATION = { city_name: 'Unknown Location' };
+
 export default function StatModal({ isOpen, onClose, title, type, data, classes, employees, locations }) {
+  const classMap = useMemo(() => {
+    const m = new Map();
+    (classes || []).forEach(c => m.set(c.id, c));
+    return m;
+  }, [classes]);
+  const locationMap = useMemo(() => {
+    const m = new Map();
+    (locations || []).forEach(l => m.set(l.id, l));
+    return m;
+  }, [locations]);
+
   if (!isOpen) return null;
 
-  const getClassById = (id) => classes?.find(c => c.id === id) || { name: 'Unknown Class', color: '#ccc' };
-  const getLocationById = (id) => locations?.find(l => l.id === id) || { city_name: 'Unknown Location' };
+  const getClassById = (id) => classMap.get(id) || UNKNOWN_CLASS;
+  const getLocationById = (id) => locationMap.get(id) || UNKNOWN_LOCATION;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

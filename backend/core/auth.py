@@ -8,6 +8,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timezone
 from fastapi import HTTPException, Depends, Header, Request
+from fastapi.concurrency import run_in_threadpool
 from typing import Annotated, Optional, List
 from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_EDITOR
 
@@ -71,12 +72,24 @@ def validate_csrf_token(token: str) -> bool:
 _BCRYPT_ROUNDS = int(os.environ.get('BCRYPT_ROUNDS', '14'))
 
 
-def hash_password(password: str) -> str:
+def _hash_password_sync(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode('utf-8')
 
 
-def verify_password(password: str, hashed: str) -> bool:
+def _verify_password_sync(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+
+# bcrypt at rounds=14 is ~100ms per call and CPU-bound — running it
+# directly in the async handler stalls the event loop and serialises
+# concurrent logins. Threadpool offload lets other requests progress
+# while the worker spins on bcrypt.
+async def hash_password(password: str) -> str:
+    return await run_in_threadpool(_hash_password_sync, password)
+
+
+async def verify_password(password: str, hashed: str) -> bool:
+    return await run_in_threadpool(_verify_password_sync, password, hashed)
 
 
 TOKEN_LIFETIME_SECONDS = int(os.environ.get('JWT_LIFETIME_SECONDS', '14400'))  # 4 hours default

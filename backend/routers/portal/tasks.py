@@ -27,6 +27,11 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
+# Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
+# bulk endpoint applies this PER PROJECT via $slice so partner orgs with
+# many projects don't get globally truncated.
+_PORTAL_BULK_TASKS_PER_PROJECT = 500
+
 
 async def _require_partner_project(project_id: str, ctx: dict) -> dict:
     project = await db.projects.find_one(
@@ -68,6 +73,65 @@ async def portal_project_tasks(project_id: str, ctx: PortalContext):
         {"_id": 0},
     ).sort("sort_order", 1).to_list(500)
     return {"items": tasks, "total": len(tasks)}
+
+
+@router.post(
+    "/projects/tasks/bulk",
+    summary="Partner's tasks for multiple projects in one round-trip",
+    responses={401: {"description": INVALID_TOKEN}},
+)
+async def portal_project_tasks_bulk(
+    payload: dict, ctx: PortalContext,
+):
+    """Return ``{ project_id: [tasks...] }`` for every project the caller
+    actually owns.
+
+    The dashboard previously fanned out one /projects/{id}/tasks request
+    per project, which scaled with the partner's project count. Here we
+    do a single ``$in`` query and bucket the results in Python.
+    """
+    requested = payload.get("project_ids") or []
+    if not isinstance(requested, list) or not requested:
+        return {"items": {}}
+    # Authz: clamp the requested set to the caller's own projects so a
+    # malicious id list can't reach into another partner's data.
+    owned_cursor = db.projects.find(
+        {
+            "id": {"$in": requested},
+            "partner_org_id": ctx["partner_org_id"],
+            "deleted_at": None,
+        },
+        {"_id": 0, "id": 1},
+    )
+    owned_ids = [p["id"] async for p in owned_cursor]
+    if not owned_ids:
+        return {"items": {}}
+    # Cap PER PROJECT (matching the single-project endpoint at 500) instead
+    # of globally — a flat to_list cap silently dropped tasks for partners
+    # with many projects (Codex P1 r3106089947). $group + $slice gives each
+    # project the same headroom regardless of how many projects share the
+    # batch.
+    pipeline = [
+        {"$match": {
+            "project_id": {"$in": owned_ids},
+            "owner": {"$in": ["partner", "both"]},
+            "deleted_at": None,
+        }},
+        {"$sort": {"sort_order": 1}},
+        {"$project": {"_id": 0}},
+        {"$group": {"_id": "$project_id", "tasks": {"$push": "$$ROOT"}}},
+        {"$project": {
+            "_id": 0,
+            "project_id": "$_id",
+            "tasks": {"$slice": ["$tasks", _PORTAL_BULK_TASKS_PER_PROJECT]},
+        }},
+    ]
+    bucketed: dict[str, list] = {pid: [] for pid in owned_ids}
+    async for row in db.tasks.aggregate(pipeline):
+        pid = row.get("project_id")
+        if pid in bucketed:
+            bucketed[pid] = row.get("tasks", [])
+    return {"items": bucketed}
 
 
 @router.patch(
