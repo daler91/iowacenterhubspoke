@@ -93,6 +93,8 @@ export const partnerOrgsAPI = {
   update: (id: string, data: Record<string, unknown>) => api.put(`/partner-orgs/${id}`, data),
   delete: (id: string) => api.delete(`/partner-orgs/${id}`),
   getContacts: (id: string) => api.get(`/partner-orgs/${id}/contacts`),
+  getProjects: (id: string, limit: number = 20) =>
+    api.get(`/partner-orgs/${id}/projects`, { params: { limit } }),
   createContact: (id: string, data: Record<string, unknown>) => api.post(`/partner-orgs/${id}/contacts`, data),
   updateContact: (orgId: string, contactId: string, data: Record<string, unknown>) =>
     api.put(`/partner-orgs/${orgId}/contacts/${contactId}`, data),

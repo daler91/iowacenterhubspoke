@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -74,28 +73,23 @@ async def create_partner_org(data: PartnerOrgCreate, user: SchedulerRequired):
 
 @router.get(
     "/{org_id}",
-    summary="Get partner organization with contacts and history",
+    summary="Get partner organization core details",
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def get_partner_org(org_id: str, user: CurrentUser):
-    org, contacts, projects = await asyncio.gather(
-        db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0}),
-        db.partner_contacts.find(
-            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-        ).to_list(200),
-        # Limit to the 20 most recent projects; the profile page only
-        # renders a short activity list and older projects stay reachable
-        # through the main projects search. Trimming here turns a
-        # 50-document payload into a 20-document one and keeps the page
-        # render snappy for long-lived partner orgs.
-        db.projects.find(
-            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-        ).sort("event_date", -1).to_list(20),
+    """Return the partner organization doc only.
+
+    Contacts and recent projects are served via their own endpoints
+    (``/{org_id}/contacts`` and ``/{org_id}/projects``) so the profile
+    page can render core org details without waiting for the two list
+    queries, and so mutations to one list don't force a full refetch
+    of the others.
+    """
+    org = await db.partner_orgs.find_one(
+        {"id": org_id, "deleted_at": None}, {"_id": 0},
     )
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-    org["contacts"] = contacts
-    org["projects"] = projects
     return org
 
 
@@ -173,6 +167,38 @@ async def delete_partner_org(org_id: str, user: AdminRequired):
         "partner_org", org_id, user.get("name", "System"),
     )
     return {"message": "Partner organization deleted"}
+
+
+# ── Projects ──────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/{org_id}/projects",
+    summary="List recent projects for a partner org",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
+async def list_org_projects(
+    org_id: str, user: CurrentUser, limit: int = 20,
+):
+    """Return the N most recent projects for this partner org.
+
+    Split off from ``GET /partner-orgs/{id}`` so the profile page can
+    render core org details without waiting for the project history
+    query, and so mutations elsewhere don't force a refetch of this
+    list. Caller-supplied ``limit`` is clamped to [1, 100].
+    """
+    limit = max(1, min(limit, 100))
+    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
+    if not org:
+        raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
+    projects = (
+        await db.projects.find(
+            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0},
+        )
+        .sort("event_date", -1)
+        .to_list(limit)
+    )
+    return {"items": projects, "total": len(projects)}
 
 
 # ── Contacts ──────────────────────────────────────────────────────────

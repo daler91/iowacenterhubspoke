@@ -211,8 +211,9 @@ export interface PartnerOrg {
   notes: string;
   created_at: string;
   updated_at: string;
-  contacts?: PartnerContact[];
-  projects?: Project[];
+  // Contacts and recent projects are fetched via their own endpoints
+  // (see usePartnerContacts / usePartnerProjects) so the main profile
+  // render isn't blocked on the two list queries.
 }
 
 export interface PartnerContact {
