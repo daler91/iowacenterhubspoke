@@ -561,6 +561,7 @@ async def delete_task_attachment(
 )
 async def download_task_attachment(
     project_id: str, task_id: str, att_id: str, user: CurrentUser,
+    inline: bool = False,
 ):
     att = await db.task_attachments.find_one(
         {"id": att_id, "task_id": task_id}, {"_id": 0},
@@ -571,7 +572,11 @@ async def download_task_attachment(
     file_path = os.path.join(UPLOAD_DIR, stored)
     if not stored or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
-    return FileResponse(file_path, filename=att.get("filename", "download"))
+    return FileResponse(
+        file_path,
+        filename=att.get("filename", "download"),
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 # ── Comments ──────────────────────────────────────────────────────────

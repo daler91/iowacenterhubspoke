@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download,
+  FileText, Send, Download, Eye,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
@@ -15,6 +15,9 @@ import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
   Mention, ProjectMember,
 } from '../../lib/coordination-types';
+import { canPreview, previewKind } from '../../lib/attachment-preview';
+import { describeApiError } from '../../lib/error-messages';
+import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -49,6 +52,35 @@ export default function PortalDashboard() {
   const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
+  const [previewingDoc, setPreviewingDoc] = useState<
+    { doc: ProjectDocument; url: string } | null
+  >(null);
+
+  // Portal auth is bearer-token only, so an <iframe> can't load the server
+  // URL directly — fetch the bytes as a blob and hand the dialog an object
+  // URL instead. We revoke on close (or unmount) to free the blob.
+  async function openDocPreview(projectId: string, doc: ProjectDocument) {
+    try {
+      const res = await portalAPI.previewDocument(projectId, doc.id, token);
+      const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
+      const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
+      const url = URL.createObjectURL(blob);
+      setPreviewingDoc({ doc, url });
+    } catch (err) {
+      toast.error(describeApiError(err, "Couldn't load that preview."));
+    }
+  }
+
+  function closeDocPreview() {
+    if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+    setPreviewingDoc(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+    };
+  }, [previewingDoc]);
 
   useEffect(() => {
     if (!token) { setError('No portal token provided'); setLoading(false); return; }
@@ -333,6 +365,17 @@ export default function PortalDashboard() {
                         </p>
                       </div>
                       <Badge variant="secondary" className="text-[10px]">{doc.file_type.toUpperCase()}</Badge>
+                      {canPreview(doc.file_type) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDocPreview(project.id, doc)}
+                          className="shrink-0"
+                          aria-label={`Preview ${doc.filename}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -346,11 +389,12 @@ export default function PortalDashboard() {
                             a.download = doc.filename;
                             a.click();
                             URL.revokeObjectURL(url);
-                          } catch {
-                            // silent fail — toast not available in portal
+                          } catch (err) {
+                            toast.error(describeApiError(err, 'Download failed'));
                           }
                         }}
                         className="shrink-0"
+                        aria-label={`Download ${doc.filename}`}
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -463,6 +507,15 @@ export default function PortalDashboard() {
             <NotificationPreferences mode="portal" portalToken={token} />
           </Card>
         </div>
+      )}
+      {previewingDoc && previewKind(previewingDoc.doc.file_type) && (
+        <AttachmentPreviewDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) closeDocPreview(); }}
+          filename={previewingDoc.doc.filename}
+          kind={previewKind(previewingDoc.doc.file_type)!}
+          url={previewingDoc.url}
+        />
       )}
     </PortalLayout>
   );

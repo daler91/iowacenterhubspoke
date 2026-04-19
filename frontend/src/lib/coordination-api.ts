@@ -64,6 +64,8 @@ export const projectTasksAPI = {
     api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attId}`),
   downloadAttachmentUrl: (projectId: string, taskId: string, attId: string) =>
     `/api/v1/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download`,
+  previewAttachmentUrl: (projectId: string, taskId: string, attId: string) =>
+    `/api/v1/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download?inline=true`,
   // Comments
   listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
@@ -121,6 +123,8 @@ export const projectDocsAPI = {
     api.delete(`/projects/${projectId}/documents/${docId}`),
   downloadUrl: (projectId: string, docId: string) =>
     `/api/v1/projects/${projectId}/documents/${docId}/download`,
+  previewUrl: (projectId: string, docId: string) =>
+    `/api/v1/projects/${projectId}/documents/${docId}/download?inline=true`,
 };
 
 // ── Project Messages ─────────────────────────────────────────────────
@@ -200,6 +204,16 @@ export const portalAPI = {
   downloadDocument: (projectId: string, docId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/documents/${docId}/download`, {
       ...portalHeaders(token),
+      responseType: 'blob',
+    }),
+  // Same endpoint but with ``inline=true`` so the server returns
+  // ``Content-Disposition: inline``. The portal fetches as a blob (bearer
+  // token can't be passed by an <iframe>), so the caller turns the result
+  // into an object URL and feeds that to the preview dialog.
+  previewDocument: (projectId: string, docId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/documents/${docId}/download`, {
+      ...portalHeaders(token),
+      params: { inline: true },
       responseType: 'blob',
     }),
   uploadDocument: (projectId: string, token: string, file: File) => {

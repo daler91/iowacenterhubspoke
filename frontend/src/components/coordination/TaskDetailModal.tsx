@@ -5,19 +5,23 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';
 import {
-  Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
+  Paperclip, Download, Eye, FileText, Send, X, Trash2, CalendarDays,
   AlertTriangle, Lock, Star, User as UserIcon, MessageSquare, Reply,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
+import { validateUpload } from '../../lib/upload-constraints';
+import { describeUploadError } from '../../lib/error-messages';
+import { canPreview, previewKind } from '../../lib/attachment-preview';
 import DeleteTaskDialog from './DeleteTaskDialog';
+import AttachmentPreviewDialog from './AttachmentPreviewDialog';
 import { TaskDescriptionEditor } from './TaskDescriptionEditor';
 import MentionTextarea, { renderMentionBody } from './MentionTextarea';
 import {
   PHASE_LABELS, PHASE_COLORS,
   TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
   TASK_OWNERS, OWNER_LABELS,
-  type Task, type TaskOwner, type TaskStatus, type TaskComment,
-  type Mention, type ProjectMember,
+  type Task, type TaskAttachment, type TaskOwner, type TaskStatus,
+  type TaskComment, type Mention, type ProjectMember,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -494,6 +498,7 @@ export default function TaskDetailModal({
   const [assignedTo, setAssignedTo] = useState('');
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [previewing, setPreviewing] = useState<TaskAttachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Keep a ref to the latest onClose so loadTask doesn't need it in its deps.
@@ -633,16 +638,29 @@ export default function TaskDetailModal({
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    // Always reset the input so selecting the same file again re-fires change.
+    const resetInput = () => {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    if (!file) {
+      resetInput();
+      return;
+    }
+    const reason = validateUpload(file);
+    if (reason) {
+      toast.error(reason);
+      resetInput();
+      return;
+    }
     try {
       await projectTasksAPI.uploadAttachment(projectId, taskId, file);
       await loadTask();
       onUpdated();
       toast.success('Attachment uploaded');
-    } catch {
-      toast.error('Upload failed');
+    } catch (err) {
+      toast.error(describeUploadError(err, 'Upload failed'));
     }
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    resetInput();
   };
 
   const handleDeleteAttachment = async (attId: string) => {
@@ -859,6 +877,16 @@ export default function TaskDetailModal({
                         <Badge variant="secondary" className="text-[9px] shrink-0">
                           {att.file_type.toUpperCase()}
                         </Badge>
+                        {canPreview(att.file_type) && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewing(att)}
+                            className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
+                            aria-label={`Preview ${att.filename}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        )}
                         <a
                           href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
                           className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
@@ -924,6 +952,16 @@ export default function TaskDetailModal({
                 taskTitle={task.title}
                 detailed
               />
+
+              {previewing && previewKind(previewing.file_type) && (
+                <AttachmentPreviewDialog
+                  open={true}
+                  onOpenChange={(open) => { if (!open) setPreviewing(null); }}
+                  filename={previewing.filename}
+                  kind={previewKind(previewing.file_type)!}
+                  url={projectTasksAPI.previewAttachmentUrl(projectId, taskId, previewing.id)}
+                />
+              )}
             </div>
 
             {/* ── Right: Conversations ──────────────────────────── */}
