@@ -216,12 +216,17 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
         build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
     ).to_list(500)
 
-    # Month buckets are YYYY-MM strings — 60 rows is five full years,
-    # well beyond any realistic profile view.
+    # Month buckets are YYYY-MM strings. Take the newest 60 (five years)
+    # via a descending sort + $limit, then re-sort ascending for the
+    # chart consumers that expect oldest-first. A trailing to_list(60)
+    # alone after an ascending sort would drop current-year activity
+    # for long-tenure employees (>5 yrs), which Codex flagged on PR #259.
     monthly_task = db.schedules.aggregate([
         {MATCH: match_stage},
         {GROUP: {"_id": {"$substr": [{IF_NULL: ["$date", ""]}, 0, 7]}, "count": {"$sum": 1}}},
         {"$project": {"_id": 0, "month": "$_id", "count": 1}},
+        {"$sort": {"month": -1}},
+        {"$limit": 60},
         {"$sort": {"month": 1}},
     ]).to_list(60)
 
