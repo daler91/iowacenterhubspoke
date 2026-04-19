@@ -29,6 +29,12 @@ const swrOptions = {
   revalidateOnReconnect: true,
 };
 
+// SWR cache keys for the route-gated endpoints, hoisted to constants so
+// the useSWR key, the onError label, and the invalidateGated key all
+// read from a single source.
+const ACTIVITIES_KEY = 'activities';
+const WORKLOAD_KEY = 'workload';
+
 export interface UseDashboardDataOptions {
   /** Fetch `/stats` and `/activities` (needed by Insights + Dashboard home). */
   needActivity?: boolean;
@@ -54,18 +60,18 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   // `activities` + `workload` are route-gated: passing `null` as the SWR key
   // skips the fetch entirely until the route opts in. Cached data is
   // preserved across toggles by SWR's global cache.
-  const { data: activities = [], mutate: mutateActivities } = useSWR<ActivityLog[]>(needActivity ? 'activities' : null, () => activityAPI.getAll(50).then(extractItems<ActivityLog>), { ...swrOptions, onError: onError('activities') });
-  const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>(needWorkload ? 'workload' : null, () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
+  const { data: activities = [], mutate: mutateActivities } = useSWR<ActivityLog[]>(needActivity ? ACTIVITIES_KEY : null, () => activityAPI.getAll(50).then(extractItems<ActivityLog>), { ...swrOptions, onError: onError(ACTIVITIES_KEY) });
+  const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>(needWorkload ? WORKLOAD_KEY : null, () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError(WORKLOAD_KEY) });
 
   // Invalidate a route-gated cache without forcing an immediate refetch.
   // When the tab that consumes the cache isn't mounted (flag is false),
   // we still want to drop the stale value so the next visit sees fresh
   // data — but we don't pay for the refetch right now.
-  const invalidateGated = useCallback((key: string, isActive: boolean, mutateFn: () => Promise<unknown>) => {
+  const invalidateGated = useCallback(async (key: string, isActive: boolean, mutateFn: () => Promise<unknown>) => {
     if (isActive) {
-      void mutateFn();
+      await mutateFn();
     } else {
-      void globalMutate(key, undefined, { revalidate: false });
+      await globalMutate(key, undefined, { revalidate: false });
     }
   }, []);
 

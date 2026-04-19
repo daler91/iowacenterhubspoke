@@ -56,6 +56,7 @@ _AGG_MATCH = "$match"
 _AGG_GROUP = "$group"
 _AGG_IF_NULL = "$ifNull"
 _AGG_COUNT = "$count"
+_AGG_COND = "$cond"
 _ATTENDANCE_FIELD = "$attendance_count"
 _WARM_LEADS_FIELD = "$warm_leads"
 _CLASS_ID_FIELD = "$class_id"
@@ -79,11 +80,11 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
                 "_id": "$project_id",
                 "total": {"$sum": 1},
                 "completed": {
-                    "$sum": {"$cond": [{"$eq": ["$completed", True]}, 1, 0]},
+                    "$sum": {_AGG_COND: [{"$eq": ["$completed", True]}, 1, 0]},
                 },
                 "partner_overdue": {
                     "$sum": {
-                        "$cond": [
+                        _AGG_COND: [
                             {
                                 "$and": [
                                     {"$ne": ["$completed", True]},
@@ -235,7 +236,7 @@ async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
         {
             _AGG_GROUP: {
                 "_id": {
-                    "$cond": [
+                    _AGG_COND: [
                         {
                             "$or": [
                                 {"$eq": [_CLASS_ID_FIELD, None]},
