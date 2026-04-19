@@ -282,6 +282,24 @@ async def generate_bulk_schedules(
     await _enqueue_outlook_events(ctx, created, employees, class_doc, location)
     await _enqueue_google_events(created, employees, class_doc, location)
 
+    # The router that enqueued this job already invalidated the workload
+    # cache, but that happened BEFORE insert_many ran. Any /workload read
+    # landing in that gap would cache pre-insert totals for a full TTL.
+    # Bust again here so the next read recomputes from the rows we just
+    # wrote. Skipped if no rows were inserted (all conflicts).
+    if created:
+        redis_pool = ctx.get("redis")
+        if redis_pool is not None:
+            try:
+                from services.workload_cache import CACHE_KEY as _WORKLOAD_CACHE_KEY
+                await redis_pool.delete(_WORKLOAD_CACHE_KEY)
+            except Exception:
+                logger.warning(
+                    "workload cache invalidate failed after bulk insert",
+                    exc_info=True,
+                    extra={"entity": {"created_count": len(created)}},
+                )
+
     logger.info(
         f"Bulk sched generation completed. Created: {len(created)}, "
         f"Skipped due to conflicts: {len(conflicts_found)}",
