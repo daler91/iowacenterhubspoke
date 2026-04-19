@@ -302,6 +302,7 @@ export default function ProjectBoard() {
         <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4">
           {PROJECT_PHASES.map(phase => {
             const allProjects = board?.columns?.[phase] ?? [];
+            const isTruncated = board?.phase_truncated?.[phase] ?? false;
             const projects = searchQuery
               ? allProjects.filter(p =>
                   p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -316,8 +317,18 @@ export default function ProjectBoard() {
                   <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {PHASE_LABELS[phase]}
                   </h3>
-                  <span className="text-xs text-muted-foreground ml-auto">{projects.length}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {isTruncated ? `${projects.length}+` : projects.length}
+                  </span>
                 </div>
+                {isTruncated && !searchQuery && (
+                  <p
+                    className="text-[11px] text-muted-foreground italic mb-2 px-1"
+                    role="note"
+                  >
+                    Showing the {projects.length} most recently updated. Narrow the filters to see older projects.
+                  </p>
+                )}
                 <div className="space-y-0">
                   {projects.map(project => (
                     <DraggableProjectCard key={project.id} project={project} />

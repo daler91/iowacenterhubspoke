@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -113,14 +114,45 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
 # ── Projects ──────────────────────────────────────────────────────────
 
 
+_BOARD_PHASE_LIMIT_DEFAULT = 50
+_BOARD_PHASE_LIMIT_MAX = 200
+
+
+async def _fetch_phase_projects(
+    base_query: dict, phase: str, limit: int,
+) -> tuple[str, list, bool]:
+    """Load the newest ``limit`` projects for a single phase.
+
+    Overfetches by one document to detect whether more rows exist beyond
+    the page boundary without a second count query. The extra row is
+    discarded before returning; the flag tells the caller whether the
+    UI should display a "more available" indicator for that column.
+    """
+    phase_query = {**base_query, "phase": phase}
+    rows = (
+        await db.projects.find(phase_query, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(limit + 1)
+        .to_list(limit + 1)
+    )
+    truncated = len(rows) > limit
+    return phase, rows[:limit], truncated
+
+
 @router.get("/board", summary="Portfolio kanban board")
 async def get_project_board(
     user: CurrentUser,
     community: Optional[str] = None,
     event_format: Optional[str] = None,
     class_id: Optional[str] = None,
+    phase_limit: int = _BOARD_PHASE_LIMIT_DEFAULT,
 ):
-    query: dict = {"deleted_at": None, "phase": {"$ne": "complete"}}
+    # Clamp phase_limit so a caller can't force a full-collection scan
+    # by passing e.g. phase_limit=10**9. The previous implementation
+    # loaded up to 500 projects total with no per-column bound.
+    phase_limit = max(1, min(phase_limit, _BOARD_PHASE_LIMIT_MAX))
+
+    query: dict = {"deleted_at": None}
     if community:
         query["community"] = community
     if event_format:
@@ -128,23 +160,32 @@ async def get_project_board(
     if class_id:
         query["class_id"] = class_id
 
-    projects = await db.projects.find(query, {"_id": 0}).to_list(500)
-    task_stats = await _build_task_stats([p["id"] for p in projects])
+    active_phases = [p for p in PROJECT_PHASES if p != "complete"]
+    # Fan one paged query out per phase in parallel. Each query is
+    # bounded at phase_limit+1 and hits the existing `phase` index.
+    phase_results = await asyncio.gather(
+        *[_fetch_phase_projects(query, phase, phase_limit) for phase in active_phases]
+    )
 
-    columns: dict[str, list] = {
-        phase: [] for phase in PROJECT_PHASES if phase != "complete"
+    all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
+    task_stats = await _build_task_stats(all_ids)
+
+    columns: dict[str, list] = {phase: [] for phase in active_phases}
+    phase_truncated: dict[str, bool] = {}
+    for phase, rows, truncated in phase_results:
+        phase_truncated[phase] = truncated
+        for p in rows:
+            stats = task_stats.get(p["id"], _EMPTY_STATS)
+            p["task_total"] = stats["total"]
+            p["task_completed"] = stats["completed"]
+            p["partner_overdue"] = stats["partner_overdue"]
+        columns[phase] = rows
+
+    return {
+        "columns": columns,
+        "phase_truncated": phase_truncated,
+        "phase_limit": phase_limit,
     }
-
-    for p in projects:
-        phase = p.get("phase", "planning")
-        stats = task_stats.get(p["id"], _EMPTY_STATS)
-        p["task_total"] = stats["total"]
-        p["task_completed"] = stats["completed"]
-        p["partner_overdue"] = stats["partner_overdue"]
-        if phase in columns:
-            columns[phase].append(p)
-
-    return {"columns": columns}
 
 
 async def _aggregate_completed_metrics() -> dict:
