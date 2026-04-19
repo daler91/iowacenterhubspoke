@@ -48,18 +48,26 @@ def _naive_day_swap_eval(day_schedules, loc_map):
         for j in range(i + 1, len(day_schedules)):
             a = day_schedules[i]
             b = day_schedules[j]
-            a_ids = set(a.get("employee_ids", []))
-            b_ids = set(b.get("employee_ids", []))
-            if a_ids & b_ids:
-                continue
-            if a.get("location_id") == b.get("location_id"):
-                continue
-            if not loc_map.get(a.get("location_id")) or not loc_map.get(b.get("location_id")):
+            if _is_invalid_naive_pair(a, b, loc_map):
                 continue
             savings, reason = _compute_swap_savings(a, b, cache)
             if savings > 0 and reason:
                 results.append((a.get("id"), b.get("id"), savings))
     return results
+
+
+def _is_invalid_naive_pair(a, b, loc_map):
+    a_ids = set(a.get("employee_ids", []))
+    b_ids = set(b.get("employee_ids", []))
+    if a_ids & b_ids:
+        return True
+    if a.get("location_id") == b.get("location_id"):
+        return True
+    if not loc_map.get(a.get("location_id")):
+        return True
+    if not loc_map.get(b.get("location_id")):
+        return True
+    return False
 
 
 def _count_candidate_pairs_after_pruning(day_schedules):
@@ -127,6 +135,49 @@ def test_cache_counts_secondary_assignees_in_location_history():
 
     # e1 is secondary on s2, but should still count loc-b in e1's location history.
     assert "loc-b" in cache["s1"]["other_locations"]
+
+
+def test_non_approx_mode_keeps_low_drive_candidate_that_enables_best_swap():
+    schedules = []
+    # e1 has seven schedules; loc-7 is intentionally low-drive and would be pruned by top-k=6.
+    for idx in range(1, 8):
+        schedules.append({
+            "id": f"e1-{idx}",
+            "date": "2026-03-01",
+            "employee_ids": ["e1"],
+            "employees": [{"id": "e1", "name": "E1"}],
+            "location_id": f"loc-{idx}",
+            "location_name": f"Location {idx}",
+            "drive_time_minutes": 1 if idx == 7 else 100 - idx,
+        })
+
+    schedules.extend([
+        {
+            "id": "e2-a",
+            "date": "2026-03-01",
+            "employee_ids": ["e2"],
+            "employees": [{"id": "e2", "name": "E2"}],
+            "location_id": "loc-1",
+            "location_name": "Location 1",
+            "drive_time_minutes": 80,
+        },
+        {
+            "id": "e2-b",
+            "date": "2026-03-01",
+            "employee_ids": ["e2"],
+            "employees": [{"id": "e2", "name": "E2"}],
+            "location_id": "loc-7",
+            "location_name": "Location 7",
+            "drive_time_minutes": 5,
+        },
+    ])
+    loc_map = _build_loc_map(8)
+
+    suggestions, partial = _find_swap_suggestions(schedules, loc_map)
+
+    assert partial is False
+    pair_ids = {(s["schedule_a_id"], s["schedule_b_id"]) for s in suggestions}
+    assert ("e1-7", "e2-a") in pair_ids or ("e2-a", "e1-7") in pair_ids
 
 
 def test_pruned_solver_faster_than_naive_fixture():

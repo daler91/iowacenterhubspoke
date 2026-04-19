@@ -373,35 +373,52 @@ def _group_pairs_for_evaluation(day_schedules, cache, approx_mode):
     return list(groups.values())
 
 
-def _evaluate_day_swaps(day_schedules, date_key, loc_map, cache, approx_mode=False):
-    if len(day_schedules) < 2:
-        return []
+def _can_day_produce_savings(day_schedules, cache):
+    return any(cache[s.get("id")]["other_locations"] for s in day_schedules)
 
-    if not any(cache[s.get("id")]["other_locations"] for s in day_schedules):
-        return []
 
-    day_schedules = _prune_candidates(day_schedules, cache, _SWAP_TOP_K_PER_EMPLOYEE_DAY)
-    grouped_schedules = _group_pairs_for_evaluation(day_schedules, cache, approx_mode)
-
-    results = []
-    pair_count = 0
+def _iter_group_pairs(grouped_schedules):
     for i in range(len(grouped_schedules)):
         left_group = grouped_schedules[i]
         for j in range(i, len(grouped_schedules)):
             right_group = grouped_schedules[j]
             if i == j:
-                group_pairs = ((left_group[a], left_group[b]) for a in range(len(left_group)) for b in range(a + 1, len(left_group)))
-            else:
-                group_pairs = ((a, b) for a in left_group for b in right_group)
-            for a, b in group_pairs:
-                pair_count += 1
-                if approx_mode and pair_count > _SWAP_MAX_APPROX_PAIRS_PER_DAY:
-                    return results
-                if _should_skip_pair(a, b, loc_map, cache):
-                    continue
-                savings, reason = _compute_swap_savings(a, b, cache)
-                if savings > 0:
-                    results.append(_build_suggestion(a, b, date_key, savings, reason))
+                for a in range(len(left_group)):
+                    for b in range(a + 1, len(left_group)):
+                        yield left_group[a], left_group[b]
+                continue
+            for left in left_group:
+                for right in right_group:
+                    yield left, right
+
+
+def _select_day_candidates(day_schedules, cache, approx_mode):
+    if not approx_mode:
+        return day_schedules
+    return _prune_candidates(day_schedules, cache, _SWAP_TOP_K_PER_EMPLOYEE_DAY)
+
+
+def _evaluate_day_swaps(day_schedules, date_key, loc_map, cache, approx_mode=False):
+    if len(day_schedules) < 2:
+        return []
+
+    if not _can_day_produce_savings(day_schedules, cache):
+        return []
+
+    candidate_schedules = _select_day_candidates(day_schedules, cache, approx_mode)
+    grouped_schedules = _group_pairs_for_evaluation(candidate_schedules, cache, approx_mode)
+
+    results = []
+    pair_count = 0
+    for a, b in _iter_group_pairs(grouped_schedules):
+        pair_count += 1
+        if approx_mode and pair_count > _SWAP_MAX_APPROX_PAIRS_PER_DAY:
+            return results
+        if _should_skip_pair(a, b, loc_map, cache):
+            continue
+        savings, reason = _compute_swap_savings(a, b, cache)
+        if savings > 0:
+            results.append(_build_suggestion(a, b, date_key, savings, reason))
     return results
 
 
