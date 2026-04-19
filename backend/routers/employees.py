@@ -188,48 +188,77 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"employee_ids": employee_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
-    total_classes = len(all_schedules)
-    total_drive_minutes = 0
-    total_class_minutes = 0
-    completed = 0
-    upcoming = 0
-    in_progress = 0
-    loc_counts = {}
-    weekly = {}
+    match_stage = {"employee_ids": employee_id, "deleted_at": None}
+    time_expr = {
+        "$cond": [
+            {
+                "$and": [
+                    {"$regexMatch": {"input": {"$ifNull": ["$start_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                    {"$regexMatch": {"input": {"$ifNull": ["$end_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                ],
+            },
+            {
+                "$subtract": [
+                    {
+                        "$add": [
+                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 0]}}, 60]},
+                            {"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 1]}},
+                        ],
+                    },
+                    {
+                        "$add": [
+                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 0]}}, 60]},
+                            {"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 1]}},
+                        ],
+                    },
+                ],
+            },
+            0,
+        ],
+    }
+    summary = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {
+            "_id": None,
+            "total_classes": {"$sum": 1},
+            "total_drive_minutes": {"$sum": {"$multiply": [{"$ifNull": ["$drive_time_minutes", 0]}, 2]}},
+            "total_class_minutes": {"$sum": time_expr},
+            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
+            "upcoming": {"$sum": {"$cond": [{"$eq": ["$status", "upcoming"]}, 1, 0]}},
+            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
+        }},
+    ]).to_list(1)
+    totals = summary[0] if summary else {
+        "total_classes": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
+        "completed": 0, "upcoming": 0, "in_progress": 0,
+    }
 
-    for s in all_schedules:
-        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
-        try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except (ValueError, KeyError):
-            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
+    location_breakdown = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {"_id": {"$ifNull": ["$location_name", "Unknown"]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "name": "$_id", "count": 1}},
+    ]).to_list(500)
 
-        status = s.get('status', 'upcoming')
-        if status == 'completed':
-            completed += 1
-        elif status == 'upcoming':
-            upcoming += 1
-        elif status == 'in_progress':
-            in_progress += 1
+    monthly_breakdown = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {"_id": {"$substr": [{"$ifNull": ["$date", ""]}, 0, 7]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "month": "$_id", "count": 1}},
+        {"$sort": {"month": 1}},
+    ]).to_list(500)
 
-        name = s.get('location_name', 'Unknown')
-        loc_counts[name] = loc_counts.get(name, 0) + 1
-
-        week_key = s['date'][:7]
-        weekly[week_key] = weekly.get(week_key, 0) + 1
+    recent_schedules = await db.schedules.find(
+        match_stage, {"_id": 0},
+    ).sort("date", -1).limit(10).to_list(10)
 
     return {
         "employee": employee,
-        "total_classes": total_classes,
-        "total_drive_minutes": total_drive_minutes,
-        "total_class_minutes": total_class_minutes,
-        "completed": completed,
-        "upcoming": upcoming,
-        "in_progress": in_progress,
-        "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
-        "monthly_breakdown": [{"month": k, "count": v} for k, v in sorted(weekly.items())],
-        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+        "total_classes": totals["total_classes"],
+        "total_drive_minutes": totals["total_drive_minutes"],
+        "total_class_minutes": totals["total_class_minutes"],
+        "completed": totals["completed"],
+        "upcoming": totals["upcoming"],
+        "in_progress": totals["in_progress"],
+        "location_breakdown": location_breakdown,
+        "monthly_breakdown": monthly_breakdown,
+        "recent_schedules": recent_schedules,
     }

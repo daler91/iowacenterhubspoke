@@ -183,54 +183,88 @@ async def get_location_stats(
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"location_id": location_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    date_match = {}
     if start_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') >= start_date]
+        date_match["$gte"] = start_date
     if end_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') <= end_date]
-    total_schedules = len(all_schedules)
-    total_drive_minutes = 0
-    total_class_minutes = 0
-    completed = 0
-    upcoming = 0
-    in_progress = 0
-    emp_counts = {}
-    class_counts = {}
+        date_match["$lte"] = end_date
 
-    for s in all_schedules:
-        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
-        try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except (ValueError, KeyError):
-            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
+    match_stage = {"location_id": location_id, "deleted_at": None}
+    if date_match:
+        match_stage["date"] = date_match
 
-        status = s.get('status', 'upcoming')
-        if status == 'completed':
-            completed += 1
-        elif status == 'upcoming':
-            upcoming += 1
-        elif status == 'in_progress':
-            in_progress += 1
+    time_expr = {
+        "$cond": [
+            {
+                "$and": [
+                    {"$regexMatch": {"input": {"$ifNull": ["$start_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                    {"$regexMatch": {"input": {"$ifNull": ["$end_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                ],
+            },
+            {
+                "$subtract": [
+                    {
+                        "$add": [
+                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 0]}}, 60]},
+                            {"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 1]}},
+                        ],
+                    },
+                    {
+                        "$add": [
+                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 0]}}, 60]},
+                            {"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 1]}},
+                        ],
+                    },
+                ],
+            },
+            0,
+        ],
+    }
 
-        emp_name = s.get('employee_name', 'Unknown')
-        emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
+    summary = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {
+            "_id": None,
+            "total_schedules": {"$sum": 1},
+            "total_drive_minutes": {"$sum": {"$multiply": [{"$ifNull": ["$drive_time_minutes", 0]}, 2]}},
+            "total_class_minutes": {"$sum": time_expr},
+            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
+            "upcoming": {"$sum": {"$cond": [{"$eq": ["$status", "upcoming"]}, 1, 0]}},
+            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
+        }},
+    ]).to_list(1)
+    totals = summary[0] if summary else {
+        "total_schedules": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
+        "completed": 0, "upcoming": 0, "in_progress": 0,
+    }
 
-        class_name = s.get('class_name') or 'Unassigned'
-        class_counts[class_name] = class_counts.get(class_name, 0) + 1
+    employee_breakdown = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {"_id": {"$ifNull": ["$employee_name", "Unknown"]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "name": "$_id", "count": 1}},
+    ]).to_list(500)
+
+    class_breakdown = await db.schedules.aggregate([
+        {"$match": match_stage},
+        {"$group": {"_id": {"$ifNull": ["$class_name", "Unassigned"]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "name": "$_id", "count": 1}},
+    ]).to_list(500)
+
+    recent_schedules = await db.schedules.find(
+        match_stage, {"_id": 0},
+    ).sort("date", -1).limit(10).to_list(10)
 
     return {
         "location": location,
-        "total_schedules": total_schedules,
-        "total_drive_minutes": total_drive_minutes,
-        "total_class_minutes": total_class_minutes,
-        "completed": completed,
-        "upcoming": upcoming,
-        "in_progress": in_progress,
-        "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
-        "class_breakdown": [{"name": k, "count": v} for k, v in class_counts.items()],
-        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+        "total_schedules": totals["total_schedules"],
+        "total_drive_minutes": totals["total_drive_minutes"],
+        "total_class_minutes": totals["total_class_minutes"],
+        "completed": totals["completed"],
+        "upcoming": totals["upcoming"],
+        "in_progress": totals["in_progress"],
+        "employee_breakdown": employee_breakdown,
+        "class_breakdown": class_breakdown,
+        "recent_schedules": recent_schedules,
     }
 
 
