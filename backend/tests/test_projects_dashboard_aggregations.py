@@ -24,7 +24,22 @@ class _Cursor:
         self._rows = rows
 
     async def to_list(self, _limit):
+        await asyncio.sleep(0)
         return self._rows
+
+    def __aiter__(self):
+        return _CursorAsyncIter(self._rows)
+
+
+class _CursorAsyncIter:
+    def __init__(self, rows):
+        self._iter = iter(rows)
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
 
 
 class _Collection:
@@ -35,70 +50,82 @@ class _Collection:
 
     def aggregate(self, pipeline):
         if self.name == "projects":
-            group_stage = pipeline[1]["$group"]
-            if "classes_delivered" in group_stage:
-                completed = [
-                    p for p in self.docs
-                    if p.get("deleted_at") is None and p.get("phase") == "complete"
-                ]
-                if not completed:
-                    return _Cursor([])
-                return _Cursor([{
-                    "classes_delivered": len(completed),
-                    "total_attendance": sum(p.get("attendance_count") or 0 for p in completed),
-                    "warm_leads": sum(p.get("warm_leads") or 0 for p in completed),
-                }])
-
-            if isinstance(group_stage.get("_id"), dict) and "community" in group_stage["_id"]:
-                grouped = {}
-                for p in self.docs:
-                    if p.get("deleted_at") is not None:
-                        continue
-                    community = p.get("community", "Unknown")
-                    phase = p.get("phase", "planning")
-                    key = (community, phase)
-                    if key not in grouped:
-                        grouped[key] = {"count": 0, "attendance": 0, "warm_leads": 0}
-                    grouped[key]["count"] += 1
-                    grouped[key]["attendance"] += p.get("attendance_count") or 0
-                    grouped[key]["warm_leads"] += p.get("warm_leads") or 0
-                rows = {}
-                for (community, phase), vals in grouped.items():
-                    rows.setdefault(community, []).append({
-                        "phase": phase,
-                        "count": vals["count"],
-                        "attendance": vals["attendance"],
-                        "warm_leads": vals["warm_leads"],
-                    })
-                return _Cursor([{"_id": c, "parts": parts} for c, parts in rows.items()])
-
-            # class breakdown
-            grouped = {}
-            for p in self.docs:
-                if p.get("deleted_at") is not None or p.get("phase") != "complete":
-                    continue
-                cid = p.get("class_id") or "unlinked"
-                grouped.setdefault(cid, {"delivered": 0, "attendance": 0, "warm_leads": 0})
-                grouped[cid]["delivered"] += 1
-                grouped[cid]["attendance"] += p.get("attendance_count") or 0
-                grouped[cid]["warm_leads"] += p.get("warm_leads") or 0
-            return _Cursor([{"_id": cid, **vals} for cid, vals in grouped.items()])
+            return self._aggregate_projects(pipeline)
 
         if self.name == "schedules":
-            active_links = {
-                p.get("schedule_id")
-                for p in self.db_ref.projects.docs
-                if p.get("deleted_at") is None and p.get("schedule_id")
-            }
-            count = sum(
-                1 for s in self.docs
-                if s.get("deleted_at") is None
-                and s.get("status") == "completed"
-                and s.get("id") not in active_links
-            )
-            return _Cursor([{"count": count}] if count else [])
+            return self._aggregate_schedules()
 
         raise AssertionError(f"Unexpected aggregate collection: {self.name}")
+
+    def _aggregate_projects(self, pipeline):
+        group_stage = pipeline[1]["$group"]
+        if "classes_delivered" in group_stage:
+            return self._aggregate_completed_metrics()
+        if isinstance(group_stage.get("_id"), dict) and "community" in group_stage["_id"]:
+            return self._aggregate_community_breakdown()
+        return self._aggregate_class_breakdown()
+
+    def _aggregate_completed_metrics(self):
+        completed = [
+            p for p in self.docs
+            if p.get("deleted_at") is None and p.get("phase") == "complete"
+        ]
+        if not completed:
+            return _Cursor([])
+        return _Cursor([{
+            "classes_delivered": len(completed),
+            "total_attendance": sum(p.get("attendance_count") or 0 for p in completed),
+            "warm_leads": sum(p.get("warm_leads") or 0 for p in completed),
+        }])
+
+    def _aggregate_community_breakdown(self):
+        grouped = {}
+        for p in self.docs:
+            if p.get("deleted_at") is not None:
+                continue
+            community = p.get("community", "Unknown")
+            phase = p.get("phase", "planning")
+            key = (community, phase)
+            if key not in grouped:
+                grouped[key] = {"count": 0, "attendance": 0, "warm_leads": 0}
+            grouped[key]["count"] += 1
+            grouped[key]["attendance"] += p.get("attendance_count") or 0
+            grouped[key]["warm_leads"] += p.get("warm_leads") or 0
+        rows = {}
+        for (community, phase), vals in grouped.items():
+            rows.setdefault(community, []).append({
+                "phase": phase,
+                "count": vals["count"],
+                "attendance": vals["attendance"],
+                "warm_leads": vals["warm_leads"],
+            })
+        return _Cursor([{"_id": c, "parts": parts} for c, parts in rows.items()])
+
+    def _aggregate_class_breakdown(self):
+        grouped = {}
+        for p in self.docs:
+            if p.get("deleted_at") is not None or p.get("phase") != "complete":
+                continue
+            cid = p.get("class_id") or "unlinked"
+            grouped.setdefault(cid, {"delivered": 0, "attendance": 0, "warm_leads": 0})
+            grouped[cid]["delivered"] += 1
+            grouped[cid]["attendance"] += p.get("attendance_count") or 0
+            grouped[cid]["warm_leads"] += p.get("warm_leads") or 0
+        return _Cursor([{"_id": cid, **vals} for cid, vals in grouped.items()])
+
+    def _aggregate_schedules(self):
+        active_links = {
+            p.get("schedule_id")
+            for p in self.db_ref.projects.docs
+            if p.get("deleted_at") is None and p.get("schedule_id")
+        }
+        count = sum(
+            1 for s in self.docs
+            if s.get("deleted_at") is None
+            and s.get("status") == "completed"
+            and s.get("id") not in active_links
+        )
+        return _Cursor([{"count": count}] if count else [])
 
 
 class _FakeDB:
