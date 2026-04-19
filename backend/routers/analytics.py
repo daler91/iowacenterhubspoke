@@ -2,6 +2,7 @@ from datetime import date as dt_date, timedelta as td
 from fastapi import APIRouter
 from typing import List, Optional, Tuple
 from collections import defaultdict
+from itertools import combinations, product
 from database import db
 from core.auth import CurrentUser
 from services.schedule_utils import calculate_class_minutes
@@ -378,18 +379,15 @@ def _can_day_produce_savings(day_schedules, cache):
 
 
 def _iter_group_pairs(grouped_schedules):
-    for i in range(len(grouped_schedules)):
-        left_group = grouped_schedules[i]
+    for i, left_group in enumerate(grouped_schedules):
         for j in range(i, len(grouped_schedules)):
             right_group = grouped_schedules[j]
-            if i == j:
-                for a in range(len(left_group)):
-                    for b in range(a + 1, len(left_group)):
-                        yield left_group[a], left_group[b]
-                continue
-            for left in left_group:
-                for right in right_group:
-                    yield left, right
+            pair_iter = (
+                combinations(left_group, 2)
+                if i == j
+                else product(left_group, right_group)
+            )
+            yield from pair_iter
 
 
 def _select_day_candidates(day_schedules, cache, approx_mode):
