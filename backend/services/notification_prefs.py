@@ -142,16 +142,19 @@ async def principal_for_employee(employee_id: str) -> Optional[Principal]:
     return await find_principal_by_email(employee["email"])
 
 
-def principal_to_member_dict(p: Principal) -> dict:
+def principal_to_member_dict(p: Principal, *, include_email: bool = True) -> dict:
     """Serialize a ``Principal`` for the ``GET /projects/{id}/members``
     response (and the portal equivalent). Shared so both endpoints project
-    the same shape without duplicating the dict literal."""
-    return {
-        "id": p.id,
-        "name": p.name or "Unknown",
-        "kind": p.kind,
-        "email": p.email,
-    }
+    the same shape without duplicating the dict literal.
+
+    The portal endpoint passes ``include_email=False`` so a partner contact
+    can't enumerate internal staff emails — mention autocomplete only
+    needs id/name/kind.
+    """
+    out: dict = {"id": p.id, "name": p.name or "Unknown", "kind": p.kind}
+    if include_email:
+        out["email"] = p.email
+    return out
 
 
 def principal_to_mention_dict(p: Principal) -> dict:

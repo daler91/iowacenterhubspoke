@@ -337,5 +337,8 @@ async def portal_project_members(project_id: str, ctx: PortalContext):
         project_id=project_id,
         partner_org_id=project.get("partner_org_id"),
     )
-    items = [principal_to_member_dict(p) for p in principals if p.id]
+    items = [
+        principal_to_member_dict(p, include_email=False)
+        for p in principals if p.id
+    ]
     return {"items": items, "total": len(items)}

@@ -81,6 +81,7 @@ Conventions
 
 from __future__ import annotations
 
+import re
 from html import escape
 from typing import Optional
 
@@ -138,9 +139,26 @@ def _default_html(body: str, link: Optional[str], cta: str) -> str:
     return html
 
 
+# Mention tokens persisted alongside comment/message bodies look like
+# ``@[Display Name](user:ID:kind)``. Strip them down to ``@Display Name``
+# before generating notification previews — otherwise mentioned users see
+# raw principal IDs in their email/in-app subject lines, which is both
+# ugly and an unnecessary exposure of internal identifiers.
+_MENTION_TOKEN_RE = re.compile(r"@\[([^\]]+)\]\(user:[^)]+\)")
+
+
+def _strip_mention_tokens(text: str) -> str:
+    return _MENTION_TOKEN_RE.sub(r"@\1", text)
+
+
 def _preview(text: str, limit: int = 200) -> str:
-    """Shorten free-text bodies for notification titles/previews."""
-    return text if len(text) <= limit else text[:limit] + "…"
+    """Shorten free-text bodies for notification titles/previews.
+
+    Strips the inline mention tokens first so recipients see ``@Jane``
+    rather than ``@[Jane](user:9f34...:internal)``.
+    """
+    cleaned = _strip_mention_tokens(text)
+    return cleaned if len(cleaned) <= limit else cleaned[:limit] + "…"
 
 
 def make_event(
