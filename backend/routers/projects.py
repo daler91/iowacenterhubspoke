@@ -58,6 +58,7 @@ _AGG_IF_NULL = "$ifNull"
 _AGG_COUNT = "$count"
 _ATTENDANCE_FIELD = "$attendance_count"
 _WARM_LEADS_FIELD = "$warm_leads"
+_CLASS_ID_FIELD = "$class_id"
 
 
 def _accumulate_task_stat(stats: dict, task: dict, now: str) -> None:
@@ -216,12 +217,12 @@ async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
                     "$cond": [
                         {
                             "$or": [
-                                {"$eq": ["$class_id", None]},
-                                {"$eq": ["$class_id", ""]},
+                                {"$eq": [_CLASS_ID_FIELD, None]},
+                                {"$eq": [_CLASS_ID_FIELD, ""]},
                             ],
                         },
                         "unlinked",
-                        "$class_id",
+                        _CLASS_ID_FIELD,
                     ],
                 },
                 "delivered": {"$sum": 1},
