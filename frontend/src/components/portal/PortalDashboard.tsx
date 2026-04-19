@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
   FileText, Send, Download,
@@ -12,7 +11,11 @@ import { portalAPI } from '../../lib/coordination-api';
 import {
   PHASE_LABELS, PHASE_COLORS, OWNER_COLORS, OWNER_LABELS,
 } from '../../lib/coordination-types';
-import type { PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message } from '../../lib/coordination-types';
+import type {
+  PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
+  Mention, ProjectMember,
+} from '../../lib/coordination-types';
+import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
@@ -43,6 +46,8 @@ export default function PortalDashboard() {
   const [documents, setDocuments] = useState<Record<string, ProjectDocument[]>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgBody, setMsgBody] = useState('');
+  const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
 
   useEffect(() => {
@@ -107,6 +112,14 @@ export default function PortalDashboard() {
       const res = await portalAPI.projectMessages(projectId, token);
       setMessages(res.data.items || []);
       setActiveProject(projectId);
+      // Refresh the mentionable roster alongside messages so switching
+      // project tabs always updates the @ popover to the correct set.
+      try {
+        const mem = await portalAPI.projectMembers(projectId, token);
+        setMembers(mem.data?.items ?? []);
+      } catch {
+        setMembers([]);
+      }
     } catch {
       toast.error('Failed to load messages');
     }
@@ -152,8 +165,10 @@ export default function PortalDashboard() {
       await portalAPI.sendMessage(activeProject, token, {
         channel: project?.title || 'general',
         body: msgBody.trim(),
+        mentions: msgMentions,
       });
       setMsgBody('');
+      setMsgMentions([]);
       loadMessages(activeProject);
     } catch {
       toast.error('Failed to send message');
@@ -400,7 +415,9 @@ export default function PortalDashboard() {
                           {new Date(msg.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-muted-foreground mt-0.5 break-words">{msg.body}</p>
+                      <p className="text-sm text-slate-700 dark:text-muted-foreground mt-0.5 break-words">
+                        {renderMentionBody(msg.body, msg.mentions)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -411,14 +428,15 @@ export default function PortalDashboard() {
           </Card>
 
           {/* Input */}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1">
             <label htmlFor="portal-message-input" className="sr-only">Message</label>
-            <Input
-              id="portal-message-input"
+            <MentionTextarea
               value={msgBody}
-              onChange={e => setMsgBody(e.target.value)}
-              placeholder="Type a message..."
-              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+              mentions={msgMentions}
+              members={members}
+              onChange={(b, m) => { setMsgBody(b); setMsgMentions(m); }}
+              onSubmit={handleSendMessage}
+              placeholder="Type a message — @ to mention..."
             />
             <Button
               type="button"

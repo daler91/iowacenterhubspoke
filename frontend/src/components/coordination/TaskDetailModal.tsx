@@ -11,11 +11,13 @@ import {
 import { projectTasksAPI } from '../../lib/coordination-api';
 import DeleteTaskDialog from './DeleteTaskDialog';
 import { TaskDescriptionEditor } from './TaskDescriptionEditor';
+import MentionTextarea, { renderMentionBody } from './MentionTextarea';
 import {
   PHASE_LABELS, PHASE_COLORS,
   TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
   TASK_OWNERS, OWNER_LABELS,
   type Task, type TaskOwner, type TaskStatus, type TaskComment,
+  type Mention, type ProjectMember,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -143,7 +145,9 @@ function CommentNode({
             </button>
           )}
         </div>
-        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">
+          {renderMentionBody(comment.body, comment.mentions)}
+        </p>
       </div>
     </div>
   );
@@ -267,11 +271,17 @@ function FlagPillSwitch({
 }
 
 // ── Conversations Panel ──────────────────────────────────────────────
-function ConversationsPanel({ comments, onPostComment }: Readonly<{
+function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   comments: TaskComment[];
-  onPostComment: (body: string, parentCommentId?: string | null) => Promise<string | null | void>;
+  members: readonly ProjectMember[];
+  onPostComment: (
+    body: string,
+    parentCommentId?: string | null,
+    mentions?: Mention[],
+  ) => Promise<string | null | void>;
 }>) {
   const [body, setBody] = useState('');
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
   const [lastPostedId, setLastPostedId] = useState<string | null>(null);
@@ -323,8 +333,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
       // post completes — otherwise the scroll-to-new-comment effect runs
       // against a collapsed thread and can't find the element.
       const target = replyingTo;
-      const newId = await onPostComment(body.trim(), target?.id ?? null);
+      const newId = await onPostComment(body.trim(), target?.id ?? null, mentions);
       setBody('');
+      setMentions([]);
       setReplyingTo(null);
       if (target) openThread(target.id);
       if (typeof newId === 'string') setLastPostedId(newId);
@@ -434,13 +445,13 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
           </div>
         )}
         <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
-          <textarea
+          <MentionTextarea
             value={body}
-            onChange={e => setBody(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message...'}
-            rows={1}
-            className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
+            mentions={mentions}
+            members={members}
+            onChange={(b, m) => { setBody(b); setMentions(m); }}
+            onSubmit={handleSend}
+            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message — @ to mention...'}
           />
           <Button
             size="icon"
@@ -473,6 +484,7 @@ export default function TaskDetailModal({
 }: Props) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -520,6 +532,19 @@ export default function TaskDetailModal({
       loadTask();
     }
   }, [open, taskId, projectId]);
+
+  // Load the mentionable member list once per open(project). Failures are
+  // silent: an empty list just hides the @ popover.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    projectTasksAPI.getMembers(projectId).then(res => {
+      if (!cancelled) setMembers(res.data?.items ?? []);
+    }).catch(() => {
+      if (!cancelled) setMembers([]);
+    });
+    return () => { cancelled = true; };
+  }, [open, projectId]);
 
   const saveField = async (field: string, value: string | boolean) => {
     try {
@@ -904,8 +929,11 @@ export default function TaskDetailModal({
             {/* ── Right: Conversations ──────────────────────────── */}
             <ConversationsPanel
               comments={task.comments ?? []}
-              onPostComment={async (body, parentCommentId) => {
-                const res = await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
+              members={members}
+              onPostComment={async (body, parentCommentId, mentions) => {
+                const res = await projectTasksAPI.postComment(
+                  projectId, taskId, body, parentCommentId, mentions,
+                );
                 await loadTask();
                 return res.data?.id ?? null;
               }}

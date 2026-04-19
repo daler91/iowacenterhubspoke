@@ -144,9 +144,19 @@ class TaskReorder(BaseModel):
     task_ids: List[str]
 
 
+class MentionRef(BaseModel):
+    """An @-mention reference. ``id`` is a user id (internal) or partner
+    contact id (partner); ``kind`` disambiguates because the two id spaces
+    are independent."""
+
+    id: str = Field(..., min_length=1, max_length=120)
+    kind: Literal["internal", "partner"]
+
+
 class TaskCommentCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=10_000)
     parent_comment_id: Optional[str] = None
+    mentions: Optional[List[MentionRef]] = Field(default=None, max_length=25)
 
 
 # ── Partner Orgs ──────────────────────────────────────────────────────
@@ -214,6 +224,7 @@ class MessageCreate(BaseModel):
     channel: str = Field(..., min_length=1, max_length=120)
     body: str = Field(..., min_length=1, max_length=20_000)
     visibility: Literal["internal", "shared"] = "shared"
+    mentions: Optional[List[MentionRef]] = Field(default=None, max_length=25)
 
 
 # ── Portal Auth ───────────────────────────────────────────────────────

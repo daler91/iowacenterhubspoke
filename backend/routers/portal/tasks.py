@@ -13,6 +13,12 @@ from core.portal_auth import PortalContext
 from core.upload import stream_upload_to_disk
 from database import db
 from models.coordination_schemas import TaskCommentCreate
+from services.notification_events import notify_task_comment_mentions
+from services.notification_prefs import (
+    prepare_mentions,
+    principal_to_member_dict,
+    principals_for_project,
+)
 from services.phase_advance import maybe_auto_advance_phase_for_task
 
 from ._shared import (
@@ -274,8 +280,8 @@ async def portal_post_task_comment(
     project_id: str, task_id: str, ctx: PortalContext,
     data: TaskCommentCreate,
 ):
-    await _require_partner_project(project_id, ctx)
-    await _require_partner_task(task_id, project_id)
+    project = await _require_partner_project(project_id, ctx)
+    task = await _require_partner_task(task_id, project_id)
 
     if data.parent_comment_id:
         parent = await db.task_comments.find_one(
@@ -288,6 +294,12 @@ async def portal_post_task_comment(
                 detail="Parent comment not found for this task",
             )
 
+    mentioned, stored_mentions = await prepare_mentions(
+        project_id=project_id,
+        refs_input=data.mentions,
+        partner_org_id=project.get("partner_org_id"),
+    )
+
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -299,8 +311,34 @@ async def portal_post_task_comment(
         "sender_id": ctx["contact"]["id"],
         "body": data.body,
         "parent_comment_id": data.parent_comment_id,
+        "mentions": stored_mentions,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
+    if mentioned:
+        actor = {
+            "id": ctx["contact"]["id"],
+            "user_id": ctx["contact"]["id"],
+            "name": ctx["contact"]["name"],
+        }
+        await notify_task_comment_mentions(doc, task, project, actor, mentioned)
     return doc
+
+
+@router.get(
+    "/projects/{project_id}/members",
+    summary="List members mentionable on this project (portal)",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
+)
+async def portal_project_members(project_id: str, ctx: PortalContext):
+    project = await _require_partner_project(project_id, ctx)
+    principals = await principals_for_project(
+        project_id=project_id,
+        partner_org_id=project.get("partner_org_id"),
+    )
+    items = [
+        principal_to_member_dict(p, include_email=False)
+        for p in principals if p.id
+    ]
+    return {"items": items, "total": len(items)}

@@ -142,6 +142,86 @@ async def principal_for_employee(employee_id: str) -> Optional[Principal]:
     return await find_principal_by_email(employee["email"])
 
 
+def principal_to_member_dict(p: Principal, *, include_email: bool = True) -> dict:
+    """Serialize a ``Principal`` for the ``GET /projects/{id}/members``
+    response (and the portal equivalent). Shared so both endpoints project
+    the same shape without duplicating the dict literal.
+
+    The portal endpoint passes ``include_email=False`` so a partner contact
+    can't enumerate internal staff emails — mention autocomplete only
+    needs id/name/kind.
+    """
+    out: dict = {"id": p.id, "name": p.name or "Unknown", "kind": p.kind}
+    if include_email:
+        out["email"] = p.email
+    return out
+
+
+def principal_to_mention_dict(p: Principal) -> dict:
+    """Serialize a ``Principal`` for the ``mentions`` array stored alongside
+    a comment / message document."""
+    return {"id": p.id, "kind": p.kind, "name": p.name or ""}
+
+
+async def resolve_mention_principals(
+    project_id: str,
+    refs: list[dict],
+    *,
+    partner_org_id: Optional[str] = None,
+) -> list[Principal]:
+    """Resolve a list of ``{id, kind}`` mention refs against the project's
+    member set.
+
+    Unknown IDs (no longer a member, wrong kind, soft-deleted contact, etc.)
+    are silently dropped — callers should not treat stale client-side state
+    as a hard error. The returned list preserves the input order and
+    deduplicates by (kind, id).
+    """
+    if not refs:
+        return []
+    members = await principals_for_project(
+        project_id=project_id, partner_org_id=partner_org_id,
+    )
+    index: dict[tuple[str, str], Principal] = {
+        (m.kind, m.id): m for m in members
+    }
+    out: list[Principal] = []
+    seen: set[tuple[str, str]] = set()
+    for r in refs:
+        key = (r.get("kind") or "", r.get("id") or "")
+        if key in seen or key[0] not in {"internal", "partner"} or not key[1]:
+            continue
+        principal = index.get(key)
+        if principal is None:
+            continue
+        out.append(principal)
+        seen.add(key)
+    return out
+
+
+async def prepare_mentions(
+    project_id: str,
+    refs_input: Optional[list],
+    *,
+    partner_org_id: Optional[str] = None,
+) -> tuple[list[Principal], list[dict]]:
+    """One-shot helper used by every POST-comment / POST-message route.
+
+    Accepts ``data.mentions`` from a Pydantic request body — a list of
+    ``MentionRef`` instances — and returns
+    ``(resolved_principals, stored_mention_dicts)`` ready to persist on the
+    document and hand to the mention notifier.
+    """
+    refs = [r.model_dump() for r in (refs_input or [])]
+    mentioned = await resolve_mention_principals(
+        project_id=project_id,
+        refs=refs,
+        partner_org_id=partner_org_id,
+    )
+    stored = [principal_to_mention_dict(p) for p in mentioned]
+    return mentioned, stored
+
+
 async def principals_for_project(
     project_id: str,
     exclude_ids: Optional[set[str]] = None,
