@@ -223,9 +223,10 @@ export const schedulesAPI = {
   importPreview: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/schedules/import/preview', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Do NOT set Content-Type here — axios auto-detects FormData and emits
+    // the required ``multipart/form-data; boundary=...`` header. Setting it
+    // manually strips the boundary, which makes FastAPI reject the body.
+    return api.post('/schedules/import/preview', formData);
   },
   importCommit: (data: unknown) => api.post('/schedules/import', data),
 

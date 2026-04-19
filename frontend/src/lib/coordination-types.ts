@@ -165,6 +165,19 @@ export interface TaskAttachment {
   version: number;
 }
 
+export interface Mention {
+  id: string;
+  kind: 'internal' | 'partner';
+  name: string;
+}
+
+export interface ProjectMember {
+  id: string;
+  name: string;
+  kind: 'internal' | 'partner';
+  email?: string | null;
+}
+
 export interface TaskComment {
   id: string;
   task_id: string;
@@ -174,6 +187,7 @@ export interface TaskComment {
   sender_id: string;
   body: string;
   parent_comment_id?: string | null;
+  mentions?: Mention[];
   created_at: string;
 }
 
@@ -234,6 +248,7 @@ export interface Message {
   sender_id: string;
   body: string;
   visibility?: 'internal' | 'shared';
+  mentions?: Mention[];
   created_at: string;
   read_by: string[];
 }

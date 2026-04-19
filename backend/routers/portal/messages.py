@@ -11,6 +11,8 @@ from core.pagination import Paginated, paginated_response
 from core.portal_auth import PortalContext
 from database import db
 from models.coordination_schemas import MessageCreate
+from services.notification_events import notify_project_message_mentions
+from services.notification_prefs import resolve_mention_principals
 
 from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND
 
@@ -67,7 +69,18 @@ async def portal_project_messages(
 async def portal_send_message(
     project_id: str, ctx: PortalContext, data: MessageCreate,
 ):
-    await _require_partner_project(project_id, ctx)
+    project = await _require_partner_project(project_id, ctx)
+
+    mention_refs = [m.model_dump() for m in (data.mentions or [])]
+    mentioned = await resolve_mention_principals(
+        project_id=project_id,
+        refs=mention_refs,
+        partner_org_id=project.get("partner_org_id"),
+    )
+    stored_mentions = [
+        {"id": p.id, "kind": p.kind, "name": p.name or ""}
+        for p in mentioned
+    ]
 
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -80,9 +93,17 @@ async def portal_send_message(
         "sender_id": ctx["contact"]["id"],
         "body": data.body,
         "visibility": "shared",  # Partner messages are always visible to both sides
+        "mentions": stored_mentions,
         "created_at": now,
         "read_by": [ctx["contact"]["id"]],
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
+    if mentioned:
+        actor = {
+            "id": ctx["contact"]["id"],
+            "user_id": ctx["contact"]["id"],
+            "name": ctx["contact"]["name"],
+        }
+        await notify_project_message_mentions(doc, project, actor, mentioned)
     return doc

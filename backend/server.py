@@ -38,7 +38,7 @@ from routers import (  # noqa: E402
     auth, locations, employees, classes, schedules, reports,
     system, analytics, users, google_oauth, outlook_oauth,
     partner_orgs, projects, project_tasks, project_docs,
-    project_messages, portal,
+    project_members, project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
     notification_preferences,
 )
@@ -716,6 +716,7 @@ api_router.include_router(partner_orgs.router)
 api_router.include_router(projects.router)
 api_router.include_router(project_tasks.router)
 api_router.include_router(project_docs.router)
+api_router.include_router(project_members.router)
 api_router.include_router(project_messages.router)
 api_router.include_router(portal.router)
 api_router.include_router(projects.templates_router)

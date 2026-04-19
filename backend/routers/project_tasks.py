@@ -16,9 +16,11 @@ from services.activity import log_activity
 from services.notification_events import (
     notify_task_assigned,
     notify_task_comment,
+    notify_task_comment_mentions,
     notify_task_completed,
     notify_task_deleted,
 )
+from services.notification_prefs import resolve_mention_principals
 from services.phase_advance import maybe_auto_advance_phase_for_task
 from core.logger import get_logger
 
@@ -618,6 +620,21 @@ async def post_task_comment(
                 status_code=400,
                 detail="Parent comment not found for this task",
             )
+    project = await db.projects.find_one(
+        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    ) or {"id": project_id}
+
+    mention_refs = [m.model_dump() for m in (data.mentions or [])]
+    mentioned = await resolve_mention_principals(
+        project_id=project_id,
+        refs=mention_refs,
+        partner_org_id=project.get("partner_org_id"),
+    )
+    stored_mentions = [
+        {"id": p.id, "kind": p.kind, "name": p.name or ""}
+        for p in mentioned
+    ]
+
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -631,17 +648,19 @@ async def post_task_comment(
         "sender_id": user.get("user_id", ""),
         "body": data.body,
         "parent_comment_id": data.parent_comment_id,
+        "mentions": stored_mentions,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
-    # Notify task assignee + prior commenters (excluding the actor)
+    # Notify task assignee + prior commenters (excluding the actor and
+    # anyone already covered by the louder mention notification).
     task = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
-    project = await db.projects.find_one(
-        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
-    ) or {"id": project_id}
     if task:
-        await notify_task_comment(doc, task, project, user)
+        mention_ids = {p.id for p in mentioned}
+        await notify_task_comment(doc, task, project, user, mention_ids=mention_ids)
+        if mentioned:
+            await notify_task_comment_mentions(doc, task, project, user, mentioned)
     return doc

@@ -529,11 +529,20 @@ async def _load_commenter_principals(
 
 async def notify_task_comment(
     comment: dict, task: dict, project: dict, actor: dict,
+    mention_ids: Optional[set[str]] = None,
 ) -> None:
-    """Fire ``task.comment_added`` for task assignee + prior commenters."""
+    """Fire ``task.comment_added`` for task assignee + prior commenters.
+
+    Principals passed in ``mention_ids`` are skipped — the caller is
+    expected to route them through :func:`notify_task_comment_mentions`
+    instead, so a mentioned user receives the (louder) mention
+    notification rather than the generic comment notification.
+    """
     actor_id = actor.get("id") or actor.get("user_id") or ""
     recipients: list[Principal] = []
-    seen_ids: set[str] = {actor_id}
+    # Seed with actor + explicit mentions so prior-commenter / assignee
+    # resolvers skip them.
+    seen_ids: set[str] = {actor_id} | (mention_ids or set())
 
     # Task assignee — skip silently if we can't resolve.
     assignee = await _resolve_task_assignee(task, project)
@@ -541,7 +550,7 @@ async def notify_task_comment(
         recipients.append(assignee)
         seen_ids.add(assignee.id)
 
-    # Prior commenters — distinct, excluding actor + assignee.
+    # Prior commenters — distinct, excluding actor + assignee + mentions.
     recipients.extend(await _gather_prior_commenters(task.get("id", ""), seen_ids))
 
     if not recipients:
@@ -569,6 +578,40 @@ async def notify_task_comment(
         dedup_key=f"{comment.get('id', '')}",
     )
     await _fan_out(recipients, event, log_key="task.comment_added")
+
+
+async def notify_task_comment_mentions(
+    comment: dict, task: dict, project: dict, actor: dict,
+    mentioned: list[Principal],
+) -> None:
+    """Fire ``task.comment_mentioned`` for each resolved mention."""
+    actor_id = actor.get("id") or actor.get("user_id") or ""
+    recipients = [p for p in mentioned if p.id and p.id != actor_id]
+    if not recipients:
+        return
+
+    title = task.get("title", DEFAULT_TASK_LABEL)
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
+    actor_name = _actor_name(actor)
+    body_text = comment.get("body", "")
+    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    link = _app_link(f"/coordination/projects/{project.get('id', '')}")
+
+    event = make_event(
+        type_key="task.comment_mentioned",
+        title=f'{actor_name} mentioned you on "{title}"',
+        body=f'{actor_name} mentioned you ({project_title}): {preview}',
+        email_body_html=(
+            f"{escape(actor_name)} mentioned you on <strong>{escape(title)}</strong> "
+            f"({escape(project_title)}):<br/><em>{escape(preview)}</em><br/>"
+            f'<a href="{escape(link)}">Open project</a>'
+        ),
+        link=link,
+        entity_type="task",
+        entity_id=task.get("id"),
+        dedup_key=f"{comment.get('id', '')}:mention",
+    )
+    await _fan_out(recipients, event, log_key="task.comment_mentioned")
 
 
 # ── Project events ────────────────────────────────────────────────────
@@ -645,15 +688,19 @@ async def notify_project_deleted(project: dict, actor: dict) -> None:
 
 async def notify_project_message(
     message: dict, project: dict, actor: dict,
+    mention_ids: Optional[set[str]] = None,
 ) -> None:
     """Fire ``project.message_posted`` for stakeholders.
 
     Respects ``visibility``: ``internal`` messages skip partner contacts.
+    Principals in ``mention_ids`` are skipped — see
+    :func:`notify_task_comment` for the rationale.
     """
     actor_id = actor.get("id") or actor.get("user_id") or ""
+    exclude = {actor_id} | (mention_ids or set())
     recipients = await principals_for_project(
         project_id=project.get("id", ""),
-        exclude_ids={actor_id},
+        exclude_ids=exclude,
     )
     if message.get("visibility") == "internal":
         recipients = [p for p in recipients if p.kind == "internal"]
@@ -683,6 +730,44 @@ async def notify_project_message(
         dedup_key=f"{message.get('id', '')}",
     )
     await _fan_out(recipients, event, log_key="project.message_posted")
+
+
+async def notify_project_message_mentions(
+    message: dict, project: dict, actor: dict,
+    mentioned: list[Principal],
+) -> None:
+    """Fire ``project.message_mentioned`` for each resolved mention."""
+    actor_id = actor.get("id") or actor.get("user_id") or ""
+    recipients = [p for p in mentioned if p.id and p.id != actor_id]
+    # Internal-only messages must not notify partner contacts.
+    if message.get("visibility") == "internal":
+        recipients = [p for p in recipients if p.kind == "internal"]
+    if not recipients:
+        return
+
+    project_title = project.get("title", DEFAULT_PROJECT_LABEL)
+    actor_name = _actor_name(actor)
+    body_text = message.get("body", "")
+    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    channel = message.get("channel", "")
+    link = _app_link(f"/coordination/projects/{project.get('id', '')}")
+
+    event = make_event(
+        type_key="project.message_mentioned",
+        title=f"{actor_name} mentioned you in #{channel}: {project_title}",
+        body=f"{actor_name} mentioned you: {preview}",
+        email_body_html=(
+            f"<strong>{escape(actor_name)}</strong> mentioned you in "
+            f"<em>#{escape(channel)}</em> on <strong>{escape(project_title)}</strong>:"
+            f"<br/><em>{escape(preview)}</em><br/>"
+            f'<a href="{escape(link)}">Open project</a>'
+        ),
+        link=link,
+        entity_type="project_message",
+        entity_id=message.get("id"),
+        dedup_key=f"{message.get('id', '')}:mention",
+    )
+    await _fan_out(recipients, event, log_key="project.message_mentioned")
 
 
 async def notify_project_document_shared(
@@ -961,9 +1046,11 @@ __all__ = [
     "notify_task_completed",
     "notify_task_deleted",
     "notify_task_comment",
+    "notify_task_comment_mentions",
     "notify_project_phase_advanced",
     "notify_project_deleted",
     "notify_project_message",
+    "notify_project_message_mentions",
     "notify_project_document_shared",
     "notify_schedule_assigned",
     "notify_schedule_changed",

@@ -1,4 +1,13 @@
 import api from './api';
+import type { Mention } from './coordination-types';
+
+// The backend only needs the id+kind pair to resolve a mention; strip the
+// display name (which is already part of the body text) so the payload stays
+// minimal and can't drift between what the user sees and what we notify.
+function serializeMentions(mentions?: Mention[]): Array<{ id: string; kind: 'internal' | 'partner' }> | undefined {
+  if (!mentions || mentions.length === 0) return undefined;
+  return mentions.map(m => ({ id: m.id, kind: m.kind }));
+}
 
 // ── Projects ─────────────────────────────────────────────────────────
 
@@ -43,9 +52,10 @@ export const projectTasksAPI = {
   uploadAttachment: (projectId: string, taskId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Let axios set Content-Type (including the boundary) automatically —
+    // a manual ``multipart/form-data`` header omits the boundary and makes
+    // FastAPI fail to parse the request.
+    return api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData);
   },
   deleteAttachment: (projectId: string, taskId: string, attId: string) =>
     api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attId}`),
@@ -54,11 +64,21 @@ export const projectTasksAPI = {
   // Comments
   listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
-  postComment: (projectId: string, taskId: string, body: string, parentCommentId?: string | null) =>
+  postComment: (
+    projectId: string,
+    taskId: string,
+    body: string,
+    parentCommentId?: string | null,
+    mentions?: Mention[],
+  ) =>
     api.post(`/projects/${projectId}/tasks/${taskId}/comments`, {
       body,
       parent_comment_id: parentCommentId ?? null,
+      mentions: serializeMentions(mentions),
     }),
+  // Members — source for @-mention autocomplete (internal + partner primaries).
+  getMembers: (projectId: string) =>
+    api.get(`/projects/${projectId}/members`),
 };
 
 // ── Partner Organizations ────────────────────────────────────────────
@@ -87,9 +107,8 @@ export const projectDocsAPI = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('visibility', visibility);
-    return api.post(`/projects/${projectId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // See projectTasksAPI.uploadAttachment for why Content-Type is unset.
+    return api.post(`/projects/${projectId}/documents`, formData);
   },
   updateVisibility: (projectId: string, docId: string, visibility: string) =>
     api.patch(`/projects/${projectId}/documents/${docId}/visibility`, { visibility }),
@@ -104,8 +123,14 @@ export const projectDocsAPI = {
 export const projectMessagesAPI = {
   getAll: (projectId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/messages`, { params }),
-  send: (projectId: string, data: { channel: string; body: string; visibility?: string }) =>
-    api.post(`/projects/${projectId}/messages`, data),
+  send: (
+    projectId: string,
+    data: { channel: string; body: string; visibility?: string; mentions?: Mention[] },
+  ) =>
+    api.post(`/projects/${projectId}/messages`, {
+      ...data,
+      mentions: serializeMentions(data.mentions),
+    }),
   getChannels: (projectId: string) =>
     api.get(`/projects/${projectId}/messages/channels`),
 };
@@ -142,14 +167,28 @@ export const portalAPI = {
   uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    // Only pass Authorization — Content-Type is set automatically by axios
+    // when the body is a FormData instance (required for the multipart boundary).
     return api.post(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
   taskComments: (projectId: string, taskId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/tasks/${taskId}/comments`, portalHeaders(token)),
-  postTaskComment: (projectId: string, taskId: string, token: string, body: string) =>
-    api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, portalHeaders(token)),
+  postTaskComment: (
+    projectId: string,
+    taskId: string,
+    token: string,
+    body: string,
+    mentions?: Mention[],
+  ) =>
+    api.post(
+      `/portal/projects/${projectId}/tasks/${taskId}/comments`,
+      { body, mentions: serializeMentions(mentions) },
+      portalHeaders(token),
+    ),
+  projectMembers: (projectId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/members`, portalHeaders(token)),
   projectDocuments: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/documents`, portalHeaders(token)),
   downloadDocument: (projectId: string, docId: string, token: string) =>
@@ -161,13 +200,21 @@ export const portalAPI = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post(`/portal/projects/${projectId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
   projectMessages: (projectId: string, token: string, params?: Record<string, unknown>) =>
     api.get(`/portal/projects/${projectId}/messages`, { ...portalHeaders(token), params }),
-  sendMessage: (projectId: string, token: string, data: { channel: string; body: string }) =>
-    api.post(`/portal/projects/${projectId}/messages`, data, portalHeaders(token)),
+  sendMessage: (
+    projectId: string,
+    token: string,
+    data: { channel: string; body: string; mentions?: Mention[] },
+  ) =>
+    api.post(
+      `/portal/projects/${projectId}/messages`,
+      { ...data, mentions: serializeMentions(data.mentions) },
+      portalHeaders(token),
+    ),
   orgDocuments: (token: string) => api.get('/portal/org-documents', portalHeaders(token)),
 
   // Notification preferences — same response shape as the internal endpoint,

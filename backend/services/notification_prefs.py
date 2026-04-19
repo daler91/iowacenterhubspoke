@@ -142,6 +142,42 @@ async def principal_for_employee(employee_id: str) -> Optional[Principal]:
     return await find_principal_by_email(employee["email"])
 
 
+async def resolve_mention_principals(
+    project_id: str,
+    refs: list[dict],
+    *,
+    partner_org_id: Optional[str] = None,
+) -> list[Principal]:
+    """Resolve a list of ``{id, kind}`` mention refs against the project's
+    member set.
+
+    Unknown IDs (no longer a member, wrong kind, soft-deleted contact, etc.)
+    are silently dropped — callers should not treat stale client-side state
+    as a hard error. The returned list preserves the input order and
+    deduplicates by (kind, id).
+    """
+    if not refs:
+        return []
+    members = await principals_for_project(
+        project_id=project_id, partner_org_id=partner_org_id,
+    )
+    index: dict[tuple[str, str], Principal] = {
+        (m.kind, m.id): m for m in members
+    }
+    out: list[Principal] = []
+    seen: set[tuple[str, str]] = set()
+    for r in refs:
+        key = (r.get("kind") or "", r.get("id") or "")
+        if key in seen or key[0] not in {"internal", "partner"} or not key[1]:
+            continue
+        principal = index.get(key)
+        if principal is None:
+            continue
+        out.append(principal)
+        seen.add(key)
+    return out
+
+
 async def principals_for_project(
     project_id: str,
     exclude_ids: Optional[set[str]] = None,
