@@ -52,9 +52,15 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
           timeAgo = formatDistanceToNow(parseISO(ts), { addSuffix: true });
         } catch { timeAgo = ''; }
       }
+      // Narrow id to string|number before stringifying so a malformed row
+      // with an object id doesn't collapse to "[object Object]" as a React
+      // key (and collide with every other malformed sibling).
+      const rawId = a.id;
+      const safeId: string | number =
+        typeof rawId === 'string' || typeof rawId === 'number' ? rawId : idx;
       const row: ActivityRow = {
-        key: String(a.id ?? idx),
-        id: (a.id as string | number | undefined) ?? idx,
+        key: String(safeId),
+        id: safeId,
         action: typeof a.action === 'string' ? a.action : '',
         description: typeof a.description === 'string' ? a.description : '',
         user_name: typeof a.user_name === 'string' ? a.user_name : '',

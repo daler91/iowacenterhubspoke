@@ -679,6 +679,16 @@ if not origins:
     else:
         origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+# Response compression. Added BEFORE CORS so that CORS remains the last
+# registered middleware and therefore the outermost wrapper on the ASGI
+# stack — Starlette inserts each new middleware at the head of the list,
+# so "added last == outermost". Keeping CORS outermost matters for
+# preflight handling; gzip still sees every response body because it
+# sits immediately inside CORS. The 1 KB floor skips trivial bodies
+# where the fixed encoding overhead would dominate.
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -686,14 +696,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
 )
-
-# Response compression. Added after CORS so the gzip wrapper sits at the
-# outermost layer of the ASGI stack and compresses every response whose
-# body clears the 1 KB floor (dashboards ship 50–200 KB JSON payloads,
-# trivial for gzip to halve). Small bodies are left uncompressed so the
-# fixed encoding overhead doesn't dominate for health pings or 204s.
-from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
-app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
