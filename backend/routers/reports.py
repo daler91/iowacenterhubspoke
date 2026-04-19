@@ -544,36 +544,54 @@ async def coordination_partner_health(user: CurrentUser):
     orgs = await db.partner_orgs.find(
         {"deleted_at": None}, {"_id": 0},
     ).to_list(500)
+    org_ids = [o["id"] for o in orgs]
+    projects = []
+    if org_ids:
+        projects = await db.projects.find(
+            {"partner_org_id": {"$in": org_ids}, "deleted_at": None},
+            {"_id": 0, "id": 1, "partner_org_id": 1, "phase": 1, "updated_at": 1},
+        ).to_list(5000)
+
+    projects_by_org: dict[str, list[dict]] = defaultdict(list)
+    project_to_org: dict[str, str] = {}
+    for project in projects:
+        org_id = project.get("partner_org_id")
+        if not org_id:
+            continue
+        projects_by_org[org_id].append(project)
+        if project.get("id"):
+            project_to_org[project["id"]] = org_id
+
+    task_counts_by_org: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"total": 0, "completed": 0}
+    )
+    project_ids = list(project_to_org.keys())
+    if project_ids:
+        tasks = await db.tasks.find(
+            {"project_id": {"$in": project_ids}, "deleted_at": None},
+            {"_id": 0, "project_id": 1, "completed": 1},
+        ).to_list(20000)
+        for task in tasks:
+            owner_org_id = project_to_org.get(task.get("project_id"))
+            if not owner_org_id:
+                continue
+            task_counts_by_org[owner_org_id]["total"] += 1
+            if task.get("completed"):
+                task_counts_by_org[owner_org_id]["completed"] += 1
+
     results = []
     for org in orgs:
-        projects = await db.projects.find(
-            {
-                "partner_org_id": org["id"],
-                "deleted_at": None,
-            },
-            {"_id": 0, "id": 1, "phase": 1, "updated_at": 1},
-        ).to_list(500)
-        project_ids = [p["id"] for p in projects]
-        total_tasks = 0
-        completed_tasks = 0
-        if project_ids:
-            tasks = await db.tasks.find(
-                {"project_id": {"$in": project_ids}, "deleted_at": None},
-                {"_id": 0, "completed": 1, "completed_at": 1},
-            ).to_list(5000)
-            total_tasks = len(tasks)
-            completed_tasks = sum(1 for t in tasks if t.get("completed"))
-
+        org_projects = projects_by_org.get(org["id"], [])
+        counts = task_counts_by_org.get(org["id"], {"total": 0, "completed": 0})
+        total_tasks = counts["total"]
+        completed_tasks = counts["completed"]
         completion_rate = round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
-        classes_hosted = sum(1 for p in projects if p.get("phase") == "complete")
+        classes_hosted = sum(1 for p in org_projects if p.get("phase") == "complete")
         last_active = max(
-            (p.get("updated_at") for p in projects if p.get("updated_at")),
+            (p.get("updated_at") for p in org_projects if p.get("updated_at")),
             default=None,
         )
-        health_score, health_tier = _compute_health(
-            completion_rate, last_active, classes_hosted,
-        )
-
+        health_score, health_tier = _compute_health(completion_rate, last_active, classes_hosted)
         results.append({
             "partner_org_id": org["id"],
             "name": org["name"],
