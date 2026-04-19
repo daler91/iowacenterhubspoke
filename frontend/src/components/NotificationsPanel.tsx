@@ -73,12 +73,19 @@ const SEVERITY_CONFIG = {
 export default function NotificationsPanel() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [liveItems, setLiveItems] = useState<LiveNotification[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxNotification[]>([]);
   const [dismissedLive, setDismissedLive] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // Wait for the user to open the bell for the first time. Before that,
+    // there is nothing to show, so a fetch/poll is pure waste on the
+    // dashboard shell. Once opened, we behave exactly as before: immediate
+    // fetch + 60s polling + visibility-triggered refresh.
+    if (!hasInitialized) return;
+
     let currentController: AbortController | null = null;
     let lastFetchAt = 0;
     // Only refetch on visibility change if the tab was hidden long enough to
@@ -153,7 +160,13 @@ export default function NotificationsPanel() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [hasInitialized]);
+
+  const handleBellClick = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !hasInitialized) setHasInitialized(true);
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -248,7 +261,7 @@ export default function NotificationsPanel() {
       <button
         type="button"
         data-testid="notifications-bell"
-        onClick={() => setOpen(!open)}
+        onClick={handleBellClick}
         aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"

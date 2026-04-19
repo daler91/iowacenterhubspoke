@@ -374,6 +374,12 @@ async def lifespan(app: FastAPI):
     app.state.redis = None
     await _ensure_redis_client(app)
 
+    # Wire the workload cache to pull from app.state.redis on demand, so a
+    # reconnect inside _ensure_redis_client (called from the health probe)
+    # flows through without extra plumbing.
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(lambda: getattr(app.state, "redis", None))
+
     yield
 
     # ---- Shutdown ----
@@ -386,6 +392,8 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(None)
     await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
 
@@ -535,6 +543,14 @@ _CACHE_MAX_AGE = {
     "/api/v1/classes": 300,            # 5 min
     "/api/v1/dashboard/stats": 60,     # 1 min
     "/api/v1/health": 30,             # 30 sec
+    # Workload is cached server-side for 60s via services.workload_cache and
+    # busted by every schedule/class/employee mutation, so matching the
+    # client TTL to the server TTL means a mutation's next read always
+    # flushes the client's stale copy too.
+    "/api/v1/workload": 60,
+    # Analytics endpoints are heavy aggregations that don't need second-
+    # fresh data — Trends / Forecast / Drive Optimization share a prefix.
+    "/api/v1/analytics": 30,
 }
 _DEFAULT_API_MAX_AGE = 0  # default: must-revalidate (ETag only)
 
@@ -670,6 +686,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
 )
+
+# Response compression. Added after CORS so the gzip wrapper sits at the
+# outermost layer of the ASGI stack and compresses every response whose
+# body clears the 1 KB floor (dashboards ship 50–200 KB JSON payloads,
+# trivial for gzip to halve). Small bodies are left uncompressed so the
+# fixed encoding overhead doesn't dominate for health pings or 204s.
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)

@@ -21,7 +21,12 @@ export default function DriveOptimizationTab() {
   const { data, isLoading } = useSWR(
     ['analytics-drive-opt', params],
     () => fetcher(analyticsAPI.driveOptimization, params),
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      keepPreviousData: true,
+      dedupingInterval: 30000,
+    }
   );
 
   const summary = data?.summary || {};

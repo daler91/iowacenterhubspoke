@@ -120,16 +120,43 @@ async def get_notifications(user: CurrentUser):
 
     notifications: list[dict] = []
 
+    # Project only the fields the alert builders read. Schedule documents
+    # carry a lot of denormalized data (full ICS payloads, audit trails,
+    # etc.) that we don't need for the bell UI; fetching the whole doc
+    # wasted both Mongo→app bandwidth and CPU on BSON decode.
+    #
+    # Upcoming alerts read: status, class_name, location_name, id,
+    # start_time, end_time, created_at, and the employees[].name field.
+    # The same rows also feed the idle check, which additionally needs
+    # employee_ids.
     today_schedules: list[dict] = []
     if _in_app_enabled(principal, "upcoming_class"):
         today_schedules = await db.schedules.find(
-            {"date": today, "deleted_at": None}, {"_id": 0},
+            {"date": today, "deleted_at": None},
+            {
+                "_id": 0,
+                "id": 1,
+                "status": 1,
+                "class_name": 1,
+                "location_name": 1,
+                "start_time": 1,
+                "end_time": 1,
+                "created_at": 1,
+                "employees": 1,
+                "employee_ids": 1,
+            },
         ).to_list(100)
         notifications.extend(_build_upcoming_alerts(today_schedules, today))
 
     if _in_app_enabled(principal, "town_to_town"):
         t2t_schedules = await db.schedules.find(
-            {"town_to_town": True, "deleted_at": None}, {"_id": 0},
+            {"town_to_town": True, "deleted_at": None},
+            {
+                "_id": 0,
+                "id": 1,
+                "town_to_town_warning": 1,
+                "created_at": 1,
+            },
         ).to_list(100)
         notifications.extend(_build_t2t_alerts(t2t_schedules, today))
 

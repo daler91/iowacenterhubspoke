@@ -1,13 +1,20 @@
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, lazy } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
-import ScheduleForm from '../components/ScheduleForm';
-import StatModal from '../components/StatModal';
-import NotificationsPanel from '../components/NotificationsPanel';
+
+// These three panels only matter once the user interacts — the schedule form
+// opens from a button, the stat modal opens from a dashboard tile, and the
+// notifications dropdown opens from the bell. Splitting them out of the main
+// shell bundle makes the initial authenticated route boot with less JS.
+// We still prewarm the chunks in an idle callback below so the first open
+// doesn't pay the network cost.
+const ScheduleForm = lazy(() => import('../components/ScheduleForm'));
+const StatModal = lazy(() => import('../components/StatModal'));
+const NotificationsPanel = lazy(() => import('../components/NotificationsPanel'));
 
 export default function DashboardPage() {
   const location = useLocation();
@@ -22,12 +29,17 @@ export default function DashboardPage() {
     handleEditSchedule
   } = useScheduleModal();
 
-  // Gate the heavier fetches by route so Calendar / Kanban / Map don't pay
-  // for data only /insights consumes. Activities feed /insights?tab=activity
-  // and Workload feeds /insights?tab=workload.
+  // Gate the heavier fetches by route + active Insights tab so Calendar /
+  // Kanban / Map don't pay for data only /insights consumes, and so the
+  // Summary / Analytics tabs don't force /activities or /workload to load
+  // when they don't consume either. Defaults to 'summary' when no tab query
+  // param is present (matches InsightsPage).
   const onInsights = location.pathname.startsWith('/insights');
-  const needActivity = onInsights;
-  const needWorkload = onInsights;
+  const insightsTab = onInsights
+    ? new URLSearchParams(location.search).get('tab') || 'summary'
+    : null;
+  const needActivity = onInsights && insightsTab === 'activity';
+  const needWorkload = onInsights && insightsTab === 'workload';
 
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
@@ -48,6 +60,23 @@ export default function DashboardPage() {
   useEffect(() => {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
+
+  // Prewarm the lazy shell chunks once the main shell is idle. Mirrors the
+  // html2canvas/jspdf prewarm in CalendarView: dynamic imports dedupe with
+  // React.lazy's own loader, so opening the bell or a modal hits cache.
+  useEffect(() => {
+    const prewarm = () => {
+      void import('../components/ScheduleForm');
+      void import('../components/StatModal');
+      void import('../components/NotificationsPanel');
+    };
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      const id = globalThis.requestIdleCallback(prewarm, { timeout: 5000 });
+      return () => globalThis.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(prewarm, 2000);
+    return () => clearTimeout(id);
+  }, []);
 
   const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,
@@ -102,7 +131,11 @@ export default function DashboardPage() {
             </svg>
           </button>
           <div className="ml-auto">
-            <NotificationsPanel />
+            {/* Reserve the bell's footprint so the header doesn't jump when
+                the lazy chunk resolves. */}
+            <Suspense fallback={<div className="w-10 h-10" aria-hidden="true" />}>
+              <NotificationsPanel />
+            </Suspense>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
@@ -122,29 +155,38 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      {/* Schedule Form Modal */}
-      <ScheduleForm
-        open={scheduleFormOpen}
-        onOpenChange={setScheduleFormOpen}
-        locations={locations}
-        employees={employees}
-        classes={classes}
-        editSchedule={editingSchedule}
-        onSaved={handleScheduleSaved}
-        onClassCreated={handleClassRefresh}
-      />
+      {/* Schedule Form Modal — only mount once the user opens it, so the
+          lazy chunk stays deferred until actually needed. */}
+      {scheduleFormOpen && (
+        <Suspense fallback={null}>
+          <ScheduleForm
+            open={scheduleFormOpen}
+            onOpenChange={setScheduleFormOpen}
+            locations={locations}
+            employees={employees}
+            classes={classes}
+            editSchedule={editingSchedule}
+            onSaved={handleScheduleSaved}
+            onClassCreated={handleClassRefresh}
+          />
+        </Suspense>
+      )}
 
-      {/* Stat Modals */}
-      <StatModal
-        isOpen={statModalOpen}
-        onClose={() => setStatModalOpen(false)}
-        title={statModalTitle}
-        type={statModalType}
-        data={statModalData}
-        classes={classes}
-        employees={employees}
-        locations={locations}
-      />
+      {/* Stat Modals — same pattern, mount on open. */}
+      {statModalOpen && (
+        <Suspense fallback={null}>
+          <StatModal
+            isOpen={statModalOpen}
+            onClose={() => setStatModalOpen(false)}
+            title={statModalTitle}
+            type={statModalType}
+            data={statModalData}
+            classes={classes}
+            employees={employees}
+            locations={locations}
+          />
+        </Suspense>
+      )}
 
     </div>
   );

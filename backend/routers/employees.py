@@ -6,6 +6,7 @@ from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.queue import get_redis_pool
 
@@ -65,6 +66,7 @@ async def create_employee(data: EmployeeCreate, user: AdminRequired):
         "employee_created", f"Employee '{data.name}' added to team",
         "employee", emp_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return doc
 
 
@@ -107,6 +109,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
             extra={"entity": {"employee_id": employee_id}},
         )
 
+    await invalidate_workload_cache()
     return updated
 
 
@@ -146,6 +149,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
         "employee_deleted", f"Employee with ID '{employee_id}' marked as deleted",
         "employee", employee_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Employee deleted"}
 
 
@@ -169,6 +173,7 @@ async def restore_employee(employee_id: str, user: AdminRequired):
         "employee_restored", f"Employee with ID '{employee_id}' restored",
         "employee", employee_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Employee restored"}
 
 

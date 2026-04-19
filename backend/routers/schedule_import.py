@@ -18,6 +18,7 @@ from core.rate_limit import limiter
 from core.upload import stream_upload_to_bytes
 from services.activity import log_activity
 from services.schedule_utils import check_conflicts
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.constants import STATUS_UPCOMING, MAX_QUERY_LIMIT
 from routers.schedule_helpers import logger
 
@@ -507,5 +508,6 @@ async def import_schedules_commit(
             entity_id="bulk_import",
             user_name=current_user["name"],
         )
+        await invalidate_workload_cache()
 
     return {"inserted_count": inserted_count, "errors": []}

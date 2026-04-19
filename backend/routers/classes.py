@@ -8,6 +8,7 @@ from core.auth import CurrentUser, AdminRequired
 from core.pagination import Paginated
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.constants import DEFAULT_CLASS_COLOR
 from core.queue import get_redis_pool
@@ -97,6 +98,7 @@ async def create_class(data: ClassCreate, user: AdminRequired):
         "class_created", f"Class type '{data.name}' added",
         "class", class_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return doc
 
 
@@ -124,6 +126,7 @@ async def update_class(class_id: str, data: ClassUpdate, user: AdminRequired):
         "class_updated", f"Class type '{updated['name']}' updated",
         "class", class_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return updated
 
 
@@ -153,6 +156,7 @@ async def delete_class(class_id: str, user: AdminRequired):
         "class_deleted", f"Class type '{class_doc['name']}' marked as deleted",
         "class", class_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Class deleted"}
 
 
@@ -248,4 +252,5 @@ async def restore_class(class_id: str, user: AdminRequired):
         "class_restored", f"Class with ID '{class_id}' restored",
         "class", class_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Class restored"}
