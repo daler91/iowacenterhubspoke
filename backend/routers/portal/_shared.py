@@ -5,7 +5,12 @@ import re
 
 from database import ROOT_DIR
 
-UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
+# Storage location for attachments / documents. Defaults to ``<repo>/uploads``
+# for local dev, but the ``UPLOAD_DIR`` env var lets container deploys point
+# at a writable mounted volume — ``/app`` is owned by root on the image, so
+# the non-root runtime user cannot create the default path without an env
+# override and a matching volume mount.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 
 PROJECT_NOT_FOUND = "Project not found"
 TASK_NOT_FOUND = "Task not found"

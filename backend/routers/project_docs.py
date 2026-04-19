@@ -17,7 +17,8 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["project-docs"])
 
-UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
+# See project_tasks.py for the rationale on env-var overrides.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 DOC_NOT_FOUND = "Document not found"
 PROJECT_NOT_FOUND = "Project not found"
 
