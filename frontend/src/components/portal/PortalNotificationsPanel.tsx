@@ -85,7 +85,8 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     // supported in browsers we target.
     const jitterBuf = new Uint32Array(1);
     globalThis.crypto.getRandomValues(jitterBuf);
-    const pollMs = 25000 + Math.floor((jitterBuf[0] / 0x1_0000_0000) * 10000);
+    // Divide by 2**32 (max Uint32 + 1) to map the random word into [0, 1).
+    const pollMs = 25000 + Math.floor((jitterBuf[0] / 4294967296) * 10000);
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchOnce();
