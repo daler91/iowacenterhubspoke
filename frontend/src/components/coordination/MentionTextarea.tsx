@@ -145,29 +145,36 @@ export default function MentionTextarea({
     });
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (trigger && filtered.length > 0) {
-      if (e.key === 'ArrowDown') {
+  // Split the popover-navigation branches out so the top-level keydown
+  // handler stays flat — otherwise the nested conditions push cognitive
+  // complexity over Sonar's threshold.
+  const handlePopoverKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const n = filtered.length;
+    switch (e.key) {
+      case 'ArrowDown':
         e.preventDefault();
-        setActiveIdx(i => (i + 1) % filtered.length);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
+        setActiveIdx(i => (i + 1) % n);
+        return true;
+      case 'ArrowUp':
         e.preventDefault();
-        setActiveIdx(i => (i - 1 + filtered.length) % filtered.length);
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+        setActiveIdx(i => (i - 1 + n) % n);
+        return true;
+      case 'Enter':
+      case 'Tab':
         e.preventDefault();
         acceptMember(filtered[activeIdx]);
-        return;
-      }
-      if (e.key === 'Escape') {
+        return true;
+      case 'Escape':
         e.preventDefault();
         setTrigger(null);
-        return;
-      }
+        return true;
+      default:
+        return false;
     }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (trigger && filtered.length > 0 && handlePopoverKey(e)) return;
     if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
       e.preventDefault();
       onSubmit();

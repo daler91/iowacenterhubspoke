@@ -204,17 +204,12 @@ async def prepare_mentions(
 ) -> tuple[list[Principal], list[dict]]:
     """One-shot helper used by every POST-comment / POST-message route.
 
-    Accepts the raw ``data.mentions`` list from a request body (Pydantic
-    ``MentionRef`` objects or bare dicts) and returns
-    ``(resolved_principals, stored_mention_dicts)`` — ready to persist on
-    the document and hand to the mention notifier.
+    Accepts ``data.mentions`` from a Pydantic request body — a list of
+    ``MentionRef`` instances — and returns
+    ``(resolved_principals, stored_mention_dicts)`` ready to persist on the
+    document and hand to the mention notifier.
     """
-    refs: list[dict] = []
-    for r in (refs_input or []):
-        if hasattr(r, "model_dump"):
-            refs.append(r.model_dump())
-        elif isinstance(r, dict):
-            refs.append(r)
+    refs = [r.model_dump() for r in (refs_input or [])]
     mentioned = await resolve_mention_principals(
         project_id=project_id,
         refs=refs,
