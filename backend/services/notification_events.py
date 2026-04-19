@@ -113,6 +113,12 @@ DEFAULT_PROJECT_LABEL = "a project"
 # SPA deep-link targets that multiple events share.
 CALENDAR_PATH = "/calendar"
 
+# Notification type keys referenced more than once from this module.
+# Hoisted to constants so each string literal appears only in one place,
+# which also keeps Sonar's "duplicate string literal" rule happy.
+_TASK_COMMENT_MENTIONED = "task.comment_mentioned"
+_PROJECT_MESSAGE_MENTIONED = "project.message_mentioned"
+
 
 # ── Shared utilities (used by every notify_* helper) ──────────────────
 
@@ -674,7 +680,7 @@ async def notify_task_comment_mentions(
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
     event = make_event(
-        type_key="task.comment_mentioned",
+        type_key=_TASK_COMMENT_MENTIONED,
         title=f'{actor_name} mentioned you on "{title}"',
         body=f'{actor_name} mentioned you ({project_title}): {preview}',
         email_body_html=(
@@ -687,7 +693,7 @@ async def notify_task_comment_mentions(
         entity_id=task.get("id"),
         dedup_key=f"{comment.get('id', '')}:mention",
     )
-    await _fan_out(recipients, event, log_key="task.comment_mentioned")
+    await _fan_out(recipients, event, log_key=_TASK_COMMENT_MENTIONED)
 
 
 # ── Project events ────────────────────────────────────────────────────
@@ -829,7 +835,7 @@ async def notify_project_message_mentions(
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
     event = make_event(
-        type_key="project.message_mentioned",
+        type_key=_PROJECT_MESSAGE_MENTIONED,
         title=f"{actor_name} mentioned you in #{channel}: {project_title}",
         body=f"{actor_name} mentioned you: {preview}",
         email_body_html=(
@@ -843,7 +849,7 @@ async def notify_project_message_mentions(
         entity_id=message.get("id"),
         dedup_key=f"{message.get('id', '')}:mention",
     )
-    await _fan_out(recipients, event, log_key="project.message_mentioned")
+    await _fan_out(recipients, event, log_key=_PROJECT_MESSAGE_MENTIONED)
 
 
 async def notify_project_document_shared(

@@ -203,7 +203,7 @@ export default function MentionTextarea({
       {trigger && filtered.length > 0 && (
         <div
           className="absolute bottom-full left-0 mb-1 w-64 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg z-50"
-          role="listbox"
+          role="menu"
           aria-label="Mention a project member"
         >
           {filtered.map((m, idx) => (
@@ -214,8 +214,8 @@ export default function MentionTextarea({
               // required to commit the selection — mousedown fires before blur.
               onMouseDown={(e) => { e.preventDefault(); acceptMember(m); }}
               onMouseEnter={() => setActiveIdx(idx)}
-              role="option"
-              aria-selected={idx === activeIdx}
+              role="menuitem"
+              aria-current={idx === activeIdx ? 'true' : undefined}
               className={cn(
                 'w-full text-left px-3 py-1.5 flex items-center gap-2 text-xs',
                 idx === activeIdx

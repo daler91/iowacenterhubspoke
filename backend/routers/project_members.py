@@ -21,7 +21,11 @@ router = APIRouter(prefix="/projects/{project_id}/members", tags=["projects"])
 PROJECT_NOT_FOUND = "Project not found"
 
 
-@router.get("", summary="List members mentionable on this project")
+@router.get(
+    "",
+    summary="List members mentionable on this project",
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def list_project_members(project_id: str, user: CurrentUser):
     project = await db.projects.find_one(
         {"id": project_id, "deleted_at": None},
