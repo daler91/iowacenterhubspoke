@@ -103,6 +103,32 @@ def test_find_swap_suggestions_not_partial_for_small_days():
     assert partial is False
 
 
+def test_cache_preserves_duplicate_location_presence_after_excluding_current_schedule():
+    day_schedules = [
+        {"id": "s1", "date": "2026-03-01", "employee_ids": ["e1"], "employees": [{"id": "e1", "name": "E1"}], "location_id": "loc-x", "location_name": "X", "drive_time_minutes": 30},
+        {"id": "s2", "date": "2026-03-01", "employee_ids": ["e1"], "employees": [{"id": "e1", "name": "E1"}], "location_id": "loc-x", "location_name": "X", "drive_time_minutes": 25},
+        {"id": "s3", "date": "2026-03-01", "employee_ids": ["e1"], "employees": [{"id": "e1", "name": "E1"}], "location_id": "loc-y", "location_name": "Y", "drive_time_minutes": 20},
+    ]
+
+    cache, _, _ = _derive_day_schedule_cache(day_schedules)
+
+    # Excluding s1 should still leave loc-x because e1 has another loc-x schedule (s2).
+    assert "loc-x" in cache["s1"]["other_locations"]
+    assert "loc-y" in cache["s1"]["other_locations"]
+
+
+def test_cache_counts_secondary_assignees_in_location_history():
+    day_schedules = [
+        {"id": "s1", "date": "2026-03-01", "employee_ids": ["e1", "e3"], "employees": [{"id": "e1", "name": "E1"}], "location_id": "loc-a", "location_name": "A", "drive_time_minutes": 30},
+        {"id": "s2", "date": "2026-03-01", "employee_ids": ["e2", "e1"], "employees": [{"id": "e2", "name": "E2"}], "location_id": "loc-b", "location_name": "B", "drive_time_minutes": 20},
+    ]
+
+    cache, _, _ = _derive_day_schedule_cache(day_schedules)
+
+    # e1 is secondary on s2, but should still count loc-b in e1's location history.
+    assert "loc-b" in cache["s1"]["other_locations"]
+
+
 def test_pruned_solver_faster_than_naive_fixture():
     schedules = _build_day_schedules(employee_count=28, schedules_per_employee=9, location_count=12)
     loc_map = _build_loc_map(12)

@@ -249,7 +249,7 @@ def _first_employee_id(s):
 def _derive_day_schedule_cache(day_schedules):
     by_primary_employee = defaultdict(list)
     by_location_and_primary_employee = defaultdict(list)
-    employee_locations = defaultdict(set)
+    employee_location_counts = defaultdict(lambda: defaultdict(int))
     cache = {}
 
     for s in day_schedules:
@@ -262,7 +262,8 @@ def _derive_day_schedule_cache(day_schedules):
 
         by_primary_employee[first_emp_id].append(s)
         by_location_and_primary_employee[(location_id, first_emp_id)].append(s)
-        employee_locations[first_emp_id].add(location_id)
+        for emp_id in employee_ids_set:
+            employee_location_counts[emp_id][location_id] += 1
         cache[schedule_id] = {
             "first_employee_id": first_emp_id,
             "first_employee_name": first_emp_name,
@@ -275,7 +276,17 @@ def _derive_day_schedule_cache(day_schedules):
     for s in day_schedules:
         sid = s.get("id")
         cached = cache[sid]
-        cached["other_locations"] = employee_locations[cached["first_employee_id"]] - {cached["location_id"]}
+        first_emp_id = cached["first_employee_id"]
+        current_loc = cached["location_id"]
+        visit_counts = employee_location_counts[first_emp_id]
+        other_locations = set()
+        for loc_id, visits in visit_counts.items():
+            remaining_visits = visits
+            if loc_id == current_loc and first_emp_id in cached["employee_ids_set"]:
+                remaining_visits -= 1
+            if remaining_visits > 0:
+                other_locations.add(loc_id)
+        cached["other_locations"] = other_locations
 
     return cache, by_primary_employee, by_location_and_primary_employee
 
@@ -335,9 +346,9 @@ def _build_suggestion(a, b, date_key, savings, reason):
     }
 
 
-def _should_skip_pair(a, b, loc_map):
-    a_ids = set(a.get("employee_ids", []))
-    b_ids = set(b.get("employee_ids", []))
+def _should_skip_pair(a, b, loc_map, cache):
+    a_ids = cache[a.get("id")]["employee_ids_set"]
+    b_ids = cache[b.get("id")]["employee_ids_set"]
     if a_ids & b_ids:
         return True
     if a.get("location_id") == b.get("location_id"):
@@ -386,7 +397,7 @@ def _evaluate_day_swaps(day_schedules, date_key, loc_map, cache, approx_mode=Fal
                 pair_count += 1
                 if approx_mode and pair_count > _SWAP_MAX_APPROX_PAIRS_PER_DAY:
                     return results
-                if _should_skip_pair(a, b, loc_map):
+                if _should_skip_pair(a, b, loc_map, cache):
                     continue
                 savings, reason = _compute_swap_savings(a, b, cache)
                 if savings > 0:
