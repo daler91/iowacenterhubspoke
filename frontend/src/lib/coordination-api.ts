@@ -52,10 +52,13 @@ export const projectTasksAPI = {
   uploadAttachment: (projectId: string, taskId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    // Let axios set Content-Type (including the boundary) automatically —
-    // a manual ``multipart/form-data`` header omits the boundary and makes
-    // FastAPI fail to parse the request.
-    return api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData);
+    // ``postForm`` is the axios v1 entry point for multipart bodies: it sets
+    // ``Content-Type: multipart/form-data`` so the default transformRequest
+    // passes the FormData through (with ``application/json``, axios silently
+    // JSON-stringifies the FormData and drops the file — FastAPI then 422s
+    // on the missing ``file`` field), and the browser XHR fills in the
+    // boundary at send time.
+    return api.postForm(`/projects/${projectId}/tasks/${taskId}/attachments`, formData);
   },
   deleteAttachment: (projectId: string, taskId: string, attId: string) =>
     api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attId}`),
@@ -107,8 +110,8 @@ export const projectDocsAPI = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('visibility', visibility);
-    // See projectTasksAPI.uploadAttachment for why Content-Type is unset.
-    return api.post(`/projects/${projectId}/documents`, formData);
+    // ``postForm`` — see projectTasksAPI.uploadAttachment for the full rationale.
+    return api.postForm(`/projects/${projectId}/documents`, formData);
   },
   updateVisibility: (projectId: string, docId: string, visibility: string) =>
     api.patch(`/projects/${projectId}/documents/${docId}/visibility`, { visibility }),
@@ -167,9 +170,10 @@ export const portalAPI = {
   uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    // Only pass Authorization — Content-Type is set automatically by axios
-    // when the body is a FormData instance (required for the multipart boundary).
-    return api.post(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
+    // ``postForm`` (see projectTasksAPI.uploadAttachment) plus the portal
+    // Bearer token. Don't hand-set Content-Type — postForm already sets
+    // ``multipart/form-data`` and the browser appends the boundary.
+    return api.postForm(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
@@ -199,7 +203,7 @@ export const portalAPI = {
   uploadDocument: (projectId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/portal/projects/${projectId}/documents`, formData, {
+    return api.postForm(`/portal/projects/${projectId}/documents`, formData, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
