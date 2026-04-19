@@ -157,7 +157,17 @@ async def _fetch_phase_projects(
         .to_list(limit + 1)
     )
     truncated = len(rows) > limit
-    return phase, rows[:limit], truncated
+    page = rows[:limit]
+    # Normalize the phase field on the payload. For the Planning query
+    # this catches legacy/imported rows with null/empty/missing phase
+    # that would otherwise return as-is. The frontend drag handler uses
+    # `PROJECT_PHASES.indexOf(project.phase)` to decide whether a move
+    # is a gated forward advance; a `-1` there silently bypasses the
+    # task-completion warning flow. Writing the canonical value here is
+    # idempotent for the other phases where the query is exact-match.
+    for row in page:
+        row["phase"] = phase
+    return phase, page, truncated
 
 
 @router.get("/board", summary="Portfolio kanban board")
