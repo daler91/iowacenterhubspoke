@@ -15,8 +15,9 @@ from database import db
 from models.coordination_schemas import TaskCommentCreate
 from services.notification_events import notify_task_comment_mentions
 from services.notification_prefs import (
+    prepare_mentions,
+    principal_to_member_dict,
     principals_for_project,
-    resolve_mention_principals,
 )
 from services.phase_advance import maybe_auto_advance_phase_for_task
 
@@ -293,16 +294,11 @@ async def portal_post_task_comment(
                 detail="Parent comment not found for this task",
             )
 
-    mention_refs = [m.model_dump() for m in (data.mentions or [])]
-    mentioned = await resolve_mention_principals(
+    mentioned, stored_mentions = await prepare_mentions(
         project_id=project_id,
-        refs=mention_refs,
+        refs_input=data.mentions,
         partner_org_id=project.get("partner_org_id"),
     )
-    stored_mentions = [
-        {"id": p.id, "kind": p.kind, "name": p.name or ""}
-        for p in mentioned
-    ]
 
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -341,14 +337,5 @@ async def portal_project_members(project_id: str, ctx: PortalContext):
         project_id=project_id,
         partner_org_id=project.get("partner_org_id"),
     )
-    items = [
-        {
-            "id": p.id,
-            "name": p.name or "Unknown",
-            "kind": p.kind,
-            "email": p.email,
-        }
-        for p in principals
-        if p.id
-    ]
+    items = [principal_to_member_dict(p) for p in principals if p.id]
     return {"items": items, "total": len(items)}

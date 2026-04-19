@@ -10,7 +10,7 @@ from services.notification_events import (
     notify_project_message,
     notify_project_message_mentions,
 )
-from services.notification_prefs import resolve_mention_principals
+from services.notification_prefs import prepare_mentions
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -68,16 +68,11 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
-    mention_refs = [m.model_dump() for m in (data.mentions or [])]
-    mentioned = await resolve_mention_principals(
+    mentioned, stored_mentions = await prepare_mentions(
         project_id=project_id,
-        refs=mention_refs,
+        refs_input=data.mentions,
         partner_org_id=project.get("partner_org_id"),
     )
-    stored_mentions = [
-        {"id": p.id, "kind": p.kind, "name": p.name or ""}
-        for p in mentioned
-    ]
 
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()

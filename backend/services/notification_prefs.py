@@ -142,6 +142,24 @@ async def principal_for_employee(employee_id: str) -> Optional[Principal]:
     return await find_principal_by_email(employee["email"])
 
 
+def principal_to_member_dict(p: Principal) -> dict:
+    """Serialize a ``Principal`` for the ``GET /projects/{id}/members``
+    response (and the portal equivalent). Shared so both endpoints project
+    the same shape without duplicating the dict literal."""
+    return {
+        "id": p.id,
+        "name": p.name or "Unknown",
+        "kind": p.kind,
+        "email": p.email,
+    }
+
+
+def principal_to_mention_dict(p: Principal) -> dict:
+    """Serialize a ``Principal`` for the ``mentions`` array stored alongside
+    a comment / message document."""
+    return {"id": p.id, "kind": p.kind, "name": p.name or ""}
+
+
 async def resolve_mention_principals(
     project_id: str,
     refs: list[dict],
@@ -176,6 +194,34 @@ async def resolve_mention_principals(
         out.append(principal)
         seen.add(key)
     return out
+
+
+async def prepare_mentions(
+    project_id: str,
+    refs_input: Optional[list],
+    *,
+    partner_org_id: Optional[str] = None,
+) -> tuple[list[Principal], list[dict]]:
+    """One-shot helper used by every POST-comment / POST-message route.
+
+    Accepts the raw ``data.mentions`` list from a request body (Pydantic
+    ``MentionRef`` objects or bare dicts) and returns
+    ``(resolved_principals, stored_mention_dicts)`` — ready to persist on
+    the document and hand to the mention notifier.
+    """
+    refs: list[dict] = []
+    for r in (refs_input or []):
+        if hasattr(r, "model_dump"):
+            refs.append(r.model_dump())
+        elif isinstance(r, dict):
+            refs.append(r)
+    mentioned = await resolve_mention_principals(
+        project_id=project_id,
+        refs=refs,
+        partner_org_id=partner_org_id,
+    )
+    stored = [principal_to_mention_dict(p) for p in mentioned]
+    return mentioned, stored
 
 
 async def principals_for_project(

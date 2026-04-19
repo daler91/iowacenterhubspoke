@@ -10,7 +10,10 @@ from fastapi import APIRouter, HTTPException
 
 from core.auth import CurrentUser
 from database import db
-from services.notification_prefs import principals_for_project
+from services.notification_prefs import (
+    principal_to_member_dict,
+    principals_for_project,
+)
 
 
 router = APIRouter(prefix="/projects/{project_id}/members", tags=["projects"])
@@ -31,14 +34,5 @@ async def list_project_members(project_id: str, user: CurrentUser):
         project_id=project_id,
         partner_org_id=project.get("partner_org_id"),
     )
-    items = [
-        {
-            "id": p.id,
-            "name": p.name or "Unknown",
-            "kind": p.kind,
-            "email": p.email,
-        }
-        for p in principals
-        if p.id
-    ]
+    items = [principal_to_member_dict(p) for p in principals if p.id]
     return {"items": items, "total": len(items)}

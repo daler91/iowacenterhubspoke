@@ -20,7 +20,7 @@ from services.notification_events import (
     notify_task_completed,
     notify_task_deleted,
 )
-from services.notification_prefs import resolve_mention_principals
+from services.notification_prefs import prepare_mentions
 from services.phase_advance import maybe_auto_advance_phase_for_task
 from core.logger import get_logger
 
@@ -624,16 +624,11 @@ async def post_task_comment(
         {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
     ) or {"id": project_id}
 
-    mention_refs = [m.model_dump() for m in (data.mentions or [])]
-    mentioned = await resolve_mention_principals(
+    mentioned, stored_mentions = await prepare_mentions(
         project_id=project_id,
-        refs=mention_refs,
+        refs_input=data.mentions,
         partner_org_id=project.get("partner_org_id"),
     )
-    stored_mentions = [
-        {"id": p.id, "kind": p.kind, "name": p.name or ""}
-        for p in mentioned
-    ]
 
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()

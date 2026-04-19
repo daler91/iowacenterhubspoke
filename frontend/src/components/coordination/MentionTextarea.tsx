@@ -14,21 +14,16 @@ export function encodeMentionToken(m: Mention): string {
 }
 
 // Render a body string into React nodes, replacing mention tokens with
-// styled chips. Falls back to the ``mentions`` array's display names when
-// tokens are missing — that covers messages posted before tokenization was
-// rolled out (we stored the plain ``@Name`` in the body then).
-export function renderMentionBody(
-  body: string,
-  mentions?: Mention[],
-): ReactNode[] {
+// styled chips. Falls back to the raw body when no tokens are present —
+// that covers messages posted before tokenization shipped (we stored the
+// plain ``@Name`` text then).
+export function renderMentionBody(body: string, _mentions?: Mention[]): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let keyIdx = 0;
-  MENTION_TOKEN_RE.lastIndex = 0;
-  for (;;) {
-    const m = MENTION_TOKEN_RE.exec(body);
-    if (!m) break;
-    if (m.index > last) out.push(body.slice(last, m.index));
+  for (const m of body.matchAll(MENTION_TOKEN_RE)) {
+    const start = m.index ?? 0;
+    if (start > last) out.push(body.slice(last, start));
     out.push(
       <span
         key={`mention-${keyIdx++}`}
@@ -37,10 +32,9 @@ export function renderMentionBody(
         @{m[1]}
       </span>,
     );
-    last = m.index + m[0].length;
+    last = start + m[0].length;
   }
   if (last < body.length) out.push(body.slice(last));
-  if (out.length === 0 && mentions && mentions.length === 0) return [body];
   return out.length > 0 ? out : [body];
 }
 

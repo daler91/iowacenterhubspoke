@@ -138,6 +138,11 @@ def _default_html(body: str, link: Optional[str], cta: str) -> str:
     return html
 
 
+def _preview(text: str, limit: int = 200) -> str:
+    """Shorten free-text bodies for notification titles/previews."""
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
 def make_event(
     *,
     type_key: str,
@@ -560,7 +565,7 @@ async def notify_task_comment(
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = comment.get("body", "")
-    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    preview = _preview(body_text)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
     event = make_event(
@@ -594,7 +599,7 @@ async def notify_task_comment_mentions(
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = comment.get("body", "")
-    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    preview = _preview(body_text)
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
     event = make_event(
@@ -710,7 +715,7 @@ async def notify_project_message(
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = message.get("body", "")
-    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    preview = _preview(body_text)
     channel = message.get("channel", "")
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
@@ -748,7 +753,7 @@ async def notify_project_message_mentions(
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
     body_text = message.get("body", "")
-    preview = body_text if len(body_text) <= 200 else body_text[:200] + "…"
+    preview = _preview(body_text)
     channel = message.get("channel", "")
     link = _app_link(f"/coordination/projects/{project.get('id', '')}")
 
