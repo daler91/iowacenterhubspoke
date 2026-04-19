@@ -605,18 +605,42 @@ _CSP = (
     "font-src 'self' https: data:; "
     "connect-src 'self' https:; "
     "worker-src 'self' blob:; "
+    # Allow same-origin and blob: in <iframe> — the attachment previewer
+    # embeds same-origin download URLs (internal) and blob: URLs built
+    # from bearer-authed downloads (portal).
+    "frame-src 'self' blob:; "
     "frame-ancestors 'none'"
 )
+
+# Per-response override for attachment preview: the default ``frame-ancestors
+# 'none'`` blocks even same-origin iframing, which the in-app preview needs.
+_CSP_INLINE_FRAME = _CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+
+
+def _is_inline_attachment_download(request: Request) -> bool:
+    # Match the three download endpoints when the client opts into inline
+    # disposition via ``?inline=true``. Keep the set narrow so no other
+    # route accidentally inherits relaxed frame headers.
+    if request.query_params.get("inline") != "true":
+        return False
+    path = request.url.path
+    return path.endswith("/download") and (
+        "/attachments/" in path or "/documents/" in path
+    )
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = _CSP
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if _is_inline_attachment_download(request):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Content-Security-Policy"] = _CSP_INLINE_FRAME
+    else:
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = _CSP
     return response
 
 
