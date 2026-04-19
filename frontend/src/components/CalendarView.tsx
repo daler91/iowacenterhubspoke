@@ -78,6 +78,23 @@ export default function CalendarView() {
     clearSelection();
   }, [calendarView, dateStr, clearSelection]);
 
+  // Pre-warm the PDF export chunk during an idle slot after the calendar
+  // mounts. html2canvas + jspdf together are ~350KB gzipped; fetching them
+  // on the first Export PDF click otherwise stalls the UI for 300–500ms.
+  // The dynamic imports in exportPDF() below dedupe against this prefetch.
+  useEffect(() => {
+    const prewarm = () => {
+      void import('html2canvas');
+      void import('jspdf');
+    };
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      const id = globalThis.requestIdleCallback(prewarm, { timeout: 5000 });
+      return () => globalThis.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(prewarm, 2000);
+    return () => clearTimeout(id);
+  }, []);
+
   const updateParams = useCallback((newParams: Record<string, string | null>) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);

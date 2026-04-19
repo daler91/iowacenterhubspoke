@@ -25,11 +25,21 @@ if (sentryDsn) {
 // inline <script> blocks. Gated behind the analytics consent banner — we
 // boot immediately if consent was previously granted, and listen for the
 // consent-changed event so a mid-session grant loads PostHog live.
-initPostHogIfConsented();
-if (globalThis.window !== undefined) {
-  globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
-    initPostHogIfConsented();
-  });
+// Deferred to idle so PostHog's ~50KB JS doesn't compete with React hydration
+// for main-thread time; falls back to a short setTimeout on browsers without
+// requestIdleCallback (Safari < 17).
+const bootAnalytics = () => {
+  initPostHogIfConsented();
+  if (globalThis.window !== undefined) {
+    globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
+      initPostHogIfConsented();
+    });
+  }
+};
+if (typeof globalThis.requestIdleCallback === 'function') {
+  globalThis.requestIdleCallback(bootAnalytics, { timeout: 3000 });
+} else {
+  setTimeout(bootAnalytics, 1000);
 }
 
 const resizeObserverMessages = new Set([

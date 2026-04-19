@@ -22,11 +22,18 @@ export default function DashboardPage() {
     handleEditSchedule
   } = useScheduleModal();
 
+  // Gate the heavier fetches by route so Calendar / Kanban / Map don't pay
+  // for data only /insights consumes. Activities feed /insights?tab=activity
+  // and Workload feeds /insights?tab=workload.
+  const onInsights = location.pathname.startsWith('/insights');
+  const needActivity = onInsights;
+  const needWorkload = onInsights;
+
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors
-  } = useDashboardData();
+  } = useDashboardData({ needActivity, needWorkload });
 
   const {
     statModalOpen,

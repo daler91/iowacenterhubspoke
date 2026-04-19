@@ -80,9 +80,20 @@ export default function NotificationsPanel() {
 
   useEffect(() => {
     let currentController: AbortController | null = null;
+    let lastFetchAt = 0;
+    // Only refetch on visibility change if the tab was hidden long enough to
+    // matter. Quick Alt-Tabs shouldn't trigger a round-trip; the 30s threshold
+    // is well under the polling interval so we never starve the bell.
+    const VISIBILITY_REFETCH_THRESHOLD_MS = 30_000;
+    // Polling interval: was 30s, which meant 4 API calls/min on every tab
+    // that had the app open. 60s halves the background traffic with no
+    // perceptible UX change (notifications surface via inbox sync on user
+    // action anyway).
+    const POLL_INTERVAL_MS = 60_000;
 
     const fetchOnce = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      lastFetchAt = Date.now();
       currentController?.abort();
       const controller = new AbortController();
       currentController = controller;
@@ -128,10 +139,12 @@ export default function NotificationsPanel() {
     };
 
     fetchOnce();
-    const interval = setInterval(fetchOnce, 30000);
+    const interval = setInterval(fetchOnce, POLL_INTERVAL_MS);
 
     const onVisibility = () => {
-      if (!document.hidden) fetchOnce();
+      if (document.hidden) return;
+      if (Date.now() - lastFetchAt < VISIBILITY_REFETCH_THRESHOLD_MS) return;
+      fetchOnce();
     };
     document.addEventListener('visibilitychange', onVisibility);
 

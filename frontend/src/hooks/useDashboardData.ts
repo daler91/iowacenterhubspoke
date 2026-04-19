@@ -21,12 +21,23 @@ function extractItems<T>(res: any): T[] {
 
 const swrOptions = {
   revalidateOnFocus: false,
-  dedupingInterval: 2000,
+  // Bumped from 2s to 15s so rapid route changes (Calendar → Kanban → Map)
+  // don't re-hit the API; SWR's in-memory cache covers the gap and the data
+  // is denormalised server-side anyway.
+  dedupingInterval: 15000,
   errorRetryCount: 5,
   revalidateOnReconnect: true,
 };
 
-export function useDashboardData() {
+export interface UseDashboardDataOptions {
+  /** Fetch `/stats` and `/activities` (needed by Insights + Dashboard home). */
+  needActivity?: boolean;
+  /** Fetch `/workload` (only Insights → Workload tab consumes this). */
+  needWorkload?: boolean;
+}
+
+export function useDashboardData(options: UseDashboardDataOptions = {}) {
+  const { needActivity = false, needWorkload = false } = options;
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
 
   const onError = (key: string) => (err: any) => {
@@ -38,9 +49,13 @@ export function useDashboardData() {
   const { data: employees = [], mutate: mutateEmployees } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
   const { data: classes = [], mutate: mutateClasses } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
   const { data: schedules = [], mutate: mutateSchedules } = useSWR<Schedule[]>('schedules', () => schedulesAPI.getAll().then(extractItems<Schedule>), { ...swrOptions, onError: onError('schedules') });
+  // `stats` drives the sidebar counters on every route, so keep it unconditional.
   const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, total_classes: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR<DashboardStats>('stats', () => dashboardAPI.getStats().then(res => res.data.data || res.data), { ...swrOptions, onError: onError('stats') });
-  const { data: activities = [], mutate: mutateActivities } = useSWR<ActivityLog[]>('activities', () => activityAPI.getAll(50).then(extractItems<ActivityLog>), { ...swrOptions, onError: onError('activities') });
-  const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>('workload', () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
+  // `activities` + `workload` are route-gated: passing `null` as the SWR key
+  // skips the fetch entirely until the route opts in. Cached data is
+  // preserved across toggles by SWR's global cache.
+  const { data: activities = [], mutate: mutateActivities } = useSWR<ActivityLog[]>(needActivity ? 'activities' : null, () => activityAPI.getAll(50).then(extractItems<ActivityLog>), { ...swrOptions, onError: onError('activities') });
+  const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>(needWorkload ? 'workload' : null, () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
 
   const handleClassRefresh = useCallback(() => {
     // Class edits and deletes denormalize class_name/class_color/class_id

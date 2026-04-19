@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake, CalendarDays } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -24,6 +24,7 @@ const COLUMNS = [
   { id: SCHEDULE_STATUS.IN_PROGRESS, label: 'In Progress', color: COLORS.STATUS.IN_PROGRESS, lightColor: COLORS.STATUS_LIGHT.IN_PROGRESS, textColor: COLORS.STATUS_TEXT.IN_PROGRESS },
   { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
+const KNOWN_STATUSES = new Set<string>(COLUMNS.map(c => c.id));
 
 const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
 
@@ -216,12 +217,12 @@ export default function KanbanBoard() {
     clearSelection,
   } = useSelectionMode();
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     fetchSchedules();
     fetchActivities();
     fetchWorkload();
-  };
-  const handleStatusChange = async (scheduleId, newStatus) => {
+  }, [fetchSchedules, fetchActivities, fetchWorkload]);
+  const handleStatusChange = useCallback(async (scheduleId, newStatus) => {
     // Optimistic UI cache swap for instantaneous feedback
     mutate('schedules', (currentData) => {
       if (!currentData) return currentData;
@@ -251,7 +252,7 @@ export default function KanbanBoard() {
       // Rollback cache
       mutate('schedules');
     }
-  };
+  }, [navigate, onRefresh]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
@@ -268,16 +269,35 @@ export default function KanbanBoard() {
     await handleStatusChange(schedule.id, targetStatus);
   }, [handleStatusChange]);
 
-  const getColumnSchedules = (status) =>
-    (schedules || []).filter(s => (s.status || SCHEDULE_STATUS.UPCOMING) === status)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
+  // Bucket + sort once per schedules change instead of once per render per
+  // column. With 3 columns and 100+ schedules this previously did 3×O(n)
+  // filter + O(n log n) sort on every parent render (including selection-mode
+  // toggles and drag frames).
+  const schedulesByStatus = useMemo(() => {
+    const buckets: Record<string, typeof schedules> = {};
+    for (const col of COLUMNS) buckets[col.id] = [];
+    for (const s of schedules || []) {
+      const raw = s.status || SCHEDULE_STATUS.UPCOMING;
+      // Drop unknown statuses into Upcoming so stale/legacy values never
+      // land in an uninitialised bucket. Keeps the hot loop free of any
+      // assignment-in-expression (Sonar typescript:S6660).
+      const status = KNOWN_STATUSES.has(raw) ? raw : SCHEDULE_STATUS.UPCOMING;
+      buckets[status].push(s);
+    }
+    for (const key of Object.keys(buckets)) {
+      buckets[key].sort((a, b) =>
+        a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time),
+      );
+    }
+    return buckets;
+  }, [schedules]);
 
-  const handleBulkComplete = () => {
+  const handleBulkComplete = useCallback(() => {
     clearSelection();
     onRefresh();
-  };
+  }, [clearSelection, onRefresh]);
 
-  const handleColumnSelectAll = (columnItems) => {
+  const handleColumnSelectAll = useCallback((columnItems) => {
     const columnIds = columnItems.map(s => s.id);
     const allSelected = columnIds.every(id => selectedIds.has(id));
     if (allSelected) {
@@ -291,7 +311,7 @@ export default function KanbanBoard() {
       columnIds.forEach(id => newIds.add(id));
       selectAll(Array.from(newIds));
     }
-  };
+  }, [selectedIds, selectAll]);
 
   return (
     <PageShell
@@ -325,7 +345,7 @@ export default function KanbanBoard() {
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
-          const items = getColumnSchedules(col.id);
+          const items = schedulesByStatus[col.id] || [];
           const allSelected = selectionMode && items.length > 0 && items.every(s => selectedIds.has(s.id));
           return (
             <DroppableColumn key={col.id} id={col.id}>
