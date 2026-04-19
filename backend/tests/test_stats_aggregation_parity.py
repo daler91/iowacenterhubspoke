@@ -110,6 +110,9 @@ def test_location_stats_aggregation_handles_more_than_1000_and_date_filters(mock
 
     first_pipeline = mock_db_fixture['schedules'].aggregate.call_args_list[0].args[0]
     assert first_pipeline[0]['$match']['date'] == {'$gte': '2026-02-01', '$lte': '2026-02-28'}
+    class_breakdown_pipeline = mock_db_fixture['schedules'].aggregate.call_args_list[2].args[0]
+    class_id_expr = class_breakdown_pipeline[1]['$group']['_id']
+    assert class_id_expr['$let']['in']['$cond'][0] == {'$eq': ['$$class_name', '']}
 
 
 def test_employee_stats_aggregation_handles_more_than_1000(mock_db_fixture):

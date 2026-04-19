@@ -184,26 +184,38 @@ async def get_class_stats(
     if date_match:
         match_stage["date"] = date_match
 
+    MATCH = "$match"
+    GROUP = "$group"
+    COND = "$cond"
+    IF_NULL = "$ifNull"
+    SPLIT = "$split"
+    ARRAY_ELEM_AT = "$arrayElemAt"
+    TO_INT = "$toInt"
+    MULTIPLY = "$multiply"
+    STATUS = "$status"
+    START_TIME = "$start_time"
+    END_TIME = "$end_time"
+
     time_expr = {
-        "$cond": [
+        COND: [
             {
                 "$and": [
-                    {"$regexMatch": {"input": {"$ifNull": ["$start_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
-                    {"$regexMatch": {"input": {"$ifNull": ["$end_time", ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                    {"$regexMatch": {"input": {IF_NULL: [START_TIME, ""]}, "regex": r"^\d{2}:\d{2}$"}},
+                    {"$regexMatch": {"input": {IF_NULL: [END_TIME, ""]}, "regex": r"^\d{2}:\d{2}$"}},
                 ],
             },
             {
                 "$subtract": [
                     {
                         "$add": [
-                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 0]}}, 60]},
-                            {"$toInt": {"$arrayElemAt": [{"$split": ["$end_time", ":"]}, 1]}},
+                            {MULTIPLY: [{TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [END_TIME, ":"]}, 0]}}, 60]},
+                            {TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [END_TIME, ":"]}, 1]}},
                         ],
                     },
                     {
                         "$add": [
-                            {"$multiply": [{"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 0]}}, 60]},
-                            {"$toInt": {"$arrayElemAt": [{"$split": ["$start_time", ":"]}, 1]}},
+                            {MULTIPLY: [{TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [START_TIME, ":"]}, 0]}}, 60]},
+                            {TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [START_TIME, ":"]}, 1]}},
                         ],
                     },
                 ],
@@ -213,15 +225,15 @@ async def get_class_stats(
     }
 
     summary_pipeline = [
-        {"$match": match_stage},
-        {"$group": {
+        {MATCH: match_stage},
+        {GROUP: {
             "_id": None,
             "total_schedules": {"$sum": 1},
-            "total_drive_minutes": {"$sum": {"$multiply": [{"$ifNull": ["$drive_time_minutes", 0]}, 2]}},
+            "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
             "total_class_minutes": {"$sum": time_expr},
-            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
-            "upcoming": {"$sum": {"$cond": [{"$eq": ["$status", "upcoming"]}, 1, 0]}},
-            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
+            "completed": {"$sum": {COND: [{"$eq": [STATUS, "completed"]}, 1, 0]}},
+            "upcoming": {"$sum": {COND: [{"$eq": [STATUS, "upcoming"]}, 1, 0]}},
+            "in_progress": {"$sum": {COND: [{"$eq": [STATUS, "in_progress"]}, 1, 0]}},
         }},
     ]
     summary = await db.schedules.aggregate(summary_pipeline).to_list(1)
@@ -231,14 +243,14 @@ async def get_class_stats(
     }
 
     employee_breakdown = await db.schedules.aggregate([
-        {"$match": match_stage},
-        {"$group": {"_id": {"$ifNull": ["$employee_name", "Unknown"]}, "count": {"$sum": 1}}},
+        {MATCH: match_stage},
+        {GROUP: {"_id": {IF_NULL: ["$employee_name", "Unknown"]}, "count": {"$sum": 1}}},
         {"$project": {"_id": 0, "name": "$_id", "count": 1}},
     ]).to_list(500)
 
     location_breakdown = await db.schedules.aggregate([
-        {"$match": match_stage},
-        {"$group": {"_id": {"$ifNull": ["$location_name", "Unknown"]}, "count": {"$sum": 1}}},
+        {MATCH: match_stage},
+        {GROUP: {"_id": {IF_NULL: ["$location_name", "Unknown"]}, "count": {"$sum": 1}}},
         {"$project": {"_id": 0, "name": "$_id", "count": 1}},
     ]).to_list(500)
 
