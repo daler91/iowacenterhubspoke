@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
@@ -202,29 +203,30 @@ async def get_class_stats(
             "in_progress": {"$sum": build_status_count_field("in_progress")},
         }},
     ]
-    summary = await db.schedules.aggregate(summary_pipeline).to_list(1)
+    # Fan all five queries out in parallel — they share no dependencies,
+    # so awaiting sequentially is pure RTT waste.
+    summary, employee_breakdown, location_breakdown, recent_schedules, projects = await asyncio.gather(
+        db.schedules.aggregate(summary_pipeline).to_list(1),
+        db.schedules.aggregate(
+            build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
+        ).to_list(500),
+        db.schedules.aggregate(
+            build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
+        ).to_list(500),
+        db.schedules.find(
+            match_stage, {"_id": 0},
+        ).sort("date", -1).limit(10).to_list(10),
+        # Business outcomes from linked projects
+        db.projects.find(
+            {"class_id": class_id, "deleted_at": None},
+            {"_id": 0, "phase": 1, "attendance_count": 1, "warm_leads": 1},
+        ).to_list(500),
+    )
+
     totals = summary[0] if summary else {
         "total_schedules": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
         "completed": 0, "upcoming": 0, "in_progress": 0,
     }
-
-    employee_breakdown = await db.schedules.aggregate(
-        build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
-    ).to_list(500)
-
-    location_breakdown = await db.schedules.aggregate(
-        build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
-    ).to_list(500)
-
-    recent_schedules = await db.schedules.find(
-        match_stage, {"_id": 0},
-    ).sort("date", -1).limit(10).to_list(10)
-
-    # Business outcomes from linked projects
-    projects = await db.projects.find(
-        {"class_id": class_id, "deleted_at": None},
-        {"_id": 0, "phase": 1, "attendance_count": 1, "warm_leads": 1},
-    ).to_list(500)
     projects_delivered = sum(1 for p in projects if p.get("phase") == "complete")
     total_attendance = sum(p.get("attendance_count") or 0 for p in projects)
     total_warm_leads = sum(p.get("warm_leads") or 0 for p in projects)

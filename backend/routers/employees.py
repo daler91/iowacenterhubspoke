@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
@@ -194,7 +195,11 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
 
     match_stage = {"employee_ids": employee_id, "deleted_at": None}
     time_expr = build_time_expr()
-    summary = await db.schedules.aggregate([
+
+    # Fan the four independent aggregations out in parallel instead of
+    # awaiting them sequentially. On a warm Mongo connection this cuts
+    # endpoint latency by roughly N× (one RTT instead of four).
+    summary_task = db.schedules.aggregate([
         {MATCH: match_stage},
         {GROUP: {
             "_id": None,
@@ -206,25 +211,37 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
             "in_progress": {"$sum": build_status_count_field("in_progress")},
         }},
     ]).to_list(1)
+
+    location_task = db.schedules.aggregate(
+        build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
+    ).to_list(500)
+
+    # Month buckets are YYYY-MM strings. Take the newest 60 (five years)
+    # via a descending sort + $limit, then re-sort ascending for the
+    # chart consumers that expect oldest-first. A trailing to_list(60)
+    # alone after an ascending sort would drop current-year activity
+    # for long-tenure employees (>5 yrs), which Codex flagged on PR #259.
+    monthly_task = db.schedules.aggregate([
+        {MATCH: match_stage},
+        {GROUP: {"_id": {"$substr": [{IF_NULL: ["$date", ""]}, 0, 7]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "month": "$_id", "count": 1}},
+        {"$sort": {"month": -1}},
+        {"$limit": 60},
+        {"$sort": {"month": 1}},
+    ]).to_list(60)
+
+    recent_task = db.schedules.find(
+        match_stage, {"_id": 0},
+    ).sort("date", -1).limit(10).to_list(10)
+
+    summary, location_breakdown, monthly_breakdown, recent_schedules = await asyncio.gather(
+        summary_task, location_task, monthly_task, recent_task,
+    )
+
     totals = summary[0] if summary else {
         "total_classes": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
         "completed": 0, "upcoming": 0, "in_progress": 0,
     }
-
-    location_breakdown = await db.schedules.aggregate(
-        build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
-    ).to_list(500)
-
-    monthly_breakdown = await db.schedules.aggregate([
-        {MATCH: match_stage},
-        {GROUP: {"_id": {"$substr": [{IF_NULL: ["$date", ""]}, 0, 7]}, "count": {"$sum": 1}}},
-        {"$project": {"_id": 0, "month": "$_id", "count": 1}},
-        {"$sort": {"month": 1}},
-    ]).to_list(500)
-
-    recent_schedules = await db.schedules.find(
-        match_stage, {"_id": 0},
-    ).sort("date", -1).limit(10).to_list(10)
 
     return {
         "employee": employee,
