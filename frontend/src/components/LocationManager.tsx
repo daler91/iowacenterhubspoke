@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -19,16 +19,102 @@ import LocationProfile from './LocationProfile';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
+// One location card, memoized so editing or deleting a single location
+// doesn't force every sibling card to re-render. The parent stabilises
+// the handlers with useCallback so the memo comparison actually skips.
+type Location = {
+  id: string;
+  city_name?: string;
+  drive_time_minutes?: number;
+  latitude?: number;
+  longitude?: number;
+};
+
+type LocationRowProps = {
+  loc: Location;
+  isAdmin: boolean;
+  onView: (id: string) => void;
+  onEdit: (loc: Location) => void;
+  onDelete: (loc: Location) => void;
+};
+
+const LocationRow = memo(function LocationRow({
+  loc, isAdmin, onView, onEdit, onDelete,
+}: LocationRowProps) {
+  return (
+    <div
+      data-testid={`location-card-${loc.id}`}
+      className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+          <MapPin className="w-5 h-5 text-teal-600" />
+        </div>
+        <div>
+          <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-1">
+              <Car className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
+            </div>
+            {loc.latitude && (
+              <span className="text-xs text-muted-foreground">
+                {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid={`view-location-${loc.id}`}
+          onClick={() => onView(loc.id)}
+          className="text-muted-foreground hover:text-teal-600"
+          aria-label={`View ${loc.city_name}`}
+        >
+          <Eye className="w-4 h-4" aria-hidden="true" />
+        </Button>
+        {isAdmin && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`edit-location-${loc.id}`}
+              onClick={() => onEdit(loc)}
+              className="text-muted-foreground hover:text-indigo-600"
+              aria-label={`Edit ${loc.city_name}`}
+            >
+              <Pencil className="w-4 h-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`delete-location-${loc.id}`}
+              onClick={() => onDelete(loc)}
+              className="text-muted-foreground hover:text-danger"
+              aria-label={`Delete ${loc.city_name}`}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function LocationManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { locations, fetchLocations, fetchActivities } = useOutletContext();
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     fetchLocations();
     fetchActivities();
-  };
+  }, [fetchLocations, fetchActivities]);
   const [selectedLocationId, setSelectedLocationId] = useState(null);
-  const onViewProfile = (id) => setSelectedLocationId(id);
+  const onViewProfile = useCallback((id) => setSelectedLocationId(id), []);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
@@ -64,7 +150,9 @@ export default function LocationManager() {
     setDialogOpen(true);
   };
 
-  const openEdit = (loc) => {
+  // Stable handlers so LocationRow's React.memo can skip re-renders for
+  // sibling cards when one card mutates.
+  const openEdit = useCallback((loc) => {
     setEditing(loc);
     setForm({
       city_name: loc.city_name,
@@ -73,7 +161,9 @@ export default function LocationManager() {
       longitude: loc.longitude ? String(loc.longitude) : '',
     });
     setDialogOpen(true);
-  };
+  }, []);
+
+  const openDelete = useCallback((loc) => setDeleteTarget(loc), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -158,67 +248,14 @@ export default function LocationManager() {
       {/* Location list */}
       <div className="grid gap-3">
         {(locations || []).map(loc => (
-          <div
+          <LocationRow
             key={loc.id}
-            data-testid={`location-card-${loc.id}`}
-            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-teal-600" />
-              </div>
-              <div>
-                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
-                <div className="flex items-center gap-3 mt-1">
-                  <div className="flex items-center gap-1">
-                    <Car className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
-                  </div>
-                  {loc.latitude && (
-                    <span className="text-xs text-muted-foreground">
-                      {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`view-location-${loc.id}`}
-                onClick={() => onViewProfile(loc.id)}
-                className="text-muted-foreground hover:text-teal-600"
-                aria-label={`View ${loc.city_name}`}
-              >
-                <Eye className="w-4 h-4" aria-hidden="true" />
-              </Button>
-              {isAdmin && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`edit-location-${loc.id}`}
-                    onClick={() => openEdit(loc)}
-                    className="text-muted-foreground hover:text-indigo-600"
-                    aria-label={`Edit ${loc.city_name}`}
-                  >
-                    <Pencil className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`delete-location-${loc.id}`}
-                    onClick={() => setDeleteTarget(loc)}
-                    className="text-muted-foreground hover:text-danger"
-                    aria-label={`Delete ${loc.city_name}`}
-                  >
-                    <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+            loc={loc}
+            isAdmin={isAdmin}
+            onView={onViewProfile}
+            onEdit={openEdit}
+            onDelete={openDelete}
+          />
         ))}
 
         {(!locations || locations.length === 0) && (
