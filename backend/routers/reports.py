@@ -539,61 +539,82 @@ def _compute_health(completion_rate, last_active, classes_hosted):
     return health_score, tier
 
 
-@router.get("/coordination/partner-health", summary="Partner health table")
-async def coordination_partner_health(user: CurrentUser):
-    orgs = await db.partner_orgs.find(
-        {"deleted_at": None}, {"_id": 0},
-    ).to_list(500)
-    org_ids = [o["id"] for o in orgs]
-    projects = []
-    if org_ids:
-        projects = await db.projects.find(
-            {"partner_org_id": {"$in": org_ids}, "deleted_at": None},
-            {"_id": 0, "id": 1, "partner_org_id": 1, "phase": 1, "updated_at": 1},
-        ).to_list(5000)
+async def _collect_cursor(cursor):
+    """Fully consume a Mongo cursor without applying a global cap."""
+    items = []
+    async for item in cursor:
+        items.append(item)
+    return items
+
+
+async def _fetch_projects_for_orgs(org_ids):
+    if not org_ids:
+        return defaultdict(list), {}
+
+    project_cursor = db.projects.find(
+        {"partner_org_id": {"$in": org_ids}, "deleted_at": None},
+        {"_id": 0, "id": 1, "partner_org_id": 1, "phase": 1, "updated_at": 1},
+    )
+    projects = await _collect_cursor(project_cursor)
 
     projects_by_org: dict[str, list[dict]] = defaultdict(list)
     project_to_org: dict[str, str] = {}
     for project in projects:
         org_id = project.get("partner_org_id")
+        project_id = project.get("id")
         if not org_id:
             continue
         projects_by_org[org_id].append(project)
-        if project.get("id"):
-            project_to_org[project["id"]] = org_id
+        if project_id:
+            project_to_org[project_id] = org_id
+    return projects_by_org, project_to_org
 
+
+async def _aggregate_task_counts_by_org(project_to_org):
     task_counts_by_org: dict[str, dict[str, int]] = defaultdict(
         lambda: {"total": 0, "completed": 0}
     )
     project_ids = list(project_to_org.keys())
-    if project_ids:
-        tasks = await db.tasks.find(
-            {"project_id": {"$in": project_ids}, "deleted_at": None},
-            {"_id": 0, "project_id": 1, "completed": 1},
-        ).to_list(20000)
-        for task in tasks:
-            owner_org_id = project_to_org.get(task.get("project_id"))
-            if not owner_org_id:
-                continue
-            task_counts_by_org[owner_org_id]["total"] += 1
-            if task.get("completed"):
-                task_counts_by_org[owner_org_id]["completed"] += 1
+    if not project_ids:
+        return task_counts_by_org
 
+    task_cursor = db.tasks.find(
+        {"project_id": {"$in": project_ids}, "deleted_at": None},
+        {"_id": 0, "project_id": 1, "completed": 1},
+    )
+    async for task in task_cursor:
+        owner_org_id = project_to_org.get(task.get("project_id"))
+        if not owner_org_id:
+            continue
+        task_counts_by_org[owner_org_id]["total"] += 1
+        if task.get("completed"):
+            task_counts_by_org[owner_org_id]["completed"] += 1
+    return task_counts_by_org
+
+
+def _build_partner_health_results(orgs, projects_by_org, task_counts_by_org):
     results = []
     for org in orgs:
-        org_projects = projects_by_org.get(org["id"], [])
-        counts = task_counts_by_org.get(org["id"], {"total": 0, "completed": 0})
+        org_id = org["id"]
+        org_projects = projects_by_org.get(org_id, [])
+        counts = task_counts_by_org.get(org_id, {"total": 0, "completed": 0})
         total_tasks = counts["total"]
         completed_tasks = counts["completed"]
-        completion_rate = round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
+        completion_rate = (
+            round((completed_tasks / total_tasks * 100), 1)
+            if total_tasks > 0
+            else 0
+        )
         classes_hosted = sum(1 for p in org_projects if p.get("phase") == "complete")
         last_active = max(
             (p.get("updated_at") for p in org_projects if p.get("updated_at")),
             default=None,
         )
-        health_score, health_tier = _compute_health(completion_rate, last_active, classes_hosted)
+        health_score, health_tier = _compute_health(
+            completion_rate, last_active, classes_hosted
+        )
         results.append({
-            "partner_org_id": org["id"],
+            "partner_org_id": org_id,
             "name": org["name"],
             "community": org.get("community", ""),
             "status": org.get("status", ""),
@@ -603,7 +624,22 @@ async def coordination_partner_health(user: CurrentUser):
             "health_score": health_score,
             "health_tier": health_tier,
         })
-    return {"partners": results}
+    return results
+
+
+@router.get("/coordination/partner-health", summary="Partner health table")
+async def coordination_partner_health(user: CurrentUser):
+    orgs = await db.partner_orgs.find(
+        {"deleted_at": None}, {"_id": 0},
+    ).to_list(500)
+    org_ids = [o["id"] for o in orgs]
+    projects_by_org, project_to_org = await _fetch_projects_for_orgs(org_ids)
+    task_counts_by_org = await _aggregate_task_counts_by_org(project_to_org)
+    return {
+        "partners": _build_partner_health_results(
+            orgs, projects_by_org, task_counts_by_org
+        )
+    }
 
 
 @router.get(
