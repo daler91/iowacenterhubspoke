@@ -102,8 +102,12 @@ export default function InsightsPage() {
         </TabsList>
 
         {TABS.map(({ value }) => {
-          const visited = visitedTabs.has(value);
-          if (!visited) return null;
+          // Always render the currently-active tab, even if visitedTabs
+          // hasn't caught up yet — state from the tab-change effect lags
+          // by one commit and would otherwise leave the panel area blank
+          // on the very first switch.
+          const shouldRender = value === tab || visitedTabs.has(value);
+          if (!shouldRender) return null;
           return (
             <TabsContent
               key={value}

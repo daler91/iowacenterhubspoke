@@ -543,11 +543,14 @@ _CACHE_MAX_AGE = {
     "/api/v1/classes": 300,            # 5 min
     "/api/v1/dashboard/stats": 60,     # 1 min
     "/api/v1/health": 30,             # 30 sec
-    # Workload is cached server-side for 60s via services.workload_cache and
-    # busted by every schedule/class/employee mutation, so matching the
-    # client TTL to the server TTL means a mutation's next read always
-    # flushes the client's stale copy too.
-    "/api/v1/workload": 60,
+    # /api/v1/workload deliberately NOT listed: it's cached server-side
+    # for 60s via services.workload_cache with explicit invalidation on
+    # every mutation (schedule_crud/_bulk/_import, classes, employees).
+    # Adding a positive max-age here would let browsers serve a stale
+    # response for up to 60s after a mutation — the mutation happens on
+    # a different URL, so nothing busts the browser entry. Falling
+    # through to _DEFAULT_API_MAX_AGE = 0 keeps freshness correct; the
+    # Redis cache still makes revalidation (ETag → 304) nearly free.
     # Analytics endpoints are heavy aggregations that don't need second-
     # fresh data — Trends / Forecast / Drive Optimization share a prefix.
     "/api/v1/analytics": 30,
