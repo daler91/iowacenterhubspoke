@@ -28,9 +28,14 @@ COPY --chown=appuser:appgroup --from=frontend-build /app/frontend/build ./static
 # ``UPLOAD_DIR`` env var to a mounted-volume path for persistent attachments.
 RUN mkdir -p /app/uploads && chown appuser:appgroup /app/uploads
 
-USER appuser
+# NOTE: we intentionally do NOT ``USER appuser`` here. Railway mounts
+# volumes as root regardless of the Dockerfile USER directive, so
+# ``UPLOAD_DIR=/data/uploads`` would come up root-owned and the app
+# couldn't write to it. The entrypoint runs as root only long enough to
+# ``chown`` the mounted volume to appuser, then drops privileges and
+# ``exec``s uvicorn — so the long-running server process is never root.
 EXPOSE 8080
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["python", "docker-entrypoint.py"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS http://localhost:${PORT:-8080}/api/v1/health || exit 1
