@@ -20,9 +20,69 @@ import { partnerOrgsAPI } from '../../lib/coordination-api';
 import {
   STATUS_BADGE_COLORS, PHASE_LABELS, PHASE_COLORS,
   EVENT_FORMAT_LABELS,
+  type Project,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+
+// Shared class string for the empty/loading placeholder <p> inside
+// each profile section. Hoisted so the four call sites agree on the
+// styling without duplicating the literal.
+const EMPTY_STATE_CLASSES = 'text-sm text-muted-foreground text-center py-4';
+
+// Split out to avoid a nested ternary in the JSX: the project history
+// body has three mutually-exclusive states (loading, populated table,
+// empty).
+function renderProjectHistory({
+  projects,
+  projectsLoading,
+  navigate,
+}: Readonly<{
+  projects: Project[];
+  projectsLoading: boolean;
+  navigate: (to: string) => void;
+}>) {
+  if (projectsLoading && projects.length === 0) {
+    return <p className={EMPTY_STATE_CLASSES}>Loading project history...</p>;
+  }
+  if (projects.length === 0) {
+    return <p className={EMPTY_STATE_CLASSES}>No projects yet</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-slate-500">
+            <th className="pb-2 font-medium">Title</th>
+            <th className="pb-2 font-medium">Type</th>
+            <th className="pb-2 font-medium">Date</th>
+            <th className="pb-2 font-medium">Phase</th>
+          </tr>
+        </thead>
+        <tbody>
+          {projects.map(project => (
+            <tr
+              key={project.id}
+              className="border-b last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+              onClick={() => navigate(`/coordination/projects/${project.id}`)}
+            >
+              <td className="py-2.5 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
+              <td className="py-2.5 text-slate-500">
+                {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
+              </td>
+              <td className="py-2.5 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
+              <td className="py-2.5">
+                <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
+                  {PHASE_LABELS[project.phase]}
+                </Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function PartnerProfile() {
   const { id } = useParams<{ id: string }>();
@@ -221,7 +281,7 @@ export default function PartnerProfile() {
           </div>
           <div className="space-y-3">
             {contactsLoading && contacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Loading contacts...</p>
+              <p className={EMPTY_STATE_CLASSES}>Loading contacts...</p>
             ) : (
               <>
                 {contacts.map(contact => (
@@ -252,7 +312,7 @@ export default function PartnerProfile() {
                   </div>
                 ))}
                 {contacts.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No contacts yet</p>
+                  <p className={EMPTY_STATE_CLASSES}>No contacts yet</p>
                 )}
               </>
             )}
@@ -265,44 +325,7 @@ export default function PartnerProfile() {
         <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
           <Calendar className="w-4 h-4" /> Project History
         </h2>
-        {projectsLoading && projects.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Loading project history...</p>
-        ) : projects.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-slate-500">
-                  <th className="pb-2 font-medium">Title</th>
-                  <th className="pb-2 font-medium">Type</th>
-                  <th className="pb-2 font-medium">Date</th>
-                  <th className="pb-2 font-medium">Phase</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map(project => (
-                  <tr
-                    key={project.id}
-                    className="border-b last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                    onClick={() => navigate(`/coordination/projects/${project.id}`)}
-                  >
-                    <td className="py-2.5 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
-                    <td className="py-2.5 text-slate-500">
-                      {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
-                    </td>
-                    <td className="py-2.5 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
-                    <td className="py-2.5">
-                      <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
-                        {PHASE_LABELS[project.phase]}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No projects yet</p>
-        )}
+        {renderProjectHistory({ projects, projectsLoading, navigate })}
       </Card>
         </>
       )}
