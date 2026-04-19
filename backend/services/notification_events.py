@@ -81,7 +81,6 @@ Conventions
 
 from __future__ import annotations
 
-import re
 from html import escape
 from typing import Optional
 
@@ -144,11 +143,56 @@ def _default_html(body: str, link: Optional[str], cta: str) -> str:
 # before generating notification previews — otherwise mentioned users see
 # raw principal IDs in their email/in-app subject lines, which is both
 # ugly and an unnecessary exposure of internal identifiers.
-_MENTION_TOKEN_RE = re.compile(r"@\[([^\]]+)\]\(user:[^)]+\)")
+#
+# Implemented as an explicit character scanner rather than a regex.
+# Greedy regex quantifiers on user-controlled body text are a classic
+# ReDoS vector — CodeQL flags even a well-formed pattern here because
+# the body originates from HTTP request bodies we don't fully trust.
+# Every iteration advances ``i`` by at least one character, so the whole
+# function runs in strict O(n).
+_TOKEN_ID_PREFIX = "](user:"
 
 
 def _strip_mention_tokens(text: str) -> str:
-    return _MENTION_TOKEN_RE.sub(r"@\1", text)
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    prefix_len = len(_TOKEN_ID_PREFIX)
+    while i < n:
+        ch = text[i]
+        if ch != "@" or i + 1 >= n or text[i + 1] != "[":
+            out.append(ch)
+            i += 1
+            continue
+        # Scan forward for the end of the display name. ``@`` and ``[``
+        # inside the name mean we've run past a malformed token — abort
+        # this attempt and emit just the ``@``.
+        j = i + 2
+        while j < n:
+            c = text[j]
+            if c == "]" or c == "[" or c == "@":
+                break
+            j += 1
+        if (
+            j >= n or text[j] != "]"
+            or not text.startswith(_TOKEN_ID_PREFIX, j)
+        ):
+            out.append("@")
+            i += 1
+            continue
+        # Scan the principal id until the closing paren, rejecting any
+        # nested ``(`` to stay well-formed.
+        k = j + prefix_len
+        while k < n and text[k] != ")" and text[k] != "(":
+            k += 1
+        if k >= n or text[k] != ")":
+            out.append("@")
+            i += 1
+            continue
+        out.append("@")
+        out.append(text[i + 2:j])
+        i = k + 1
+    return "".join(out)
 
 
 def _preview(text: str, limit: int = 200) -> str:
