@@ -12,6 +12,11 @@ from services.drive_time import get_drive_time_between_locations, get_drive_time
 from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.queue import get_redis_pool
+from routers.stats_aggregation import (
+    MATCH, GROUP, IF_NULL, MULTIPLY,
+    build_time_expr, build_status_count_field,
+    build_name_breakdown_pipeline, build_class_name_breakdown_pipeline,
+)
 
 logger = get_logger(__name__)
 
@@ -193,45 +198,7 @@ async def get_location_stats(
     if date_match:
         match_stage["date"] = date_match
 
-    MATCH = "$match"
-    GROUP = "$group"
-    COND = "$cond"
-    IF_NULL = "$ifNull"
-    SPLIT = "$split"
-    ARRAY_ELEM_AT = "$arrayElemAt"
-    TO_INT = "$toInt"
-    MULTIPLY = "$multiply"
-    STATUS = "$status"
-    START_TIME = "$start_time"
-    END_TIME = "$end_time"
-
-    time_expr = {
-        COND: [
-            {
-                "$and": [
-                    {"$regexMatch": {"input": {IF_NULL: [START_TIME, ""]}, "regex": r"^\d{2}:\d{2}$"}},
-                    {"$regexMatch": {"input": {IF_NULL: [END_TIME, ""]}, "regex": r"^\d{2}:\d{2}$"}},
-                ],
-            },
-            {
-                "$subtract": [
-                    {
-                        "$add": [
-                            {MULTIPLY: [{TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [END_TIME, ":"]}, 0]}}, 60]},
-                            {TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [END_TIME, ":"]}, 1]}},
-                        ],
-                    },
-                    {
-                        "$add": [
-                            {MULTIPLY: [{TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [START_TIME, ":"]}, 0]}}, 60]},
-                            {TO_INT: {ARRAY_ELEM_AT: [{SPLIT: [START_TIME, ":"]}, 1]}},
-                        ],
-                    },
-                ],
-            },
-            0,
-        ],
-    }
+    time_expr = build_time_expr()
 
     summary = await db.schedules.aggregate([
         {MATCH: match_stage},
@@ -240,9 +207,9 @@ async def get_location_stats(
             "total_schedules": {"$sum": 1},
             "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
             "total_class_minutes": {"$sum": time_expr},
-            "completed": {"$sum": {COND: [{"$eq": [STATUS, "completed"]}, 1, 0]}},
-            "upcoming": {"$sum": {COND: [{"$eq": [STATUS, "upcoming"]}, 1, 0]}},
-            "in_progress": {"$sum": {COND: [{"$eq": [STATUS, "in_progress"]}, 1, 0]}},
+            "completed": {"$sum": build_status_count_field("completed")},
+            "upcoming": {"$sum": build_status_count_field("upcoming")},
+            "in_progress": {"$sum": build_status_count_field("in_progress")},
         }},
     ]).to_list(1)
     totals = summary[0] if summary else {
@@ -250,22 +217,13 @@ async def get_location_stats(
         "completed": 0, "upcoming": 0, "in_progress": 0,
     }
 
-    employee_breakdown = await db.schedules.aggregate([
-        {MATCH: match_stage},
-        {GROUP: {"_id": {IF_NULL: ["$employee_name", "Unknown"]}, "count": {"$sum": 1}}},
-        {"$project": {"_id": 0, "name": "$_id", "count": 1}},
-    ]).to_list(500)
+    employee_breakdown = await db.schedules.aggregate(
+        build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
+    ).to_list(500)
 
-    class_breakdown = await db.schedules.aggregate([
-        {MATCH: match_stage},
-        {GROUP: {"_id": {
-            "$let": {
-                "vars": {"class_name": {IF_NULL: ["$class_name", ""]}},
-                "in": {COND: [{"$eq": ["$$class_name", ""]}, "Unassigned", "$$class_name"]},
-            },
-        }, "count": {"$sum": 1}}},
-        {"$project": {"_id": 0, "name": "$_id", "count": 1}},
-    ]).to_list(500)
+    class_breakdown = await db.schedules.aggregate(
+        build_class_name_breakdown_pipeline(match_stage)
+    ).to_list(500)
 
     recent_schedules = await db.schedules.find(
         match_stage, {"_id": 0},
