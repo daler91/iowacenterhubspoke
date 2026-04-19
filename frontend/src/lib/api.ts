@@ -223,10 +223,13 @@ export const schedulesAPI = {
   importPreview: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    // Do NOT set Content-Type here — axios auto-detects FormData and emits
-    // the required ``multipart/form-data; boundary=...`` header. Setting it
-    // manually strips the boundary, which makes FastAPI reject the body.
-    return api.post('/schedules/import/preview', formData);
+    // ``postForm`` sets Content-Type: multipart/form-data so axios'
+    // transformRequest passes the FormData through unchanged. ``post``
+    // would inherit the axios-instance default (application/json) and
+    // silently JSON-stringify the FormData, losing the file (FastAPI then
+    // 422s on the missing ``file`` field). The browser's XHR layer adds
+    // the boundary parameter when the body is FormData.
+    return api.postForm('/schedules/import/preview', formData);
   },
   importCommit: (data: unknown) => api.post('/schedules/import', data),
 
