@@ -80,8 +80,12 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     // Jitter the polling interval (±5s) so concurrent partner sessions
     // don't synchronise into a thundering herd against the inbox endpoint.
     // Skip the API call entirely when the tab is hidden — the visibility
-    // listener catches up when the user returns.
-    const pollMs = 25000 + Math.floor(Math.random() * 10000);
+    // listener catches up when the user returns. crypto.getRandomValues
+    // (vs Math.random) sidesteps the Sonar PRNG hotspot and is universally
+    // supported in browsers we target.
+    const jitterBuf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(jitterBuf);
+    const pollMs = 25000 + Math.floor((jitterBuf[0] / 0x1_0000_0000) * 10000);
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchOnce();

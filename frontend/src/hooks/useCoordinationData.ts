@@ -15,10 +15,12 @@ function extractItems<T>(res: { data: { items?: T[] } | T[] }): T[] {
 // entry. JSON.stringify on a raw object is order-sensitive.
 function canonical(params: Record<string, unknown>): string {
   return JSON.stringify(
-    Object.keys(params).sort().reduce<Record<string, unknown>>((acc, k) => {
-      acc[k] = params[k];
-      return acc;
-    }, {}),
+    Object.keys(params)
+      .sort((a, b) => a.localeCompare(b))
+      .reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = params[k];
+        return acc;
+      }, {}),
   );
 }
 

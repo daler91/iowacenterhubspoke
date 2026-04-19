@@ -21,6 +21,12 @@ const STEPS = [
   { label: 'Recurrence' },
 ];
 
+function useEntityMaps(locations: { id: string }[] | undefined, classes: { id: string }[] | undefined) {
+  const locationMap = useMemo(() => new Map((locations || []).map(l => [l.id, l])), [locations]);
+  const classMap = useMemo(() => new Map((classes || []).map(c => [c.id, c])), [classes]);
+  return { locationMap, classMap };
+}
+
 function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverride: boolean, editSchedule: unknown, employeeCount: number): string {
   if (loading) return 'Saving...';
   if (outlookOverride || googleOverride) return 'Schedule Anyway';
@@ -148,10 +154,10 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
 
   // Map lookups so per-keystroke reads of the selected location/class are
   // O(1) — the .find() variant scaled with the size of the option lists.
-  const locationMap = useMemo(() => new Map((locations || []).map(l => [l.id, l])), [locations]);
-  const classMap = useMemo(() => new Map((classes || []).map(c => [c.id, c])), [classes]);
-  const selectedLocation = form.location_id ? locationMap.get(form.location_id) : undefined;
-  const selectedClass = form.class_id ? classMap.get(form.class_id) : undefined;
+  // `Map.get(undefined)` returns undefined, so no extra null guard needed.
+  const { locationMap, classMap } = useEntityMaps(locations, classes);
+  const selectedLocation = locationMap.get(form.location_id);
+  const selectedClass = classMap.get(form.class_id);
 
   const handleQuickClassCreated = (classDoc) => {
     onClassCreated?.(classDoc);
