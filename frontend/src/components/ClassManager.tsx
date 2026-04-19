@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState, memo } from 'react';
 import { BookOpen, Pencil, Plus, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -19,12 +19,94 @@ import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
 import ClassProfile from './ClassProfile';
 
+// One class card memoized to cut sibling re-renders when a single card
+// mutates. Handler props come in stabilised via useCallback so the
+// React.memo comparison can skip them.
+type ClassItem = {
+  id: string;
+  name?: string;
+  description?: string;
+  color?: string;
+};
+
+type ClassRowProps = {
+  classItem: ClassItem;
+  isAdmin: boolean;
+  onView: (id: string) => void;
+  onEdit: (classItem: ClassItem) => void;
+  onDelete: (classItem: ClassItem) => void;
+};
+
+const ClassRow = memo(function ClassRow({
+  classItem, isAdmin, onView, onEdit, onDelete,
+}: ClassRowProps) {
+  return (
+    <div
+      data-testid={`class-card-${classItem.id}`}
+      className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-start gap-4 min-w-0">
+        <div
+          className="w-10 h-10 rounded-xl shrink-0"
+          style={{ backgroundColor: classItem.color || '#0F766E' }}
+          data-testid={`class-color-swatch-${classItem.id}`}
+        />
+        <div className="min-w-0">
+          <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 dark:text-gray-100 truncate block" data-testid={`class-name-${classItem.id}`}>
+            {classItem.name}
+          </EntityLink>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
+            {classItem.description || 'No description added yet.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid={`view-class-${classItem.id}`}
+          onClick={() => onView(classItem.id)}
+          className="text-muted-foreground hover:text-teal-600"
+          aria-label={`View ${classItem.name}`}
+        >
+          <Eye className="w-4 h-4" aria-hidden="true" />
+        </Button>
+        {isAdmin && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`edit-class-${classItem.id}`}
+              onClick={() => onEdit(classItem)}
+              className="text-muted-foreground hover:text-indigo-600"
+              aria-label={`Edit ${classItem.name}`}
+            >
+              <Pencil className="w-4 h-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`delete-class-${classItem.id}`}
+              onClick={() => onDelete(classItem)}
+              className="text-muted-foreground hover:text-danger"
+              aria-label={`Delete ${classItem.name}`}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function ClassManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { classes, handleClassRefresh: onRefresh } = useOutletContext();
   const [selectedClassId, setSelectedClassId] = useState(null);
-  const onViewProfile = (id) => setSelectedClassId(id);
+  const onViewProfile = useCallback((id) => setSelectedClassId(id), []);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +119,9 @@ export default function ClassManager() {
     setDialogOpen(true);
   };
 
-  const openEdit = (classItem) => {
+  // Stable handlers so ClassRow's React.memo can skip re-renders for
+  // sibling cards when one card mutates.
+  const openEdit = useCallback((classItem) => {
     setEditing(classItem);
     setForm({
       name: classItem.name,
@@ -45,7 +129,9 @@ export default function ClassManager() {
       color: classItem.color || '#0F766E',
     });
     setDialogOpen(true);
-  };
+  }, []);
+
+  const openDelete = useCallback((classItem) => setDeleteTarget(classItem), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -122,64 +208,14 @@ export default function ClassManager() {
     >
       <div className="grid gap-3">
         {(classes || []).map((classItem) => (
-          <div
+          <ClassRow
             key={classItem.id}
-            data-testid={`class-card-${classItem.id}`}
-            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-start gap-4 min-w-0">
-              <div
-                className="w-10 h-10 rounded-xl shrink-0"
-                style={{ backgroundColor: classItem.color || '#0F766E' }}
-                data-testid={`class-color-swatch-${classItem.id}`}
-              />
-              <div className="min-w-0">
-                <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 dark:text-gray-100 truncate block" data-testid={`class-name-${classItem.id}`}>
-                  {classItem.name}
-                </EntityLink>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
-                  {classItem.description || 'No description added yet.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`view-class-${classItem.id}`}
-                onClick={() => onViewProfile(classItem.id)}
-                className="text-muted-foreground hover:text-teal-600"
-                aria-label={`View ${classItem.name}`}
-              >
-                <Eye className="w-4 h-4" aria-hidden="true" />
-              </Button>
-              {isAdmin && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`edit-class-${classItem.id}`}
-                    onClick={() => openEdit(classItem)}
-                    className="text-muted-foreground hover:text-indigo-600"
-                    aria-label={`Edit ${classItem.name}`}
-                  >
-                    <Pencil className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`delete-class-${classItem.id}`}
-                    onClick={() => setDeleteTarget(classItem)}
-                    className="text-muted-foreground hover:text-danger"
-                    aria-label={`Delete ${classItem.name}`}
-                  >
-                    <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+            classItem={classItem}
+            isAdmin={isAdmin}
+            onView={onViewProfile}
+            onEdit={openEdit}
+            onDelete={openDelete}
+          />
         ))}
 
         {(!classes || classes.length === 0) && (
