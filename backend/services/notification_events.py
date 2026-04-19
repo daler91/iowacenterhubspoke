@@ -148,50 +148,59 @@ def _default_html(body: str, link: Optional[str], cta: str) -> str:
 # Greedy regex quantifiers on user-controlled body text are a classic
 # ReDoS vector — CodeQL flags even a well-formed pattern here because
 # the body originates from HTTP request bodies we don't fully trust.
-# Every iteration advances ``i`` by at least one character, so the whole
-# function runs in strict O(n).
+# Every parse step advances the cursor by at least one character, so the
+# whole function runs in strict O(n).
+_NAME_STOP = frozenset("][@")
+_ID_STOP = frozenset("()")
 _TOKEN_ID_PREFIX = "](user:"
+
+
+def _scan_until(text: str, start: int, stop: frozenset[str]) -> int:
+    """Return the first index ``>= start`` whose char is in ``stop``, or
+    ``len(text)`` if none. Factored out so the main scanner keeps its
+    cognitive complexity under Sonar's threshold."""
+    n = len(text)
+    j = start
+    while j < n and text[j] not in stop:
+        j += 1
+    return j
+
+
+def _parse_mention_token(text: str, at: int) -> Optional[tuple[str, int]]:
+    """Parse a ``@[name](user:id:kind)`` token starting at ``text[at] == '@'``.
+
+    Returns ``(name, end_index_exclusive)`` on success, ``None`` otherwise.
+    ``at + 1`` must already be confirmed as ``[`` by the caller.
+    """
+    n = len(text)
+    close_name = _scan_until(text, at + 2, _NAME_STOP)
+    if close_name >= n or text[close_name] != "]":
+        return None
+    if not text.startswith(_TOKEN_ID_PREFIX, close_name):
+        return None
+    close_paren = _scan_until(text, close_name + len(_TOKEN_ID_PREFIX), _ID_STOP)
+    if close_paren >= n or text[close_paren] != ")":
+        return None
+    return text[at + 2:close_name], close_paren + 1
 
 
 def _strip_mention_tokens(text: str) -> str:
     out: list[str] = []
     i = 0
     n = len(text)
-    prefix_len = len(_TOKEN_ID_PREFIX)
     while i < n:
-        ch = text[i]
-        if ch != "@" or i + 1 >= n or text[i + 1] != "[":
-            out.append(ch)
+        if text[i] != "@" or i + 1 >= n or text[i + 1] != "[":
+            out.append(text[i])
             i += 1
             continue
-        # Scan forward for the end of the display name. ``@`` and ``[``
-        # inside the name mean we've run past a malformed token — abort
-        # this attempt and emit just the ``@``.
-        j = i + 2
-        while j < n:
-            c = text[j]
-            if c == "]" or c == "[" or c == "@":
-                break
-            j += 1
-        if (
-            j >= n or text[j] != "]"
-            or not text.startswith(_TOKEN_ID_PREFIX, j)
-        ):
+        parsed = _parse_mention_token(text, i)
+        if parsed is None:
             out.append("@")
             i += 1
             continue
-        # Scan the principal id until the closing paren, rejecting any
-        # nested ``(`` to stay well-formed.
-        k = j + prefix_len
-        while k < n and text[k] != ")" and text[k] != "(":
-            k += 1
-        if k >= n or text[k] != ")":
-            out.append("@")
-            i += 1
-            continue
-        out.append("@")
-        out.append(text[i + 2:j])
-        i = k + 1
+        name, end = parsed
+        out.append("@" + name)
+        i = end
     return "".join(out)
 
 
