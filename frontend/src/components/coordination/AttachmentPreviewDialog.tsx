@@ -2,11 +2,11 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import type { PreviewKind } from '../../lib/attachment-preview';
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  filename: string;
-  kind: PreviewKind;
-  url: string;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly filename: string;
+  readonly kind: PreviewKind;
+  readonly url: string;
 }
 
 export default function AttachmentPreviewDialog({
