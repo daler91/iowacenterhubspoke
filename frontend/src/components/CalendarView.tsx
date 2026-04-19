@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
 import { useAuth } from '../lib/auth';
@@ -10,7 +10,6 @@ import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
 import { PageHeader } from './ui/page-header';
-import RelocateConflictDialog from './RelocateConflictDialog';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import MobileCalendar from './MobileCalendar';
@@ -18,10 +17,12 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
 import BulkActionBar from './BulkActionBar';
-import ExportCsvDialog from './ExportCsvDialog';
-import ImportCsvDialog from './ImportCsvDialog';
 import useSelectionMode from '../hooks/useSelectionMode';
 import type { CalendarOutletContext, Schedule } from '../lib/types';
+
+const RelocateConflictDialog = lazy(() => import('./RelocateConflictDialog'));
+const ExportCsvDialog = lazy(() => import('./ExportCsvDialog'));
+const ImportCsvDialog = lazy(() => import('./ImportCsvDialog'));
 
 export default function CalendarView() {
   const isMobile = useIsMobile();
@@ -384,34 +385,40 @@ export default function CalendarView() {
       )}
 
       {exportOpen && (
-        <ExportCsvDialog
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          currentFilters={{
-            start_date: format(currentDate, 'yyyy-MM-dd'),
-            end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
-            location_id: searchParams.get('location') || undefined,
-            employee_id: searchParams.get('employee') || undefined,
-          }}
-        />
+        <Suspense fallback={null}>
+          <ExportCsvDialog
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            currentFilters={{
+              start_date: format(currentDate, 'yyyy-MM-dd'),
+              end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
+              location_id: searchParams.get('location') || undefined,
+              employee_id: searchParams.get('employee') || undefined,
+            }}
+          />
+        </Suspense>
       )}
 
       {importOpen && (
-        <ImportCsvDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          onImportSuccess={() => {
-            fetchSchedules();
-            fetchActivities?.();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ImportCsvDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            onImportSuccess={() => {
+              fetchSchedules();
+              fetchActivities?.();
+            }}
+          />
+        </Suspense>
       )}
 
-      <RelocateConflictDialog
-        data={relocateConflictData}
-        onClose={() => setRelocateConflictData(null)}
-        onForce={handleForceRelocate}
-      />
+      <Suspense fallback={null}>
+        <RelocateConflictDialog
+          data={relocateConflictData}
+          onClose={() => setRelocateConflictData(null)}
+          onForce={handleForceRelocate}
+        />
+      </Suspense>
     </div>
   );
 }
