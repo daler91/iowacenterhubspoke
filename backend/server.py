@@ -374,6 +374,12 @@ async def lifespan(app: FastAPI):
     app.state.redis = None
     await _ensure_redis_client(app)
 
+    # Wire the workload cache to pull from app.state.redis on demand, so a
+    # reconnect inside _ensure_redis_client (called from the health probe)
+    # flows through without extra plumbing.
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(lambda: getattr(app.state, "redis", None))
+
     yield
 
     # ---- Shutdown ----
@@ -386,6 +392,8 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(None)
     await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
 
@@ -535,6 +543,17 @@ _CACHE_MAX_AGE = {
     "/api/v1/classes": 300,            # 5 min
     "/api/v1/dashboard/stats": 60,     # 1 min
     "/api/v1/health": 30,             # 30 sec
+    # /api/v1/workload deliberately NOT listed: it's cached server-side
+    # for 60s via services.workload_cache with explicit invalidation on
+    # every mutation (schedule_crud/_bulk/_import, classes, employees).
+    # Adding a positive max-age here would let browsers serve a stale
+    # response for up to 60s after a mutation — the mutation happens on
+    # a different URL, so nothing busts the browser entry. Falling
+    # through to _DEFAULT_API_MAX_AGE = 0 keeps freshness correct; the
+    # Redis cache still makes revalidation (ETag → 304) nearly free.
+    # Analytics endpoints are heavy aggregations that don't need second-
+    # fresh data — Trends / Forecast / Drive Optimization share a prefix.
+    "/api/v1/analytics": 30,
 }
 _DEFAULT_API_MAX_AGE = 0  # default: must-revalidate (ETag only)
 
@@ -662,6 +681,16 @@ if not origins:
         origins = []  # No cross-origin requests allowed
     else:
         origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+# Response compression. Added BEFORE CORS so that CORS remains the last
+# registered middleware and therefore the outermost wrapper on the ASGI
+# stack — Starlette inserts each new middleware at the head of the list,
+# so "added last == outermost". Keeping CORS outermost matters for
+# preflight handling; gzip still sees every response body because it
+# sits immediately inside CORS. The 1 KB floor skips trivial bodies
+# where the fixed encoding overhead would dominate.
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,

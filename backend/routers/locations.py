@@ -9,6 +9,7 @@ from core.pagination import Paginated
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.drive_time import get_drive_time_between_locations, get_drive_time_from_hub
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.queue import get_redis_pool
 
@@ -127,6 +128,12 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
             extra={"entity": {"location_id": location_id}},
         )
 
+    # Location edits change location_name / drive_time_minutes on schedule
+    # rows (either via the background job or the inline fallback above),
+    # both of which feed /workload totals. Drop the cache so the next
+    # read recomputes. The worker task also calls delete on completion,
+    # which covers the window between this flush and the sync finishing.
+    await invalidate_workload_cache()
     return updated
 
 

@@ -29,6 +29,7 @@ from core.constants import (
     STATUS_COMPLETED,
 )
 from services.schedule_utils import check_conflicts
+from services.workload_cache import invalidate as invalidate_workload_cache
 from routers.schedule_helpers import (
     logger,
     _build_employees_snapshot,
@@ -70,6 +71,7 @@ async def bulk_delete_schedules(
         )
         for s in affected:
             await notify_schedule_changed(s, "cancelled", user)
+        await invalidate_workload_cache()
     return {"deleted_count": deleted_count}
 
 
@@ -118,6 +120,7 @@ async def bulk_update_status(
         )
         for s in affected:
             await notify_schedule_bulk_status_changed(s, data.status, user)
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
@@ -254,6 +257,7 @@ async def bulk_reassign_schedules(
             await notify_schedule_assigned(
                 {**s, "employee_ids": employee_ids}, new_for_this, user,
             )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
@@ -380,6 +384,7 @@ async def bulk_update_location(
         await _notify_location_changes(
             schedules, data.location_id, location["city_name"], user,
         )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
@@ -428,4 +433,5 @@ async def bulk_update_class(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}

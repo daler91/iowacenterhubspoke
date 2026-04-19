@@ -12,6 +12,7 @@ from services.notification_events import (
     notify_project_deleted,
     notify_project_phase_advanced,
 )
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -404,6 +405,8 @@ async def _auto_create_schedule(
             {"$set": {"schedule_id": sched_doc["id"]}},
         )
         project_doc["schedule_id"] = sched_doc["id"]
+        # New schedule means new class/drive hours flowing into /workload.
+        await invalidate_workload_cache()
         logger.info(
             "Auto-created schedule for project",
             extra={"entity": {
@@ -620,6 +623,10 @@ async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRe
             {"id": updated["schedule_id"], "deleted_at": None},
             {"$set": {"date": new_date}},
         )
+        # A schedule date moved, so existing /workload rows now slot into
+        # a different period bucket — drop the cache so the next read
+        # recomputes.
+        await invalidate_workload_cache()
     return updated
 
 

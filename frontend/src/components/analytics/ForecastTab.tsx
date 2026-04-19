@@ -29,7 +29,12 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
   const { data, isLoading } = useSWR(
     ['analytics-forecast', params],
     () => fetcher(analyticsAPI.forecast, params),
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      keepPreviousData: true,
+      dedupingInterval: 30000,
+    }
   );
 
   const historical = data?.historical || [];

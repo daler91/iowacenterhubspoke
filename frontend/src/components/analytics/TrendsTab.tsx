@@ -33,7 +33,16 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
   const { data, isLoading } = useSWR(
     ['analytics-trends', params],
     () => fetcher(analyticsAPI.trends, params),
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+      // Users frequently bounce between analytics sub-tabs; holding the
+      // last-good data and suppressing stale revalidation inside a 30s
+      // window removes the loading flash and prevents duplicate requests
+      // for the same param set.
+      revalidateIfStale: false,
+      keepPreviousData: true,
+      dedupingInterval: 30000,
+    }
   );
 
   const trends = data?.data || [];

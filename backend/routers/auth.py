@@ -877,6 +877,15 @@ async def delete_my_account(user: CurrentUser, response: Response):
     await db.users.delete_one({"id": user["user_id"]})
     invalidate_pwd_cache(user["user_id"])
 
+    # Self-delete soft-deletes the matching employee row and renames the
+    # denormalized employee snapshot on every historical schedule, both
+    # of which feed _compute_workload_stats. Bust the workload cache so
+    # the next /workload read recomputes instead of returning pre-delete
+    # totals for up to the TTL window.
+    if employee_ids_to_anonymize:
+        from services.workload_cache import invalidate as _invalidate_workload_cache
+        await _invalidate_workload_cache()
+
     response.delete_cookie(
         key="auth_token", httponly=True, samesite="lax", secure=True,
     )

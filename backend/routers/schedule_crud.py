@@ -19,6 +19,7 @@ from core.pagination import Paginated
 from services.activity import log_activity
 from services.notification_events import notify_schedule_changed
 from services.schedule_utils import check_conflicts
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.constants import (
     STATUS_UPCOMING,
     STATUS_IN_PROGRESS,
@@ -139,7 +140,9 @@ async def get_schedule(schedule_id: str, user: CurrentUser):
     },
 )
 async def create_schedule(data: ScheduleCreate, user: SchedulerRequired):
-    return await _create_schedule(data, user)
+    result = await _create_schedule(data, user)
+    await invalidate_workload_cache()
+    return result
 
 
 # --- Update ---
@@ -274,6 +277,7 @@ async def update_schedule(
         f"Schedule updated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id}},
     )
+    await invalidate_workload_cache()
     return await db.schedules.find_one(
         {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
@@ -320,6 +324,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
             user.get("name", "System"),
         )
         await notify_schedule_changed(schedule, "cancelled", user)
+    await invalidate_workload_cache()
     return {"message": "Schedule deleted"}
 
 
@@ -347,6 +352,7 @@ async def restore_schedule(schedule_id: str, user: SchedulerRequired):
         schedule_id,
         user.get("name", "System"),
     )
+    await invalidate_workload_cache()
     return {"message": "Schedule restored"}
 
 
@@ -421,6 +427,7 @@ async def update_schedule_status(
                 )
     if linked_project_summary:
         updated["linked_project"] = linked_project_summary
+    await invalidate_workload_cache()
     return updated
 
 
@@ -448,6 +455,7 @@ async def delete_series(series_id: str, user: SchedulerRequired):
             f"Deleted {deleted_count} future schedule(s) in series",
             "schedule_series", series_id, user.get("name", "System"),
         )
+        await invalidate_workload_cache()
     return {"deleted_count": deleted_count, "series_id": series_id}
 
 
@@ -496,6 +504,7 @@ async def update_series(
             f"Updated {updated_count} future schedule(s) in series",
             "schedule_series", series_id, user.get("name", "System"),
         )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count, "series_id": series_id}
 
 
@@ -601,4 +610,5 @@ async def relocate_schedule(
     await notify_schedule_changed(
         updated or schedule, "relocated", user, extra={"new_date": data.date},
     )
+    await invalidate_workload_cache()
     return updated

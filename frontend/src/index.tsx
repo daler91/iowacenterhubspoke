@@ -108,9 +108,43 @@ if (globalThis.window !== undefined) {
   });
 }
 
+// Bookend performance marks for the app shell so we can measure how long
+// the initial bundle takes to hydrate, before and after the lazy-load /
+// tab-gating work lands. Paired with the `insights-tab-switch` measure in
+// InsightsPage; both emit to whatever consumes User Timing entries
+// (PostHog / Sentry / devtools).
+const MARK_APP_SHELL_START = 'app-shell-bootstrap-start';
+const MARK_APP_SHELL_READY = 'app-shell-ready';
+if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
+  try { performance.mark(MARK_APP_SHELL_START); } catch { /* older browsers */ }
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
 );
+
+// Mark the shell as ready once React has flushed its first commit. We use
+// requestAnimationFrame inside requestIdleCallback so the measure reflects
+// real paint + hydration, not just render-tree construction.
+if (
+  typeof performance !== 'undefined'
+  && typeof performance.mark === 'function'
+  && typeof performance.measure === 'function'
+  && import.meta.env.MODE !== 'test'
+) {
+  const finish = () => {
+    try {
+      performance.mark(MARK_APP_SHELL_READY);
+      performance.measure('app-shell-ready', MARK_APP_SHELL_START, MARK_APP_SHELL_READY);
+    } catch { /* ignore missing start mark in fast-refresh reloads */ }
+  };
+  const onIdle = () => globalThis.requestAnimationFrame(finish);
+  if (typeof globalThis.requestIdleCallback === 'function') {
+    globalThis.requestIdleCallback(onIdle, { timeout: 3000 });
+  } else {
+    setTimeout(onIdle, 500);
+  }
+}

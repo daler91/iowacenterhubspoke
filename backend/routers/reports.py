@@ -75,9 +75,8 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
     class_breakdown[class_key]["drive_minutes"] += drive_minutes
 
 
-@router.get("/workload", summary="Get employee workload statistics")
-async def get_workload_stats(user: CurrentUser):
-    """Return class/drive hours, completion status, and class breakdowns per employee."""
+async def _compute_workload_stats() -> list[dict]:
+    """Build the workload payload. Extracted for cacheability."""
     employees, all_schedules = await asyncio.gather(
         db.employees.find(
             {"deleted_at": None},
@@ -145,6 +144,18 @@ async def get_workload_stats(user: CurrentUser):
         )
 
     return workload
+
+
+@router.get("/workload", summary="Get employee workload statistics")
+async def get_workload_stats(user: CurrentUser):
+    """Return class/drive hours, completion status, and class breakdowns per employee.
+
+    Served from a 60-second Redis cache when available. Cache is busted
+    by mutation endpoints in schedule_crud / schedule_bulk /
+    schedule_import / classes / employees (see services.workload_cache).
+    """
+    from services.workload_cache import get_or_compute
+    return await get_or_compute(_compute_workload_stats)
 
 
 def _init_employee_summary(emp):
