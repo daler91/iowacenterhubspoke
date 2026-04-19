@@ -12,6 +12,10 @@ from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.constants import DEFAULT_CLASS_COLOR
 from core.queue import get_redis_pool
+from routers.stats_aggregation import (
+    MATCH, GROUP, IF_NULL, MULTIPLY,
+    build_time_expr, build_status_count_field, build_name_breakdown_pipeline,
+)
 
 logger = get_logger(__name__)
 
@@ -174,42 +178,47 @@ async def get_class_stats(
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"class_id": class_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    date_match = {}
     if start_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') >= start_date]
+        date_match["$gte"] = start_date
     if end_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') <= end_date]
-    total_schedules = len(all_schedules)
-    total_drive_minutes = 0
-    total_class_minutes = 0
-    completed = 0
-    upcoming = 0
-    in_progress = 0
-    emp_counts = {}
-    loc_counts = {}
+        date_match["$lte"] = end_date
 
-    for s in all_schedules:
-        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
-        try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except (ValueError, KeyError):
-            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
+    match_stage = {"class_id": class_id, "deleted_at": None}
+    if date_match:
+        match_stage["date"] = date_match
 
-        status = s.get('status', 'upcoming')
-        if status == 'completed':
-            completed += 1
-        elif status == 'upcoming':
-            upcoming += 1
-        elif status == 'in_progress':
-            in_progress += 1
+    time_expr = build_time_expr()
 
-        emp_name = s.get('employee_name', 'Unknown')
-        emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
+    summary_pipeline = [
+        {MATCH: match_stage},
+        {GROUP: {
+            "_id": None,
+            "total_schedules": {"$sum": 1},
+            "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
+            "total_class_minutes": {"$sum": time_expr},
+            "completed": {"$sum": build_status_count_field("completed")},
+            "upcoming": {"$sum": build_status_count_field("upcoming")},
+            "in_progress": {"$sum": build_status_count_field("in_progress")},
+        }},
+    ]
+    summary = await db.schedules.aggregate(summary_pipeline).to_list(1)
+    totals = summary[0] if summary else {
+        "total_schedules": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
+        "completed": 0, "upcoming": 0, "in_progress": 0,
+    }
 
-        loc_name = s.get('location_name', 'Unknown')
-        loc_counts[loc_name] = loc_counts.get(loc_name, 0) + 1
+    employee_breakdown = await db.schedules.aggregate(
+        build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
+    ).to_list(500)
+
+    location_breakdown = await db.schedules.aggregate(
+        build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
+    ).to_list(500)
+
+    recent_schedules = await db.schedules.find(
+        match_stage, {"_id": 0},
+    ).sort("date", -1).limit(10).to_list(10)
 
     # Business outcomes from linked projects
     projects = await db.projects.find(
@@ -222,18 +231,18 @@ async def get_class_stats(
 
     return {
         "class_info": class_doc,
-        "total_schedules": total_schedules,
-        "total_drive_minutes": total_drive_minutes,
-        "total_class_minutes": total_class_minutes,
-        "completed": completed,
-        "upcoming": upcoming,
-        "in_progress": in_progress,
+        "total_schedules": totals["total_schedules"],
+        "total_drive_minutes": totals["total_drive_minutes"],
+        "total_class_minutes": totals["total_class_minutes"],
+        "completed": totals["completed"],
+        "upcoming": totals["upcoming"],
+        "in_progress": totals["in_progress"],
         "projects_delivered": projects_delivered,
         "total_attendance": total_attendance,
         "total_warm_leads": total_warm_leads,
-        "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
-        "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
-        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+        "employee_breakdown": employee_breakdown,
+        "location_breakdown": location_breakdown,
+        "recent_schedules": recent_schedules,
     }
 
 

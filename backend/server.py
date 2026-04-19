@@ -79,9 +79,9 @@ async def _run_startup_migrations():
 async def _ensure_indexes():
     """Create required database indexes."""
     try:
-        await db.schedules.create_index([("employee_ids", 1), ("date", 1)])
-        await db.schedules.create_index([("employee_ids", 1), ("date", 1), ("deleted_at", 1)])
-        await db.schedules.create_index([("location_id", 1), ("date", 1)])
+        await db.schedules.create_index([("employee_ids", 1), ("deleted_at", 1), ("date", 1)])
+        await db.schedules.create_index([("location_id", 1), ("deleted_at", 1), ("date", 1)])
+        await db.schedules.create_index([("class_id", 1), ("deleted_at", 1), ("date", 1)])
         await db.schedules.create_index([("date", 1), ("status", 1)])
         await db.schedules.create_index([("deleted_at", 1)])
         # Compound partial-unique index on (created_by_user_id,
