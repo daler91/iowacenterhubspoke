@@ -22,6 +22,11 @@ logger = get_logger(__name__)
 _CACHE_KEY = "cache:workload:v1"
 _DEFAULT_TTL_SECONDS = 60
 
+
+# Public alias so worker-side code can bust the key without holding a
+# reference to the FastAPI app — the worker runs in its own process.
+CACHE_KEY = _CACHE_KEY
+
 # Getter rather than a raw client so a reconnect in the health-check path
 # propagates here without us having to know about it.
 _client_getter: Optional[Callable[[], Optional[Any]]] = None

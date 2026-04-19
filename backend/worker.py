@@ -346,6 +346,26 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
                 },
             )
 
+    # The router that enqueued this job already invalidated the workload
+    # cache synchronously, but that happened BEFORE the denormalized
+    # snapshots on the schedule rows were rewritten. Without this second
+    # invalidation, a /workload request landing between the router flush
+    # and this job's completion would recompute from pre-sync data and
+    # cache those stale values for a full TTL. Busting the key again here
+    # closes that window — the next request recomputes from the fresh
+    # denormalized snapshots.
+    redis_pool = ctx.get("redis")
+    if redis_pool is not None:
+        try:
+            from services.workload_cache import CACHE_KEY as _WORKLOAD_CACHE_KEY
+            await redis_pool.delete(_WORKLOAD_CACHE_KEY)
+        except Exception:
+            logger.warning(
+                "workload cache invalidate failed after sync",
+                exc_info=True,
+                extra={"entity": {"type": entity_type, "id": entity_id}},
+            )
+
     logger.info("Sync completed", extra={"entity": {"type": entity_type, "id": entity_id}})
 
 
