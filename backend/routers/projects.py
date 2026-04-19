@@ -61,30 +61,51 @@ _WARM_LEADS_FIELD = "$warm_leads"
 _CLASS_ID_FIELD = "$class_id"
 
 
-def _accumulate_task_stat(stats: dict, task: dict, now: str) -> None:
-    """Accumulate a single task into the stats dict for its project."""
-    pid = task["project_id"]
-    if pid not in stats:
-        stats[pid] = {"total": 0, "completed": 0, "partner_overdue": 0}
-    stats[pid]["total"] += 1
-    if task.get("completed"):
-        stats[pid]["completed"] += 1
-    elif task.get("owner") in ("partner", "both") and task.get("due_date", "") < now:
-        stats[pid]["partner_overdue"] += 1
-
-
 async def _build_task_stats(project_ids: list[str]) -> dict:
-    """Fetch tasks for the given project IDs and return per-project stats."""
+    """Fetch tasks for the given project IDs and return per-project stats.
+
+    Uses a server-side `$group` aggregation so we never pull individual
+    task documents back for the board view — the previous approach read
+    up to 10k tasks into memory and looped in Python. Here Mongo returns
+    one row per project, regardless of task volume.
+    """
     if not project_ids:
         return {}
-    tasks = await db.tasks.find(
-        {"project_id": {"$in": project_ids}, "deleted_at": None},
-        {"_id": 0, "project_id": 1, "completed": 1, "owner": 1, "due_date": 1},
-    ).to_list(10000)
     now = datetime.now(timezone.utc).isoformat()
+    pipeline = [
+        {_AGG_MATCH: {"project_id": {"$in": project_ids}, "deleted_at": None}},
+        {
+            _AGG_GROUP: {
+                "_id": "$project_id",
+                "total": {"$sum": 1},
+                "completed": {
+                    "$sum": {"$cond": [{"$eq": ["$completed", True]}, 1, 0]},
+                },
+                "partner_overdue": {
+                    "$sum": {
+                        "$cond": [
+                            {
+                                "$and": [
+                                    {"$ne": ["$completed", True]},
+                                    {"$in": [{_AGG_IF_NULL: ["$owner", ""]}, ["partner", "both"]]},
+                                    {"$lt": [{_AGG_IF_NULL: ["$due_date", ""]}, now]},
+                                ],
+                            },
+                            1,
+                            0,
+                        ],
+                    },
+                },
+            },
+        },
+    ]
     stats: dict = {}
-    for t in tasks:
-        _accumulate_task_stat(stats, t, now)
+    async for row in db.tasks.aggregate(pipeline):
+        stats[row["_id"]] = {
+            "total": row.get("total", 0),
+            "completed": row.get("completed", 0),
+            "partner_overdue": row.get("partner_overdue", 0),
+        }
     return stats
 
 

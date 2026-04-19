@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -77,15 +78,22 @@ async def create_partner_org(data: PartnerOrgCreate, user: SchedulerRequired):
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def get_partner_org(org_id: str, user: CurrentUser):
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+    org, contacts, projects = await asyncio.gather(
+        db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0}),
+        db.partner_contacts.find(
+            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+        ).to_list(200),
+        # Limit to the 20 most recent projects; the profile page only
+        # renders a short activity list and older projects stay reachable
+        # through the main projects search. Trimming here turns a
+        # 50-document payload into a 20-document one and keeps the page
+        # render snappy for long-lived partner orgs.
+        db.projects.find(
+            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+        ).sort("event_date", -1).to_list(20),
+    )
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-    contacts = await db.partner_contacts.find(
-        {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-    ).to_list(200)
-    projects = await db.projects.find(
-        {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-    ).sort("event_date", -1).to_list(50)
     org["contacts"] = contacts
     org["projects"] = projects
     return org

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -29,6 +29,94 @@ const INVITE_STATUS_STYLES = {
   accepted: 'bg-spoke-soft text-spoke',
   revoked: 'bg-danger-soft text-danger',
 };
+
+// Isolate one "All Users" row into its own memoized component so typing
+// in the invite dialog, revoking a single invitation, or changing one
+// role doesn't re-render the other N-1 rows. Paired with useCallback'd
+// handlers on the parent, changing one user leaves the other rows'
+// React output fully cached.
+type UserRowProps = {
+  u: { id: string; name?: string; email?: string; role?: string; status?: string };
+  isSelf: boolean;
+  onRoleChange: (userId: string, role: string) => void;
+  onOpenSessions: (u: { id: string; email: string }) => void;
+  onDelete: (userId: string) => void;
+};
+
+const UserRow = memo(function UserRow({
+  u,
+  isSelf,
+  onRoleChange,
+  onOpenSessions,
+  onDelete,
+}: UserRowProps) {
+  return (
+    <tr className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
+            {u.name?.charAt(0)?.toUpperCase()}
+          </div>
+          <div>
+            <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
+            <p className="text-xs text-slate-500 dark:text-gray-400">{u.email}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[u.status] || STATUS_STYLES.approved}`}>
+          {u.status || 'approved'}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <Select
+          value={u.role}
+          onValueChange={(value) => onRoleChange(u.id, value)}
+          disabled={isSelf}
+        >
+          <SelectTrigger className="w-32 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLES.map(r => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onOpenSessions({ id: u.id, email: u.email || '' })}
+            aria-label={`View sessions for ${u.email || 'user'}`}
+            title="View active sessions"
+            className="text-muted-foreground hover:text-indigo-600"
+          >
+            <LogOut className="w-4 h-4" aria-hidden="true" />
+          </Button>
+          {!isSelf && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onDelete(u.id)}
+              aria-label={`Delete ${u.email || 'user'}`}
+              className="text-danger hover:text-danger hover:bg-danger-soft"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          )}
+          {isSelf && (
+            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 ml-1">
+              <Shield className="w-3 h-3" /> You
+            </span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 export default function UserManager() {
   const { user } = useAuth();
@@ -107,7 +195,10 @@ export default function UserManager() {
     }
   };
 
-  const handleRoleChange = async (userId, role) => {
+  // useCallback so UserRow's React.memo comparison keeps sibling rows
+  // from re-rendering when only one row mutates. fetchUsers is already
+  // memoized, so each callback has a stable identity across renders.
+  const handleRoleChange = useCallback(async (userId: string, role: string) => {
     try {
       await usersAPI.updateRole(userId, role);
       toast.success(`Role updated to ${role}`);
@@ -115,9 +206,9 @@ export default function UserManager() {
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to update role'));
     }
-  };
+  }, [fetchUsers]);
 
-  const handleDelete = async (userId) => {
+  const handleDelete = useCallback(async (userId: string) => {
     try {
       await usersAPI.delete(userId);
       toast.success('User deleted');
@@ -125,7 +216,7 @@ export default function UserManager() {
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to delete user'));
     }
-  };
+  }, [fetchUsers]);
 
   const handleInvite = async (e) => {
     e.preventDefault();
@@ -173,7 +264,7 @@ export default function UserManager() {
     setInviteForm({ email: '', name: '', role: 'viewer' });
   };
 
-  const openSessions = async (u: { id: string; email: string }) => {
+  const openSessions = useCallback(async (u: { id: string; email: string }) => {
     setSessionsFor(u);
     setSessions([]);
     setSessionsLoading(true);
@@ -185,7 +276,7 @@ export default function UserManager() {
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, []);
 
   const closeSessions = () => {
     setSessionsFor(null);
@@ -394,70 +485,14 @@ export default function UserManager() {
                 </thead>
                 <tbody>
                   {otherUsers.map(u => (
-                    <tr key={u.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
-                            {u.name?.charAt(0)?.toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[u.status] || STATUS_STYLES.approved}`}>
-                          {u.status || 'approved'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Select
-                          value={u.role}
-                          onValueChange={(value) => handleRoleChange(u.id, value)}
-                          disabled={u.id === user.id}
-                        >
-                          <SelectTrigger className="w-32 h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROLES.map(r => (
-                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openSessions({ id: u.id, email: u.email })}
-                            aria-label={`View sessions for ${u.email || 'user'}`}
-                            title="View active sessions"
-                            className="text-muted-foreground hover:text-indigo-600"
-                          >
-                            <LogOut className="w-4 h-4" aria-hidden="true" />
-                          </Button>
-                          {u.id !== user.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(u.id)}
-                              aria-label={`Delete ${u.email || 'user'}`}
-                              className="text-danger hover:text-danger hover:bg-danger-soft"
-                            >
-                              <Trash2 className="w-4 h-4" aria-hidden="true" />
-                            </Button>
-                          )}
-                          {u.id === user.id && (
-                            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 ml-1">
-                              <Shield className="w-3 h-3" /> You
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                    <UserRow
+                      key={u.id}
+                      u={u}
+                      isSelf={u.id === user.id}
+                      onRoleChange={handleRoleChange}
+                      onOpenSessions={openSessions}
+                      onDelete={handleDelete}
+                    />
                   ))}
                 </tbody>
               </table>

@@ -1,6 +1,6 @@
 import asyncio
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from typing import Optional
@@ -11,6 +11,14 @@ from services.schedule_utils import calculate_class_minutes
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Bound the /workload scan window. Without a filter we used to read every
+# non-deleted schedule in the system (capped at 1000), which silently
+# truncated on larger deployments and blew up per-request memory. 180
+# days covers all realistic "classes delivered / upcoming" dashboards;
+# the schedules collection is indexed on `date`, so the filter is cheap.
+_WORKLOAD_DEFAULT_LOOKBACK_DAYS = 180
+_WORKLOAD_SCAN_LIMIT = 5000
 
 router = APIRouter(tags=["reports"])
 
@@ -77,13 +85,20 @@ def _process_schedule_for_workload(s, workload_data, class_breakdown):
 
 async def _compute_workload_stats() -> list[dict]:
     """Build the workload payload. Extracted for cacheability."""
+    date_from = (
+        datetime.now(timezone.utc) - timedelta(days=_WORKLOAD_DEFAULT_LOOKBACK_DAYS)
+    ).strftime("%Y-%m-%d")
+    schedule_query = {
+        "deleted_at": None,
+        "date": {"$gte": date_from},
+    }
     employees, all_schedules = await asyncio.gather(
         db.employees.find(
             {"deleted_at": None},
             {"_id": 0, "id": 1, "name": 1, "color": 1},
         ).to_list(100),
         db.schedules.find(
-            {"deleted_at": None},
+            schedule_query,
             {
                 "_id": 0,
                 "id": 1,
@@ -96,8 +111,14 @@ async def _compute_workload_stats() -> list[dict]:
                 "class_name": 1,
                 "class_color": 1,
             },
-        ).to_list(1000),
+        ).to_list(_WORKLOAD_SCAN_LIMIT),
     )
+    if len(all_schedules) >= _WORKLOAD_SCAN_LIMIT:
+        logger.warning(
+            "workload scan hit limit=%d with date_from=%s; consider narrowing the window",
+            _WORKLOAD_SCAN_LIMIT,
+            date_from,
+        )
 
     schedules_by_employee = defaultdict(list)
     for s in all_schedules:

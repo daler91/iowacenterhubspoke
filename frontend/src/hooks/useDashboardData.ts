@@ -1,4 +1,4 @@
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { useState, useCallback } from 'react';
 import { locationsAPI, employeesAPI, classesAPI, schedulesAPI, dashboardAPI, activityAPI, workloadAPI } from '../lib/api';
 import type { Location, Employee, ClassType, Schedule, DashboardStats, ActivityLog } from '../lib/types';
@@ -57,26 +57,40 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   const { data: activities = [], mutate: mutateActivities } = useSWR<ActivityLog[]>(needActivity ? 'activities' : null, () => activityAPI.getAll(50).then(extractItems<ActivityLog>), { ...swrOptions, onError: onError('activities') });
   const { data: workloadData = [], mutate: mutateWorkload } = useSWR<Record<string, unknown>[]>(needWorkload ? 'workload' : null, () => workloadAPI.getAll().then(extractItems<Record<string, unknown>>), { ...swrOptions, onError: onError('workload') });
 
+  // Invalidate a route-gated cache without forcing an immediate refetch.
+  // When the tab that consumes the cache isn't mounted (flag is false),
+  // we still want to drop the stale value so the next visit sees fresh
+  // data — but we don't pay for the refetch right now.
+  const invalidateGated = useCallback((key: string, isActive: boolean, mutateFn: () => Promise<unknown>) => {
+    if (isActive) {
+      void mutateFn();
+    } else {
+      void globalMutate(key, undefined, { revalidate: false });
+    }
+  }, []);
+
   const handleClassRefresh = useCallback(() => {
     // Class edits and deletes denormalize class_name/class_color/class_id
     // onto every matching schedule (via sync_class_snapshot_background on
     // update, and a direct db.schedules.update_many on delete). Workload
-    // aggregations read those same fields. So all five caches need to
-    // revalidate — otherwise the dashboard keeps showing the old class
-    // label until a hard refresh, since SWR has revalidateOnFocus disabled.
+    // aggregations read those same fields. The classes/schedules/stats
+    // caches back the sidebar counters and are always consumed, so they
+    // always revalidate. `activities` and `workload` are route-gated —
+    // only refetch them if the consuming tab is actually mounted, else
+    // just invalidate so the next visit sees fresh data.
     mutateClasses();
     mutateSchedules();
     mutateStats();
-    mutateActivities();
-    mutateWorkload();
-  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
+    invalidateGated('activities', needActivity, mutateActivities);
+    invalidateGated('workload', needWorkload, mutateWorkload);
+  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   const handleScheduleSaved = useCallback(() => {
     mutateSchedules();
     mutateStats();
-    mutateActivities();
-    mutateWorkload();
-  }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload]);
+    invalidateGated('activities', needActivity, mutateActivities);
+    invalidateGated('workload', needWorkload, mutateWorkload);
+  }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   return {
     locations: Array.isArray(locations) ? locations : [],

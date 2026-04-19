@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -200,34 +201,35 @@ async def get_location_stats(
 
     time_expr = build_time_expr()
 
-    summary = await db.schedules.aggregate([
-        {MATCH: match_stage},
-        {GROUP: {
-            "_id": None,
-            "total_schedules": {"$sum": 1},
-            "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
-            "total_class_minutes": {"$sum": time_expr},
-            "completed": {"$sum": build_status_count_field("completed")},
-            "upcoming": {"$sum": build_status_count_field("upcoming")},
-            "in_progress": {"$sum": build_status_count_field("in_progress")},
-        }},
-    ]).to_list(1)
+    # Four independent queries → fan out in parallel.
+    summary, employee_breakdown, class_breakdown, recent_schedules = await asyncio.gather(
+        db.schedules.aggregate([
+            {MATCH: match_stage},
+            {GROUP: {
+                "_id": None,
+                "total_schedules": {"$sum": 1},
+                "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
+                "total_class_minutes": {"$sum": time_expr},
+                "completed": {"$sum": build_status_count_field("completed")},
+                "upcoming": {"$sum": build_status_count_field("upcoming")},
+                "in_progress": {"$sum": build_status_count_field("in_progress")},
+            }},
+        ]).to_list(1),
+        db.schedules.aggregate(
+            build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
+        ).to_list(500),
+        db.schedules.aggregate(
+            build_class_name_breakdown_pipeline(match_stage)
+        ).to_list(500),
+        db.schedules.find(
+            match_stage, {"_id": 0},
+        ).sort("date", -1).limit(10).to_list(10),
+    )
+
     totals = summary[0] if summary else {
         "total_schedules": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
         "completed": 0, "upcoming": 0, "in_progress": 0,
     }
-
-    employee_breakdown = await db.schedules.aggregate(
-        build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
-    ).to_list(500)
-
-    class_breakdown = await db.schedules.aggregate(
-        build_class_name_breakdown_pipeline(match_stage)
-    ).to_list(500)
-
-    recent_schedules = await db.schedules.find(
-        match_stage, {"_id": 0},
-    ).sort("date", -1).limit(10).to_list(10)
 
     return {
         "location": location,
