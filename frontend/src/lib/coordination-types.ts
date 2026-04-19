@@ -301,4 +301,24 @@ export interface DashboardMetrics {
 
 export interface BoardData {
   columns: Record<string, Project[]>;
+  /**
+   * Per-phase flag indicating whether the backend truncated that
+   * column's result set at `phase_limit`. When true, the UI renders a
+   * "showing N" hint so users know to narrow the filter toolbar.
+   * Older backends (pre-pagination) omit this field.
+   */
+  phase_truncated?: Record<string, boolean>;
+  /** The effective per-column cap applied by the backend. */
+  phase_limit?: number;
+  /**
+   * Distinct filter values across the full active-project set, not
+   * just the paged columns. Used to build the filter dropdowns so
+   * they stay complete when a phase is truncated; otherwise a
+   * community that only lives in the clipped tail would be
+   * unreachable. Older backends omit this field and the UI falls
+   * back to deriving communities from the visible columns.
+   */
+  facets?: {
+    communities?: string[];
+  };
 }
