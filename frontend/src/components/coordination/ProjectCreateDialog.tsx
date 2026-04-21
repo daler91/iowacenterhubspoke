@@ -30,6 +30,25 @@ interface Props {
   readonly employees?: Employee[];
 }
 
+// FastAPI returns {detail: [{loc, msg, type}]} on 422 and {detail: "..."}
+// on handled 4xx. Pull out the first field error so users see *why* the
+// request failed instead of a generic "Failed to create project".
+function extractCreateProjectError(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })
+    ?.response?.data?.detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as { loc?: unknown[]; msg?: string };
+    const locTail = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : undefined;
+    const field = typeof locTail === 'string' || typeof locTail === 'number' ? String(locTail) : '';
+    const msg = first.msg ?? 'validation error';
+    return `Failed to create project: ${field ? `${field} — ` : ''}${msg}`;
+  }
+  if (typeof detail === 'string' && detail) {
+    return `Failed to create project: ${detail}`;
+  }
+  return 'Failed to create project';
+}
+
 export default function ProjectCreateDialog({ onClose, onCreated, classes = [], employees = [] }: Props) {
   const { partnerOrgs } = usePartnerOrgs();
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
@@ -129,8 +148,8 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
       }
       toast.success('Project created');
       onCreated();
-    } catch {
-      toast.error('Failed to create project');
+    } catch (err: unknown) {
+      toast.error(extractCreateProjectError(err));
     } finally {
       setLoading(false);
     }
