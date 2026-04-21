@@ -109,7 +109,9 @@ describe('useDashboardData', () => {
     // Schedules now live under an array SWR key per-window — invalidation
     // goes through the global `mutate` with the `isSchedulesSwrKey`
     // predicate so every windowed variant is refreshed.
-    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey, undefined, undefined);
+    // No optimistic data → 1-arg predicate mutate (revalidate-only)
+    // so the cached list doesn't flash empty during revalidation.
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
     expect(mockMutate.mutateStats).toHaveBeenCalled();
@@ -124,7 +126,9 @@ describe('useDashboardData', () => {
       result.current.handleScheduleSaved();
     });
 
-    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey, undefined, undefined);
+    // No optimistic data → 1-arg predicate mutate (revalidate-only)
+    // so the cached list doesn't flash empty during revalidation.
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
     expect(mockMutate.mutateStats).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
@@ -133,7 +137,7 @@ describe('useDashboardData', () => {
     expect(mockMutate.mutateClasses).not.toHaveBeenCalled();
   });
 
-  it('fetchSchedules invalidates every windowed schedules cache', () => {
+  it('fetchSchedules revalidates every windowed schedules cache without clearing data', () => {
     const { result } = renderHook(() => useDashboardData({}));
     act(() => {
       result.current.fetchSchedules();
@@ -142,7 +146,11 @@ describe('useDashboardData', () => {
     // call fetchSchedules() after the write. Because Kanban and Map hold
     // an unbounded `['schedules', null, null]` cache and Calendar holds a
     // windowed one, the invalidation has to match every windowed key.
-    expect(globalMutateMock).toHaveBeenCalledWith(
+    // The 1-arg predicate form is a revalidate-only (doesn't briefly
+    // blank the cached list during the refetch), so the call should use
+    // the single-argument shape here.
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
+    expect(globalMutateMock).not.toHaveBeenCalledWith(
       isSchedulesSwrKey,
       undefined,
       undefined,

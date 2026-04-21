@@ -97,16 +97,25 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   // `fetchSchedules` is handed to every page via the outlet context and
   // used by calendar-side writes (relocate, bulk actions, schedule-form
   // save) to invalidate the schedules cache. Because the SWR key is
-  // windowed, `mutateSchedules` only refreshes the *currently active*
-  // window — so a calendar edit would leave Kanban/Map (which use the
-  // unbounded `['schedules', null, null]` cache) stale until their next
-  // mount. Routing every invalidation through the predicate mutate
-  // covers every window uniformly. The predicate form accepts the same
-  // `data` (value or updater) and `opts` (revalidate flag) args as the
-  // keyed form, so existing optimistic-update call sites keep working.
+  // windowed, the keyed `mutate` would only refresh the *currently
+  // active* window — so a calendar edit would leave Kanban/Map (which
+  // use the unbounded `['schedules', null, null]` cache) stale until
+  // their next mount. Routing every invalidation through the predicate
+  // mutate covers every window uniformly.
+  //
+  // Branch on whether a caller supplied optimistic data: SWR's 3-arg
+  // form *replaces* each matched entry's data (passing `undefined`
+  // there briefly shows an empty list during revalidation, flickering
+  // the calendar on slow networks). The 1-arg predicate form is a
+  // revalidate-only and keeps the stale data visible until the network
+  // reply lands.
   const fetchSchedules = useCallback(
-    (optimisticData?: unknown, options?: { revalidate?: boolean }) =>
-      globalMutate(isSchedulesSwrKey, optimisticData as any, options),
+    (optimisticData?: unknown, options?: { revalidate?: boolean }) => {
+      if (optimisticData === undefined && options === undefined) {
+        return globalMutate(isSchedulesSwrKey);
+      }
+      return globalMutate(isSchedulesSwrKey, optimisticData as any, options);
+    },
     []
   );
   // `stats` drives the sidebar counters on every route, so keep it unconditional.
