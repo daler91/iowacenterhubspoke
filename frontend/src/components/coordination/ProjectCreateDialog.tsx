@@ -11,6 +11,7 @@ import type { ProjectTemplate } from '../../lib/coordination-types';
 import type { ClassType, Employee } from '../../lib/types';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
+import { describeApiError } from '../../lib/error-messages';
 import { CalendarPlus, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { EmployeeMultiSelect } from '../ui/employee-multi-select';
@@ -28,29 +29,6 @@ interface Props {
   readonly onCreated: () => void;
   readonly classes?: ClassType[];
   readonly employees?: Employee[];
-}
-
-// FastAPI returns {detail: [{loc, msg, type}]} on 422 and {detail: "..."}
-// on handled 4xx. Pull out the first field error so users see *why* the
-// request failed instead of a generic "Failed to create project".
-const CREATE_PROJECT_ERROR_PREFIX = 'Failed to create project';
-
-function extractCreateProjectError(err: unknown): string {
-  const detail = (err as { response?: { data?: { detail?: unknown } } })
-    ?.response?.data?.detail;
-  if (Array.isArray(detail) && detail.length > 0) {
-    const first = detail[0] as { loc?: unknown[]; msg?: string };
-    const locTail = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : undefined;
-    const field =
-      typeof locTail === 'string' || typeof locTail === 'number' ? String(locTail) : '';
-    const msg = first.msg ?? 'validation error';
-    const fieldPrefix = field ? `${field} — ` : '';
-    return `${CREATE_PROJECT_ERROR_PREFIX}: ${fieldPrefix}${msg}`;
-  }
-  if (typeof detail === 'string' && detail) {
-    return `${CREATE_PROJECT_ERROR_PREFIX}: ${detail}`;
-  }
-  return CREATE_PROJECT_ERROR_PREFIX;
 }
 
 export default function ProjectCreateDialog({ onClose, onCreated, classes = [], employees = [] }: Props) {
@@ -153,7 +131,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
       toast.success('Project created');
       onCreated();
     } catch (err: unknown) {
-      toast.error(extractCreateProjectError(err));
+      toast.error(describeApiError(err, 'Failed to create project'));
     } finally {
       setLoading(false);
     }
