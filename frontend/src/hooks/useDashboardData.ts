@@ -35,15 +35,37 @@ const swrOptions = {
 const ACTIVITIES_KEY = 'activities';
 const WORKLOAD_KEY = 'workload';
 
+/** Shape of the optional `schedules` date-range filter. Both ends are
+ *  inclusive ISO `YYYY-MM-DD` strings (matching the backend contract in
+ *  `schedule_crud.py`). `null` or `undefined` means "no window" and
+ *  preserves the original unbounded behaviour used by Kanban/Map.
+ */
+export interface ScheduleWindow {
+  dateFrom: string;
+  dateTo: string;
+}
+
+/** SWR key matcher for any `schedules` cache entry, regardless of the
+ *  active window. Used by callers that want to invalidate the schedule
+ *  cache without knowing which window is currently active (e.g. a
+ *  schedule-save mutation).
+ */
+export const isSchedulesSwrKey = (key: unknown): boolean =>
+  Array.isArray(key) && key[0] === 'schedules';
+
 export interface UseDashboardDataOptions {
   /** Fetch `/stats` and `/activities` (needed by Insights + Dashboard home). */
   needActivity?: boolean;
   /** Fetch `/workload` (only Insights → Workload tab consumes this). */
   needWorkload?: boolean;
+  /** Bound the schedules fetch to a date range. `null`/`undefined` keeps
+   *  the old unbounded behaviour — callers that don't pass a window get
+   *  identical semantics to before this option existed. */
+  scheduleWindow?: ScheduleWindow | null;
 }
 
 export function useDashboardData(options: UseDashboardDataOptions = {}) {
-  const { needActivity = false, needWorkload = false } = options;
+  const { needActivity = false, needWorkload = false, scheduleWindow = null } = options;
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
 
   const onError = (key: string) => (err: any) => {
@@ -51,10 +73,51 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     setFetchErrors(prev => ({ ...prev, [key]: err?.message || 'Failed to load' }));
   };
 
+  // The schedules key is an array so (a) SWR differentiates cache
+  // entries per-window and (b) callers elsewhere can invalidate every
+  // windowed variant via the `isSchedulesSwrKey` predicate without
+  // having to know which window is currently active.
+  const schedulesKey: readonly [string, string | null, string | null] = [
+    'schedules',
+    scheduleWindow?.dateFrom ?? null,
+    scheduleWindow?.dateTo ?? null,
+  ];
+  const fetchSchedulesList = () => {
+    const params = scheduleWindow
+      ? { date_from: scheduleWindow.dateFrom, date_to: scheduleWindow.dateTo }
+      : undefined;
+    return schedulesAPI.getAll(params).then(extractItems<Schedule>);
+  };
+
   const { data: locations = [], mutate: mutateLocations } = useSWR<Location[]>('locations', () => locationsAPI.getAll().then(extractItems<Location>), { ...swrOptions, onError: onError('locations') });
   const { data: employees = [], mutate: mutateEmployees } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
   const { data: classes = [], mutate: mutateClasses } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
-  const { data: schedules = [], mutate: mutateSchedules } = useSWR<Schedule[]>('schedules', () => schedulesAPI.getAll().then(extractItems<Schedule>), { ...swrOptions, onError: onError('schedules') });
+  const { data: schedules = [] } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
+
+  // `fetchSchedules` is handed to every page via the outlet context and
+  // used by calendar-side writes (relocate, bulk actions, schedule-form
+  // save) to invalidate the schedules cache. Because the SWR key is
+  // windowed, the keyed `mutate` would only refresh the *currently
+  // active* window — so a calendar edit would leave Kanban/Map (which
+  // use the unbounded `['schedules', null, null]` cache) stale until
+  // their next mount. Routing every invalidation through the predicate
+  // mutate covers every window uniformly.
+  //
+  // Branch on whether a caller supplied optimistic data: SWR's 3-arg
+  // form *replaces* each matched entry's data (passing `undefined`
+  // there briefly shows an empty list during revalidation, flickering
+  // the calendar on slow networks). The 1-arg predicate form is a
+  // revalidate-only and keeps the stale data visible until the network
+  // reply lands.
+  const fetchSchedules = useCallback(
+    (optimisticData?: unknown, options?: { revalidate?: boolean }) => {
+      if (optimisticData === undefined && options === undefined) {
+        return globalMutate(isSchedulesSwrKey);
+      }
+      return globalMutate(isSchedulesSwrKey, optimisticData as any, options);
+    },
+    []
+  );
   // `stats` drives the sidebar counters on every route, so keep it unconditional.
   const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, total_classes: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR<DashboardStats>('stats', () => dashboardAPI.getStats().then(res => res.data.data || res.data), { ...swrOptions, onError: onError('stats') });
   // `activities` + `workload` are route-gated: passing `null` as the SWR key
@@ -85,18 +148,18 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     // only refetch them if the consuming tab is actually mounted, else
     // just invalidate so the next visit sees fresh data.
     mutateClasses();
-    mutateSchedules();
+    fetchSchedules();
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [mutateClasses, fetchSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   const handleScheduleSaved = useCallback(() => {
-    mutateSchedules();
+    fetchSchedules();
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [fetchSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   return {
     locations: Array.isArray(locations) ? locations : [],
@@ -110,7 +173,7 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     fetchLocations: mutateLocations,
     fetchEmployees: mutateEmployees,
     fetchClasses: mutateClasses,
-    fetchSchedules: mutateSchedules,
+    fetchSchedules,
     fetchStats: mutateStats,
     fetchActivities: mutateActivities,
     fetchWorkload: mutateWorkload,

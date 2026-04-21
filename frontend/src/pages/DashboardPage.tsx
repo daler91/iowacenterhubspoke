@@ -1,10 +1,26 @@
-import { useState, useEffect, Suspense, useMemo, lazy } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback, lazy } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { useDashboardData } from '../hooks/useDashboardData';
+import { useDashboardData, type ScheduleWindow } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
+import { format, addDays, subDays } from 'date-fns';
+
+// ±60-day window used by the Calendar route's initial schedule fetch.
+// Matches the `_WORKLOAD_DEFAULT_LOOKBACK_DAYS` convention in
+// `backend/routers/reports.py` and covers the vast majority of calendar
+// navigations without a follow-up refetch. Calendar nav beyond this
+// range calls `setScheduleWindow` to widen dynamically.
+const CALENDAR_DEFAULT_WINDOW_DAYS = 60;
+
+function defaultCalendarWindow(): ScheduleWindow {
+  const today = new Date();
+  return {
+    dateFrom: format(subDays(today, CALENDAR_DEFAULT_WINDOW_DAYS), 'yyyy-MM-dd'),
+    dateTo: format(addDays(today, CALENDAR_DEFAULT_WINDOW_DAYS), 'yyyy-MM-dd'),
+  };
+}
 
 // These three panels only matter once the user interacts — the schedule form
 // opens from a button, the stat modal opens from a dashboard tile, and the
@@ -35,17 +51,43 @@ export default function DashboardPage() {
   // when they don't consume either. Defaults to 'summary' when no tab query
   // param is present (matches InsightsPage).
   const onInsights = location.pathname.startsWith('/insights');
+  // Treat `/` like `/calendar` because the root index route redirects
+  // to `/calendar` (see App.tsx). Without this, the first render after
+  // a fresh login lands at `/` and would pass `scheduleWindow = null`,
+  // triggering an unbounded schedules fetch — the exact slowness this
+  // PR is trying to remove.
+  const onCalendar =
+    location.pathname === '/' || location.pathname.startsWith('/calendar');
   const insightsTab = onInsights
     ? new URLSearchParams(location.search).get('tab') || 'summary'
     : null;
   const needActivity = onInsights && insightsTab === 'activity';
   const needWorkload = onInsights && insightsTab === 'workload';
 
+  // Base window is computed once at mount and held stable across
+  // renders so the SWR key doesn't shift on every re-render.
+  const defaultWindow = useMemo(defaultCalendarWindow, []);
+
+  // The user can widen the window by navigating the calendar; that
+  // widening is tracked in state and applied on top of the base.
+  // `null` means "no user-driven widening — use the base when on
+  // /calendar, otherwise pass no window".
+  const [widenedWindow, setWidenedWindow] = useState<ScheduleWindow | null>(null);
+
+  // Derive the effective window *synchronously* from the path so
+  // navigation calendar <-> kanban/map/profiles flips the fetch scope
+  // on the first render (not after a follow-up effect). Previously
+  // this used useEffect, which left Kanban/Map briefly rendering with
+  // the calendar-scoped dataset on the first render after navigation.
+  const scheduleWindow: ScheduleWindow | null = onCalendar
+    ? (widenedWindow ?? defaultWindow)
+    : null;
+
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors
-  } = useDashboardData({ needActivity, needWorkload });
+  } = useDashboardData({ needActivity, needWorkload, scheduleWindow });
 
   const {
     statModalOpen,
@@ -78,16 +120,29 @@ export default function DashboardPage() {
     return () => clearTimeout(id);
   }, []);
 
+  // Stable identity for the window setter so CalendarView's useEffect
+  // deps stay honest. CalendarView reads the current effective window
+  // via outlet context and passes the widened concrete bounds here.
+  const updateScheduleWindow = useCallback(
+    (next: ScheduleWindow | null) => {
+      setWidenedWindow(next);
+    },
+    []
+  );
+
   const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors,
+    scheduleWindow,
+    setScheduleWindow: updateScheduleWindow,
     onEditSchedule: handleEditSchedule,
     onStatClick: handleStatClick
   }), [
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
-    handleClassRefresh, handleScheduleSaved, fetchErrors, handleEditSchedule, handleStatClick
+    handleClassRefresh, handleScheduleSaved, fetchErrors,
+    scheduleWindow, updateScheduleWindow, handleEditSchedule, handleStatClick
   ]);
 
   return (
