@@ -109,7 +109,7 @@ describe('useDashboardData', () => {
     // Schedules now live under an array SWR key per-window — invalidation
     // goes through the global `mutate` with the `isSchedulesSwrKey`
     // predicate so every windowed variant is refreshed.
-    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey, undefined, undefined);
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
     expect(mockMutate.mutateStats).toHaveBeenCalled();
@@ -124,13 +124,43 @@ describe('useDashboardData', () => {
       result.current.handleScheduleSaved();
     });
 
-    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey, undefined, undefined);
     expect(mockMutate.mutateStats).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
     expect(mockMutate.mutateLocations).not.toHaveBeenCalled();
     expect(mockMutate.mutateEmployees).not.toHaveBeenCalled();
     expect(mockMutate.mutateClasses).not.toHaveBeenCalled();
+  });
+
+  it('fetchSchedules invalidates every windowed schedules cache', () => {
+    const { result } = renderHook(() => useDashboardData({}));
+    act(() => {
+      result.current.fetchSchedules();
+    });
+    // Calendar-side writes (relocate, bulk actions, schedule-form save)
+    // call fetchSchedules() after the write. Because Kanban and Map hold
+    // an unbounded `['schedules', null, null]` cache and Calendar holds a
+    // windowed one, the invalidation has to match every windowed key.
+    expect(globalMutateMock).toHaveBeenCalledWith(
+      isSchedulesSwrKey,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('fetchSchedules forwards optimistic data and options to every windowed cache', () => {
+    const { result } = renderHook(() => useDashboardData({}));
+    const updater = (current: unknown) => current;
+    const options = { revalidate: false };
+    act(() => {
+      result.current.fetchSchedules(updater, options);
+    });
+    expect(globalMutateMock).toHaveBeenCalledWith(
+      isSchedulesSwrKey,
+      updater,
+      options,
+    );
   });
 
   it('passes date_from/date_to to schedulesAPI.getAll when a window is supplied', () => {

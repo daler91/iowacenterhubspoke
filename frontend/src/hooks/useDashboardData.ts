@@ -92,7 +92,23 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   const { data: locations = [], mutate: mutateLocations } = useSWR<Location[]>('locations', () => locationsAPI.getAll().then(extractItems<Location>), { ...swrOptions, onError: onError('locations') });
   const { data: employees = [], mutate: mutateEmployees } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
   const { data: classes = [], mutate: mutateClasses } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
-  const { data: schedules = [], mutate: mutateSchedules } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
+  const { data: schedules = [] } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
+
+  // `fetchSchedules` is handed to every page via the outlet context and
+  // used by calendar-side writes (relocate, bulk actions, schedule-form
+  // save) to invalidate the schedules cache. Because the SWR key is
+  // windowed, `mutateSchedules` only refreshes the *currently active*
+  // window — so a calendar edit would leave Kanban/Map (which use the
+  // unbounded `['schedules', null, null]` cache) stale until their next
+  // mount. Routing every invalidation through the predicate mutate
+  // covers every window uniformly. The predicate form accepts the same
+  // `data` (value or updater) and `opts` (revalidate flag) args as the
+  // keyed form, so existing optimistic-update call sites keep working.
+  const fetchSchedules = useCallback(
+    (optimisticData?: unknown, options?: { revalidate?: boolean }) =>
+      globalMutate(isSchedulesSwrKey, optimisticData as any, options),
+    []
+  );
   // `stats` drives the sidebar counters on every route, so keep it unconditional.
   const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, total_classes: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR<DashboardStats>('stats', () => dashboardAPI.getStats().then(res => res.data.data || res.data), { ...swrOptions, onError: onError('stats') });
   // `activities` + `workload` are route-gated: passing `null` as the SWR key
@@ -123,21 +139,18 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     // only refetch them if the consuming tab is actually mounted, else
     // just invalidate so the next visit sees fresh data.
     mutateClasses();
-    // Invalidate every windowed `schedules` cache, not just the current
-    // one — user may have switched route since the mutation started and
-    // other views (Kanban, Map) would otherwise show stale data.
-    globalMutate(isSchedulesSwrKey);
+    fetchSchedules();
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateClasses, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [mutateClasses, fetchSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   const handleScheduleSaved = useCallback(() => {
-    globalMutate(isSchedulesSwrKey);
+    fetchSchedules();
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [fetchSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   return {
     locations: Array.isArray(locations) ? locations : [],
@@ -151,7 +164,7 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     fetchLocations: mutateLocations,
     fetchEmployees: mutateEmployees,
     fetchClasses: mutateClasses,
-    fetchSchedules: mutateSchedules,
+    fetchSchedules,
     fetchStats: mutateStats,
     fetchActivities: mutateActivities,
     fetchWorkload: mutateWorkload,
