@@ -51,35 +51,37 @@ export default function DashboardPage() {
   // when they don't consume either. Defaults to 'summary' when no tab query
   // param is present (matches InsightsPage).
   const onInsights = location.pathname.startsWith('/insights');
-  const onCalendar = location.pathname.startsWith('/calendar');
+  // Treat `/` like `/calendar` because the root index route redirects
+  // to `/calendar` (see App.tsx). Without this, the first render after
+  // a fresh login lands at `/` and would pass `scheduleWindow = null`,
+  // triggering an unbounded schedules fetch — the exact slowness this
+  // PR is trying to remove.
+  const onCalendar =
+    location.pathname === '/' || location.pathname.startsWith('/calendar');
   const insightsTab = onInsights
     ? new URLSearchParams(location.search).get('tab') || 'summary'
     : null;
   const needActivity = onInsights && insightsTab === 'activity';
   const needWorkload = onInsights && insightsTab === 'workload';
 
-  // Bound the schedules fetch to a date window only on the Calendar
-  // route — Kanban/Map/profiles still need the full set, so they keep
-  // the old unbounded behaviour by leaving `scheduleWindow` null.
-  // Calendar widens the window itself when the user navigates beyond
-  // the default range.
-  const [scheduleWindow, setScheduleWindow] = useState<ScheduleWindow | null>(() =>
-    location.pathname.startsWith('/calendar') ? defaultCalendarWindow() : null
-  );
+  // Base window is computed once at mount and held stable across
+  // renders so the SWR key doesn't shift on every re-render.
+  const defaultWindow = useMemo(defaultCalendarWindow, []);
 
-  useEffect(() => {
-    setScheduleWindow(prev => {
-      if (onCalendar) {
-        // Keep any widened window the user already has, otherwise seed
-        // with the default. Switching between /calendar variants
-        // (query params, nested) should not reset the window.
-        return prev ?? defaultCalendarWindow();
-      }
-      // Leaving /calendar: drop back to unbounded so Kanban/Map see
-      // every schedule on arrival.
-      return null;
-    });
-  }, [onCalendar]);
+  // The user can widen the window by navigating the calendar; that
+  // widening is tracked in state and applied on top of the base.
+  // `null` means "no user-driven widening — use the base when on
+  // /calendar, otherwise pass no window".
+  const [widenedWindow, setWidenedWindow] = useState<ScheduleWindow | null>(null);
+
+  // Derive the effective window *synchronously* from the path so
+  // navigation calendar <-> kanban/map/profiles flips the fetch scope
+  // on the first render (not after a follow-up effect). Previously
+  // this used useEffect, which left Kanban/Map briefly rendering with
+  // the calendar-scoped dataset on the first render after navigation.
+  const scheduleWindow: ScheduleWindow | null = onCalendar
+    ? (widenedWindow ?? defaultWindow)
+    : null;
 
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
@@ -119,11 +121,11 @@ export default function DashboardPage() {
   }, []);
 
   // Stable identity for the window setter so CalendarView's useEffect
-  // deps stay honest. The setter accepts either a concrete window or a
-  // functional updater.
+  // deps stay honest. CalendarView reads the current effective window
+  // via outlet context and passes the widened concrete bounds here.
   const updateScheduleWindow = useCallback(
-    (next: ScheduleWindow | null | ((prev: ScheduleWindow | null) => ScheduleWindow | null)) => {
-      setScheduleWindow(prev => (typeof next === 'function' ? next(prev) : next));
+    (next: ScheduleWindow | null) => {
+      setWidenedWindow(next);
     },
     []
   );

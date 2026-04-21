@@ -27,6 +27,14 @@ const RelocateConflictDialog = lazy(() => import('./RelocateConflictDialog'));
 const ExportCsvDialog = lazy(() => import('./ExportCsvDialog'));
 const ImportCsvDialog = lazy(() => import('./ImportCsvDialog'));
 
+// Inclusive [start, end] of the currently-visible range for each view.
+// Extracted so the widen-window effect below doesn't nest ternaries.
+function viewBoundsFor(view: string, anchor: Date): [Date, Date] {
+  if (view === 'month') return [startOfWeek(startOfMonth(anchor)), endOfWeek(endOfMonth(anchor))];
+  if (view === 'week') return [startOfWeek(anchor), endOfWeek(anchor)];
+  return [anchor, anchor];
+}
+
 export default function CalendarView() {
   const isMobile = useIsMobile();
   const {
@@ -95,30 +103,21 @@ export default function CalendarView() {
   // extends the range to at least cover the visible view. Shrinking is
   // deliberately avoided — SWR cache entries for narrower ranges stay
   // warm, and widening-only keeps nav snappy.
+  const currentFrom = scheduleWindow?.dateFrom;
+  const currentTo = scheduleWindow?.dateTo;
   useEffect(() => {
     if (!setScheduleWindow) return;
     const anchor = parseISO(currentDateIso);
-    const viewStart = calendarView === 'month'
-      ? startOfWeek(startOfMonth(anchor))
-      : calendarView === 'week'
-        ? startOfWeek(anchor)
-        : anchor;
-    const viewEnd = calendarView === 'month'
-      ? endOfWeek(endOfMonth(anchor))
-      : calendarView === 'week'
-        ? endOfWeek(anchor)
-        : anchor;
+    const [viewStart, viewEnd] = viewBoundsFor(calendarView, anchor);
     // Pad by two weeks so nearby nav clicks hit cache.
     const paddedFrom = format(subDays(viewStart, 14), 'yyyy-MM-dd');
     const paddedTo = format(addDays(viewEnd, 14), 'yyyy-MM-dd');
-    setScheduleWindow(prev => {
-      if (!prev) return { dateFrom: paddedFrom, dateTo: paddedTo };
-      const nextFrom = paddedFrom < prev.dateFrom ? paddedFrom : prev.dateFrom;
-      const nextTo = paddedTo > prev.dateTo ? paddedTo : prev.dateTo;
-      if (nextFrom === prev.dateFrom && nextTo === prev.dateTo) return prev;
-      return { dateFrom: nextFrom, dateTo: nextTo };
-    });
-  }, [calendarView, currentDateIso, setScheduleWindow]);
+    const nextFrom = !currentFrom || paddedFrom < currentFrom ? paddedFrom : currentFrom;
+    const nextTo = !currentTo || paddedTo > currentTo ? paddedTo : currentTo;
+    if (nextFrom !== currentFrom || nextTo !== currentTo) {
+      setScheduleWindow({ dateFrom: nextFrom, dateTo: nextTo });
+    }
+  }, [calendarView, currentDateIso, currentFrom, currentTo, setScheduleWindow]);
 
   // Pre-warm the PDF export chunk during an idle slot after the calendar
   // mounts. html2canvas + jspdf together are ~350KB gzipped; fetching them

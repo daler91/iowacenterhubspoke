@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import useSWR, { mutate as globalMutateMock } from 'swr';
 import { useDashboardData, isSchedulesSwrKey } from './useDashboardData';
+import { schedulesAPI } from '../lib/api';
 
 // Mock the dependencies
 jest.mock('swr', () => ({
@@ -135,7 +136,6 @@ describe('useDashboardData', () => {
   it('passes date_from/date_to to schedulesAPI.getAll when a window is supplied', () => {
     // Capture the fetcher passed for the schedules key and invoke it so
     // we can assert on the params handed to the API.
-    const { schedulesAPI } = require('../lib/api');
     schedulesAPI.getAll.mockResolvedValue({ data: [] });
     let scheduleFetcher;
     useSWR.mockImplementation((key, fetcher) => {
@@ -158,7 +158,6 @@ describe('useDashboardData', () => {
   });
 
   it('calls schedulesAPI.getAll with no params when window is null', () => {
-    const { schedulesAPI } = require('../lib/api');
     schedulesAPI.getAll.mockResolvedValue({ data: [] });
     let scheduleFetcher;
     useSWR.mockImplementation((key, fetcher) => {

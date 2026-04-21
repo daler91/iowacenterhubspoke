@@ -190,12 +190,7 @@ export interface ScheduleWindowBounds {
   dateTo: string;
 }
 
-export type SetScheduleWindow = (
-  next:
-    | ScheduleWindowBounds
-    | null
-    | ((prev: ScheduleWindowBounds | null) => ScheduleWindowBounds | null)
-) => void;
+export type SetScheduleWindow = (next: ScheduleWindowBounds | null) => void;
 
 export interface CalendarOutletContext {
   locations: Location[];
