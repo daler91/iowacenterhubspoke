@@ -10,6 +10,7 @@ import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 import { EntityLink } from './ui/entity-link';
 import { mutate } from 'swr';
+import { isSchedulesSwrKey } from '../hooks/useDashboardData';
 import { SCHEDULE_STATUS, COLORS } from '../lib/constants';
 import BulkActionBar from './BulkActionBar';
 import useSelectionMode from '../hooks/useSelectionMode';
@@ -223,8 +224,10 @@ export default function KanbanBoard() {
     fetchWorkload();
   }, [fetchSchedules, fetchActivities, fetchWorkload]);
   const handleStatusChange = useCallback(async (scheduleId, newStatus) => {
-    // Optimistic UI cache swap for instantaneous feedback
-    mutate('schedules', (currentData) => {
+    // Optimistic UI cache swap for instantaneous feedback. The matcher
+    // covers every windowed `schedules` key (Calendar uses a date-bounded
+    // fetch, Kanban uses unbounded — both need the status flipped).
+    mutate(isSchedulesSwrKey, (currentData) => {
       if (!currentData) return currentData;
       return currentData.map(s => s.id === scheduleId ? { ...s, status: newStatus } : s);
     }, { revalidate: false });
@@ -249,8 +252,8 @@ export default function KanbanBoard() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
-      // Rollback cache
-      mutate('schedules');
+      // Rollback cache across every windowed variant
+      mutate(isSchedulesSwrKey);
     }
   }, [navigate, onRefresh]);
 

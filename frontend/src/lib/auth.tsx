@@ -25,12 +25,24 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Kick off the authenticated-route chunks so the browser downloads them in
+// parallel with the /auth/me round trip (or with the POST /auth/login
+// response). These dedupe with the React.lazy imports in App.tsx.
+function prewarmAuthenticatedChunks() {
+  void import('../pages/DashboardPage');
+  void import('../components/CalendarView');
+}
+
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => {
+      // Fire the authenticated-route chunk fetches before awaiting /auth/me
+      // so the Calendar JS is already in flight by the time ProtectedRoute
+      // resolves.
+      prewarmAuthenticatedChunks();
       try {
         const res = await authAPI.me();
         const userData: AuthUser = {
@@ -52,6 +64,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const login = useCallback(async (email: string, password: string) => {
     const res = await authAPI.login({ email, password });
     setUser(res.data.user);
+    // Warm the Calendar chunk before the Navigate-to-"/" redirect fires so
+    // the post-login transition doesn't wait on a cold JS fetch.
+    prewarmAuthenticatedChunks();
     return res.data;
   }, []);
 

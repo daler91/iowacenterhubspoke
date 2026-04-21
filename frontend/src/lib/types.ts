@@ -185,6 +185,18 @@ export interface DashboardOutletContext {
   onStatClick?: (stat: string, title?: string) => void;
 }
 
+export interface ScheduleWindowBounds {
+  dateFrom: string;
+  dateTo: string;
+}
+
+export type SetScheduleWindow = (
+  next:
+    | ScheduleWindowBounds
+    | null
+    | ((prev: ScheduleWindowBounds | null) => ScheduleWindowBounds | null)
+) => void;
+
 export interface CalendarOutletContext {
   locations: Location[];
   classes: ClassType[];
@@ -196,6 +208,8 @@ export interface CalendarOutletContext {
   onEditSchedule: (schedule: Schedule) => void;
   onStatClick?: (stat: string) => void;
   fetchErrors?: { schedules?: string };
+  scheduleWindow: ScheduleWindowBounds | null;
+  setScheduleWindow: SetScheduleWindow;
 }
 
 export interface AnalyticsOutletContext {

@@ -3,6 +3,7 @@ import { mutate } from 'swr';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
+import { isSchedulesSwrKey } from './useDashboardData';
 import type { Schedule } from '../lib/types';
 import { extractErrorMessage } from '../lib/types';
 
@@ -365,7 +366,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     try {
       await schedulesAPI.update(scheduleId, { [fieldKey]: minutes });
       fetchConflictPreview();
-      mutate('schedules'); // Invalidate calendar data so drive blocks update
+      mutate(isSchedulesSwrKey); // Invalidate every windowed schedules cache so drive blocks update
     } catch {
       // silently fail — chain will show stale data until next refresh
     }

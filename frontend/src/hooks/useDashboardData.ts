@@ -35,15 +35,37 @@ const swrOptions = {
 const ACTIVITIES_KEY = 'activities';
 const WORKLOAD_KEY = 'workload';
 
+/** Shape of the optional `schedules` date-range filter. Both ends are
+ *  inclusive ISO `YYYY-MM-DD` strings (matching the backend contract in
+ *  `schedule_crud.py`). `null` or `undefined` means "no window" and
+ *  preserves the original unbounded behaviour used by Kanban/Map.
+ */
+export interface ScheduleWindow {
+  dateFrom: string;
+  dateTo: string;
+}
+
+/** SWR key matcher for any `schedules` cache entry, regardless of the
+ *  active window. Used by callers that want to invalidate the schedule
+ *  cache without knowing which window is currently active (e.g. a
+ *  schedule-save mutation).
+ */
+export const isSchedulesSwrKey = (key: unknown): boolean =>
+  Array.isArray(key) && key[0] === 'schedules';
+
 export interface UseDashboardDataOptions {
   /** Fetch `/stats` and `/activities` (needed by Insights + Dashboard home). */
   needActivity?: boolean;
   /** Fetch `/workload` (only Insights → Workload tab consumes this). */
   needWorkload?: boolean;
+  /** Bound the schedules fetch to a date range. `null`/`undefined` keeps
+   *  the old unbounded behaviour — callers that don't pass a window get
+   *  identical semantics to before this option existed. */
+  scheduleWindow?: ScheduleWindow | null;
 }
 
 export function useDashboardData(options: UseDashboardDataOptions = {}) {
-  const { needActivity = false, needWorkload = false } = options;
+  const { needActivity = false, needWorkload = false, scheduleWindow = null } = options;
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
 
   const onError = (key: string) => (err: any) => {
@@ -51,10 +73,26 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     setFetchErrors(prev => ({ ...prev, [key]: err?.message || 'Failed to load' }));
   };
 
+  // The schedules key is an array so (a) SWR differentiates cache
+  // entries per-window and (b) callers elsewhere can invalidate every
+  // windowed variant via the `isSchedulesSwrKey` predicate without
+  // having to know which window is currently active.
+  const schedulesKey: readonly [string, string | null, string | null] = [
+    'schedules',
+    scheduleWindow?.dateFrom ?? null,
+    scheduleWindow?.dateTo ?? null,
+  ];
+  const fetchSchedulesList = () => {
+    const params = scheduleWindow
+      ? { date_from: scheduleWindow.dateFrom, date_to: scheduleWindow.dateTo }
+      : undefined;
+    return schedulesAPI.getAll(params).then(extractItems<Schedule>);
+  };
+
   const { data: locations = [], mutate: mutateLocations } = useSWR<Location[]>('locations', () => locationsAPI.getAll().then(extractItems<Location>), { ...swrOptions, onError: onError('locations') });
   const { data: employees = [], mutate: mutateEmployees } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
   const { data: classes = [], mutate: mutateClasses } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
-  const { data: schedules = [], mutate: mutateSchedules } = useSWR<Schedule[]>('schedules', () => schedulesAPI.getAll().then(extractItems<Schedule>), { ...swrOptions, onError: onError('schedules') });
+  const { data: schedules = [], mutate: mutateSchedules } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
   // `stats` drives the sidebar counters on every route, so keep it unconditional.
   const { data: stats = { total_employees: 0, total_locations: 0, total_schedules: 0, total_classes: 0, today_schedules: 0 }, mutate: mutateStats } = useSWR<DashboardStats>('stats', () => dashboardAPI.getStats().then(res => res.data.data || res.data), { ...swrOptions, onError: onError('stats') });
   // `activities` + `workload` are route-gated: passing `null` as the SWR key
@@ -85,18 +123,21 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     // only refetch them if the consuming tab is actually mounted, else
     // just invalidate so the next visit sees fresh data.
     mutateClasses();
-    mutateSchedules();
+    // Invalidate every windowed `schedules` cache, not just the current
+    // one — user may have switched route since the mutation started and
+    // other views (Kanban, Map) would otherwise show stale data.
+    globalMutate(isSchedulesSwrKey);
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateClasses, mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [mutateClasses, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   const handleScheduleSaved = useCallback(() => {
-    mutateSchedules();
+    globalMutate(isSchedulesSwrKey);
     mutateStats();
     invalidateGated('activities', needActivity, mutateActivities);
     invalidateGated('workload', needWorkload, mutateWorkload);
-  }, [mutateSchedules, mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
+  }, [mutateStats, mutateActivities, mutateWorkload, needActivity, needWorkload, invalidateGated]);
 
   return {
     locations: Array.isArray(locations) ? locations : [],

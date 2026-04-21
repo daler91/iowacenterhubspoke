@@ -1,10 +1,26 @@
-import { useState, useEffect, Suspense, useMemo, lazy } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback, lazy } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { useDashboardData } from '../hooks/useDashboardData';
+import { useDashboardData, type ScheduleWindow } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
+import { format, addDays, subDays } from 'date-fns';
+
+// ±60-day window used by the Calendar route's initial schedule fetch.
+// Matches the `_WORKLOAD_DEFAULT_LOOKBACK_DAYS` convention in
+// `backend/routers/reports.py` and covers the vast majority of calendar
+// navigations without a follow-up refetch. Calendar nav beyond this
+// range calls `setScheduleWindow` to widen dynamically.
+const CALENDAR_DEFAULT_WINDOW_DAYS = 60;
+
+function defaultCalendarWindow(): ScheduleWindow {
+  const today = new Date();
+  return {
+    dateFrom: format(subDays(today, CALENDAR_DEFAULT_WINDOW_DAYS), 'yyyy-MM-dd'),
+    dateTo: format(addDays(today, CALENDAR_DEFAULT_WINDOW_DAYS), 'yyyy-MM-dd'),
+  };
+}
 
 // These three panels only matter once the user interacts — the schedule form
 // opens from a button, the stat modal opens from a dashboard tile, and the
@@ -35,17 +51,41 @@ export default function DashboardPage() {
   // when they don't consume either. Defaults to 'summary' when no tab query
   // param is present (matches InsightsPage).
   const onInsights = location.pathname.startsWith('/insights');
+  const onCalendar = location.pathname.startsWith('/calendar');
   const insightsTab = onInsights
     ? new URLSearchParams(location.search).get('tab') || 'summary'
     : null;
   const needActivity = onInsights && insightsTab === 'activity';
   const needWorkload = onInsights && insightsTab === 'workload';
 
+  // Bound the schedules fetch to a date window only on the Calendar
+  // route — Kanban/Map/profiles still need the full set, so they keep
+  // the old unbounded behaviour by leaving `scheduleWindow` null.
+  // Calendar widens the window itself when the user navigates beyond
+  // the default range.
+  const [scheduleWindow, setScheduleWindow] = useState<ScheduleWindow | null>(() =>
+    location.pathname.startsWith('/calendar') ? defaultCalendarWindow() : null
+  );
+
+  useEffect(() => {
+    setScheduleWindow(prev => {
+      if (onCalendar) {
+        // Keep any widened window the user already has, otherwise seed
+        // with the default. Switching between /calendar variants
+        // (query params, nested) should not reset the window.
+        return prev ?? defaultCalendarWindow();
+      }
+      // Leaving /calendar: drop back to unbounded so Kanban/Map see
+      // every schedule on arrival.
+      return null;
+    });
+  }, [onCalendar]);
+
   const {
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors
-  } = useDashboardData({ needActivity, needWorkload });
+  } = useDashboardData({ needActivity, needWorkload, scheduleWindow });
 
   const {
     statModalOpen,
@@ -78,16 +118,29 @@ export default function DashboardPage() {
     return () => clearTimeout(id);
   }, []);
 
+  // Stable identity for the window setter so CalendarView's useEffect
+  // deps stay honest. The setter accepts either a concrete window or a
+  // functional updater.
+  const updateScheduleWindow = useCallback(
+    (next: ScheduleWindow | null | ((prev: ScheduleWindow | null) => ScheduleWindow | null)) => {
+      setScheduleWindow(prev => (typeof next === 'function' ? next(prev) : next));
+    },
+    []
+  );
+
   const contextValue = useMemo(() => ({
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors,
+    scheduleWindow,
+    setScheduleWindow: updateScheduleWindow,
     onEditSchedule: handleEditSchedule,
     onStatClick: handleStatClick
   }), [
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
-    handleClassRefresh, handleScheduleSaved, fetchErrors, handleEditSchedule, handleStatClick
+    handleClassRefresh, handleScheduleSaved, fetchErrors,
+    scheduleWindow, updateScheduleWindow, handleEditSchedule, handleStatClick
   ]);
 
   return (

@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
-import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
+import {
+  format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, isValid,
+} from 'date-fns';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import { MapPin, Users, BookOpen } from 'lucide-react';
@@ -37,6 +40,8 @@ export default function CalendarView() {
     onEditSchedule,
     onStatClick,
     fetchErrors,
+    scheduleWindow,
+    setScheduleWindow,
   } = useOutletContext<CalendarOutletContext>();
 
   const stats = rawStats ?? {};
@@ -78,6 +83,42 @@ export default function CalendarView() {
   useEffect(() => {
     clearSelection();
   }, [calendarView, dateStr, clearSelection]);
+
+  // `currentDate` is re-parsed from search params every render, so use a
+  // stable ISO string when building effect deps to avoid re-running on
+  // every render.
+  const currentDateIso = format(currentDate, 'yyyy-MM-dd');
+
+  // Widen the schedule fetch window when the user navigates to a date
+  // that falls outside the currently-fetched range. DashboardPage seeds
+  // the window to ±60 days around today on Calendar mount; this effect
+  // extends the range to at least cover the visible view. Shrinking is
+  // deliberately avoided — SWR cache entries for narrower ranges stay
+  // warm, and widening-only keeps nav snappy.
+  useEffect(() => {
+    if (!setScheduleWindow) return;
+    const anchor = parseISO(currentDateIso);
+    const viewStart = calendarView === 'month'
+      ? startOfWeek(startOfMonth(anchor))
+      : calendarView === 'week'
+        ? startOfWeek(anchor)
+        : anchor;
+    const viewEnd = calendarView === 'month'
+      ? endOfWeek(endOfMonth(anchor))
+      : calendarView === 'week'
+        ? endOfWeek(anchor)
+        : anchor;
+    // Pad by two weeks so nearby nav clicks hit cache.
+    const paddedFrom = format(subDays(viewStart, 14), 'yyyy-MM-dd');
+    const paddedTo = format(addDays(viewEnd, 14), 'yyyy-MM-dd');
+    setScheduleWindow(prev => {
+      if (!prev) return { dateFrom: paddedFrom, dateTo: paddedTo };
+      const nextFrom = paddedFrom < prev.dateFrom ? paddedFrom : prev.dateFrom;
+      const nextTo = paddedTo > prev.dateTo ? paddedTo : prev.dateTo;
+      if (nextFrom === prev.dateFrom && nextTo === prev.dateTo) return prev;
+      return { dateFrom: nextFrom, dateTo: nextTo };
+    });
+  }, [calendarView, currentDateIso, setScheduleWindow]);
 
   // Pre-warm the PDF export chunk during an idle slot after the calendar
   // mounts. html2canvas + jspdf together are ~350KB gzipped; fetching them
@@ -267,7 +308,7 @@ export default function CalendarView() {
         )}
         {(schedules || []).length > 0 && filteredSchedules.length > 0 && (
           <p className="text-xs text-muted-foreground" data-testid="schedule-count">
-            {filteredSchedules.length} schedules loaded — showing {calendarView} view
+            {filteredSchedules.length} of {rawStats?.total_schedules ?? (schedules || []).length} schedules in view — showing {calendarView} view
           </p>
         )}
       </div>

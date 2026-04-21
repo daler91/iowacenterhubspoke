@@ -21,17 +21,39 @@ function RouteBoundary({ children }: Readonly<{ children: ReactNode }>) {
   return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
 }
 
+/**
+ * Lightweight dashboard-shaped skeleton rendered while /auth/me is in
+ * flight. Gives the user a structural first paint (sidebar rail + top
+ * bar) instead of an empty screen; once auth resolves, the real
+ * DashboardPage swaps in. Must not make any authenticated API calls.
+ */
+function DashboardShellSkeleton() {
+  return (
+    <div
+      className="flex h-screen bg-[#F9FAFB] dark:bg-gray-950 overflow-hidden"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
+      <div className="hidden md:block w-60 border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950" />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-14 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0" />
+        <main className="flex-1 flex items-center justify-center">
+          <div
+            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Loading</span>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   const { user, loading } = useAuth();
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500">Loading...</p>
-        </div>
-      </div>
-    );
+    return <DashboardShellSkeleton />;
   }
   return user ? children : <Navigate to="/login" replace />;
 }

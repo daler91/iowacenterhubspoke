@@ -7,6 +7,15 @@
         <meta name="description" content="Iowa Center HubSpoke Scheduler" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <!--
+        Preconnect to the backend origin so the TLS/DNS handshake for the
+        first /auth/me (and the immediate /locations, /employees, /classes,
+        /schedules, /dashboard/stats fan-out) overlaps HTML parsing rather
+        than blocking it. Vite substitutes %VITE_BACKEND_URL% at build
+        time from import.meta.env (see `vite.config.js`). When the backend
+        is same-origin the var is empty and this tag is a harmless no-op.
+        -->
+        <link rel="preconnect" href="%VITE_BACKEND_URL%" crossorigin />
 
         <!--
         manifest.json provides metadata used when your web app is installed on a

@@ -1,9 +1,13 @@
 import { renderHook, act } from '@testing-library/react';
-import useSWR from 'swr';
-import { useDashboardData } from './useDashboardData';
+import useSWR, { mutate as globalMutateMock } from 'swr';
+import { useDashboardData, isSchedulesSwrKey } from './useDashboardData';
 
 // Mock the dependencies
-jest.mock('swr');
+jest.mock('swr', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  mutate: jest.fn(),
+}));
 jest.mock('../lib/api', () => ({
   locationsAPI: { getAll: jest.fn() },
   employeesAPI: { getAll: jest.fn() },
@@ -13,6 +17,12 @@ jest.mock('../lib/api', () => ({
   activityAPI: { getAll: jest.fn() },
   workloadAPI: { getAll: jest.fn() },
 }));
+
+// Normalize the SWR key for the mock's switch: `schedules` moved from a
+// string key to an array key (`['schedules', dateFrom, dateTo]`) so the
+// hook can cache each window independently. Tests don't care about the
+// specific window — they just want to look up "the schedules mock".
+const normalizeKey = (key) => (Array.isArray(key) ? key[0] : key);
 
 describe('useDashboardData', () => {
   let mockMutate;
@@ -29,7 +39,7 @@ describe('useDashboardData', () => {
     };
 
     useSWR.mockImplementation((key) => {
-      switch (key) {
+      switch (normalizeKey(key)) {
         case 'locations':
           return { data: [{ id: 1, name: 'Location 1' }], mutate: mockMutate.mutateLocations };
         case 'employees':
@@ -95,7 +105,10 @@ describe('useDashboardData', () => {
     // direct db.schedules.update_many). Workload reads those same fields.
     // So all five caches must revalidate to avoid stale labels.
     expect(mockMutate.mutateClasses).toHaveBeenCalled();
-    expect(mockMutate.mutateSchedules).toHaveBeenCalled();
+    // Schedules now live under an array SWR key per-window — invalidation
+    // goes through the global `mutate` with the `isSchedulesSwrKey`
+    // predicate so every windowed variant is refreshed.
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
     expect(mockMutate.mutateStats).toHaveBeenCalled();
@@ -110,12 +123,54 @@ describe('useDashboardData', () => {
       result.current.handleScheduleSaved();
     });
 
-    expect(mockMutate.mutateSchedules).toHaveBeenCalled();
+    expect(globalMutateMock).toHaveBeenCalledWith(isSchedulesSwrKey);
     expect(mockMutate.mutateStats).toHaveBeenCalled();
     expect(mockMutate.mutateActivities).toHaveBeenCalled();
     expect(mockMutate.mutateWorkload).toHaveBeenCalled();
     expect(mockMutate.mutateLocations).not.toHaveBeenCalled();
     expect(mockMutate.mutateEmployees).not.toHaveBeenCalled();
     expect(mockMutate.mutateClasses).not.toHaveBeenCalled();
+  });
+
+  it('passes date_from/date_to to schedulesAPI.getAll when a window is supplied', () => {
+    // Capture the fetcher passed for the schedules key and invoke it so
+    // we can assert on the params handed to the API.
+    const { schedulesAPI } = require('../lib/api');
+    schedulesAPI.getAll.mockResolvedValue({ data: [] });
+    let scheduleFetcher;
+    useSWR.mockImplementation((key, fetcher) => {
+      if (Array.isArray(key) && key[0] === 'schedules') {
+        scheduleFetcher = fetcher;
+      }
+      return { data: undefined, mutate: jest.fn() };
+    });
+
+    renderHook(() => useDashboardData({
+      scheduleWindow: { dateFrom: '2024-01-01', dateTo: '2024-03-01' },
+    }));
+
+    expect(typeof scheduleFetcher).toBe('function');
+    scheduleFetcher();
+    expect(schedulesAPI.getAll).toHaveBeenCalledWith({
+      date_from: '2024-01-01',
+      date_to: '2024-03-01',
+    });
+  });
+
+  it('calls schedulesAPI.getAll with no params when window is null', () => {
+    const { schedulesAPI } = require('../lib/api');
+    schedulesAPI.getAll.mockResolvedValue({ data: [] });
+    let scheduleFetcher;
+    useSWR.mockImplementation((key, fetcher) => {
+      if (Array.isArray(key) && key[0] === 'schedules') {
+        scheduleFetcher = fetcher;
+      }
+      return { data: undefined, mutate: jest.fn() };
+    });
+
+    renderHook(() => useDashboardData({ scheduleWindow: null }));
+
+    scheduleFetcher();
+    expect(schedulesAPI.getAll).toHaveBeenCalledWith(undefined);
   });
 });
