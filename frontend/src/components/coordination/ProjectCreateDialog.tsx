@@ -43,7 +43,7 @@ function firstValidationFieldError(err: unknown): string | null {
   const first = errors[0] as { loc?: unknown[]; msg?: unknown };
   if (typeof first.msg !== 'string') return null;
   const loc = Array.isArray(first.loc) ? first.loc : [];
-  const last = loc[loc.length - 1];
+  const last = loc.at(-1);
   const hasField = typeof last === 'string' || typeof last === 'number';
   return hasField ? `${String(last)} — ${first.msg}` : first.msg;
 }
