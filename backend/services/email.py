@@ -69,13 +69,14 @@ async def send_email(
 
     try:
         import aiosmtplib
-        message = (
-            f"From: {EMAIL_FROM}\r\n"
-            f"To: {to}\r\n"
-            f"Subject: {subject}\r\n"
-            f"Content-Type: text/html; charset=utf-8\r\n"
-            f"\r\n{body_html}"
-        )
+        from email.message import EmailMessage
+
+        message = EmailMessage()
+        message["From"] = EMAIL_FROM
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content(body_html, subtype="html", charset="utf-8")
+
         await aiosmtplib.send(
             message,
             hostname=SMTP_HOST,
@@ -83,8 +84,6 @@ async def send_email(
             username=SMTP_USER or None,
             password=SMTP_PASSWORD or None,
             start_tls=True,
-            sender=EMAIL_FROM,
-            recipients=[to],
         )
         logger.info("Email sent to %s: %s", to, subject)
         return True
