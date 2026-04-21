@@ -11,6 +11,7 @@ import type { ProjectTemplate } from '../../lib/coordination-types';
 import type { ClassType, Employee } from '../../lib/types';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
+import { describeApiError } from '../../lib/error-messages';
 import { CalendarPlus, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { EmployeeMultiSelect } from '../ui/employee-multi-select';
@@ -28,6 +29,23 @@ interface Props {
   readonly onCreated: () => void;
   readonly classes?: ClassType[];
   readonly employees?: Employee[];
+}
+
+// Our ``validation_exception_handler`` (backend/server.py) reshapes 422s
+// to ``{ detail: "Validation Error", errors: [{loc, msg, type}, ...] }``
+// — so ``describeApiError`` (which only reads ``detail``/``message``)
+// stops at the generic string. Surface the first entry's field + msg
+// directly so users see *which* field is wrong.
+function firstValidationFieldError(err: unknown): string | null {
+  const errors = (err as { response?: { data?: { errors?: unknown } } })
+    ?.response?.data?.errors;
+  if (!Array.isArray(errors) || errors.length === 0) return null;
+  const first = errors[0] as { loc?: unknown[]; msg?: unknown };
+  if (typeof first.msg !== 'string') return null;
+  const loc = Array.isArray(first.loc) ? first.loc : [];
+  const last = loc.at(-1);
+  const hasField = typeof last === 'string' || typeof last === 'number';
+  return hasField ? `${String(last)} — ${first.msg}` : first.msg;
 }
 
 export default function ProjectCreateDialog({ onClose, onCreated, classes = [], employees = [] }: Props) {
@@ -129,8 +147,9 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
       }
       toast.success('Project created');
       onCreated();
-    } catch {
-      toast.error('Failed to create project');
+    } catch (err: unknown) {
+      const fieldMsg = firstValidationFieldError(err);
+      toast.error(fieldMsg ?? describeApiError(err, 'Failed to create project'));
     } finally {
       setLoading(false);
     }
