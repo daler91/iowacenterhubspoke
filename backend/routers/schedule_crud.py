@@ -448,7 +448,17 @@ async def delete_series(series_id: str, user: SchedulerRequired):
         {"$set": {"deleted_at": now}},
     )
     deleted_count = result.modified_count
-    if deleted_count > 0:
+    if deleted_count == 0:
+        # Distinguish "series doesn't exist" from "series exists but all
+        # its schedules are already in the past" — the former is a 404,
+        # the latter is a legitimate 200 with deleted_count=0.
+        any_existing = await db.schedules.find_one(
+            {"series_id": series_id, "deleted_at": None},
+            {"_id": 0, "id": 1},
+        )
+        if not any_existing:
+            raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    else:
         logger.info(f"Series {series_id}: soft-deleted {deleted_count} future schedules")
         await log_activity(
             "schedule_series_deleted",

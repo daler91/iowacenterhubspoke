@@ -33,7 +33,7 @@ async def _auto_link_partner_project(
     location: dict,
     class_doc: dict | None,
     user: dict,
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """Create a draft project for a schedule landing at a partner-org venue.
 
     The report flagged schedules and coordination as decoupled — partners
@@ -42,8 +42,13 @@ async def _auto_link_partner_project(
     location belongs to an active partner org AND no project already
     points at this schedule, a ``planning`` project is created and linked.
 
-    Non-fatal: any failure is logged and the schedule still stands. We
-    never want a coordination issue to block the core scheduling path.
+    Returns ``(project_id, warning)``. ``warning`` is set only when the
+    scheduler likely *expected* a project to be created but it wasn't:
+    the venue has a partner_org record but it's inactive/soft-deleted,
+    or project insertion blew up. A location with no partner_org at all
+    is the common case and does not warrant a warning.
+
+    Non-fatal: any failure is logged and the schedule still stands.
     """
     try:
         partner_org = await db.partner_orgs.find_one(
@@ -55,14 +60,30 @@ async def _auto_link_partner_project(
             {"_id": 0},
         )
         if not partner_org:
-            return None
+            # Distinguish "not a partner venue" (silent) from "partner
+            # exists but isn't currently eligible" (warn the scheduler).
+            inactive = await db.partner_orgs.find_one(
+                {"location_id": location["id"]},
+                {"_id": 0, "status": 1, "deleted_at": 1, "name": 1},
+            )
+            if inactive:
+                state = (
+                    "removed" if inactive.get("deleted_at")
+                    else f"status={inactive.get('status', 'unknown')}"
+                )
+                return (
+                    None,
+                    f"Partner '{inactive.get('name', 'org')}' is not active "
+                    f"({state}); coordination project was not created.",
+                )
+            return None, None
 
         existing = await db.projects.find_one(
             {"schedule_id": schedule_doc["id"], "deleted_at": None},
             {"_id": 0, "id": 1},
         )
         if existing:
-            return existing["id"]
+            return existing["id"], None
 
         project_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -113,14 +134,18 @@ async def _auto_link_partner_project(
             f"Project '{title}' auto-created from schedule at {location.get('city_name', '?')}",
             "project", project_id, user.get("name", "System"),
         )
-        return project_id
+        return project_id, None
     except Exception:
         from core.logger import mask_id
         logger.exception(
             "Auto-link partner project failed — schedule created anyway",
             extra={"entity": {"schedule_id_masked": mask_id(schedule_doc.get("id"))}},
         )
-        return None
+        return (
+            None,
+            "Partner coordination project could not be created; "
+            "the schedule was saved. Please link a project manually.",
+        )
 
 
 async def _check_internal_conflicts(employees, date, start_time, end_time, drive_time):
@@ -219,9 +244,13 @@ async def _handle_single_schedule(
 
     # Auto-create a partner-coordination project if the location is a
     # partner venue — keeps scheduling and coordination in sync.
-    auto_project_id = await _auto_link_partner_project(doc, location, class_doc, user)
+    auto_project_id, partner_warning = await _auto_link_partner_project(
+        doc, location, class_doc, user,
+    )
     if auto_project_id:
         doc["linked_project_id"] = auto_project_id
+    if partner_warning:
+        doc["partner_project_warning"] = partner_warning
 
     # Create calendar events for all employees
     _enqueue_calendar_events_for_all(employees, location, class_doc, doc)
