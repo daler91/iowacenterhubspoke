@@ -129,7 +129,7 @@ const EmployeeRow = memo(function EmployeeRow({
 export default function EmployeeManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { employees, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
+  const { employees, schedules, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
   const onRefresh = useCallback(() => {
@@ -345,7 +345,15 @@ export default function EmployeeManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the employee from the system. This action cannot be easily undone.
+              {(() => {
+                const count = (schedules || []).filter(s =>
+                  Array.isArray(s.employee_ids) ? s.employee_ids.includes(deleteTarget?.id) : s.employee_id === deleteTarget?.id
+                ).length;
+                if (count === 0) {
+                  return `${deleteTarget?.name} has no scheduled classes. Deleting cannot be undone.`;
+                }
+                return `${deleteTarget?.name} is assigned to ${count} scheduled class${count === 1 ? '' : 'es'}. Deleting them may fail on the backend. This action cannot be undone.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -36,6 +36,12 @@
   z-index: 20;
 }
 
+.schedule-block:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  z-index: 20;
+}
+
 .class-block {
   background-color: #4F46E5;
   color: white;

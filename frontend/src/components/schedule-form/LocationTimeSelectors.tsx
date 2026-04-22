@@ -2,7 +2,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { MapPin, Car, AlertTriangle, Calendar } from 'lucide-react';
+import { MapPin, Car, AlertTriangle, Calendar, WifiOff, RefreshCw } from 'lucide-react';
 import { TravelChainPreview } from './TravelChainPreview';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
@@ -23,6 +23,8 @@ export function LocationTimeSelectors({
   locations, selectedLocation,
   onDateChange,
   previewConflicts,
+  conflictPreviewError,
+  onRetryConflictPreview,
   travelChain,
   onOverrideChange,
   invalidFieldId,
@@ -120,6 +122,30 @@ export function LocationTimeSelectors({
           />
         </div>
       </div>
+
+      {conflictPreviewError && (
+        <div
+          role="alert"
+          data-testid="conflict-preview-error"
+          className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 rounded-lg flex items-center gap-2"
+        >
+          <WifiOff className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" aria-hidden="true" />
+          <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+            Couldn't check for conflicts. Any hidden overlaps won't be shown until you retry.
+          </p>
+          {onRetryConflictPreview && (
+            <button
+              type="button"
+              onClick={onRetryConflictPreview}
+              className="text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 inline-flex items-center gap-1"
+              data-testid="conflict-preview-retry"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Conflict preview region — announced to screen readers when
           conflicts appear. All three conflict types share one aria region

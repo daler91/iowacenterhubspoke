@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as SettingsIcon, WifiOff, RefreshCw, BellOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { notificationsAPI } from '../lib/api';
@@ -65,6 +65,12 @@ function asString(value: unknown): string {
   return '';
 }
 
+function isAbortLike(err: unknown): boolean {
+  const code = (err as { code?: string })?.code;
+  const name = (err as { name?: string })?.name;
+  return code === 'ERR_CANCELED' || name === 'AbortError' || name === 'CanceledError';
+}
+
 const SEVERITY_CONFIG = {
   warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
   info: { icon: CalendarDays, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
@@ -77,6 +83,8 @@ export default function NotificationsPanel() {
   const [liveItems, setLiveItems] = useState<LiveNotification[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxNotification[]>([]);
   const [dismissedLive, setDismissedLive] = useState<Set<string>>(new Set());
+  const [fetchError, setFetchError] = useState(false);
+  const fetchOnceRef = useRef<(() => Promise<void>) | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -124,6 +132,9 @@ export default function NotificationsPanel() {
             source: 'live',
           })));
         }
+        const liveFailed = liveRes.status === 'rejected' && !isAbortLike(liveRes.reason);
+        const inboxFailed = inboxRes.status === 'rejected' && !isAbortLike(inboxRes.reason);
+        setFetchError(liveFailed && inboxFailed);
         if (inboxRes.status === 'fulfilled') {
           const data = inboxRes.value.data as { items?: Record<string, unknown>[] };
           const items = Array.isArray(data?.items) ? data.items : [];
@@ -140,11 +151,14 @@ export default function NotificationsPanel() {
           })));
         }
       } catch (err) {
-        if (controller.signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
-        // Network glitch — keep existing state rather than blanking the UI.
+        if (controller.signal.aborted || isAbortLike(err)) return;
+        // Network glitch — keep existing state rather than blanking the UI,
+        // but surface a retry affordance to the user.
+        setFetchError(true);
       }
     };
 
+    fetchOnceRef.current = fetchOnce;
     fetchOnce();
     const interval = setInterval(fetchOnce, POLL_INTERVAL_MS);
 
@@ -159,6 +173,7 @@ export default function NotificationsPanel() {
       currentController?.abort();
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
+      fetchOnceRef.current = null;
     };
   }, [hasInitialized]);
 
@@ -187,12 +202,19 @@ export default function NotificationsPanel() {
   }, [liveItems, inboxItems, dismissedLive]);
 
   let bellLabel = 'Notifications';
-  if (activeNotifications.length > 0) {
+  if (fetchError) {
+    bellLabel = 'Notifications — failed to load';
+  } else if (activeNotifications.length > 0) {
     bellLabel = `Notifications, ${activeNotifications.length} active`;
     if (warningCount > 0) {
       bellLabel += `, ${warningCount} alerts`;
     }
   }
+
+  const handleRetryFetch = () => {
+    setFetchError(false);
+    fetchOnceRef.current?.();
+  };
 
   const handleDismiss = async (n: AnyNotification) => {
     if (n.source === 'live') {
@@ -268,7 +290,7 @@ export default function NotificationsPanel() {
         className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
         <Bell className="w-5 h-5 text-slate-500 dark:text-gray-400" aria-hidden="true" />
-        {activeNotifications.length > 0 && (
+        {activeNotifications.length > 0 && !fetchError && (
           <span
             aria-hidden="true"
             className={cn(
@@ -278,6 +300,13 @@ export default function NotificationsPanel() {
           >
             {activeNotifications.length}
           </span>
+        )}
+        {fetchError && (
+          <span
+            aria-hidden="true"
+            data-testid="notifications-error-dot"
+            className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-gray-900"
+          />
         )}
       </button>
 
@@ -317,10 +346,32 @@ export default function NotificationsPanel() {
             )}
           </div>
 
+          {fetchError && (
+            <div
+              role="alert"
+              data-testid="notifications-fetch-error"
+              className="px-4 py-3 border-b border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 flex items-center gap-3"
+            >
+              <WifiOff className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" aria-hidden="true" />
+              <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+                Couldn't load notifications. Showing cached items.
+              </p>
+              <button
+                type="button"
+                onClick={handleRetryFetch}
+                className="text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 inline-flex items-center gap-1"
+                data-testid="notifications-retry"
+              >
+                <RefreshCw className="w-3 h-3" aria-hidden="true" />
+                Retry
+              </button>
+            </div>
+          )}
+
           <ScrollArea className="max-h-[400px]">
             {activeNotifications.length === 0 ? (
               <div className="p-8 text-center">
-                <Bell className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
+                <BellOff className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
