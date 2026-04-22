@@ -41,11 +41,24 @@ if not JWT_SECRET:
             " It must be explicitly set in production or any multi-worker deployment"
             " (Railway, UVICORN_WORKERS>1, WEB_CONCURRENCY>1)."
         )
+    # The per-process random fallback is convenient in dev but a footgun
+    # if a developer later switches to multi-worker without realising
+    # JWT_SECRET is unset (tokens issued by worker A 401 on worker B).
+    # Require explicit opt-in so the silent footgun becomes a loud error.
+    if os.environ.get('ALLOW_DEV_JWT_FALLBACK') != '1':
+        raise ValueError(
+            "CRITICAL: JWT_SECRET environment variable is missing."
+            " Set JWT_SECRET in your env, or — only for single-process dev —"
+            " set ALLOW_DEV_JWT_FALLBACK=1 to opt into a per-process random"
+            " secret (tokens won't survive restart and won't validate"
+            " across workers)."
+        )
     JWT_SECRET = secrets.token_urlsafe(32)
     logging.warning(
-        "JWT_SECRET is missing — using a per-process random secret."
-        " This is single-process dev only: tokens will not survive a restart"
-        " and requests balanced to sibling workers will 401."
+        "JWT_SECRET is missing — using a per-process random secret"
+        " (ALLOW_DEV_JWT_FALLBACK=1). Single-process dev only: tokens will"
+        " not survive a restart and requests balanced to sibling workers"
+        " will 401."
     )
 JWT_ALGORITHM = 'HS256'
 

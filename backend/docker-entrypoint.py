@@ -47,11 +47,31 @@ def main() -> None:
         _chown_tree(upload_dir, APP_UID, APP_GID)
         os.setgid(APP_GID)
         os.setuid(APP_UID)
+        # Belt-and-braces: if setuid silently failed (no error raised but
+        # we're still root), refuse to exec uvicorn rather than serving
+        # the API as root. setuid(0→nonzero) cannot be undone, so a true
+        # success leaves us with effective uid != 0.
+        if os.geteuid() == 0:
+            print(
+                "entrypoint: fatal: failed to drop privileges "
+                f"(still euid=0 after setuid({APP_UID}))",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     port = os.environ.get("PORT", "8080")
+    # ``--timeout-graceful-shutdown 15`` gives uvicorn 15s to drain
+    # in-flight requests when SIGTERM arrives (Railway/Heroku send
+    # SIGTERM then SIGKILL ~30s later). Without it, bulk-import or
+    # project-create requests can be killed mid-write.
     os.execvp(
         "uvicorn",
-        ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", port],
+        [
+            "uvicorn", "server:app",
+            "--host", "0.0.0.0",
+            "--port", port,
+            "--timeout-graceful-shutdown", "15",
+        ],
     )
 
 

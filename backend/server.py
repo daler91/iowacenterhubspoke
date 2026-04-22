@@ -834,6 +834,36 @@ async def liveness_check():
     return {"status": "alive"}
 
 
+@api_router.get("/readyz", tags=["system"])
+async def readiness_check(request: Request):
+    """Readiness probe — should the load balancer route traffic here?
+
+    Distinct from ``/health`` and ``/livez``: a degraded worker pod
+    must not pull the API out of rotation, but a Mongo or Redis
+    outage should. Kubernetes/Railway readiness probes should hit
+    this endpoint, not ``/health``.
+
+    The FastAPI lifespan blocks request serving until startup
+    migrations finish, so by the time any request reaches us the
+    schema is up to date — we only need to verify the API's
+    runtime dependencies are reachable right now.
+    """
+    checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
+    not_ready = False
+    try:
+        await client.admin.command("ping")
+    except Exception:
+        checks["mongo"] = "unavailable"
+        not_ready = True
+    if not await _probe_redis(request.app):
+        checks["redis"] = "unavailable"
+        not_ready = True
+    if not_ready:
+        checks["status"] = "not_ready"
+        return JSONResponse(content=checks, status_code=503)
+    return checks
+
+
 @api_router.get("/health", tags=["system"])
 async def health_check(request: Request):
     """Health check endpoint for load balancers and deployment monitoring.

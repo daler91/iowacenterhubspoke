@@ -989,7 +989,14 @@ async def advance_phase(
         {"$set": {"phase": next_phase, "updated_at": now}},
     )
     if force_with_incomplete:
-        skipped_titles = ", ".join(t["title"] for t in incomplete_tasks)
+        # Cap the title list so a project with dozens of tasks can't
+        # produce a multi-KB activity log row. Five titles is enough to
+        # let an admin reconstruct what was skipped without bloating the
+        # audit trail.
+        head = [t["title"] for t in incomplete_tasks[:5]]
+        skipped_titles = ", ".join(head)
+        if len(incomplete_tasks) > 5:
+            skipped_titles += f", and {len(incomplete_tasks) - 5} more"
         await log_activity(
             "project_phase_force_advanced",
             (
