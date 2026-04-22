@@ -105,3 +105,68 @@ async def test_admin_can_manage_employees(csrf_headers):
         assert res.status_code in _NOT_A_ROLE_REJECTION, (
             f"Admin was role-rejected on POST /api/employees: {res.status_code}"
         )
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_delete_project(csrf_headers):
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        follow_redirects=True,
+        cookies=csrf_headers["cookies"],
+    ) as ac:
+        token = create_token(str(uuid.uuid4()), "v@e.com", "V", ROLE_VIEWER)
+        auth = _auth(token, csrf_headers)
+
+        res = await ac.delete(
+            f"/api/v1/projects/{uuid.uuid4()}", headers=auth["headers"]
+        )
+        assert res.status_code == 403, (
+            f"Viewer was allowed to DELETE project: {res.status_code}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_scheduler_cannot_delete_project(csrf_headers):
+    """Project delete is admin-only; schedulers must be rejected at the role gate."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        follow_redirects=True,
+        cookies=csrf_headers["cookies"],
+    ) as ac:
+        token = create_token(str(uuid.uuid4()), "s@e.com", "S", ROLE_SCHEDULER)
+        auth = _auth(token, csrf_headers)
+
+        res = await ac.delete(
+            f"/api/v1/projects/{uuid.uuid4()}", headers=auth["headers"]
+        )
+        assert res.status_code == 403, (
+            f"Scheduler was allowed to DELETE project: {res.status_code}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_admin_can_delete_project(csrf_headers):
+    """Admin role must pass the role gate on DELETE /projects/{id}.
+
+    ``raise_app_exceptions=False`` converts any downstream exception
+    (e.g., the real-DB lookup the handler performs once RBAC is past)
+    into a 500 instead of propagating it to pytest. The assertion
+    still proves the role gate itself didn't reject.
+    """
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+        follow_redirects=True,
+        cookies=csrf_headers["cookies"],
+    ) as ac:
+        token = create_token(str(uuid.uuid4()), "a@e.com", "A", ROLE_ADMIN)
+        auth = _auth(token, csrf_headers)
+
+        res = await ac.delete(
+            f"/api/v1/projects/{uuid.uuid4()}", headers=auth["headers"]
+        )
+        assert res.status_code in _NOT_A_ROLE_REJECTION, (
+            f"Admin was role-rejected on DELETE project: {res.status_code}"
+        )
