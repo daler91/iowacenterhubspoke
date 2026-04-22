@@ -11,6 +11,7 @@ interface EmployeeMultiSelectProps {
   readonly selectedIds: string[];
   readonly onSelectionChange: (ids: string[]) => void;
   readonly "aria-invalid"?: boolean;
+  readonly "aria-required"?: boolean;
 }
 
 export function EmployeeMultiSelect({
@@ -19,6 +20,7 @@ export function EmployeeMultiSelect({
   selectedIds,
   onSelectionChange,
   "aria-invalid": ariaInvalid,
+  "aria-required": ariaRequired,
 }: Readonly<EmployeeMultiSelectProps>) {
   const [open, setOpen] = useState(false);
   const listboxId = id ? `${id}-listbox` : undefined;
@@ -56,6 +58,7 @@ export function EmployeeMultiSelect({
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={listboxId}
+          aria-required={ariaRequired || undefined}
           aria-describedby={ariaInvalid ? errorMessageId : undefined}
           className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2"
         >

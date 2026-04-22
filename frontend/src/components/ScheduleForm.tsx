@@ -197,12 +197,14 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   // "Dirty" = the user has made at least one meaningful selection for
   // a NEW schedule. Only guards the wizard flow — editSchedule starts
   // dirty by definition, and users have a Delete/Cancel pattern there.
+  // `start_time`/`end_time` are prepopulated with 09:00/12:00 defaults
+  // by `useScheduleForm`, so don't treat them as user edits — use the
+  // entity selections (employees/location/class) as the dirtiness
+  // signal instead.
   const isDirty = isWizard && (
     (form.employee_ids?.length ?? 0) > 0 ||
     !!form.location_id ||
-    !!form.class_id ||
-    !!form.start_time ||
-    !!form.end_time
+    !!form.class_id
   );
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -341,7 +343,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               <WizardNextButton
                 step={step}
                 form={form}
-                onNext={() => { setInvalidFieldId(null); setStep(step + 1); }}
+                onNext={() => setStep(step + 1)}
               />
             )}
           </DialogFooter>
