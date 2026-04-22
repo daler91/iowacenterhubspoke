@@ -91,7 +91,7 @@ export default function DashboardPage() {
     : null;
 
   const {
-    locations, employees, classes, schedules, stats, activities, workloadData,
+    locations, employees, classes, schedules, stats, activities, workloadData, loadingState,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors
   } = useDashboardData({ needActivity, needWorkload, scheduleWindow });
@@ -138,7 +138,7 @@ export default function DashboardPage() {
   );
 
   const contextValue = useMemo(() => ({
-    locations, employees, classes, schedules, stats, activities, workloadData,
+    locations, employees, classes, schedules, stats, activities, workloadData, loadingState,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors,
     scheduleWindow,
@@ -148,7 +148,7 @@ export default function DashboardPage() {
   }), [
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
-    handleClassRefresh, handleScheduleSaved, fetchErrors,
+    handleClassRefresh, handleScheduleSaved, fetchErrors, loadingState,
     scheduleWindow, updateScheduleWindow, handleEditSchedule, handleStatClick
   ]);
 
