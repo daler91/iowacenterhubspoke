@@ -1,6 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Trash2, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -90,37 +100,47 @@ function firstInvalidFieldId(
   return null;
 }
 
-function WizardNextButton({ step, form, onNext, onInvalid }: Readonly<{
+function stepInvalidHint(step: number): string {
+  if (step === 0) return 'Select at least one employee to continue';
+  if (step === 1) return 'Fill location, date, and time to continue';
+  return '';
+}
+
+const WIZARD_NEXT_HINT_ID = 'wizard-next-invalid-hint';
+
+function WizardNextButton({ step, form, onNext }: Readonly<{
   step: number;
   form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string };
   onNext: () => void;
-  onInvalid: (fieldId: string) => void;
 }>) {
-  const handleClick = () => {
-    const invalidId = firstInvalidFieldId(step, form);
-    if (invalidId) {
-      if (step === 0) toast.error('Select at least one employee');
-      else toast.error('Fill in location, date, and time');
-      onInvalid(invalidId);
-      // Move focus after the error toast mounts so the announcement order
-      // is "error toast, then focus" rather than the reverse.
-      setTimeout(() => {
-        document.getElementById(invalidId)?.focus();
-      }, 0);
-      return;
-    }
-    onNext();
-  };
-
+  // The Next button is disabled until the current step is complete, so
+  // users get immediate inline feedback instead of a fire-and-forget
+  // toast. The accompanying hint tells them which fields are missing
+  // and links to the button via aria-describedby for screen readers.
+  const invalidId = firstInvalidFieldId(step, form);
+  const disabled = invalidId !== null;
   return (
-    <Button
-      type="button"
-      data-testid="wizard-next-btn"
-      onClick={handleClick}
-      className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
-    >
-      Next <ChevronRight className="w-4 h-4 ml-1" />
-    </Button>
+    <div className="flex-1 flex flex-col items-stretch gap-1">
+      <Button
+        type="button"
+        data-testid="wizard-next-btn"
+        onClick={onNext}
+        disabled={disabled}
+        aria-describedby={disabled ? WIZARD_NEXT_HINT_ID : undefined}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+      >
+        Next <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
+      </Button>
+      {disabled && (
+        <p
+          id={WIZARD_NEXT_HINT_ID}
+          data-testid="wizard-next-hint"
+          className="text-xs text-muted-foreground"
+        >
+          {stepInvalidHint(step)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -133,13 +153,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const [showSeriesDeleteConfirm, setShowSeriesDeleteConfirm] = useState(false);
   const hasSeries = !!editSchedule?.series_id;
   const [step, setStep] = useState(0);
-  const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null);
   const [seriesDeleteSubmitting, setSeriesDeleteSubmitting] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const isWizard = !editSchedule;
   const totalSteps = isWizard ? STEPS.length : 1;
 
   // Reset step when dialog opens/closes
-  useEffect(() => { if (open) { setStep(0); setInvalidFieldId(null); } }, [open]);
+  useEffect(() => { if (open) { setStep(0); setDiscardConfirmOpen(false); } }, [open]);
 
   const {
     form, setForm,
@@ -168,9 +188,53 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const submitLabel = getSubmitLabel(loading, outlookOverride, googleOverride, editSchedule, form.employee_ids?.length || 0);
   const showStep = (s: number) => !isWizard || step === s;
   const showSubmit = !isWizard || step >= totalSteps - 1;
+  // Derived from the current form state — no longer driven by "user
+  // attempted Next with missing data". Selectors use this to toggle
+  // `aria-invalid` so the empty required field is announced and
+  // visually flagged as the user works.
+  const invalidFieldId = firstInvalidFieldId(step, form);
+
+  // Detecting "dirty" by enumerating specific fields misses edits to
+  // date/time/notes/recurrence — users can jump straight to step 2 via
+  // the tab strip and change those without touching employee/location/
+  // class. Instead snapshot the form JSON shortly after open (one tick,
+  // so useScheduleForm's own "reset on open" effect has seeded its
+  // defaults) and compare the current form against that baseline on
+  // close.
+  const [initialFormJson, setInitialFormJson] = useState<string | null>(null);
+  // Keep the latest `form` reachable from the snapshot-on-open effect
+  // without widening its dep array (we snapshot exactly once per open).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+  useEffect(() => {
+    if (!open) {
+      setInitialFormJson(null);
+      return;
+    }
+    const id = globalThis.setTimeout(
+      () => setInitialFormJson(JSON.stringify(formRef.current)),
+      0,
+    );
+    return () => globalThis.clearTimeout(id);
+  }, [open]);
+
+  const isFormDirty = (): boolean =>
+    isWizard
+    && initialFormJson !== null
+    && JSON.stringify(form) !== initialFormJson;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isFormDirty()) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px] bg-white dark:bg-gray-900 overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
@@ -297,8 +361,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               <WizardNextButton
                 step={step}
                 form={form}
-                onNext={() => { setInvalidFieldId(null); setStep(step + 1); }}
-                onInvalid={setInvalidFieldId}
+                onNext={() => setStep(step + 1)}
               />
             )}
           </DialogFooter>
@@ -359,6 +422,31 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this schedule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've started filling out a new schedule. Closing the dialog will discard your entries.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="schedule-keep-editing">Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="schedule-discard-confirm"
+              className="bg-red-600 hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                setDiscardConfirmOpen(false);
+                onOpenChange(false);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

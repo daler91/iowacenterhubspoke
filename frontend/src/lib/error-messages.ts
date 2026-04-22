@@ -33,16 +33,37 @@ const GENERIC_BY_STATUS: Record<number, string> = {
 const DEFAULT_MESSAGE = 'Something went wrong. Please try again.';
 const NETWORK_MESSAGE = "Can't reach the server — check your connection and try again.";
 
+function trimmedString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+// FastAPI's default validation-error shape is
+// `detail: [{ loc: [...], msg, type }, ...]`. Collect every element's
+// user-facing `msg`/`message` so validation errors don't collapse to
+// the generic 422 string ("Please check the highlighted fields").
+function joinValidationMessages(detail: readonly unknown[]): string | null {
+  const msgs: string[] = [];
+  for (const d of detail) {
+    if (!d || typeof d !== 'object') continue;
+    const rec = d as { msg?: unknown; message?: unknown };
+    const candidate = trimmedString(rec.msg) ?? trimmedString(rec.message);
+    if (candidate) msgs.push(candidate);
+  }
+  return msgs.length > 0 ? msgs.join('. ') : null;
+}
+
 function extractDetail(err: AxiosLikeError): string | null {
   const detail = err.response?.data?.detail;
-  if (typeof detail === 'string' && detail.trim()) return detail;
-  if (detail && typeof detail === 'object') {
-    const maybeMessage = (detail as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string' && maybeMessage.trim()) return maybeMessage;
+  const stringDetail = trimmedString(detail);
+  if (stringDetail) return stringDetail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const fromArray = joinValidationMessages(detail);
+    if (fromArray) return fromArray;
+  } else if (detail && typeof detail === 'object') {
+    const maybeMessage = trimmedString((detail as { message?: unknown }).message);
+    if (maybeMessage) return maybeMessage;
   }
-  const message = err.response?.data?.message;
-  if (typeof message === 'string' && message.trim()) return message;
-  return null;
+  return trimmedString(err.response?.data?.message);
 }
 
 export function describeApiError(
