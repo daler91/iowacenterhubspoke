@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
+import { mutate as globalMutate } from 'swr';
 import DeleteTaskDialog from './DeleteTaskDialog';
 import DeleteProjectDialog from './DeleteProjectDialog';
 import { useAuth } from '../../lib/auth';
@@ -417,6 +418,28 @@ export default function ProjectDetail() {
   const handleDelete = async () => {
     try {
       await projectsAPI.delete(projectId);
+      // Invalidate every cached view that might still reference this
+      // project before navigating back to the board. App-level SWR uses
+      // dedupingInterval:15000 + revalidateOnFocus:false, so without this
+      // the board would re-render from cache and still show the just-
+      // deleted project. The 1-arg predicate form revalidates without
+      // replacing cached data, so the board stays visible while the fresh
+      // payload lands (pattern from useDashboardData.ts).
+      await globalMutate((key) => {
+        if (typeof key === 'string') {
+          return (
+            key === 'project-board'
+            || key === 'projects'
+            || key === 'community-dashboard'
+            || key === `project-${projectId}`
+            || key === `tasks-${projectId}`
+          );
+        }
+        if (Array.isArray(key)) {
+          return key[0] === 'project-board' || key[0] === 'projects';
+        }
+        return false;
+      });
       toast.success('Project deleted');
       navigate('/coordination/board');
     } catch {
