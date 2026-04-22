@@ -654,6 +654,65 @@ def _parse_iso_ts(raw: object) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
+async def _get_same_name_users(name: str) -> list[dict]:
+    """Load every user record that shares a display name."""
+    rows: list[dict] = []
+    async for row in db.users.find(
+        {"name": name},
+        {"_id": 0, "id": 1, "created_at": 1},
+    ):
+        rows.append(row)
+    return rows
+
+
+def _classify_legacy_rows(
+    *,
+    legacy_rows: list[dict],
+    user_id: str,
+    same_name_users: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Classify legacy rows into confident vs ambiguous attribution."""
+    confident_legacy: list[dict] = []
+    ambiguous_legacy: list[dict] = []
+
+    created_by_id: dict[str, datetime] = {}
+    invalid_created = False
+    for row in same_name_users:
+        parsed = _parse_iso_ts(row.get("created_at"))
+        uid = row.get("id")
+        if not uid or parsed is None:
+            invalid_created = True
+            continue
+        created_by_id[uid] = parsed
+
+    target_created = created_by_id.get(user_id)
+    sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
+    target_idx = next((i for i, (uid, _dt) in enumerate(sorted_created) if uid == user_id), None)
+    has_single_candidate = len(sorted_created) == 1
+    boundary_second_created = None
+    if target_idx == 0 and len(sorted_created) > 1:
+        boundary_second_created = sorted_created[1][1]
+
+    for row in legacy_rows:
+        ts = _parse_iso_ts(row.get("timestamp"))
+        if invalid_created or target_created is None or ts is None:
+            ambiguous_legacy.append(row)
+            continue
+        if ts < target_created:
+            # Can't belong to this user before account creation.
+            ambiguous_legacy.append(row)
+            continue
+        if has_single_candidate:
+            confident_legacy.append(row)
+            continue
+        if target_idx == 0 and boundary_second_created and ts < boundary_second_created:
+            confident_legacy.append(row)
+            continue
+        ambiguous_legacy.append(row)
+
+    return confident_legacy, ambiguous_legacy
+
+
 @router.get(
     "/me/export",
     summary="Export all personal data stored about the current user (GDPR Art. 20)",
@@ -711,44 +770,12 @@ async def export_my_data(user: CurrentUser):
     confident_legacy: list[dict] = []
     ambiguous_legacy: list[dict] = []
     if legacy_rows and legacy_name:
-        same_name_users = await db.users.find(
-            {"name": legacy_name},
-            {"_id": 0, "id": 1, "created_at": 1},
-        ).to_list(200)
-
-        created_by_id: dict[str, datetime] = {}
-        invalid_created = False
-        for row in same_name_users:
-            parsed = _parse_iso_ts(row.get("created_at"))
-            uid = row.get("id")
-            if not uid or parsed is None:
-                invalid_created = True
-                continue
-            created_by_id[uid] = parsed
-
-        target_created = created_by_id.get(user_id)
-        sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
-        target_idx = next((i for i, (uid, _dt) in enumerate(sorted_created) if uid == user_id), None)
-
-        second_created = None
-        if target_idx is not None and target_idx == 0 and len(sorted_created) > 1:
-            second_created = sorted_created[1][1]
-
-        for row in legacy_rows:
-            ts = _parse_iso_ts(row.get("timestamp"))
-            if invalid_created or target_created is None or ts is None:
-                ambiguous_legacy.append(row)
-                continue
-            if ts < target_created:
-                # Can't belong to this user before account creation.
-                ambiguous_legacy.append(row)
-                continue
-            if target_idx == 0 and (second_created is None or ts < second_created):
-                confident_legacy.append(row)
-            elif len(sorted_created) == 1:
-                confident_legacy.append(row)
-            else:
-                ambiguous_legacy.append(row)
+        same_name_users = await _get_same_name_users(legacy_name)
+        confident_legacy, ambiguous_legacy = _classify_legacy_rows(
+            legacy_rows=legacy_rows,
+            user_id=user_id,
+            same_name_users=same_name_users,
+        )
 
     password_resets = await db.password_resets.find(
         {"user_id": user_id},

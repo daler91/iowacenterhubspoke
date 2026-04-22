@@ -15,7 +15,19 @@ class _FakeCursor:
         return self
 
     async def to_list(self, _limit):
+        await asyncio.sleep(0)
         return list(self._rows)
+
+    def __aiter__(self):
+        self._iter_idx = 0
+        return self
+
+    async def __anext__(self):
+        if self._iter_idx >= len(self._rows):
+            raise StopAsyncIteration
+        row = self._rows[self._iter_idx]
+        self._iter_idx += 1
+        return row
 
 
 class _FakeCollection:
