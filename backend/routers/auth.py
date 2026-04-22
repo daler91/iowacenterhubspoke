@@ -875,7 +875,7 @@ async def delete_my_account(user: CurrentUser, response: Response):
     # invariant was already enforced atomically at the top of this
     # handler via the role-demote CAS, before any destructive writes.
     await db.users.delete_one({"id": user["user_id"]})
-    invalidate_pwd_cache(user["user_id"])
+    await invalidate_pwd_cache(user["user_id"], is_deleted=True)
 
     # Self-delete soft-deletes the matching employee row and renames the
     # denormalized employee snapshot on every historical schedule, both

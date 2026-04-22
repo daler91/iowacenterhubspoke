@@ -7,6 +7,10 @@ would need Motor mocking — deferred until we add mongomock-motor.
 
 import jwt
 import pytest
+import asyncio
+from fastapi import HTTPException
+from starlette.requests import Request
+from unittest.mock import AsyncMock
 
 from core import auth as _auth
 from core.auth import (
@@ -76,3 +80,52 @@ def test_refresh_token_is_signed_with_jwt_secret():
     bogus = f"{header}.{payload_b64}.wrongsignature"
     with pytest.raises(Exception):
         decode_refresh_token(bogus)
+
+
+def test_deleted_user_token_rejected_on_protected_auth_gate(monkeypatch):
+    """Existing access token should 401 once account has been deleted."""
+    token = create_token("deleted-user-123", "u@example.com", "U", "viewer")
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/auth/me",
+        "headers": [(b"authorization", f"Bearer {token}".encode())],
+    }
+    request = Request(scope)
+
+    # Simulate post-self-delete auth state check.
+    monkeypatch.setattr(_auth, "_get_pwd_changed_ts", AsyncMock(return_value=(None, True)))
+
+    async def _call():
+        await _auth.get_current_user(request, authorization=f"Bearer {token}")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(_call())
+    assert exc_info.value.status_code == 401
+    assert "deactivated" in str(exc_info.value.detail).lower()
+
+
+def test_pwd_cache_marks_missing_user_as_deleted(monkeypatch):
+    import importlib
+    auth_mod = importlib.reload(_auth)
+
+    user_id = "hard-deleted-1"
+    auth_mod._pwd_change_cache.pop(user_id, None)
+
+    monkeypatch.setattr(auth_mod, "_read_redis_markers", AsyncMock(return_value=(None, None)))
+
+    class _Users:
+        async def find_one(self, *_args, **_kwargs):
+            return None
+
+    class _DB:
+        users = _Users()
+
+    import database
+    monkeypatch.setattr(database, "db", _DB())
+
+    changed_ts, is_deleted = asyncio.run(auth_mod._get_pwd_changed_ts(user_id))
+    assert changed_ts is None
+    assert is_deleted is True
+    # Ensure L1 cache doesn't retain a stale "active" state for absent rows.
+    assert auth_mod._pwd_change_cache[user_id][2] is True
