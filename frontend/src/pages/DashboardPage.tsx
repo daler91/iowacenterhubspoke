@@ -144,12 +144,13 @@ export default function DashboardPage() {
     scheduleWindow,
     setScheduleWindow: updateScheduleWindow,
     onEditSchedule: handleEditSchedule,
+    onNewSchedule: handleNewSchedule,
     onStatClick: handleStatClick
   }), [
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors, loadingState,
-    scheduleWindow, updateScheduleWindow, handleEditSchedule, handleStatClick
+    scheduleWindow, updateScheduleWindow, handleEditSchedule, handleNewSchedule, handleStatClick
   ]);
 
   return (
