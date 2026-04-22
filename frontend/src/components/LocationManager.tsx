@@ -130,14 +130,19 @@ export default function LocationManager() {
       longitude: String(longitude),
     }));
 
-    // Auto-calculate drive time from hub
+    // Auto-calculate drive time from hub. If the lookup fails (Google
+    // Distance Matrix down, no API key, etc.) drop in a conservative
+    // default so the form is still submittable — users frequently miss
+    // the toast, then hit "save" and bounce off backend validation.
     setCalculatingDrive(true);
     try {
       const res = await locationsAPI.getDriveTimeFromHub(latitude, longitude);
       setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
     } catch {
-      toast.error(
-        'Drive time auto-calc failed. Please enter the minutes manually.',
+      const FALLBACK_DRIVE_MINUTES = '15';
+      setForm(prev => ({ ...prev, drive_time_minutes: FALLBACK_DRIVE_MINUTES }));
+      toast.warning(
+        `Drive time auto-calc failed. Using ${FALLBACK_DRIVE_MINUTES} min estimate — adjust manually if needed.`,
       );
     } finally {
       setCalculatingDrive(false);

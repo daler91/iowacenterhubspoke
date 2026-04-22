@@ -223,6 +223,12 @@ docker run -p 8080:8080 \
   iowa-center
 ```
 
+The repo also keeps a `Procfile` for Heroku-style buildpack platforms
+(legacy / fallback). Railway uses `Dockerfile` per `railway.json`; the
+Procfile mirrors the same uvicorn flags so a buildpack deploy preserves
+the graceful-shutdown behaviour. If you only ever deploy via Docker,
+the Procfile is harmless and can be ignored.
+
 ## Documentation
 
 | Doc | What it covers |
