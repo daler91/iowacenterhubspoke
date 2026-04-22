@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, useOutletContext } from 'react-router-dom';
+import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -20,8 +20,10 @@ import {
 } from '../ui/dropdown-menu';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
 import DeleteTaskDialog from './DeleteTaskDialog';
+import DeleteProjectDialog from './DeleteProjectDialog';
+import { useAuth } from '../../lib/auth';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
-import { projectTasksAPI } from '../../lib/coordination-api';
+import { projectTasksAPI, projectsAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
@@ -339,6 +341,9 @@ function AddTaskInline({
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const { project, mutateProject, isLoading: projectLoading } = useProject(id);
@@ -346,6 +351,7 @@ export default function ProjectDetail() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [linkedSchedule, setLinkedSchedule] = useState<Record<string, unknown> | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (project?.schedule_id) {
@@ -408,6 +414,16 @@ export default function ProjectDetail() {
 
   const projectId = id;
 
+  const handleDelete = async () => {
+    try {
+      await projectsAPI.delete(projectId);
+      toast.success('Project deleted');
+      navigate('/coordination/board');
+    } catch {
+      toast.error('Failed to delete project');
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -433,6 +449,17 @@ export default function ProjectDetail() {
           >
             <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
           </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              aria-label="Delete project"
+              className="h-7 px-2 text-muted-foreground hover:text-danger"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            </Button>
+          )}
         </div>
         <p className="text-sm text-slate-500 mt-1">
           {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
@@ -606,6 +633,14 @@ export default function ProjectDetail() {
           classes={(context.classes || []) as Array<{ id: string; name: string }>}
         />
       )}
+
+      {/* Delete Project Dialog (admin-only) */}
+      <DeleteProjectDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDelete}
+        projectTitle={project.title}
+      />
     </div>
   );
 }

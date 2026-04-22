@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvanceRequest
-from core.auth import CurrentUser, SchedulerRequired
+from core.auth import AdminRequired, CurrentUser, SchedulerRequired
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER, ROLE_ADMIN
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
@@ -875,9 +875,12 @@ async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRe
 @router.delete(
     "/{project_id}",
     summary="Delete a project and associated tasks",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={
+        403: {"description": "Admin role required"},
+        404: {"description": PROJECT_NOT_FOUND},
+    },
 )
-async def delete_project(project_id: str, user: SchedulerRequired):
+async def delete_project(project_id: str, user: AdminRequired):
     # Snapshot before soft-delete so the notification can name the project
     # and still resolve the partner_org_id for recipient resolution.
     project_snapshot = await db.projects.find_one(
@@ -890,9 +893,9 @@ async def delete_project(project_id: str, user: SchedulerRequired):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    # Soft-delete associated tasks, documents, messages so the audit trail
-    # survives. Hard deletes would break any downstream report that cites
-    # a task or document that later vanished.
+    # Soft-delete associated tasks, documents, messages, outcomes so the
+    # audit trail survives. Hard deletes would break any downstream report
+    # that cites a task or document that later vanished.
     await db.tasks.update_many(
         {"project_id": project_id, "deleted_at": None},
         {"$set": {"deleted_at": now}},
@@ -902,6 +905,10 @@ async def delete_project(project_id: str, user: SchedulerRequired):
         {"$set": {"deleted_at": now}},
     )
     await db.messages.update_many(
+        {"project_id": project_id, "deleted_at": None},
+        {"$set": {"deleted_at": now}},
+    )
+    await db.event_outcomes.update_many(
         {"project_id": project_id, "deleted_at": None},
         {"$set": {"deleted_at": now}},
     )
