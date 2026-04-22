@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 
@@ -29,6 +30,7 @@ class _Cursor:
         return self
 
     async def to_list(self, _length):
+        await asyncio.sleep(0)
         rows = self._docs[self._skip:]
         if self._limit is not None:
             rows = rows[: self._limit]
@@ -58,7 +60,7 @@ class _DB:
 
 @pytest.fixture
 def huge_notification_db():
-    today = "2026-04-22"
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     schedules = [
         {
             "id": f"sch-{idx}",
@@ -82,7 +84,7 @@ def huge_notification_db():
     return _DB(schedules=schedules, employees=employees)
 
 
-def test_notifications_paginate_with_metadata_and_no_100_cap(monkeypatch, huge_notification_db):
+def test_notifications_default_shape_remains_list_and_not_truncated(monkeypatch, huge_notification_db):
     monkeypatch.setattr(system_router, "db", huge_notification_db)
 
     import services.notification_prefs as prefs_mod
@@ -91,14 +93,12 @@ def test_notifications_paginate_with_metadata_and_no_100_cap(monkeypatch, huge_n
 
     result = asyncio.run(system_router.get_notifications(user={"user_id": "u1"}))
 
-    # 120 upcoming + 130 idle = 250 total; default page returns 200.
-    assert result["total"] == 250
-    assert result["returned"] == 200
-    assert result["has_more"] is True
-    assert len(result["items"]) == 200
+    # 120 upcoming + 130 idle = 250 total; legacy non-paginated shape is a list.
+    assert isinstance(result, list)
+    assert len(result) == 250
 
 
-def test_notifications_second_page_reports_has_more_false(monkeypatch, huge_notification_db):
+def test_notifications_paginated_shape_reports_has_more_false(monkeypatch, huge_notification_db):
     monkeypatch.setattr(system_router, "db", huge_notification_db)
 
     import services.notification_prefs as prefs_mod
@@ -106,7 +106,9 @@ def test_notifications_second_page_reports_has_more_false(monkeypatch, huge_noti
     monkeypatch.setattr(prefs_mod, "load_principal", AsyncMock(return_value=None))
 
     result = asyncio.run(
-        system_router.get_notifications(user={"user_id": "u1"}, skip=200, limit=200)
+        system_router.get_notifications(
+            user={"user_id": "u1"}, paginated=True, skip=200, limit=200
+        )
     )
 
     assert result["total"] == 250

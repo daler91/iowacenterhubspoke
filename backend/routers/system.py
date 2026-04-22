@@ -134,6 +134,7 @@ async def _fetch_all_with_guard(
 @router.get("/notifications", summary="Get system notifications")
 async def get_notifications(
     user: CurrentUser,
+    paginated: bool = False,
     skip: int = 0,
     limit: int = 200,
 ):
@@ -205,6 +206,10 @@ async def get_notifications(
         key=lambda x: x.get('severity') == 'warning',
         reverse=True,
     )
+    if not paginated:
+        # Backward-compatible response shape for existing clients.
+        return ordered
+
     returned = ordered[skip: skip + limit]
     total = len(ordered)
     return {
