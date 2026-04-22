@@ -727,7 +727,10 @@ async def delete_my_account(user: CurrentUser, response: Response):
     """
     from core.constants import ROLE_ADMIN as _ADMIN
 
-    user_doc = await db.users.find_one({"id": user["user_id"]}, {"_id": 0})
+    user_doc = await db.users.find_one(
+        {"id": user["user_id"], "deleted_at": None},
+        {"_id": 0},
+    )
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -740,14 +743,16 @@ async def delete_my_account(user: CurrentUser, response: Response):
         # this BEFORE any destructive writes means a losing racer
         # hasn't anonymized any records — failure is clean.
         claimed = await db.users.find_one_and_update(
-            {"id": user["user_id"], "role": _ADMIN},
+            {"id": user["user_id"], "role": _ADMIN, "deleted_at": None},
             {"$set": {"role": ROLE_VIEWER}},
         )
         if claimed is not None:
-            remaining = await db.users.count_documents({"role": _ADMIN})
+            remaining = await db.users.count_documents(
+                {"role": _ADMIN, "deleted_at": None},
+            )
             if remaining == 0:
                 await db.users.update_one(
-                    {"id": user["user_id"]},
+                    {"id": user["user_id"], "deleted_at": None},
                     {"$set": {"role": _ADMIN}},
                 )
                 raise HTTPException(
