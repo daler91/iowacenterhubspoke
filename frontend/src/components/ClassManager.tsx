@@ -104,7 +104,7 @@ const ClassRow = memo(function ClassRow({
 export default function ClassManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { classes, handleClassRefresh: onRefresh } = useOutletContext();
+  const { classes, loadingState, handleClassRefresh: onRefresh } = useOutletContext();
   const [selectedClassId, setSelectedClassId] = useState(null);
   const onViewProfile = useCallback((id) => setSelectedClassId(id), []);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -193,6 +193,7 @@ export default function ClassManager() {
           Track class series, colors, and on-the-fly scheduling options.
         </span>
       }
+      status={loadingState?.classes ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         isAdmin ? (
           <Button

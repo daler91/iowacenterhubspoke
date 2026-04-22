@@ -129,7 +129,7 @@ const EmployeeRow = memo(function EmployeeRow({
 export default function EmployeeManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { employees, schedules, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
+  const { employees, schedules, loadingState, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
   const onRefresh = useCallback(() => {
@@ -213,6 +213,7 @@ export default function EmployeeManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Employees' }]}
       title="Employees"
       subtitle="Manage team members and their scheduling colors"
+      status={loadingState?.employees ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         isAdmin ? (
           <Button

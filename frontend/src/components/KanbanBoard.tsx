@@ -204,7 +204,7 @@ function DroppableColumn({ id, children }: Readonly<{ id: string; children: Reac
 
 export default function KanbanBoard() {
   const navigate = useNavigate();
-  const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
+  const { schedules, employees, locations, classes, loadingState, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
 
   const {
     selectionMode,
@@ -322,6 +322,7 @@ export default function KanbanBoard() {
       breadcrumbs={[{ label: 'Planning' }, { label: 'Delivery Pipeline' }]}
       title="Delivery Pipeline"
       subtitle="Track class delivery status — drag cards through upcoming, in progress, and completed"
+      status={loadingState?.schedules ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         <Button
           variant={selectionMode ? 'default' : 'outline'}

@@ -108,7 +108,7 @@ const LocationRow = memo(function LocationRow({
 export default function LocationManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { locations, schedules, fetchLocations, fetchActivities } = useOutletContext();
+  const { locations, schedules, loadingState, fetchLocations, fetchActivities } = useOutletContext();
   const onRefresh = useCallback(() => {
     fetchLocations();
     fetchActivities();
@@ -239,6 +239,7 @@ export default function LocationManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Locations' }]}
       title="Locations"
       subtitle="Manage spoke locations and drive times from Hub"
+      status={loadingState?.locations ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         isAdmin ? (
           <Button

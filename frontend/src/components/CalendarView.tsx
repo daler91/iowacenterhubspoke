@@ -310,6 +310,36 @@ export default function CalendarView() {
             {filteredSchedules.length} of {rawStats?.total_schedules ?? (schedules || []).length} schedules in view — showing {calendarView} view
           </p>
         )}
+        {(schedules || []).length > 0 && filteredSchedules.length === 0 && (
+          <output
+            data-testid="calendar-filtered-empty"
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex items-center justify-between gap-4 w-full"
+          >
+            <p className="text-sm text-slate-600 dark:text-gray-300">
+              No schedules match the current filters.
+            </p>
+            {(filterEmployee !== 'all' || filterLocation !== 'all' || filterClass !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Only drop the filter params — `view` and `date` drive
+                  // the visible calendar position, keep them intact.
+                  setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('employee');
+                    next.delete('location');
+                    next.delete('class');
+                    return next;
+                  });
+                }}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                data-testid="calendar-clear-filters"
+              >
+                Clear filters
+              </button>
+            )}
+          </output>
+        )}
       </div>
 
       <StatsStrip stats={stats} onStatClick={onStatClick} />

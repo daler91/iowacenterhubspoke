@@ -89,10 +89,10 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     return schedulesAPI.getAll(params).then(extractItems<Schedule>);
   };
 
-  const { data: locations = [], mutate: mutateLocations } = useSWR<Location[]>('locations', () => locationsAPI.getAll().then(extractItems<Location>), { ...swrOptions, onError: onError('locations') });
-  const { data: employees = [], mutate: mutateEmployees } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
-  const { data: classes = [], mutate: mutateClasses } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
-  const { data: schedules = [] } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
+  const { data: locations = [], mutate: mutateLocations, isLoading: locationsLoading } = useSWR<Location[]>('locations', () => locationsAPI.getAll().then(extractItems<Location>), { ...swrOptions, onError: onError('locations') });
+  const { data: employees = [], mutate: mutateEmployees, isLoading: employeesLoading } = useSWR<Employee[]>('employees', () => employeesAPI.getAll().then(extractItems<Employee>), { ...swrOptions, onError: onError('employees') });
+  const { data: classes = [], mutate: mutateClasses, isLoading: classesLoading } = useSWR<ClassType[]>('classes', () => classesAPI.getAll().then(extractItems<ClassType>), { ...swrOptions, onError: onError('classes') });
+  const { data: schedules = [], isLoading: schedulesLoading } = useSWR<Schedule[]>(schedulesKey, fetchSchedulesList, { ...swrOptions, onError: onError('schedules') });
 
   // `fetchSchedules` is handed to every page via the outlet context and
   // used by calendar-side writes (relocate, bulk actions, schedule-form
@@ -166,6 +166,14 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
     employees: Array.isArray(employees) ? employees : [],
     classes: Array.isArray(classes) ? classes : [],
     schedules: Array.isArray(schedules) ? schedules : [],
+    // Real first-load signals. SWR defaults data to [] so callers cannot
+    // distinguish "loading" from "empty" using `data` alone.
+    loadingState: {
+      locations: locationsLoading,
+      employees: employeesLoading,
+      classes: classesLoading,
+      schedules: schedulesLoading,
+    },
     stats: stats || {} as DashboardStats,
     activities: Array.isArray(activities) ? activities : [],
     workloadData: Array.isArray(workloadData) ? workloadData : [],

@@ -5,7 +5,14 @@ import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { format, addDays, subDays } from 'date-fns';
+
+// A crash inside one of the lazy shell panels (ScheduleForm,
+// NotificationsPanel, StatModal) should NOT take the dashboard down —
+// each panel is wrapped in its own tiny boundary that renders null on
+// error. The route-level RouteBoundary still handles main-outlet errors.
+const shellFallback = () => null;
 
 // ±60-day window used by the Calendar route's initial schedule fetch.
 // Matches the `_WORKLOAD_DEFAULT_LOOKBACK_DAYS` convention in
@@ -84,7 +91,7 @@ export default function DashboardPage() {
     : null;
 
   const {
-    locations, employees, classes, schedules, stats, activities, workloadData,
+    locations, employees, classes, schedules, stats, activities, workloadData, loadingState,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors
   } = useDashboardData({ needActivity, needWorkload, scheduleWindow });
@@ -131,7 +138,7 @@ export default function DashboardPage() {
   );
 
   const contextValue = useMemo(() => ({
-    locations, employees, classes, schedules, stats, activities, workloadData,
+    locations, employees, classes, schedules, stats, activities, workloadData, loadingState,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
     handleClassRefresh, handleScheduleSaved, fetchErrors,
     scheduleWindow,
@@ -141,12 +148,19 @@ export default function DashboardPage() {
   }), [
     locations, employees, classes, schedules, stats, activities, workloadData,
     fetchLocations, fetchEmployees, fetchSchedules, fetchActivities, fetchWorkload,
-    handleClassRefresh, handleScheduleSaved, fetchErrors,
+    handleClassRefresh, handleScheduleSaved, fetchErrors, loadingState,
     scheduleWindow, updateScheduleWindow, handleEditSchedule, handleStatClick
   ]);
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] dark:bg-gray-950 overflow-hidden" data-testid="dashboard-page">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:dark:bg-gray-900 focus:text-indigo-600 focus:px-4 focus:py-2 focus:rounded-md focus:shadow-lg focus:ring-2 focus:ring-indigo-500"
+        data-testid="skip-to-content"
+      >
+        Skip to main content
+      </a>
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
         <button
@@ -188,12 +202,14 @@ export default function DashboardPage() {
           <div className="ml-auto">
             {/* Reserve the bell's footprint so the header doesn't jump when
                 the lazy chunk resolves. */}
-            <Suspense fallback={<div className="w-10 h-10" aria-hidden="true" />}>
-              <NotificationsPanel />
-            </Suspense>
+            <ErrorBoundary fallback={shellFallback}>
+              <Suspense fallback={<div className="w-10 h-10" aria-hidden="true" />}>
+                <NotificationsPanel />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {/* Per-route ErrorBoundary is wired in App.tsx via RouteBoundary so
               an error on one page stays scoped to that page and clears on
               navigation. */}
@@ -213,34 +229,38 @@ export default function DashboardPage() {
       {/* Schedule Form Modal — only mount once the user opens it, so the
           lazy chunk stays deferred until actually needed. */}
       {scheduleFormOpen && (
-        <Suspense fallback={null}>
-          <ScheduleForm
-            open={scheduleFormOpen}
-            onOpenChange={setScheduleFormOpen}
-            locations={locations}
-            employees={employees}
-            classes={classes}
-            editSchedule={editingSchedule}
-            onSaved={handleScheduleSaved}
-            onClassCreated={handleClassRefresh}
-          />
-        </Suspense>
+        <ErrorBoundary fallback={shellFallback}>
+          <Suspense fallback={null}>
+            <ScheduleForm
+              open={scheduleFormOpen}
+              onOpenChange={setScheduleFormOpen}
+              locations={locations}
+              employees={employees}
+              classes={classes}
+              editSchedule={editingSchedule}
+              onSaved={handleScheduleSaved}
+              onClassCreated={handleClassRefresh}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Stat Modals — same pattern, mount on open. */}
       {statModalOpen && (
-        <Suspense fallback={null}>
-          <StatModal
-            isOpen={statModalOpen}
-            onClose={() => setStatModalOpen(false)}
-            title={statModalTitle}
-            type={statModalType}
-            data={statModalData}
-            classes={classes}
-            employees={employees}
-            locations={locations}
-          />
-        </Suspense>
+        <ErrorBoundary fallback={shellFallback}>
+          <Suspense fallback={null}>
+            <StatModal
+              isOpen={statModalOpen}
+              onClose={() => setStatModalOpen(false)}
+              title={statModalTitle}
+              type={statModalType}
+              data={statModalData}
+              classes={classes}
+              employees={employees}
+              locations={locations}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
     </div>
