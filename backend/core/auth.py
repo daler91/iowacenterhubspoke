@@ -279,7 +279,10 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
     user_doc = await db.users.find_one(
         {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
     )
-    is_deleted = bool(user_doc and user_doc.get('deleted_at'))
+    # Missing user row means the account was hard-deleted; treat as revoked
+    # so existing access tokens fail closed instead of lingering as "active"
+    # in cache until token expiry.
+    is_deleted = user_doc is None or bool(user_doc.get('deleted_at'))
     changed_ts: float | None = redis_changed
     if user_doc and user_doc.get('password_changed_at'):
         mongo_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
