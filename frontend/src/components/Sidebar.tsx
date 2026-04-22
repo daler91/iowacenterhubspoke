@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
@@ -56,14 +57,13 @@ const NAV_SECTIONS = [
  */
 function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
   const Icon = item.icon;
-  return (
+  const button = (
     <Button
       type="button"
       variant="ghost"
       data-testid={`nav-${item.id}`}
       aria-label={collapsed ? item.label : undefined}
       aria-current={isActive ? 'page' : undefined}
-      title={collapsed ? item.tooltip || item.label : item.tooltip}
       onClick={onNavigate}
       className={cn(
         // Reset the Button primitive's default horizontal layout so the
@@ -78,6 +78,17 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
       <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-muted-foreground')} />
       {!collapsed && <span>{item.label}</span>}
     </Button>
+  );
+  // Only wire a Radix Tooltip in the collapsed state — the expanded
+  // sidebar already shows the label, and Radix tooltips (unlike the
+  // native `title` attribute) surface on keyboard focus, which is the
+  // whole reason we're swapping here.
+  if (!collapsed) return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{item.tooltip || item.label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -193,6 +204,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   );
 
   return (
+    <TooltipProvider delayDuration={300} skipDelayDuration={100}>
     <div
       data-testid="sidebar"
       className={cn(
@@ -277,6 +289,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
         {collapsed ? <ChevronRight aria-hidden="true" className="w-3 h-3" /> : <ChevronLeft aria-hidden="true" className="w-3 h-3" />}
       </Button>
     </div>
+    </TooltipProvider>
   );
 }
 
