@@ -4,6 +4,16 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { PageShell } from './ui/page-shell';
 import { CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Mail, LogOut, Lock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -137,6 +147,8 @@ export default function UserManager() {
   // Active brute-force lockouts. Fetched alongside users and rendered
   // inline above the user list when non-empty.
   const [lockouts, setLockouts] = useState<Array<{ email: string; email_masked: string; count: number; expires_at: string }>>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email?: string; name?: string; role?: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -217,6 +229,21 @@ export default function UserManager() {
       toast.error(extractErrorMessage(err, 'Failed to delete user'));
     }
   }, [fetchUsers]);
+
+  const requestDelete = useCallback((userId: string) => {
+    const u = users.find(x => x.id === userId);
+    if (!u) return;
+    setDeleteConfirmText('');
+    setDeleteTarget({ id: u.id, email: u.email, name: u.name, role: u.role });
+  }, [users]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+    await handleDelete(target.id);
+  }, [deleteTarget, handleDelete]);
 
   const handleInvite = async (e) => {
     e.preventDefault();
@@ -491,7 +518,7 @@ export default function UserManager() {
                       isSelf={u.id === user.id}
                       onRoleChange={handleRoleChange}
                       onOpenSessions={openSessions}
-                      onDelete={handleDelete}
+                      onDelete={requestDelete}
                     />
                   ))}
                 </tbody>
@@ -666,6 +693,53 @@ export default function UserManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteConfirmText(''); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.name || deleteTarget?.email || 'user'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.role === 'admin' ? (
+                <>
+                  <strong>{deleteTarget?.email}</strong> is an <strong>administrator</strong>.
+                  Deleting this account revokes their access and cannot be undone.
+                  Type <strong>DELETE</strong> below to confirm.
+                </>
+              ) : (
+                <>
+                  This removes <strong>{deleteTarget?.email}</strong> and revokes all their active sessions.
+                  This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteTarget?.role === 'admin' && (
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              aria-label="Type DELETE to confirm"
+              autoComplete="off"
+              className="mt-2"
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteTarget?.role === 'admin' && deleteConfirmText !== 'DELETE'}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
