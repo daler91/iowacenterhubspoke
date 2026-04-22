@@ -638,6 +638,22 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     return {"message": "Password reset successful"}
 
 
+def _parse_iso_ts(raw: object) -> Optional[datetime]:
+    """Parse an ISO timestamp string/datetime into timezone-aware UTC datetime."""
+    if isinstance(raw, datetime):
+        dt = raw
+    elif isinstance(raw, str):
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+    else:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 @router.get(
     "/me/export",
     summary="Export all personal data stored about the current user (GDPR Art. 20)",
@@ -648,7 +664,8 @@ async def export_my_data(user: CurrentUser):
     Satisfies the right to data portability. The response contains:
     - the user record (minus password hash)
     - the employee record linked by email, if any (minus OAuth tokens)
-    - activity log entries attributed to this user
+    - activity log entries attributed to this user, split into confident
+      attribution and ambiguous legacy rows
     - password-reset audit rows (timestamps only — not the tokens)
     """
     user_id = user["user_id"]
@@ -671,20 +688,68 @@ async def export_my_data(user: CurrentUser):
             "outlook_refresh_token": 0,
         },
     )
-    # Filter by user_id when possible. Legacy rows (before user_id was
-    # captured on write) fall back to name-match only for the current
-    # user — not strictly correct if two users share a display name,
-    # but it's the best we can do for pre-migration data and at least
-    # bounds the ambiguity to the caller's own account.
-    activity = await db.activity_logs.find(
+
+    # Always trust explicit user_id attribution.
+    attributed_activity = await db.activity_logs.find(
+        {"user_id": user_id},
+        {"_id": 0, "expires_at": 0},
+    ).sort("timestamp", -1).to_list(10_000)
+
+    # Legacy rows without user_id are only confidently attributed when
+    # this account was the *only* known user with this display name in
+    # the relevant creation window. Everything else is surfaced under an
+    # explicit ambiguity bucket for callers to review manually.
+    legacy_name = user.get("name", "")
+    legacy_rows = await db.activity_logs.find(
         {
-            "$or": [
-                {"user_id": user_id},
-                {"user_id": {"$in": [None, ""]}, "user_name": user.get("name", "")},
-            ]
+            "user_id": {"$in": [None, ""]},
+            "user_name": legacy_name,
         },
         {"_id": 0, "expires_at": 0},
     ).sort("timestamp", -1).to_list(10_000)
+
+    confident_legacy: list[dict] = []
+    ambiguous_legacy: list[dict] = []
+    if legacy_rows and legacy_name:
+        same_name_users = await db.users.find(
+            {"name": legacy_name},
+            {"_id": 0, "id": 1, "created_at": 1},
+        ).to_list(200)
+
+        created_by_id: dict[str, datetime] = {}
+        invalid_created = False
+        for row in same_name_users:
+            parsed = _parse_iso_ts(row.get("created_at"))
+            uid = row.get("id")
+            if not uid or parsed is None:
+                invalid_created = True
+                continue
+            created_by_id[uid] = parsed
+
+        target_created = created_by_id.get(user_id)
+        sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
+        target_idx = next((i for i, (uid, _dt) in enumerate(sorted_created) if uid == user_id), None)
+
+        second_created = None
+        if target_idx is not None and target_idx == 0 and len(sorted_created) > 1:
+            second_created = sorted_created[1][1]
+
+        for row in legacy_rows:
+            ts = _parse_iso_ts(row.get("timestamp"))
+            if invalid_created or target_created is None or ts is None:
+                ambiguous_legacy.append(row)
+                continue
+            if ts < target_created:
+                # Can't belong to this user before account creation.
+                ambiguous_legacy.append(row)
+                continue
+            if target_idx == 0 and (second_created is None or ts < second_created):
+                confident_legacy.append(row)
+            elif len(sorted_created) == 1:
+                confident_legacy.append(row)
+            else:
+                ambiguous_legacy.append(row)
+
     password_resets = await db.password_resets.find(
         {"user_id": user_id},
         {"_id": 0, "token": 0},
@@ -694,7 +759,10 @@ async def export_my_data(user: CurrentUser):
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "user": user_doc,
         "employee": employee_doc,
-        "activity_log": activity,
+        "activity_log": {
+            "confident": [*attributed_activity, *confident_legacy],
+            "ambiguous": ambiguous_legacy,
+        },
         "password_reset_history": password_resets,
     }
 
