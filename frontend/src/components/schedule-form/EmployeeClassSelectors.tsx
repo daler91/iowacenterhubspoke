@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { PlusCircle, BookOpen } from 'lucide-react';
 import { COLORS } from '../../lib/constants';
 import { EmployeeMultiSelect } from '../ui/employee-multi-select';
+import { RequiredMark } from './RequiredMark';
 
 const CREATE_CLASS_VALUE = '__add_new_class__';
 
@@ -25,7 +26,7 @@ export function EmployeeClassSelectors({
     <>
       <div className="space-y-2">
         <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">
-          Employees <span className="text-danger" aria-hidden="true">*</span>
+          Employees <RequiredMark />
         </Label>
         <EmployeeMultiSelect
           id="schedule-employee-select"

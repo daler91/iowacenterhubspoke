@@ -4,6 +4,7 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { MapPin, Car, AlertTriangle, Calendar, WifiOff, RefreshCw } from 'lucide-react';
 import { TravelChainPreview } from './TravelChainPreview';
+import { RequiredMark } from './RequiredMark';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
 const OUTLOOK_STATUS_COLORS = {
@@ -41,7 +42,7 @@ export function LocationTimeSelectors({
     <>
       <div className="space-y-2">
         <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">
-          Location <span className="text-danger" aria-hidden="true">*</span>
+          Location <RequiredMark />
         </Label>
         <Select value={form.location_id} onValueChange={(v) => setForm({ ...form, location_id: v })}>
           <SelectTrigger
@@ -84,7 +85,7 @@ export function LocationTimeSelectors({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
           <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">
-            Date <span className="text-danger" aria-hidden="true">*</span>
+            Date <RequiredMark />
           </Label>
           <Input
             id="schedule-date-input"
@@ -101,7 +102,7 @@ export function LocationTimeSelectors({
         </div>
         <div className="space-y-2">
           <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
-            Start Time <span className="text-danger" aria-hidden="true">*</span>
+            Start Time <RequiredMark />
           </Label>
           <Input
             id="schedule-start-time"
@@ -118,7 +119,7 @@ export function LocationTimeSelectors({
         </div>
         <div className="space-y-2">
           <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
-            End Time <span className="text-danger" aria-hidden="true">*</span>
+            End Time <RequiredMark />
           </Label>
           <Input
             id="schedule-end-time"
