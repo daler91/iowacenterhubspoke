@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import {
@@ -202,24 +202,31 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   // defaults) and compare the current form against that baseline on
   // close.
   const [initialFormJson, setInitialFormJson] = useState<string | null>(null);
+  // Keep the latest `form` reachable from the snapshot-on-open effect
+  // without widening its dep array (we snapshot exactly once per open).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
   useEffect(() => {
     if (!open) {
       setInitialFormJson(null);
       return;
     }
-    const id = window.setTimeout(() => setInitialFormJson(JSON.stringify(form)), 0);
+    const id = window.setTimeout(
+      () => setInitialFormJson(JSON.stringify(formRef.current)),
+      0,
+    );
     return () => window.clearTimeout(id);
-    // form intentionally left out of deps — we snapshot once per open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const isFormDirty = (): boolean =>
+    isWizard
+    && initialFormJson !== null
+    && JSON.stringify(form) !== initialFormJson;
+
   const handleOpenChange = (nextOpen: boolean) => {
-    if (
-      !nextOpen
-      && isWizard
-      && initialFormJson !== null
-      && JSON.stringify(form) !== initialFormJson
-    ) {
+    if (!nextOpen && isFormDirty()) {
       setDiscardConfirmOpen(true);
       return;
     }
