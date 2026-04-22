@@ -247,8 +247,23 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
       toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
     }
+    // Backend signals (via partner_project_warning) when it expected to
+    // auto-create a coordination project but couldn't — surface it so the
+    // scheduler isn't left thinking partner sync happened silently.
+    const partnerWarning = res.data.partner_project_warning;
+    if (typeof partnerWarning === 'string' && partnerWarning) {
+      toast.warning(partnerWarning, { duration: 8000 });
+    }
     // Prompt to create a coordination project for new single schedules
-    if (isSingleCreation && form.recurrence === 'none' && onProjectPrompt) {
+    // (only when no auto-link was attempted/created on the backend).
+    const autoLinked = Boolean(res.data.linked_project_id);
+    if (
+      isSingleCreation
+      && form.recurrence === 'none'
+      && onProjectPrompt
+      && !autoLinked
+      && !partnerWarning
+    ) {
       toast('Track partner coordination for this class?', {
         duration: 8000,
         action: {

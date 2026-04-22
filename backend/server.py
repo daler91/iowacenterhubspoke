@@ -808,12 +808,18 @@ async def get_csrf_token(request: Request):
     return {"csrf_token": token}
 
 
+# Mount the readiness probe under both ``/ready`` (legacy) and ``/readyz``
+# (Kubernetes/Railway convention) so ops tooling can use whichever name
+# their template defaults to without us having to maintain two impls.
 @api_router.get("/ready", tags=["system"])
+@api_router.get("/readyz", tags=["system"])
 async def readiness_check(request: Request):
     """Readiness probe — 503 if any hard dependency (Mongo, Redis) is down.
 
     Distinct from ``/health`` so orchestrators can remove the pod from the
     load balancer (readiness) without killing the container (liveness).
+    Worker heartbeat is intentionally excluded — a degraded worker should
+    not pull the API out of LB rotation.
     """
     checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
     try:

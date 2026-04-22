@@ -108,6 +108,33 @@ describe('useScheduleForm Error Handling', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('surfaces partner_project_warning from create response as a warning toast', async () => {
+    schedulesAPI.create.mockResolvedValueOnce({
+      data: {
+        id: 'sched-1',
+        partner_project_warning: "Partner 'Acme' is not active (status=paused); coordination project was not created.",
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
+    );
+
+    act(() => {
+      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit({ preventDefault: jest.fn() });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith('Class scheduled successfully');
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Partner 'Acme' is not active (status=paused); coordination project was not created.",
+      { duration: 8000 }
+    );
+  });
+
   it('handles generic error on create', async () => {
     const errorResponse = {
       response: {
