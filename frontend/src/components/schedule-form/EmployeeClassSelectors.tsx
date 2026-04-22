@@ -33,7 +33,6 @@ export function EmployeeClassSelectors({
           employees={employees || []}
           selectedIds={form.employee_ids || []}
           onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
-          aria-required="true"
           aria-invalid={employeeInvalid || undefined}
         />
       </div>

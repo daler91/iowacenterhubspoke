@@ -194,21 +194,32 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   // visually flagged as the user works.
   const invalidFieldId = firstInvalidFieldId(step, form);
 
-  // "Dirty" = the user has made at least one meaningful selection for
-  // a NEW schedule. Only guards the wizard flow — editSchedule starts
-  // dirty by definition, and users have a Delete/Cancel pattern there.
-  // `start_time`/`end_time` are prepopulated with 09:00/12:00 defaults
-  // by `useScheduleForm`, so don't treat them as user edits — use the
-  // entity selections (employees/location/class) as the dirtiness
-  // signal instead.
-  const isDirty = isWizard && (
-    (form.employee_ids?.length ?? 0) > 0 ||
-    !!form.location_id ||
-    !!form.class_id
-  );
+  // Detecting "dirty" by enumerating specific fields misses edits to
+  // date/time/notes/recurrence — users can jump straight to step 2 via
+  // the tab strip and change those without touching employee/location/
+  // class. Instead snapshot the form JSON shortly after open (one tick,
+  // so useScheduleForm's own "reset on open" effect has seeded its
+  // defaults) and compare the current form against that baseline on
+  // close.
+  const [initialFormJson, setInitialFormJson] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setInitialFormJson(null);
+      return;
+    }
+    const id = window.setTimeout(() => setInitialFormJson(JSON.stringify(form)), 0);
+    return () => window.clearTimeout(id);
+    // form intentionally left out of deps — we snapshot once per open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isDirty) {
+    if (
+      !nextOpen
+      && isWizard
+      && initialFormJson !== null
+      && JSON.stringify(form) !== initialFormJson
+    ) {
       setDiscardConfirmOpen(true);
       return;
     }
