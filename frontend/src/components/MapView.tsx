@@ -17,22 +17,32 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 // inline here is memo-safe (unlike passing `() => navigate(...)` from the
 // parent map, which would create a fresh function per render per marker).
 const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
+  const classCountLabel = locSchedules.length === 1 ? '1 class today' : `${locSchedules.length} classes today`;
   return (
-    <AdvancedMarker position={{ lat: loc.latitude, lng: loc.longitude }} onClick={() => navigate(`/locations/${loc.id}`)}>
-      <div className="relative group cursor-pointer" data-testid={`spoke-marker-${loc.id}`}>
+    <AdvancedMarker position={{ lat: loc.latitude, lng: loc.longitude }}>
+      <button
+        type="button"
+        onClick={() => navigate(`/locations/${loc.id}`)}
+        aria-label={`${loc.city_name}, ${loc.drive_time_minutes} minutes from hub, ${classCountLabel}. Open location details.`}
+        data-testid={`spoke-marker-${loc.id}`}
+        className="relative group cursor-pointer bg-transparent border-0 p-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-600"
+      >
         <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-          <Navigation className="w-5 h-5 text-white" />
+          <Navigation className="w-5 h-5 text-white" aria-hidden="true" />
         </div>
         {locSchedules.length > 0 && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm" aria-hidden="true">
             {locSchedules.length}
           </div>
         )}
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]">
+        <div
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity z-50 pointer-events-none"
+          aria-hidden="true"
+        >
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px] text-left">
             <p className="font-bold text-sm text-teal-700 dark:text-teal-400">{loc.city_name}</p>
             <div className="flex items-center gap-2 mt-1">
-              <Car className="w-3 h-3 text-muted-foreground" />
+              <Car className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
               <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
             </div>
             {locSchedules.length > 0 && (
@@ -40,7 +50,7 @@ const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
                 <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Today's Classes</p>
                 {locSchedules.map(s => (
                   <div key={s.id} className="flex items-center gap-2 mt-1">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} />
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.employees?.[0]?.color }} aria-hidden="true" />
                     <span className="text-xs text-slate-600 dark:text-gray-300">{s.employees?.map(e => e.name).join(', ') || 'Unassigned'} ({s.start_time}-{s.end_time})</span>
                   </div>
                 ))}
@@ -48,7 +58,7 @@ const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
             )}
           </div>
         </div>
-      </div>
+      </button>
     </AdvancedMarker>
   );
 });
@@ -118,18 +128,26 @@ export default function MapView() {
           >
             {/* Hub marker */}
             <AdvancedMarker position={HUB}>
-              <div className="relative group cursor-pointer" data-testid="hub-marker">
+              <button
+                type="button"
+                data-testid="hub-marker"
+                aria-label="Central hub: Des Moines, 2210 Grand Ave"
+                className="relative group cursor-pointer bg-transparent border-0 p-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600"
+              >
                 <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg border-3 border-white">
-                  <MapPin className="w-6 h-6 text-white" />
+                  <MapPin className="w-6 h-6 text-white" aria-hidden="true" />
                 </div>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                  <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px]">
+                <div
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity z-50 pointer-events-none"
+                  aria-hidden="true"
+                >
+                  <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px] text-left">
                     <p className="font-bold text-sm text-indigo-700 dark:text-indigo-400">Hub - Des Moines</p>
                     <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">2210 Grand Ave, Des Moines, IA 50312</p>
                     <Badge className="mt-2 bg-indigo-100 text-indigo-700 border-0 text-[10px]">Central Hub</Badge>
                   </div>
                 </div>
-              </div>
+              </button>
             </AdvancedMarker>
 
             {/* Spoke markers */}
