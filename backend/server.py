@@ -808,12 +808,18 @@ async def get_csrf_token(request: Request):
     return {"csrf_token": token}
 
 
+# Mount the readiness probe under both ``/ready`` (legacy) and ``/readyz``
+# (Kubernetes/Railway convention) so ops tooling can use whichever name
+# their template defaults to without us having to maintain two impls.
 @api_router.get("/ready", tags=["system"])
+@api_router.get("/readyz", tags=["system"])
 async def readiness_check(request: Request):
     """Readiness probe — 503 if any hard dependency (Mongo, Redis) is down.
 
     Distinct from ``/health`` so orchestrators can remove the pod from the
     load balancer (readiness) without killing the container (liveness).
+    Worker heartbeat is intentionally excluded — a degraded worker should
+    not pull the API out of LB rotation.
     """
     checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
     try:
@@ -832,36 +838,6 @@ async def readiness_check(request: Request):
 async def liveness_check():
     """Liveness probe — process is alive. Always 200 if the app is up."""
     return {"status": "alive"}
-
-
-@api_router.get("/readyz", tags=["system"])
-async def readiness_check(request: Request):
-    """Readiness probe — should the load balancer route traffic here?
-
-    Distinct from ``/health`` and ``/livez``: a degraded worker pod
-    must not pull the API out of rotation, but a Mongo or Redis
-    outage should. Kubernetes/Railway readiness probes should hit
-    this endpoint, not ``/health``.
-
-    The FastAPI lifespan blocks request serving until startup
-    migrations finish, so by the time any request reaches us the
-    schema is up to date — we only need to verify the API's
-    runtime dependencies are reachable right now.
-    """
-    checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
-    not_ready = False
-    try:
-        await client.admin.command("ping")
-    except Exception:
-        checks["mongo"] = "unavailable"
-        not_ready = True
-    if not await _probe_redis(request.app):
-        checks["redis"] = "unavailable"
-        not_ready = True
-    if not_ready:
-        checks["status"] = "not_ready"
-        return JSONResponse(content=checks, status_code=503)
-    return checks
 
 
 @api_router.get("/health", tags=["system"])
