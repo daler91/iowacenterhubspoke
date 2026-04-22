@@ -156,7 +156,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                       aria-pressed={active}
                       data-testid={`custom-repeat-day-${day.value}`}
                       onClick={() => toggleWeekday(day.value)}
-                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'}`}
+                      className={`w-10 h-10 rounded-full text-sm font-semibold transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'}`}
                     >
                       {day.label}
                     </button>
@@ -237,7 +237,7 @@ export default function CustomRecurrenceDialog({ open, onOpenChange, startDate, 
                       className="max-w-[160px] bg-white dark:bg-gray-900"
                       data-testid="custom-repeat-occurrences-input"
                     />
-                    <span className="text-sm text-slate-500 dark:text-gray-400">occurrences</span>
+                    <span className="text-sm text-slate-600 dark:text-gray-400">occurrences</span>
                   </div>
                 )}
               </div>

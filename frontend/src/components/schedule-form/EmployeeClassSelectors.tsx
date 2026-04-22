@@ -97,7 +97,7 @@ export function EmployeeClassSelectors({
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-800 dark:text-gray-100" data-testid="schedule-selected-class-name">{selectedClass.name}</p>
-              <p className="text-xs text-slate-500 dark:text-gray-400 break-words" data-testid="schedule-selected-class-description">
+              <p className="text-xs text-slate-600 dark:text-gray-400 break-words" data-testid="schedule-selected-class-description">
                 {selectedClass.description || 'No class description added.'}
               </p>
             </div>

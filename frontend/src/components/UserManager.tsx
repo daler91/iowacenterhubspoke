@@ -69,7 +69,7 @@ const UserRow = memo(function UserRow({
           </div>
           <div>
             <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
-            <p className="text-xs text-slate-500 dark:text-gray-400">{u.email}</p>
+            <p className="text-xs text-slate-600 dark:text-gray-400">{u.email}</p>
           </div>
         </div>
       </td>
@@ -391,7 +391,7 @@ export default function UserManager() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900 dark:text-gray-100">{u.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400">{u.email}</p>
+                        <p className="text-sm text-slate-600 dark:text-gray-400">{u.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -434,7 +434,7 @@ export default function UserManager() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900 dark:text-gray-100">{inv.name || 'No name'}</p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400">{inv.email}</p>
+                        <p className="text-sm text-slate-600 dark:text-gray-400">{inv.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -479,7 +479,7 @@ export default function UserManager() {
                       <p className="text-sm font-medium text-slate-900 dark:text-gray-100">
                         {l.email}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-600 dark:text-gray-400">
                         {l.count} failures &middot; unlocks {new Date(l.expires_at).toLocaleString()}
                       </p>
                     </div>
@@ -504,10 +504,10 @@ export default function UserManager() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Role</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Actions</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">User</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -664,7 +664,7 @@ export default function UserManager() {
                     <p className="text-sm font-mono text-slate-900 dark:text-gray-100">
                       {s.jti_prefix}&hellip;
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                    <p className="text-xs text-slate-600 dark:text-gray-400">
                       {s.issued_at
                         ? `issued ${new Date(s.issued_at).toLocaleString()}`
                         : 'issue time unknown'}

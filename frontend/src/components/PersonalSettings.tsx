@@ -189,7 +189,7 @@ export default function PersonalSettings() {
             <p className="text-sm text-slate-600 dark:text-muted-foreground">
               No employee record found matching your email (<span className="font-medium">{user?.email}</span>).
             </p>
-            <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">
+            <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
               To connect a calendar, ask an admin to create an employee with this email address.
             </p>
           </div>
@@ -210,7 +210,7 @@ export default function PersonalSettings() {
                     Connected{employee.google_calendar_email ? ` — ${employee.google_calendar_email}` : ''}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-muted-foreground">Not connected</p>
+                  <p className="text-xs text-slate-600 dark:text-muted-foreground">Not connected</p>
                 )}
               </div>
             </div>
@@ -247,7 +247,7 @@ export default function PersonalSettings() {
                     Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-muted-foreground">Not connected</p>
+                  <p className="text-xs text-slate-600 dark:text-muted-foreground">Not connected</p>
                 )}
               </div>
             </div>
@@ -276,7 +276,7 @@ export default function PersonalSettings() {
         {!googleEnabled && !outlookEnabled && (
           <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
             <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-            <p className="text-sm text-slate-500 dark:text-muted-foreground">
+            <p className="text-sm text-slate-600 dark:text-muted-foreground">
               No calendar integrations are configured. Contact your administrator to enable Google or Outlook calendar connections.
             </p>
           </div>
@@ -290,7 +290,7 @@ export default function PersonalSettings() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white font-display">Settings</h2>
-        <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">Manage your account and calendar connections</p>
+        <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">Manage your account and calendar connections</p>
       </div>
 
       {/* Profile Info */}
@@ -308,7 +308,7 @@ export default function PersonalSettings() {
             </div>
             <div>
               <p className="font-medium text-slate-800 dark:text-slate-100">{user?.name}</p>
-              <p className="text-sm text-slate-500 dark:text-muted-foreground">{user?.email}</p>
+              <p className="text-sm text-slate-600 dark:text-muted-foreground">{user?.email}</p>
             </div>
             <span className="ml-auto text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-muted-foreground font-bold uppercase tracking-wider">
               {user?.role}
@@ -383,7 +383,7 @@ export default function PersonalSettings() {
           <Bell className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Notifications</h3>
         </div>
-        <p className="text-sm text-slate-500 dark:text-muted-foreground mb-4">
+        <p className="text-sm text-slate-600 dark:text-muted-foreground mb-4">
           Choose which notifications you receive and how.
         </p>
         <NotificationPreferences mode="internal" />

@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
         </CardHeader>
         <CardContent>
           {tokenState === 'checking' && (
-            <p className="text-sm text-slate-500 dark:text-gray-400 text-center py-8">Validating reset link...</p>
+            <p className="text-sm text-slate-600 dark:text-gray-400 text-center py-8">Validating reset link...</p>
           )}
           {tokenState === 'invalid' && (
             <div className="space-y-4">

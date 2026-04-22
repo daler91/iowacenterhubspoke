@@ -145,7 +145,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </SelectContent>
           </Select>
         </div>
-        <p className="w-full text-sm text-slate-500 dark:text-gray-400 mt-1" data-testid="workload-subtitle">
+        <p className="w-full text-sm text-slate-600 dark:text-gray-400 mt-1" data-testid="workload-subtitle">
           Team resource allocation and time distribution by class series.
         </p>
       </div>
@@ -291,14 +291,14 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-slate-500 dark:text-gray-400">Class Time</span>
+                <span className="text-slate-600 dark:text-gray-400">Class Time</span>
                 <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_class_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
                 <div className="h-2 rounded-full" style={{ width: `${Math.min((employeeWorkload.display_class_hours / maxClassHours) * 100, 100)}%`, backgroundColor: employeeWorkload.employee_color }} />
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-slate-500 dark:text-gray-400">Drive Time</span>
+                <span className="text-slate-600 dark:text-gray-400">Drive Time</span>
                 <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_drive_hours}h</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">

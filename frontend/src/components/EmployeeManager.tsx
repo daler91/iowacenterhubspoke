@@ -62,13 +62,13 @@ const EmployeeRow = memo(function EmployeeRow({
             {emp.email && (
               <div className="flex items-center gap-1">
                 <Mail className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-slate-500 dark:text-gray-400">{emp.email}</span>
+                <span className="text-xs text-slate-600 dark:text-gray-400">{emp.email}</span>
               </div>
             )}
             {emp.phone && (
               <div className="flex items-center gap-1">
                 <Phone className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-slate-500 dark:text-gray-400">{emp.phone}</span>
+                <span className="text-xs text-slate-600 dark:text-gray-400">{emp.phone}</span>
               </div>
             )}
             {emp.google_calendar_connected && (

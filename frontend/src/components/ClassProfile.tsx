@@ -58,7 +58,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
       size="sm"
       onClick={onBack}
       data-testid="class-profile-back-btn"
-      className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
+      className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Classes
@@ -93,7 +93,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                 aria-hidden="true"
               />
               <div className="min-w-0">
-                <p className="text-sm text-slate-500 dark:text-gray-400">Class color and summary</p>
+                <p className="text-sm text-slate-600 dark:text-gray-400">Class color and summary</p>
               </div>
             </div>
           </Card>
@@ -101,13 +101,13 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
           {/* Date filter */}
           <Card className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-gray-400">
                 <Filter className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Date Range</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="class-date-from" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">From</Label>
+                  <Label htmlFor="class-date-from" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">From</Label>
                   <Input
                     id="class-date-from"
                     type="date"
@@ -118,7 +118,7 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="class-date-to" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">To</Label>
+                  <Label htmlFor="class-date-to" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">To</Label>
                   <Input
                     id="class-date-to"
                     type="date"
@@ -169,21 +169,21 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
                 <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.projects_delivered}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-gray-400">Projects Delivered</p>
+                <p className="text-xs text-slate-600 dark:text-gray-400">Projects Delivered</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
                 <Users className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
                 <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.total_attendance}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-gray-400">Total Attendance</p>
+                <p className="text-xs text-slate-600 dark:text-gray-400">Total Attendance</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
                 <Flame className="w-5 h-5 text-warn mx-auto mb-2" aria-hidden="true" />
                 <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
                   {data.total_warm_leads}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-gray-400">Warm Leads</p>
+                <p className="text-xs text-slate-600 dark:text-gray-400">Warm Leads</p>
               </Card>
             </div>
           )}

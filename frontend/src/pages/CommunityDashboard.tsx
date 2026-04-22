@@ -33,7 +33,7 @@ function MetricCard({
             </span>
           )}
         </p>
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-xs text-slate-600">{label}</p>
       </div>
     </Card>
   );
@@ -146,7 +146,7 @@ export default function CommunityDashboard() {
                 ))}
               </div>
             )}
-            <div className="mt-2 text-xs text-slate-500">
+            <div className="mt-2 text-xs text-slate-600">
               {community.attendance > 0 && <span>{community.attendance} attended</span>}
               {community.warm_leads > 0 && <span> &middot; {community.warm_leads} leads</span>}
             </div>
@@ -165,7 +165,7 @@ export default function CommunityDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-500">
+              <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-600">
                 <th className="px-4 py-3 font-medium">Class</th>
                 <th className="px-4 py-3 font-medium">Community</th>
                 <th className="px-4 py-3 font-medium">Date</th>
@@ -195,14 +195,14 @@ export default function CommunityDashboard() {
                   }}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
-                  <td className="px-4 py-3 text-slate-500">{project.community}</td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-slate-600">{project.community}</td>
+                  <td className="px-4 py-3 text-slate-600">{new Date(project.event_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                       {PHASE_LABELS[project.phase]}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{project.registration_count || 0}</td>
+                  <td className="px-4 py-3 text-slate-600">{project.registration_count || 0}</td>
                 </tr>
               ))}
               {dashboard.upcoming_projects.length === 0 && (

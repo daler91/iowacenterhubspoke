@@ -149,7 +149,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
         aria-haspopup="dialog"
         className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-500 dark:text-gray-400" aria-hidden="true" />
+        <Bell className="w-5 h-5 text-slate-600 dark:text-gray-400" aria-hidden="true" />
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
@@ -235,7 +235,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                                 {n.title}
                               </p>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                            <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5 line-clamp-2">
                               {n.body}
                             </p>
                           </div>
@@ -257,7 +257,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                                 {n.title}
                               </p>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                            <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5 line-clamp-2">
                               {n.body}
                             </p>
                           </div>
@@ -266,7 +266,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDismiss(n.id); }}
-                        className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
+                        className="text-muted-foreground hover:text-slate-600 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >
                         <X className="w-3.5 h-3.5" />

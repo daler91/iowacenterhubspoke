@@ -33,7 +33,7 @@ export function ProfileStatsGrid({ stats, className }: ProfileStatsGridProps) {
           >
             {stat.value}
           </p>
-          <p className="text-xs text-slate-500">{stat.label}</p>
+          <p className="text-xs text-slate-600">{stat.label}</p>
         </Card>
       ))}
     </div>

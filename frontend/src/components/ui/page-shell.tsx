@@ -130,7 +130,7 @@ function PageShellEmpty({
         {title ?? 'Nothing here yet'}
       </p>
       {description && (
-        <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1 max-w-md mx-auto">
+        <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1 max-w-md mx-auto">
           {description}
         </p>
       )}

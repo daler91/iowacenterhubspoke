@@ -223,7 +223,7 @@ export default function PortalDashboard() {
         <Card className="p-6 sm:p-8 w-full max-w-sm text-center" role="alert">
           <AlertTriangle className="w-12 h-12 text-warn mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-          <p className="text-sm text-slate-500">{error || 'Invalid portal link'}</p>
+          <p className="text-sm text-slate-600">{error || 'Invalid portal link'}</p>
         </Card>
       </div>
     );
@@ -239,7 +239,7 @@ export default function PortalDashboard() {
               <CalendarDays className="w-8 h-8 text-hub shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.upcoming_classes}</p>
-                <p className="text-xs text-slate-500">Upcoming Classes</p>
+                <p className="text-xs text-slate-600">Upcoming Classes</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
@@ -254,14 +254,14 @@ export default function PortalDashboard() {
                     <span className="text-xs text-warn ml-1">({dashboardData.overdue_tasks} overdue)</span>
                   )}
                 </p>
-                <p className="text-xs text-slate-500">Open Tasks</p>
+                <p className="text-xs text-slate-600">Open Tasks</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3 sm:col-span-2 lg:col-span-1">
               <GraduationCap className="w-8 h-8 text-spoke shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.classes_hosted}</p>
-                <p className="text-xs text-slate-500">Classes Hosted</p>
+                <p className="text-xs text-slate-600">Classes Hosted</p>
               </div>
             </Card>
           </div>
@@ -278,7 +278,7 @@ export default function PortalDashboard() {
                     {PHASE_LABELS[project.phase]}
                   </Badge>
                 </div>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-600">
                   {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
                 </p>
               </Card>
@@ -427,7 +427,7 @@ export default function PortalDashboard() {
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                   activeProject === project.id
                     ? 'bg-hub-soft text-hub-strong'
-                    : 'bg-gray-100 text-slate-500 hover:bg-gray-200',
+                    : 'bg-gray-100 text-slate-600 hover:bg-gray-200',
                 )}
               >
                 {project.title}
@@ -501,7 +501,7 @@ export default function PortalDashboard() {
         <div className="max-w-2xl">
           <Card className="p-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-1">Notifications</h2>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-600 mb-4">
               Choose which emails and in-portal alerts you receive.
             </p>
             <NotificationPreferences mode="portal" portalToken={token} />

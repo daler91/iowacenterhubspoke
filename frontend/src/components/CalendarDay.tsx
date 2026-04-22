@@ -301,7 +301,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
             {format(currentDate, 'MMMM d, yyyy')}
           </p>
           {daySchedules.length > 0 && (
-            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
+            <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
           )}
         </div>
 

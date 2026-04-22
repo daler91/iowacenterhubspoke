@@ -434,7 +434,7 @@ export default function ProjectBoard() {
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-600">
                 Advance to <strong>{PHASE_LABELS[phaseGateWarning.nextPhase]}</strong> anyway?
               </p>
             </div>

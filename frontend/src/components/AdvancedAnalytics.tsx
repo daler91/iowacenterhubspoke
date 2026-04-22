@@ -24,7 +24,7 @@ export default function AdvancedAnalytics(props: Readonly<AdvancedAnalyticsProps
         <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">
           Advanced Analytics
         </h2>
-        <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+        <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">
           Historical trends, utilization forecasting, and drive time optimization.
         </p>
       </div>

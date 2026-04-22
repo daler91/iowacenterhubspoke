@@ -117,7 +117,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               variant="ghost"
               size="sm"
               onClick={onDeselectAll}
-              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
+              className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
             >
               <X className="w-4 h-4 mr-1" />
               Deselect All

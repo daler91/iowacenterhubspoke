@@ -116,7 +116,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
               variant="ghost"
               size="sm"
               onClick={handleReset}
-              className="text-slate-500 dark:text-gray-400"
+              className="text-slate-600 dark:text-gray-400"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
               Reset

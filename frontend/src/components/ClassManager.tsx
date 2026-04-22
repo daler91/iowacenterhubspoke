@@ -55,7 +55,7 @@ const ClassRow = memo(function ClassRow({
           <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 dark:text-gray-100 truncate block" data-testid={`class-name-${classItem.id}`}>
             {classItem.name}
           </EntityLink>
-          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
+          <p className="text-xs text-slate-600 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
             {classItem.description || 'No description added yet.'}
           </p>
         </div>
@@ -320,7 +320,7 @@ export default function ClassManager() {
                   />
                 ))}
                 <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-slate-300 hover:border-slate-400 cursor-pointer transition-colors flex items-center justify-center group">
-                  <Plus className="w-3 h-3 text-muted-foreground group-hover:text-slate-500" aria-hidden="true" />
+                  <Plus className="w-3 h-3 text-muted-foreground group-hover:text-slate-600" aria-hidden="true" />
                   <input
                     type="color"
                     value={form.color}

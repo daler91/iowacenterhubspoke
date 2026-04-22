@@ -197,15 +197,15 @@ export default function OutcomeTracker({ projectId }: Props) {
         <Card className="p-3 mb-4 border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/20">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label htmlFor="quick-add-name" className="text-[10px] text-slate-500 uppercase tracking-wide">Name *</label>
+              <label htmlFor="quick-add-name" className="text-[10px] text-slate-600 uppercase tracking-wide">Name *</label>
               <Input id="quick-add-name" value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="Attendee name" className="h-8 text-sm" />
             </div>
             <div className="flex-1">
-              <label htmlFor="quick-add-email" className="text-[10px] text-slate-500 uppercase tracking-wide">Email</label>
+              <label htmlFor="quick-add-email" className="text-[10px] text-slate-600 uppercase tracking-wide">Email</label>
               <Input id="quick-add-email" value={quickEmail} onChange={e => setQuickEmail(e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
             </div>
             <div className="w-32">
-              <label htmlFor="quick-add-phone" className="text-[10px] text-slate-500 uppercase tracking-wide">Phone</label>
+              <label htmlFor="quick-add-phone" className="text-[10px] text-slate-600 uppercase tracking-wide">Phone</label>
               <Input id="quick-add-phone" value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="515-555-0100" className="h-8 text-sm" />
             </div>
             <Button size="sm" onClick={handleQuickAdd} disabled={quickAdding || !quickName.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white h-8">
@@ -234,7 +234,7 @@ export default function OutcomeTracker({ projectId }: Props) {
               );
             })}
           </div>
-          <div className="flex justify-between mt-2 text-xs text-slate-500">
+          <div className="flex justify-between mt-2 text-xs text-slate-600">
             <span>{funnel.total} total</span>
             <span>{funnel.conversion_rate}% conversion</span>
           </div>
@@ -294,7 +294,7 @@ export default function OutcomeTracker({ projectId }: Props) {
           </DialogHeader>
           {showPreview ? (
             <>
-              <p className="text-sm text-slate-500 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
+              <p className="text-sm text-slate-600 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
               <div className="max-h-60 overflow-y-auto border rounded-lg">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
@@ -308,8 +308,8 @@ export default function OutcomeTracker({ projectId }: Props) {
                     {parsedAttendees.map((a) => (
                       <tr key={a.attendee_name + (a.attendee_email || '')} className="border-t">
                         <td className="px-3 py-1.5">{a.attendee_name}</td>
-                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_email || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-500">{a.attendee_phone || '-'}</td>
+                        <td className="px-3 py-1.5 text-slate-600">{a.attendee_email || '-'}</td>
+                        <td className="px-3 py-1.5 text-slate-600">{a.attendee_phone || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -324,7 +324,7 @@ export default function OutcomeTracker({ projectId }: Props) {
             </>
           ) : (
             <>
-              <p className="text-sm text-slate-500 mb-2">
+              <p className="text-sm text-slate-600 mb-2">
                 Enter one attendee per line (Name, Email, Phone):
               </p>
               <textarea

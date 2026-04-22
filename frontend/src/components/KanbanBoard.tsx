@@ -139,7 +139,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <MapPin className="w-3 h-3" />
             <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
             <User className="w-3 h-3" />
             {schedule.employees?.length > 0 ? (
               schedule.employees.map((emp, i) => (
@@ -152,7 +152,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
               <span>Unassigned</span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
             <Clock className="w-3 h-3" />
             <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
           </div>
@@ -180,7 +180,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
           size="sm"
           variant="ghost"
           onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
-          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
+          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-600 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
           data-testid={`kanban-advance-${schedule.id}`}
         >
           <ChevronRight className="w-3 h-3 mr-0.5" />

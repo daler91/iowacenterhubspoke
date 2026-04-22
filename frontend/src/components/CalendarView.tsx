@@ -259,7 +259,7 @@ export default function CalendarView() {
         {(schedules || []).length === 0 && (
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
-            <p className="text-sm text-slate-500 dark:text-gray-400">Before you can schedule classes, make sure you have the basics set up:</p>
+            <p className="text-sm text-slate-600 dark:text-gray-400">Before you can schedule classes, make sure you have the basics set up:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Link to="/locations" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
@@ -270,7 +270,7 @@ export default function CalendarView() {
                 <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
+                  <p className="text-xs text-slate-600 dark:text-gray-400">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
                 </div>
               </Link>
               <Link to="/employees" className={cn(
@@ -282,7 +282,7 @@ export default function CalendarView() {
                 <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
+                  <p className="text-xs text-slate-600 dark:text-gray-400">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
                 </div>
               </Link>
               <Link to="/classes" className={cn(
@@ -294,7 +294,7 @@ export default function CalendarView() {
                 <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke' : 'text-warn')} />
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
+                  <p className="text-xs text-slate-600 dark:text-gray-400">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
                 </div>
               </Link>
             </div>
@@ -430,15 +430,15 @@ export default function CalendarView() {
       <div className="flex items-center gap-4 px-2">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-indigo-600" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Class Time</span>
+          <span className="text-xs text-slate-600 dark:text-gray-400">Class Time</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-gray-200 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Drive Time</span>
+          <span className="text-xs text-slate-600 dark:text-gray-400">Drive Time</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Town-to-Town Warning</span>
+          <span className="text-xs text-slate-600 dark:text-gray-400">Town-to-Town Warning</span>
         </div>
       </div>
 

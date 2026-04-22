@@ -73,7 +73,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
       <div className="flex-[0_0_100%] min-w-0" key={index}>
         <div className="px-4 py-2">
           {daySchedules.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500 dark:text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-600 dark:text-gray-400">
               <Clock className="w-12 h-12 mb-3 opacity-20" />
               <p>No classes scheduled for today.</p>
             </div>

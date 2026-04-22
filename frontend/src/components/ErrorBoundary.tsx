@@ -131,7 +131,7 @@ class ErrorBoundary extends React.Component<
                 )}
               </div>
               {!chunkError && rawMessage && (
-                <details className="mt-4 text-xs text-slate-500 dark:text-muted-foreground">
+                <details className="mt-4 text-xs text-slate-600 dark:text-muted-foreground">
                   <summary className="cursor-pointer">Show technical details</summary>
                   <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px]">
                     {rawMessage}
