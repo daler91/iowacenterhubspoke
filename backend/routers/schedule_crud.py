@@ -450,10 +450,13 @@ async def delete_series(series_id: str, user: SchedulerRequired):
     deleted_count = result.modified_count
     if deleted_count == 0:
         # Distinguish "series doesn't exist" from "series exists but all
-        # its schedules are already in the past" — the former is a 404,
-        # the latter is a legitimate 200 with deleted_count=0.
+        # its schedules are already in the past, or were already deleted
+        # by a previous DELETE" — only the first should 404. The probe
+        # therefore intentionally omits ``deleted_at: None`` so a retry
+        # after a successful delete (network timeout, double-click,
+        # idempotent client retry) is still a 200 with deleted_count=0.
         any_existing = await db.schedules.find_one(
-            {"series_id": series_id, "deleted_at": None},
+            {"series_id": series_id},
             {"_id": 0, "id": 1},
         )
         if not any_existing:

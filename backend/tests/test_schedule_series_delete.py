@@ -69,3 +69,25 @@ async def test_delete_series_past_only_returns_zero_not_404(monkeypatch):
     )
     result = await delete_series("series-past", {"name": "tester"})
     assert result == {"deleted_count": 0, "series_id": "series-past"}
+
+
+@pytest.mark.asyncio
+async def test_delete_series_is_idempotent_after_first_delete(monkeypatch):
+    # Second DELETE after a successful first one: every doc has
+    # deleted_at set, so update_many's live-only filter matches nothing.
+    # The existence probe must NOT filter on deleted_at — otherwise a
+    # client retry (network timeout, double-click) gets a spurious 404.
+    fake = MagicMock()
+    fake.schedules.update_many = AsyncMock(
+        return_value=MagicMock(modified_count=0)
+    )
+    fake.schedules.find_one = AsyncMock(
+        return_value={"id": "s-already-deleted"},
+    )
+    monkeypatch.setattr("routers.schedule_crud.db", fake)
+
+    result = await delete_series("series-deleted", {"name": "tester"})
+    assert result == {"deleted_count": 0, "series_id": "series-deleted"}
+    # Confirm the probe queried by series_id only, not by deleted_at:None
+    probe_filter = fake.schedules.find_one.call_args.args[0]
+    assert "deleted_at" not in probe_filter
