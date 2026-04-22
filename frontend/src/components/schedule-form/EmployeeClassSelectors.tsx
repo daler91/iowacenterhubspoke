@@ -24,12 +24,15 @@ export function EmployeeClassSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">Employees</Label>
+        <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+          Employees <span className="text-danger" aria-hidden="true">*</span>
+        </Label>
         <EmployeeMultiSelect
           id="schedule-employee-select"
           employees={employees || []}
           selectedIds={form.employee_ids || []}
           onSelectionChange={(ids) => setForm({ ...form, employee_ids: ids })}
+          aria-required="true"
           aria-invalid={employeeInvalid || undefined}
         />
       </div>

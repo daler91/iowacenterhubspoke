@@ -40,12 +40,15 @@ export function LocationTimeSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">Location</Label>
+        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+          Location <span className="text-danger" aria-hidden="true">*</span>
+        </Label>
         <Select value={form.location_id} onValueChange={(v) => setForm({ ...form, location_id: v })}>
           <SelectTrigger
             id="schedule-location-select"
             data-testid="schedule-location-select"
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            aria-required="true"
             aria-describedby={selectedLocation ? 'schedule-location-drive' : undefined}
             aria-invalid={locationInvalid || undefined}
           >
@@ -80,7 +83,9 @@ export function LocationTimeSelectors({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">Date</Label>
+          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+            Date <span className="text-danger" aria-hidden="true">*</span>
+          </Label>
           <Input
             id="schedule-date-input"
             type="date"
@@ -89,12 +94,15 @@ export function LocationTimeSelectors({
             onChange={(e) => onDateChange(e.target.value)}
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
+            aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
             aria-invalid={dateInvalid || undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">Start Time</Label>
+          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+            Start Time <span className="text-danger" aria-hidden="true">*</span>
+          </Label>
           <Input
             id="schedule-start-time"
             type="time"
@@ -103,12 +111,15 @@ export function LocationTimeSelectors({
             onChange={(e) => setForm({ ...form, start_time: e.target.value })}
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
+            aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
             aria-invalid={startInvalid || undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">End Time</Label>
+          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+            End Time <span className="text-danger" aria-hidden="true">*</span>
+          </Label>
           <Input
             id="schedule-end-time"
             type="time"
@@ -117,6 +128,7 @@ export function LocationTimeSelectors({
             onChange={(e) => setForm({ ...form, end_time: e.target.value })}
             className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
             required
+            aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
             aria-invalid={endInvalid || undefined}
           />
