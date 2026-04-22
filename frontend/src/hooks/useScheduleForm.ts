@@ -125,6 +125,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
+      // A prior /check-conflicts failure is no longer relevant once the form
+      // is incomplete — clear so a stale red banner doesn't linger on reopen.
+      setConflictPreviewError(false);
       return;
     }
     const payload: Record<string, unknown> = {
