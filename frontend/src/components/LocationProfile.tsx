@@ -74,7 +74,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
       size="sm"
       onClick={onBack}
       data-testid="location-profile-back-btn"
-      className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
+      className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Locations
@@ -111,7 +111,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
               <div className="min-w-0">
                 <div className="flex items-center gap-1 mt-1">
                   <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-sm text-slate-500 dark:text-gray-400">{location.drive_time_minutes} min from Hub</span>
+                  <span className="text-sm text-slate-600 dark:text-gray-400">{location.drive_time_minutes} min from Hub</span>
                 </div>
               </div>
             </div>
@@ -120,13 +120,13 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           {/* Date filter */}
           <Card className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-gray-400">
                 <Filter className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Date Range</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="location-date-from" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">From</Label>
+                  <Label htmlFor="location-date-from" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">From</Label>
                   <Input
                     id="location-date-from"
                     type="date"
@@ -137,7 +137,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="location-date-to" className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">To</Label>
+                  <Label htmlFor="location-date-to" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">To</Label>
                   <Input
                     id="location-date-to"
                     type="date"

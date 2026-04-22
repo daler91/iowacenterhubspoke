@@ -171,7 +171,7 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
     return (
       <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
         <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-        <p className="text-sm text-slate-500 dark:text-muted-foreground">
+        <p className="text-sm text-slate-600 dark:text-muted-foreground">
           Notification preferences are unavailable right now.
         </p>
       </div>
@@ -185,7 +185,7 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
         <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
           Digest delivery
         </p>
-        <p className="text-xs text-slate-500 dark:text-muted-foreground mb-3">
+        <p className="text-xs text-slate-600 dark:text-muted-foreground mb-3">
           When daily and weekly digests are sent. Times are in the hub's timezone.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -252,7 +252,7 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
       {categories.length === 0 && (
         <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
           <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-          <p className="text-sm text-slate-500 dark:text-muted-foreground">
+          <p className="text-sm text-slate-600 dark:text-muted-foreground">
             No notification types are available for your account yet.
           </p>
         </div>
@@ -286,7 +286,7 @@ function NotificationRow({ type, values, onChange, disabled }: RowProps) {
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5">
+        <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5">
           {type.description}
         </p>
       </div>

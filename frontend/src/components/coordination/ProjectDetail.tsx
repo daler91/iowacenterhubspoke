@@ -410,7 +410,7 @@ export default function ProjectDetail() {
   }
 
   if (!project || !id) {
-    return <div className="p-6 text-slate-500">Project not found</div>;
+    return <div className="p-6 text-slate-600">Project not found</div>;
   }
 
   const projectId = id;
@@ -484,7 +484,7 @@ export default function ProjectDetail() {
             </Button>
           )}
         </div>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-600 mt-1">
           {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
           {project.location_name && <> &middot; <MapPin className="w-3 h-3 inline" /> {project.location_name}</>}
           {!project.location_name && project.community && <> &middot; {project.community}</>}
@@ -497,7 +497,7 @@ export default function ProjectDetail() {
         </p>
         {/* Venue details from partner org */}
         {project.partner_org_venue_details && Object.values(project.partner_org_venue_details).some(Boolean) && (
-          <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-600">
             {project.partner_org_venue_details.capacity && (
               <span>Capacity: {project.partner_org_venue_details.capacity}</span>
             )}
@@ -521,7 +521,7 @@ export default function ProjectDetail() {
             <CalendarDays className="w-5 h-5 text-indigo-500 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Linked Schedule</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 {linkedSchedule.date as string} &middot; {(linkedSchedule.start_time as string) || ''} – {(linkedSchedule.end_time as string) || ''}
                 {linkedSchedule.class_name && <> &middot; {linkedSchedule.class_name as string}</>}
                 {linkedSchedule.location_name && <> &middot; {linkedSchedule.location_name as string}</>}
@@ -575,7 +575,7 @@ export default function ProjectDetail() {
             <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
               <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
               <Megaphone className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold text-slate-500 text-sm">Promotion Checklist</span>
+              <span className="font-semibold text-slate-600 text-sm">Promotion Checklist</span>
               <Badge variant="secondary" className="text-[10px] ml-1">Active during Promotion</Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
@@ -594,7 +594,7 @@ export default function ProjectDetail() {
             <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
               <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
               <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold text-slate-500 text-sm">Outcomes</span>
+              <span className="font-semibold text-slate-600 text-sm">Outcomes</span>
               <Badge variant="secondary" className="text-[10px] ml-1">Active during Follow-Up</Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
@@ -615,7 +615,7 @@ export default function ProjectDetail() {
 
       {/* Legend */}
       <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-        <span className="font-medium text-slate-500 mr-1">Owner:</span>
+        <span className="font-medium text-slate-600 mr-1">Owner:</span>
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> You (Internal)
         </span>
@@ -626,7 +626,7 @@ export default function ProjectDetail() {
           <span className="w-2.5 h-2.5 rounded bg-warn-soft" aria-hidden="true" /> Both
         </span>
         <span className="mx-2 text-slate-200">|</span>
-        <span className="font-medium text-slate-500 mr-1">Status:</span>
+        <span className="font-medium text-slate-600 mr-1">Status:</span>
         {TASK_STATUSES.map(s => (
           <span key={s} className="flex items-center gap-1">
             <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[s])} /> {TASK_STATUS_LABELS[s]}

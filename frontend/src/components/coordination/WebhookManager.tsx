@@ -188,7 +188,7 @@ export default function WebhookManager() {
             <DialogTitle>New signing secret</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-500 break-all">
+            <p className="text-sm text-slate-600 break-all">
               For <span className="font-mono text-xs">{rotatedFor}</span>.
               Save it now &mdash; it won&rsquo;t be shown again.
             </p>
@@ -226,7 +226,7 @@ export default function WebhookManager() {
           </DialogHeader>
           {createdSecret ? (
             <div className="space-y-3">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-600">
                 Save this secret — it won't be shown again:
               </p>
               <div className="flex items-center gap-2">

@@ -132,21 +132,21 @@ export default function ProjectEditDialog({ project, onClose, onUpdated, classes
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="project-edit-community" className="text-xs text-slate-500">Community (auto-derived)</Label>
+              <Label htmlFor="project-edit-community" className="text-xs text-slate-600">Community (auto-derived)</Label>
               <Input
                 id="project-edit-community"
                 value={community}
                 disabled
-                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                className="bg-slate-50 dark:bg-slate-800 text-slate-600"
               />
             </div>
             <div>
-              <Label htmlFor="project-edit-venue" className="text-xs text-slate-500">Venue (auto-derived)</Label>
+              <Label htmlFor="project-edit-venue" className="text-xs text-slate-600">Venue (auto-derived)</Label>
               <Input
                 id="project-edit-venue"
                 value={venueName}
                 disabled
-                className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                className="bg-slate-50 dark:bg-slate-800 text-slate-600"
               />
             </div>
           </div>

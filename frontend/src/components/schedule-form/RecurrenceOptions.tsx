@@ -21,7 +21,7 @@ export function RecurrenceOptions({
     `rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 ${
       recurrence_end_mode === mode
         ? 'border-hub/40 bg-hub-soft text-hub-strong'
-        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-slate-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
     }`;
 
   return (
@@ -135,7 +135,7 @@ export function RecurrenceOptions({
                   className="h-10 bg-white dark:bg-gray-900 max-w-[160px]"
                   placeholder="12"
                 />
-                <span className="text-sm text-slate-500 dark:text-gray-400">occurrences</span>
+                <span className="text-sm text-slate-600 dark:text-gray-400">occurrences</span>
               </div>
             )}
 

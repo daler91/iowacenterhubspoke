@@ -78,7 +78,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
       <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Activity Feed</h2>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Recent actions and updates</p>
+          <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">Recent actions and updates</p>
         </div>
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-12 text-center">
           <Activity className="w-12 h-12 mx-auto text-gray-200 dark:text-gray-700 mb-3" />
@@ -92,7 +92,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
     <div className="space-y-6 animate-slide-in" data-testid="activity-feed">
       <div>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Activity Feed</h2>
-        <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Recent actions and updates across the team</p>
+        <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">Recent actions and updates across the team</p>
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -111,7 +111,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
                 </div>
                 {items.map(row => {
                   const config = ACTION_CONFIG[row.action] || {
-                    icon: Activity, color: 'text-slate-500', bg: 'bg-gray-50', label: row.action
+                    icon: Activity, color: 'text-slate-600', bg: 'bg-gray-50', label: row.action
                   };
                   const Icon = config.icon;
 

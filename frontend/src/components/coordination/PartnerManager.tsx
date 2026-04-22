@@ -81,7 +81,7 @@ export default function PartnerManager() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-slate-800 dark:text-slate-100">{org.name}</h3>
-                <p className="text-sm text-slate-500">{org.community}</p>
+                <p className="text-sm text-slate-600">{org.community}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge className={cn('text-xs', STATUS_BADGE_COLORS[org.status])}>

@@ -55,7 +55,7 @@ const LocationRow = memo(function LocationRow({
           <div className="flex items-center gap-3 mt-1">
             <div className="flex items-center gap-1">
               <Car className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
+              <span className="text-xs text-slate-600 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
             </div>
             {loc.latitude && (
               <span className="text-xs text-muted-foreground">
@@ -245,6 +245,7 @@ export default function LocationManager() {
           <Button
             data-testid="add-location-btn"
             onClick={openNew}
+            disabled={!!loadingState?.locations}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />

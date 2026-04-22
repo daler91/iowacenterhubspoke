@@ -220,7 +220,7 @@ function FieldCard({
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-colors hover:border-slate-300 dark:hover:border-slate-600">
       <div className="flex items-center gap-1.5 mb-1">
         {icon}
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{label}</span>
       </div>
       {children}
     </div>
@@ -854,7 +854,7 @@ export default function TaskDetailModal({
               {/* Attachments */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                  <Paperclip className="w-3.5 h-3.5 text-slate-600" />
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
                     Attachments <span className="text-slate-400 normal-case">({task.attachments?.length ?? 0})</span>
                   </span>

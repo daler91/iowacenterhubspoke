@@ -99,7 +99,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 );
               })
             ) : (
-              <div className="text-center py-8 text-slate-500 dark:text-gray-400">No schedules found.</div>
+              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No schedules found.</div>
             )
           )}
 
@@ -113,13 +113,13 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                     </div>
                     <div>
                       <EntityLink type="employee" id={emp.id} className="font-medium text-slate-800 dark:text-gray-100">{emp.name || 'Unknown'}</EntityLink>
-                      {emp.email && <div className="text-xs text-slate-500 dark:text-gray-400">{emp.email}</div>}
+                      {emp.email && <div className="text-xs text-slate-600 dark:text-gray-400">{emp.email}</div>}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-500 dark:text-gray-400">No team members found.</div>
+              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No team members found.</div>
             )
           )}
 
@@ -133,13 +133,13 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                     </div>
                     <div>
                       <EntityLink type="location" id={loc.id} className="font-medium text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
-                      <div className="text-sm text-slate-500 dark:text-gray-400 mt-1 line-clamp-2">{loc.address}</div>
+                      <div className="text-sm text-slate-600 dark:text-gray-400 mt-1 line-clamp-2">{loc.address}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-500 dark:text-gray-400">No locations found.</div>
+              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No locations found.</div>
             )
           )}
 
@@ -153,13 +153,13 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                     </div>
                     <div className="min-w-0">
                       <EntityLink type="class" id={classItem.id} className="font-medium text-slate-800 dark:text-gray-100">{classItem.name}</EntityLink>
-                      <div className="text-xs text-slate-500 dark:text-gray-400 mt-1 break-words">{classItem.description || 'No description'}</div>
+                      <div className="text-xs text-slate-600 dark:text-gray-400 mt-1 break-words">{classItem.description || 'No description'}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-500 dark:text-gray-400">No class types found.</div>
+              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No class types found.</div>
             )
           )}
         </div>

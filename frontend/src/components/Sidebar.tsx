@@ -71,7 +71,7 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
         'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
         isActive
           ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft shadow-sm'
-          : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+          : 'text-slate-600 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
         collapsed && 'justify-center px-0',
       )}
     >
@@ -120,7 +120,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
           'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
           isSettingsActive
             ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft'
-            : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+            : 'text-slate-600 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -135,7 +135,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-pressed={isDark}
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -149,7 +149,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-label={collapsed ? 'Sign out' : undefined}
         onClick={logout}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-danger-soft hover:text-danger transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 dark:text-muted-foreground hover:bg-danger-soft hover:text-danger transition-all',
           collapsed && 'justify-center px-0',
         )}
       >

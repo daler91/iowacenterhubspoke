@@ -93,7 +93,7 @@ export default function PartnerHealthTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-500">
+            <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-600">
               {renderSortHeader("name", "Partner")}
               {renderSortHeader("community", "Community")}
               {renderSortHeader("health_score", "Health")}
@@ -110,13 +110,13 @@ export default function PartnerHealthTable() {
                 onClick={() => navigate(`/coordination/partners/${p.partner_org_id}`)}
               >
                 <td className="px-4 py-3 font-medium">{p.name}</td>
-                <td className="px-4 py-3 text-slate-500">{p.community}</td>
+                <td className="px-4 py-3 text-slate-600">{p.community}</td>
                 <td className="px-4 py-3">
                   <Badge className={cn('text-[10px]', TIER_COLORS[p.health_tier])}>
                     {TIER_LABELS[p.health_tier] || p.health_tier} ({p.health_score})
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-slate-500">{p.classes_hosted}</td>
+                <td className="px-4 py-3 text-slate-600">{p.classes_hosted}</td>
                 <td className="px-4 py-3">
                   <span className={cn(
                     'text-sm font-medium',

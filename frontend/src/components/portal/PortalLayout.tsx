@@ -41,7 +41,7 @@ export default function PortalLayout({
             <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
               {org.name}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 truncate">{org.community}</p>
+            <p className="text-xs sm:text-sm text-slate-600 truncate">{org.community}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {token && (
@@ -82,7 +82,7 @@ export default function PortalLayout({
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 rounded-t',
                 activeTab === tab.id
                   ? 'border-hub text-hub'
-                  : 'border-transparent text-slate-500 hover:text-slate-700',
+                  : 'border-transparent text-slate-600 hover:text-slate-700',
               )}
             >
               {tab.label}

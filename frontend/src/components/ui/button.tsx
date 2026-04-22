@@ -25,10 +25,13 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-8",
-        icon: "h-9 w-9",
+        // Mobile-first heights: touch targets get 4px extra below the `sm`
+        // breakpoint so icon-only row actions clear ~40px on phones, while
+        // desktop keeps the original compact look.
+        default: "h-10 sm:h-9 px-4 py-2",
+        sm: "h-9 sm:h-8 px-3 text-xs",
+        lg: "h-11 sm:h-10 px-8",
+        icon: "h-10 w-10 sm:h-9 sm:w-9",
       },
     },
     defaultVariants: {

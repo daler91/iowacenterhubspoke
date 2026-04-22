@@ -77,7 +77,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">Weekly Summary</h2>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
+          <p className="text-sm text-slate-600 dark:text-gray-400 mt-1" data-testid="weekly-report-subtitle">Report for the week, grouped by class and employee.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setWeekDate((date) => subWeeks(date, 1))} data-testid="report-prev" aria-label="Previous week">
@@ -120,7 +120,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
       )}
 
       {error && !loading && (
-        <div className="text-center py-12 text-slate-500 dark:text-gray-400">
+        <div className="text-center py-12 text-slate-600 dark:text-gray-400">
           <p className="text-sm">Failed to load report. Please try again.</p>
         </div>
       )}
@@ -202,7 +202,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
               </div>
 
               <div className="bg-gray-50/50 dark:bg-gray-800/50 rounded-lg overflow-x-auto">
-                <div className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 dark:bg-gray-700 text-[11px] font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+                <div className="min-w-[600px] grid grid-cols-6 gap-px bg-gray-200 dark:bg-gray-700 text-[11px] font-semibold text-slate-600 dark:text-gray-400 uppercase tracking-wider">
                   <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Date</div>
                   <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Class</div>
                   <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2">Location</div>
@@ -220,7 +220,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                     </div>
                     <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-700 dark:text-gray-200 flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" /><EntityLink type="location" id={scheduleDetail.location_id} className="text-slate-700 dark:text-gray-200">{scheduleDetail.location}</EntityLink></div>
                     <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-700 dark:text-gray-200">{scheduleDetail.time}</div>
-                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-500 dark:text-gray-400">{scheduleDetail.drive_minutes}m x2</div>
+                    <div className="bg-white dark:bg-gray-900 px-3 py-2 text-slate-600 dark:text-gray-400">{scheduleDetail.drive_minutes}m x2</div>
                     <div className="bg-white dark:bg-gray-900 px-3 py-2">
                       <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-indigo-50 text-indigo-700'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
                     </div>
@@ -228,7 +228,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                 ))}
               </div>
 
-              <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 dark:text-gray-400">
+              <div className="flex items-center gap-4 mt-3 text-xs text-slate-600 dark:text-gray-400">
                 <span>Locations: {(emp.locations_visited || []).join(', ')}</span>
               </div>
             </div>

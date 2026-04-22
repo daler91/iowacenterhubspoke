@@ -57,7 +57,7 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
       size="sm"
       onClick={onBack}
       data-testid="profile-back-btn"
-      className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
+      className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Employees
@@ -94,13 +94,13 @@ export default function EmployeeProfile({ employeeId: propId, onBack: propOnBack
               <div className="min-w-0">
                 <div className="flex items-center gap-4 mt-1 flex-wrap">
                   {employee.email && (
-                    <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-gray-400">
+                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-gray-400">
                       <Mail className="w-4 h-4" aria-hidden="true" />
                       {employee.email}
                     </div>
                   )}
                   {employee.phone && (
-                    <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-gray-400">
+                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-gray-400">
                       <Phone className="w-4 h-4" aria-hidden="true" />
                       {employee.phone}
                     </div>

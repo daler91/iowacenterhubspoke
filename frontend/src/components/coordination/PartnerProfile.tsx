@@ -52,7 +52,7 @@ function renderProjectHistory({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-left text-slate-500">
+          <tr className="border-b text-left text-slate-600">
             <th className="pb-2 font-medium">Title</th>
             <th className="pb-2 font-medium">Type</th>
             <th className="pb-2 font-medium">Date</th>
@@ -67,10 +67,10 @@ function renderProjectHistory({
               onClick={() => navigate(`/coordination/projects/${project.id}`)}
             >
               <td className="py-2.5 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
-              <td className="py-2.5 text-slate-500">
+              <td className="py-2.5 text-slate-600">
                 {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
               </td>
-              <td className="py-2.5 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
+              <td className="py-2.5 text-slate-600">{new Date(project.event_date).toLocaleDateString()}</td>
               <td className="py-2.5">
                 <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                   {PHASE_LABELS[project.phase]}
@@ -230,18 +230,18 @@ export default function PartnerProfile() {
           </h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Community</span>
+              <span className="text-slate-600">Community</span>
               <span className="font-medium">{partnerOrg.community}</span>
             </div>
             {partnerOrg.co_branding && (
               <div className="flex justify-between">
-                <span className="text-slate-500">Co-branding</span>
+                <span className="text-slate-600">Co-branding</span>
                 <span className="font-medium">{partnerOrg.co_branding}</span>
               </div>
             )}
             {partnerOrg.notes && (
               <div>
-                <span className="text-slate-500 block mb-1">Notes</span>
+                <span className="text-slate-600 block mb-1">Notes</span>
                 <p className="text-slate-700 dark:text-muted-foreground">{partnerOrg.notes}</p>
               </div>
             )}
@@ -253,16 +253,16 @@ export default function PartnerProfile() {
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Venue Details</h3>
               <div className="space-y-1 text-sm">
                 {partnerOrg.venue_details.capacity && (
-                  <p className="text-slate-500">Capacity: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.capacity}</span></p>
+                  <p className="text-slate-600">Capacity: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.capacity}</span></p>
                 )}
                 {partnerOrg.venue_details.av_setup && (
-                  <p className="text-slate-500">AV: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.av_setup}</span></p>
+                  <p className="text-slate-600">AV: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.av_setup}</span></p>
                 )}
                 {partnerOrg.venue_details.wifi !== undefined && (
-                  <p className="text-slate-500">Wi-Fi: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.wifi ? 'Yes' : 'No'}</span></p>
+                  <p className="text-slate-600">Wi-Fi: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.wifi ? 'Yes' : 'No'}</span></p>
                 )}
                 {partnerOrg.venue_details.parking && (
-                  <p className="text-slate-500">Parking: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.parking}</span></p>
+                  <p className="text-slate-600">Parking: <span className="font-medium text-slate-700 dark:text-muted-foreground">{partnerOrg.venue_details.parking}</span></p>
                 )}
               </div>
             </div>
@@ -296,7 +296,7 @@ export default function PartnerProfile() {
                           <Badge variant="secondary" className="ml-2 text-[10px]">Primary</Badge>
                         )}
                       </p>
-                      <p className="text-xs text-slate-500">{contact.email}</p>
+                      <p className="text-xs text-slate-600">{contact.email}</p>
                       {contact.role && <p className="text-xs text-muted-foreground">{contact.role}</p>}
                     </div>
                     <Button

@@ -128,7 +128,7 @@ export default function DriveOptimizationTab() {
                         {s.savings_mins}m saved
                       </Badge>
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-slate-500 dark:text-gray-400">{s.reason}</td>
+                    <td className="py-2.5 px-3 text-xs text-slate-600 dark:text-gray-400">{s.reason}</td>
                   </tr>);
                 })}
               </tbody>

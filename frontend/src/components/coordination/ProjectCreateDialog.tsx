@@ -269,7 +269,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   id="project-community"
                   value={community}
                   disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                  className="bg-slate-50 dark:bg-slate-800 text-slate-600"
                   placeholder="Auto-filled from partner"
                 />
               </div>
@@ -289,7 +289,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   id="project-venue"
                   value={venueName}
                   disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-500"
+                  className="bg-slate-50 dark:bg-slate-800 text-slate-600"
                   placeholder="Auto-filled from partner"
                 />
               </div>
@@ -312,7 +312,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
 
               {autoCreateSchedule && (
                 <div className="space-y-3 pl-6">
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-600">
                     A schedule will be created at the partner&apos;s location.
                   </p>
                   <div>
