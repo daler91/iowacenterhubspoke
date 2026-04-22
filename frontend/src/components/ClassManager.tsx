@@ -199,6 +199,7 @@ export default function ClassManager() {
           <Button
             data-testid="add-class-button"
             onClick={openNew}
+            disabled={!!loadingState?.classes}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
