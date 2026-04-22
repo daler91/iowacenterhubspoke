@@ -36,7 +36,22 @@ const NETWORK_MESSAGE = "Can't reach the server — check your connection and tr
 function extractDetail(err: AxiosLikeError): string | null {
   const detail = err.response?.data?.detail;
   if (typeof detail === 'string' && detail.trim()) return detail;
-  if (detail && typeof detail === 'object') {
+  // FastAPI's default validation-error shape is
+  // `detail: [{ loc: [...], msg, type }, ...]`. Join the user-facing
+  // `msg` fields so validation errors don't fall through to the
+  // generic 422 string ("Please check the highlighted fields").
+  if (Array.isArray(detail) && detail.length > 0) {
+    const msgs: string[] = [];
+    for (const d of detail) {
+      if (d && typeof d === 'object') {
+        const candidate = (d as { msg?: unknown; message?: unknown }).msg
+          ?? (d as { message?: unknown }).message;
+        if (typeof candidate === 'string' && candidate.trim()) msgs.push(candidate);
+      }
+    }
+    if (msgs.length > 0) return msgs.join('. ');
+  }
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
     const maybeMessage = (detail as { message?: unknown }).message;
     if (typeof maybeMessage === 'string' && maybeMessage.trim()) return maybeMessage;
   }
