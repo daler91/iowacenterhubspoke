@@ -213,11 +213,11 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
       setInitialFormJson(null);
       return;
     }
-    const id = window.setTimeout(
+    const id = globalThis.setTimeout(
       () => setInitialFormJson(JSON.stringify(formRef.current)),
       0,
     );
-    return () => window.clearTimeout(id);
+    return () => globalThis.clearTimeout(id);
   }, [open]);
 
   const isFormDirty = (): boolean =>
