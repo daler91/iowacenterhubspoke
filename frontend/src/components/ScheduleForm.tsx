@@ -147,7 +147,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, travelChain, outlookOverride, googleOverride,
+    previewConflicts, conflictPreviewError, retryConflictPreview,
+    travelChain, outlookOverride, googleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onProjectPrompt: () => navigate('/coordination/board?create=true') });
@@ -235,6 +236,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 selectedLocation={selectedLocation}
                 onDateChange={handleDateChange}
                 previewConflicts={previewConflicts}
+                conflictPreviewError={conflictPreviewError}
+                onRetryConflictPreview={retryConflictPreview}
                 travelChain={travelChain}
                 onOverrideChange={handleOverrideChange}
                 invalidFieldId={invalidFieldId}

@@ -71,6 +71,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
   });
   const [loading, setLoading] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState<ConflictPreview>({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
+  const [conflictPreviewError, setConflictPreviewError] = useState(false);
   const [townToTown, setTownToTown] = useState<Record<string, unknown> | null>(null);
   const [travelChain, setTravelChain] = useState<Record<string, unknown> | null>(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
@@ -146,10 +147,12 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       });
       setTownToTown(res.data.town_to_town || null);
       setTravelChain(res.data.travel_chain || null);
+      setConflictPreviewError(false);
     } catch {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
+      setConflictPreviewError(true);
     }
   }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
@@ -393,7 +396,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride, googleOverride, setGoogleOverride,
+    previewConflicts, conflictPreviewError, retryConflictPreview: fetchConflictPreview, townToTown, travelChain, outlookOverride, setOutlookOverride, googleOverride, setGoogleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   };
