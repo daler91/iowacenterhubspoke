@@ -311,7 +311,7 @@ export default function NotificationsPanel() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-[380px] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
+        <div className="absolute right-0 top-12 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
           <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Notifications</h3>
