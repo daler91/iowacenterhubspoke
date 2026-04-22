@@ -114,12 +114,12 @@ def test_pwd_cache_marks_missing_user_as_deleted(monkeypatch):
 
     monkeypatch.setattr(auth_mod, "_read_redis_markers", AsyncMock(return_value=(None, None)))
 
-    class _Users:
-        async def find_one(self, *_args, **_kwargs):
-            return None
-
     class _DB:
-        users = _Users()
+        users = type(
+            "_Users",
+            (),
+            {"find_one": AsyncMock(return_value=None)},
+        )()
 
     import database
     monkeypatch.setattr(database, "db", _DB())
