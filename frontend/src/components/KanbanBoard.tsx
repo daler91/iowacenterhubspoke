@@ -322,6 +322,7 @@ export default function KanbanBoard() {
       breadcrumbs={[{ label: 'Planning' }, { label: 'Delivery Pipeline' }]}
       title="Delivery Pipeline"
       subtitle="Track class delivery status — drag cards through upcoming, in progress, and completed"
+      status={schedules ? { kind: 'ready' } : { kind: 'loading', variant: 'list' }}
       actions={
         <Button
           variant={selectionMode ? 'default' : 'outline'}

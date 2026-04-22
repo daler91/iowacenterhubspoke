@@ -213,6 +213,7 @@ export default function EmployeeManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Employees' }]}
       title="Employees"
       subtitle="Manage team members and their scheduling colors"
+      status={employees ? { kind: 'ready' } : { kind: 'loading', variant: 'list' }}
       actions={
         isAdmin ? (
           <Button

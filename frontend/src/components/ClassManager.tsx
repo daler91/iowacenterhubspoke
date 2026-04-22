@@ -193,6 +193,7 @@ export default function ClassManager() {
           Track class series, colors, and on-the-fly scheduling options.
         </span>
       }
+      status={classes ? { kind: 'ready' } : { kind: 'loading', variant: 'list' }}
       actions={
         isAdmin ? (
           <Button

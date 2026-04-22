@@ -239,6 +239,7 @@ export default function LocationManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Locations' }]}
       title="Locations"
       subtitle="Manage spoke locations and drive times from Hub"
+      status={locations ? { kind: 'ready' } : { kind: 'loading', variant: 'list' }}
       actions={
         isAdmin ? (
           <Button
