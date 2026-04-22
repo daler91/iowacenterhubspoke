@@ -21,7 +21,7 @@ def test_delete_my_account_blocks_when_only_other_admin_is_soft_deleted(monkeypa
     )
     fake_db.users.find_one_and_update = AsyncMock(return_value={"id": "admin-1"})
 
-    async def _count_documents(query):
+    def _count_documents(query):
         # Regression assertion: only active admins should be counted.
         assert query == {"role": "admin", "deleted_at": None}
         return 0
