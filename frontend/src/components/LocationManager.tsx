@@ -108,7 +108,7 @@ const LocationRow = memo(function LocationRow({
 export default function LocationManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { locations, fetchLocations, fetchActivities } = useOutletContext();
+  const { locations, schedules, fetchLocations, fetchActivities } = useOutletContext();
   const onRefresh = useCallback(() => {
     fetchLocations();
     fetchActivities();
@@ -120,6 +120,7 @@ export default function LocationManager() {
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const [driveTimeTouched, setDriveTimeTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
@@ -129,6 +130,14 @@ export default function LocationManager() {
       latitude: String(latitude),
       longitude: String(longitude),
     }));
+
+    // If the user has already typed a drive-time value manually, don't
+    // clobber it. Users expect their explicit edits to survive when they
+    // tweak the address. They can clear the field to re-trigger auto-calc.
+    if (driveTimeTouched) {
+      toast.info('Kept your manual drive-time value. Clear the field to auto-calculate.');
+      return;
+    }
 
     // Auto-calculate drive time from hub. If the lookup fails (Google
     // Distance Matrix down, no API key, etc.) drop in a conservative
@@ -147,11 +156,12 @@ export default function LocationManager() {
     } finally {
       setCalculatingDrive(false);
     }
-  }, []);
+  }, [driveTimeTouched]);
 
   const openNew = () => {
     setEditing(null);
     setForm({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
+    setDriveTimeTouched(false);
     setDialogOpen(true);
   };
 
@@ -165,6 +175,9 @@ export default function LocationManager() {
       latitude: loc.latitude ? String(loc.latitude) : '',
       longitude: loc.longitude ? String(loc.longitude) : '',
     });
+    // Existing rows start untouched — the stored value is the source of
+    // truth until the user either clears the field or edits it.
+    setDriveTimeTouched(false);
     setDialogOpen(true);
   }, []);
 
@@ -334,7 +347,10 @@ export default function LocationManager() {
                       data-testid="location-drive-time-input"
                       placeholder="e.g. 45"
                       value={form.drive_time_minutes}
-                      onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                      onChange={(e) => {
+                        setForm({ ...form, drive_time_minutes: e.target.value });
+                        setDriveTimeTouched(e.target.value !== '');
+                      }}
                       required
                       className="bg-gray-50/50"
                     />
@@ -407,7 +423,10 @@ export default function LocationManager() {
                   data-testid="location-drive-time-input"
                   placeholder="e.g. 45"
                   value={form.drive_time_minutes}
-                  onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, drive_time_minutes: e.target.value });
+                    setDriveTimeTouched(e.target.value !== '');
+                  }}
                   required
                   className="bg-gray-50/50"
                 />
@@ -460,7 +479,13 @@ export default function LocationManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleteTarget?.city_name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the location from the system. This action cannot be easily undone.
+              {(() => {
+                const count = (schedules || []).filter(s => s.location_id === deleteTarget?.id).length;
+                if (count === 0) {
+                  return 'This location has no schedules. Deleting it cannot be undone.';
+                }
+                return `${deleteTarget?.city_name} is used by ${count} schedule${count === 1 ? '' : 's'}. Deleting it may fail on the backend. This action cannot be undone.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
