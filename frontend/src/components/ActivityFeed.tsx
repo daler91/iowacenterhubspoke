@@ -97,7 +97,13 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
 
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden">
         <ScrollArea className="max-h-[calc(100vh-220px)]">
-          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+          <div
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label="Recent team activity"
+            className="divide-y divide-gray-50 dark:divide-gray-800"
+          >
             {grouped.map(([date, items]) => (
               <div key={date}>
                 <div className="px-5 py-2 bg-gray-50/50 dark:bg-gray-800/50 sticky top-0">
