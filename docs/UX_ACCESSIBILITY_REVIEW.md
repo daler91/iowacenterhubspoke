@@ -296,7 +296,7 @@ Scope: usability, user flow, loading/error/empty states, responsive design, keyb
 
 To verify any subset of these fixes end-to-end:
 
-- **Automated accessibility:** run `npx axe-core` or Playwright's `@axe-core/playwright` over the main routes (`/login`, `/`, `/calendar`, `/kanban`, `/map`, `/employees`, `/classes`, `/locations`, `/users`, `/reports`, `/insights`). Fail the build on any "serious" or "critical" violations.
+- **Automated accessibility:** the repo already ships `@axe-core/playwright` (see `frontend/package.json` devDependencies) and a `test:e2e` Playwright script. Add a Playwright spec that imports `AxeBuilder` from `@axe-core/playwright` and runs `await new AxeBuilder({ page }).analyze()` on each main route (`/login`, `/`, `/calendar`, `/kanban`, `/map`, `/employees`, `/classes`, `/locations`, `/users`, `/reports`, `/insights`). Execute via `cd frontend && npm run test:e2e`. Fail the build on any "serious" or "critical" violations. For a quick one-off scan against a running dev server, use `npx @axe-core/cli http://localhost:5173/<route>` (installs the `axe` binary from `@axe-core/cli`).
 - **Keyboard pass:** Tab through each route with no mouse. Verify focus is always visible, reachable for every interactive element, and that `Esc` closes every dialog/popover.
 - **Screen-reader pass:** VoiceOver (macOS) or NVDA (Windows) smoke test: create a schedule, delete it, receive a notification. Confirm each action announces.
 - **Responsive pass:** test at 360×640 (small phone), 768×1024 (tablet), 1440×900 (laptop). Confirm no horizontal scrolling on phone, dialogs have margin, sidebar becomes a drawer.
