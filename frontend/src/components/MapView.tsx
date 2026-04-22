@@ -39,7 +39,7 @@ const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
           className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity z-50 pointer-events-none"
           aria-hidden="true"
         >
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[220px] text-left">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 w-[min(220px,calc(100vw-2rem))] text-left">
             <p className="font-bold text-sm text-teal-700 dark:text-teal-400">{loc.city_name}</p>
             <div className="flex items-center gap-2 mt-1">
               <Car className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
@@ -141,7 +141,7 @@ export default function MapView() {
                   className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity z-50 pointer-events-none"
                   aria-hidden="true"
                 >
-                  <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px] text-left">
+                  <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 w-[min(200px,calc(100vw-2rem))] text-left">
                     <p className="font-bold text-sm text-indigo-700 dark:text-indigo-400">Hub - Des Moines</p>
                     <p className="text-xs text-slate-600 dark:text-gray-400 mt-1">2210 Grand Ave, Des Moines, IA 50312</p>
                     <Badge className="mt-2 bg-indigo-100 text-indigo-700 border-0 text-[10px]">Central Hub</Badge>
