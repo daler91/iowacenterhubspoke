@@ -87,43 +87,43 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
 
   return (
     <div className="relative mb-2">
-      <button
-        ref={setNodeRef}
-        type="button"
-        {...(selectionMode ? {} : { ...listeners, ...attributes })}
-        data-testid={`kanban-card-${schedule.id}`}
-        aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
-        onClick={() => {
-          if (selectionMode) {
-            toggleItem?.(schedule.id);
-          } else {
-            onEdit?.(schedule);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
-          selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
-          isDragging && "opacity-50 scale-95",
-          selected && "ring-2 ring-indigo-500 ring-offset-1"
-        )}
-        style={{ borderLeftColor: classColor, ...transformStyle }}
-      >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {selectionMode ? (
-              <div className={cn(
-                "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
-              )}>
-                {selected && <Check className="w-3 h-3 text-white" />}
-              </div>
-            ) : (
-              <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={setNodeRef}
+            type="button"
+            {...(selectionMode ? {} : { ...listeners, ...attributes })}
+            data-testid={`kanban-card-${schedule.id}`}
+            aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
+            onClick={() => {
+              if (selectionMode) {
+                toggleItem?.(schedule.id);
+              } else {
+                onEdit?.(schedule);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
+              selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+              isDragging && "opacity-50 scale-95",
+              selected && "ring-2 ring-indigo-500 ring-offset-1"
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
+            style={{ borderLeftColor: classColor, ...transformStyle }}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {selectionMode ? (
+                  <div className={cn(
+                    "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                    selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
+                  )}>
+                    {selected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                ) : (
+                  <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
                 <span
                   className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
                   style={{ backgroundColor: classColor }}
@@ -131,14 +131,11 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
                 >
                   {className}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">{className}</TooltipContent>
-            </Tooltip>
-          </div>
-          {schedule.town_to_town && (
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-          )}
-        </div>
+              </div>
+              {schedule.town_to_town && (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              )}
+            </div>
 
         <div className="pl-[26px] space-y-2">
           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
@@ -179,7 +176,10 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <p className="text-[11px] text-muted-foreground italic truncate">{schedule.notes}</p>
           )}
         </div>
-      </button>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{className}</TooltipContent>
+      </Tooltip>
 
       {canAdvance && (
         <Button
