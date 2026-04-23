@@ -30,7 +30,11 @@ export default function ConsentBanner() {
   return (
     <section
       aria-label="Cookie and analytics consent"
-      className="fixed bottom-4 inset-x-4 md:inset-x-auto md:right-6 md:max-w-md z-50 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-lg p-4"
+      // z-40 keeps the BulkActionBar (z-50) on top when both are
+      // visible — a mid-task bulk action takes precedence over a
+      // one-time consent prompt. On narrow phones push the banner up
+      // so it clears the ~60px bulk bar even when both are stacked.
+      className="fixed bottom-20 md:bottom-4 inset-x-4 md:inset-x-auto md:right-6 md:max-w-md z-40 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-lg p-4"
     >
       <p className="text-sm text-slate-700 dark:text-slate-200">
         We use Sentry to detect errors and PostHog to understand product usage.
