@@ -45,7 +45,13 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-4 pr-2 space-y-3">
+        <div className="flex-1 relative min-h-0">
+          <div
+            role="region"
+            aria-label={title}
+            tabIndex={0}
+            className="absolute inset-0 overflow-y-auto py-4 pr-2 space-y-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
+          >
           {(type === 'today' || type === 'scheduled') && (
             data.length > 0 ? (
               data.map((schedule) => {
@@ -162,6 +168,14 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
               <div className="text-center py-8 text-slate-600 dark:text-gray-400">No class types found.</div>
             )
           )}
+          </div>
+          {/* Decorative fade hints at more content below when the list
+              scrolls. pointer-events-none so it never blocks clicks on
+              items near the bottom. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-0 right-2 h-6 bg-gradient-to-t from-background to-transparent"
+          />
         </div>
       </DialogContent>
     </Dialog>
