@@ -30,7 +30,7 @@ const MonthCell = memo(function MonthCell({ day, dateStr, dayLabel, daySchedules
           {dayLabel}
         </span>
         {daySchedules.length > 0 && (
-          <span className="text-[10px] text-muted-foreground font-medium">
+          <span className="text-[11px] sm:text-[10px] text-muted-foreground font-medium">
             {daySchedules.length}
           </span>
         )}
@@ -42,7 +42,7 @@ const MonthCell = memo(function MonthCell({ day, dateStr, dayLabel, daySchedules
             <div
               key={s.id}
               data-testid={`month-class-pill-${s.id}`}
-              className="text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
+              className="text-[11px] sm:text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium"
               style={{ backgroundColor: `${color}20`, color }}
             >
               {s.class_name || s.location_name}
@@ -50,7 +50,7 @@ const MonthCell = memo(function MonthCell({ day, dateStr, dayLabel, daySchedules
           );
         })}
         {daySchedules.length > 3 && (
-          <p className="text-[10px] text-muted-foreground font-medium">+{daySchedules.length - 3} more</p>
+          <p className="text-[11px] sm:text-[10px] text-muted-foreground font-medium">+{daySchedules.length - 3} more</p>
         )}
       </div>
     </button>
