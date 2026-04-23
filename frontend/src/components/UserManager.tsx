@@ -29,15 +29,15 @@ const ROLES = [
 ];
 
 const STATUS_STYLES = {
-  pending: 'bg-warn-soft text-warn',
-  approved: 'bg-spoke-soft text-spoke',
-  rejected: 'bg-danger-soft text-danger',
+  pending: 'bg-warn-soft text-warn-strong',
+  approved: 'bg-spoke-soft text-spoke-strong',
+  rejected: 'bg-danger-soft text-danger-strong',
 };
 
 const INVITE_STATUS_STYLES = {
-  pending: 'bg-info-soft text-info',
-  accepted: 'bg-spoke-soft text-spoke',
-  revoked: 'bg-danger-soft text-danger',
+  pending: 'bg-info-soft text-info-strong',
+  accepted: 'bg-spoke-soft text-spoke-strong',
+  revoked: 'bg-danger-soft text-danger-strong',
 };
 
 // Isolate one "All Users" row into its own memoized component so typing
@@ -112,7 +112,7 @@ const UserRow = memo(function UserRow({
               variant="ghost"
               onClick={() => onDelete(u.id)}
               aria-label={`Delete ${u.email || 'user'}`}
-              className="text-danger hover:text-danger hover:bg-danger-soft"
+              className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
             </Button>
@@ -379,14 +379,14 @@ export default function UserManager() {
           {pendingUsers.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-warn" />
+                <Clock className="w-4 h-4 text-warn-strong" />
                 <h2 className="text-lg font-semibold text-foreground">Pending Approval ({pendingUsers.length})</h2>
               </div>
               <div className="bg-warn-soft border border-warn-soft rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
                   <div key={u.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-warn-soft flex items-center justify-center text-warn font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-warn-soft flex items-center justify-center text-warn-strong font-semibold text-sm">
                         {u.name?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
@@ -407,7 +407,7 @@ export default function UserManager() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleReject(u.id)}
-                        className="border-danger/30 text-danger hover:bg-danger-soft"
+                        className="border-danger/30 text-danger-strong hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4 mr-1" />
                         Reject
@@ -422,14 +422,14 @@ export default function UserManager() {
           {pendingInvitations.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-info" aria-hidden="true" />
+                <Mail className="w-4 h-4 text-info-strong" aria-hidden="true" />
                 <h2 className="text-lg font-semibold text-foreground">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
               <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
                   <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info-strong font-semibold text-sm">
                         {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
@@ -445,7 +445,7 @@ export default function UserManager() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleRevokeInvitation(inv.id)}
-                        className="text-danger hover:text-danger hover:bg-danger-soft"
+                        className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4" />
                       </Button>
@@ -459,13 +459,13 @@ export default function UserManager() {
           {lockouts.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-danger" aria-hidden="true" />
+                <Lock className="w-4 h-4 text-danger-strong" aria-hidden="true" />
                 <h2 className="text-lg font-semibold text-foreground">
                   Security Lockouts ({lockouts.length})
                 </h2>
               </div>
               <div className="bg-danger-soft border border-danger/20 rounded-lg p-4 space-y-2">
-                <p className="text-xs text-danger">
+                <p className="text-xs text-danger-strong">
                   These accounts have hit the per-email failed-login threshold
                   and are temporarily blocked from signing in. Clear a
                   lockout if the user is locked out by mistake.
@@ -487,7 +487,7 @@ export default function UserManager() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleClearLockout(l.email)}
-                      className="border-spoke/30 text-spoke hover:bg-spoke-soft"
+                      className="border-spoke/30 text-spoke-strong hover:bg-spoke-soft"
                     >
                       <Unlock className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
                       Clear
@@ -544,14 +544,14 @@ export default function UserManager() {
           {invitationSent ? (
             <div className="space-y-4">
               <div className="p-3 rounded-lg bg-spoke-soft border border-spoke/20">
-                <p className="text-sm font-medium text-spoke flex items-center gap-2">
+                <p className="text-sm font-medium text-spoke-strong flex items-center gap-2">
                   <Mail className="w-4 h-4" aria-hidden="true" />
                   {invitationSent.emailSent
                     ? `Invitation emailed to ${invitationSent.email}`
                     : `Invitation created for ${invitationSent.email}`}
                 </p>
                 {!invitationSent.emailSent && (
-                  <p className="text-xs text-warn mt-2">
+                  <p className="text-xs text-warn-strong mt-2">
                     We couldn&rsquo;t send the email right now. The invitation is
                     still valid &mdash; you can resend it from the Pending
                     Invitations list below, or ask the user to check their

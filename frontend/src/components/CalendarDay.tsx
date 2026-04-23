@@ -144,7 +144,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
       {/* Drive after (hub return for last, city-to-city for others in chain) */}
       {driveAfterMin > 0 && (
         <div
-          className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke !border-spoke-soft")}
+          className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke-strong !border-spoke-soft")}
           style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: hasOverlap ? 'auto' : '16px', ...overlapStyle }}
         >
           <div className="flex items-center gap-2">

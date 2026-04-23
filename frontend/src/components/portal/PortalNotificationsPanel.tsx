@@ -37,7 +37,7 @@ function asString(value: unknown): string {
 }
 
 const SEVERITY_CONFIG = {
-  warning: { icon: AlertTriangle, color: 'text-warn', bg: 'bg-warn-soft' },
+  warning: { icon: AlertTriangle, color: 'text-warn-strong', bg: 'bg-warn-soft' },
   info: { icon: CalendarDays, color: 'text-hub', bg: 'bg-hub-soft' },
 };
 
@@ -173,7 +173,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                 Notifications
               </h3>
               {warningCount > 0 && (
-                <Badge className="bg-warn-soft text-warn border-0 text-[10px]">
+                <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">
                   {warningCount} alerts
                 </Badge>
               )}

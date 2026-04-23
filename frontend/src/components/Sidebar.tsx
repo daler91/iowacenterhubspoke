@@ -161,7 +161,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-label={collapsed ? 'Sign out' : undefined}
         onClick={logout}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-danger-soft hover:text-danger transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-danger-soft hover:text-danger-strong transition-all',
           collapsed && 'justify-center px-0',
         )}
       >

@@ -106,7 +106,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           <Card className="p-6">
             <div className="flex items-center gap-5">
               <div className="w-16 h-16 rounded-2xl bg-spoke-soft flex items-center justify-center shrink-0">
-                <MapPin className="w-8 h-8 text-spoke" aria-hidden="true" />
+                <MapPin className="w-8 h-8 text-spoke-strong" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1 mt-1">

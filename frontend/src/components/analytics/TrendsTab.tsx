@@ -64,8 +64,8 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
   }, [trends]);
 
   const trendConfig: Record<string, { icon: typeof TrendingUp; bg: string; color: string; label: string }> = {
-    up: { icon: TrendingUp, bg: 'bg-spoke-soft', color: 'text-spoke', label: 'Growing' },
-    down: { icon: TrendingDown, bg: 'bg-danger-soft', color: 'text-danger', label: 'Declining' },
+    up: { icon: TrendingUp, bg: 'bg-spoke-soft', color: 'text-spoke-strong', label: 'Growing' },
+    down: { icon: TrendingDown, bg: 'bg-danger-soft', color: 'text-danger-strong', label: 'Declining' },
     flat: { icon: TrendingUp, bg: 'bg-muted/50', color: 'text-foreground/80', label: 'Stable' },
   };
   const currentTrend = trendConfig[summary.trend] || trendConfig.flat;
@@ -96,13 +96,13 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard icon={BookOpen} iconBg="bg-hub-soft" iconColor="text-hub"
           label="Avg Classes / Period" value={summary.avgClasses} />
-        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke"
+        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke-strong"
           label="Total Class Hours" value={`${summary.totalHours}h`} />
         <SummaryCard icon={currentTrend.icon}
           iconBg={currentTrend.bg}
           iconColor={currentTrend.color}
           label="Trend" value={currentTrend.label} />
-        <SummaryCard icon={Zap} iconBg="bg-warn-soft" iconColor="text-warn"
+        <SummaryCard icon={Zap} iconBg="bg-warn-soft" iconColor="text-warn-strong"
           label="Busiest Period" value={summary.busiest} />
       </div>
 

@@ -279,7 +279,7 @@ function NotificationRow({ type, values, onChange, disabled }: RowProps) {
           </p>
           {!type.implemented && (
             <span
-              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warn-soft text-warn border border-warn-soft"
+              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warn-soft text-warn-strong border border-warn-soft"
               title="This notification isn't wired up yet — your preference will take effect once it's implemented."
             >
               Planned

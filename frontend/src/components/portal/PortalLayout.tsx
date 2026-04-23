@@ -51,7 +51,7 @@ export default function PortalLayout({
               />
             )}
             <div
-              className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm"
+              className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke-strong font-semibold text-sm"
               aria-hidden="true"
             >
               {contact.name.charAt(0).toUpperCase()}

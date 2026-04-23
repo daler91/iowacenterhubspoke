@@ -133,7 +133,7 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 {data.map((loc) => (
                   <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">
                     <div className="w-10 h-10 bg-warn-soft rounded-lg flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-warn" />
+                      <MapPin className="w-5 h-5 text-warn-strong" />
                     </div>
                     <div>
                       <EntityLink type="location" id={loc.id} className="font-medium text-foreground">{loc.city_name}</EntityLink>

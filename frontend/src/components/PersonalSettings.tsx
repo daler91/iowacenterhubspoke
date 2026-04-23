@@ -202,11 +202,11 @@ export default function PersonalSettings() {
         {googleEnabled && (
           <div className="flex items-center justify-between p-4 bg-muted/50 dark:bg-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-spoke" />
+              <Calendar className="w-5 h-5 text-spoke-strong" />
               <div>
                 <p className="text-sm font-medium text-foreground">Google Calendar</p>
                 {employee.google_calendar_connected ? (
-                  <p className="text-xs text-spoke">
+                  <p className="text-xs text-spoke-strong">
                     Connected{employee.google_calendar_email ? ` — ${employee.google_calendar_email}` : ''}
                   </p>
                 ) : (
@@ -219,7 +219,7 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleGoogleDisconnect}
-                className="text-danger hover:text-danger hover:bg-danger-soft"
+                className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
               >
                 <Unlink className="w-4 h-4 mr-2" />
                 Disconnect
@@ -239,11 +239,11 @@ export default function PersonalSettings() {
         {outlookEnabled && (
           <div className="flex items-center justify-between p-4 bg-muted/50 dark:bg-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-info" aria-hidden="true" />
+              <Mail className="w-5 h-5 text-info-strong" aria-hidden="true" />
               <div>
                 <p className="text-sm font-medium text-foreground">Outlook Calendar</p>
                 {employee.outlook_calendar_connected ? (
-                  <p className="text-xs text-info">
+                  <p className="text-xs text-info-strong">
                     Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
                   </p>
                 ) : (
@@ -256,7 +256,7 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleOutlookDisconnect}
-                className="text-danger hover:text-danger hover:bg-danger-soft"
+                className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
               >
                 <Unlink className="w-4 h-4 mr-2" aria-hidden="true" />
                 Disconnect

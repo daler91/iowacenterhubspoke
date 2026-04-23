@@ -267,7 +267,7 @@ export default function CalendarView() {
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
                   <p className="text-sm font-medium text-foreground">Locations</p>
                   <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
@@ -279,7 +279,7 @@ export default function CalendarView() {
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
                   <p className="text-sm font-medium text-foreground">Employees</p>
                   <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
@@ -291,7 +291,7 @@ export default function CalendarView() {
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
                   : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
                   <p className="text-sm font-medium text-foreground">Classes</p>
                   <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
@@ -374,8 +374,8 @@ export default function CalendarView() {
 
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger hover:underline">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger-strong hover:underline">Retry</button>
         </div>
       )}
 

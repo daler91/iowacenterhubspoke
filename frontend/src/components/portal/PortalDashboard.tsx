@@ -221,7 +221,7 @@ export default function PortalDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
         <Card className="p-6 sm:p-8 w-full max-w-sm text-center" role="alert">
-          <AlertTriangle className="w-12 h-12 text-warn mx-auto mb-4" aria-hidden="true" />
+          <AlertTriangle className="w-12 h-12 text-warn-strong mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
           <p className="text-sm text-foreground/80">{error || 'Invalid portal link'}</p>
         </Card>
@@ -244,21 +244,21 @@ export default function PortalDashboard() {
             </Card>
             <Card className="p-4 flex items-center gap-3">
               <CheckSquare
-                className={cn('w-8 h-8 shrink-0', dashboardData.overdue_tasks > 0 ? 'text-warn' : 'text-spoke')}
+                className={cn('w-8 h-8 shrink-0', dashboardData.overdue_tasks > 0 ? 'text-warn-strong' : 'text-spoke-strong')}
                 aria-hidden="true"
               />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">
                   {dashboardData.open_tasks}
                   {dashboardData.overdue_tasks > 0 && (
-                    <span className="text-xs text-warn ml-1">({dashboardData.overdue_tasks} overdue)</span>
+                    <span className="text-xs text-warn-strong ml-1">({dashboardData.overdue_tasks} overdue)</span>
                   )}
                 </p>
                 <p className="text-xs text-foreground/80">Open Tasks</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3 sm:col-span-2 lg:col-span-1">
-              <GraduationCap className="w-8 h-8 text-spoke shrink-0" aria-hidden="true" />
+              <GraduationCap className="w-8 h-8 text-spoke-strong shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.classes_hosted}</p>
                 <p className="text-xs text-foreground/80">Classes Hosted</p>
@@ -325,7 +325,7 @@ export default function PortalDashboard() {
                               {task.title}
                             </p>
                           </div>
-                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger font-semibold' : 'text-muted-foreground')}>
+                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
                             {new Date(task.due_date).toLocaleDateString()}
                           </span>
                           <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
@@ -445,8 +445,8 @@ export default function PortalDashboard() {
                       className={cn(
                         'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0',
                         msg.sender_type === 'partner'
-                          ? 'bg-ownership-partner-soft text-ownership-partner'
-                          : 'bg-ownership-internal-soft text-ownership-internal',
+                          ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                          : 'bg-ownership-internal-soft text-ownership-internal-strong',
                       )}
                       aria-hidden="true"
                     >

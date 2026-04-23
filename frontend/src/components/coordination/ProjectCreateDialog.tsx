@@ -176,7 +176,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
               aria-invalid={showError('title', title)}
               aria-describedby={showError('title', title) ? 'project-title-error' : undefined}
             />
-            {showError('title', title) && <p id="project-title-error" className="text-xs text-danger mt-1">Title is required</p>}
+            {showError('title', title) && <p id="project-title-error" className="text-xs text-danger-strong mt-1">Title is required</p>}
           </div>
           <div>
             <Label htmlFor="project-template">Template</Label>
@@ -213,7 +213,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
               aria-invalid={showError('partnerOrgId', partnerOrgId)}
               aria-describedby={showError('partnerOrgId', partnerOrgId) ? 'project-partner-error' : undefined}
             />
-            {showError('partnerOrgId', partnerOrgId) && <p id="project-partner-error" className="text-xs text-danger mt-1">Partner organization is required</p>}
+            {showError('partnerOrgId', partnerOrgId) && <p id="project-partner-error" className="text-xs text-danger-strong mt-1">Partner organization is required</p>}
           </div>
           <div>
             <Label htmlFor="project-class">Class</Label>
@@ -249,7 +249,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
               aria-invalid={showError('eventDate', eventDate)}
               aria-describedby={showError('eventDate', eventDate) ? 'project-event-date-error' : undefined}
             />
-            {showError('eventDate', eventDate) && <p id="project-event-date-error" className="text-xs text-danger mt-1">Event date is required</p>}
+            {showError('eventDate', eventDate) && <p id="project-event-date-error" className="text-xs text-danger-strong mt-1">Event date is required</p>}
           </div>
           <TooltipProvider>
             <div className="grid grid-cols-2 gap-3">

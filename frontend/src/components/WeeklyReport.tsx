@@ -10,8 +10,8 @@ import { FileDown, ChevronLeft, ChevronRight, Clock, Car, MapPin, BookOpen, User
 import { toast } from 'sonner';
 
 const STATUS_CLASSES = {
-  completed: 'bg-spoke-soft text-spoke',
-  in_progress: 'bg-warn-soft text-warn',
+  completed: 'bg-spoke-soft text-spoke-strong',
+  in_progress: 'bg-warn-soft text-warn-strong',
 };
 
 import { useOutletContext } from 'react-router-dom';
@@ -140,14 +140,14 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
               <p className="text-xs text-hub-strong">Total Classes</p>
             </div>
             <div className="bg-spoke-soft rounded-lg p-4 text-center">
-              <Clock className="w-5 h-5 text-spoke mx-auto mb-1" aria-hidden="true" />
-              <p className="text-2xl font-bold text-spoke font-display">{report.totals.class_hours}h</p>
-              <p className="text-xs text-spoke">Class Hours</p>
+              <Clock className="w-5 h-5 text-spoke-strong mx-auto mb-1" aria-hidden="true" />
+              <p className="text-2xl font-bold text-spoke-strong font-display">{report.totals.class_hours}h</p>
+              <p className="text-xs text-spoke-strong">Class Hours</p>
             </div>
             <div className="bg-warn-soft rounded-lg p-4 text-center">
-              <Car className="w-5 h-5 text-warn mx-auto mb-1" aria-hidden="true" />
-              <p className="text-2xl font-bold text-warn font-display">{report.totals.drive_hours}h</p>
-              <p className="text-xs text-warn">Drive Hours</p>
+              <Car className="w-5 h-5 text-warn-strong mx-auto mb-1" aria-hidden="true" />
+              <p className="text-2xl font-bold text-warn-strong font-display">{report.totals.drive_hours}h</p>
+              <p className="text-xs text-warn-strong">Drive Hours</p>
             </div>
             <div className="bg-violet-50 rounded-lg p-4 text-center">
               <Users className="w-5 h-5 text-violet-600 mx-auto mb-1" aria-hidden="true" />
@@ -183,9 +183,9 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <Badge className="bg-hub-soft text-hub-strong border-0 text-[10px]">{emp.classes} classes</Badge>
-                  <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{emp.class_hours}h class</Badge>
-                  <Badge className="bg-warn-soft text-warn border-0 text-[10px]">{emp.drive_hours}h drive</Badge>
-                  <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{emp.completed} done</Badge>
+                  <Badge className="bg-spoke-soft text-spoke-strong border-0 text-[10px]">{emp.class_hours}h class</Badge>
+                  <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">{emp.drive_hours}h drive</Badge>
+                  <Badge className="bg-spoke-soft text-spoke-strong border-0 text-[10px]">{emp.completed} done</Badge>
                 </div>
               </div>
 

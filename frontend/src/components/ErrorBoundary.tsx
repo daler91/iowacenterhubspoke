@@ -92,7 +92,7 @@ class ErrorBoundary extends React.Component<
         >
           <div className="flex items-start gap-3">
             <AlertTriangle
-              className="w-5 h-5 text-danger shrink-0 mt-0.5"
+              className="w-5 h-5 text-danger-strong shrink-0 mt-0.5"
               aria-hidden="true"
             />
             <div className="flex-1">

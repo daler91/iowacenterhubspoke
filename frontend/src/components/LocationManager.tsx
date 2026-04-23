@@ -48,7 +48,7 @@ const LocationRow = memo(function LocationRow({
     >
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-spoke-soft rounded-lg flex items-center justify-center">
-          <MapPin className="w-5 h-5 text-spoke" />
+          <MapPin className="w-5 h-5 text-spoke-strong" />
         </div>
         <div>
           <EntityLink type="location" id={loc.id} className="font-semibold text-foreground">{loc.city_name}</EntityLink>
@@ -71,7 +71,7 @@ const LocationRow = memo(function LocationRow({
           size="sm"
           data-testid={`view-location-${loc.id}`}
           onClick={() => onView(loc.id)}
-          className="text-muted-foreground hover:text-spoke"
+          className="text-muted-foreground hover:text-spoke-strong"
           aria-label={`View ${loc.city_name}`}
         >
           <Eye className="w-4 h-4" aria-hidden="true" />
@@ -93,7 +93,7 @@ const LocationRow = memo(function LocationRow({
               size="sm"
               data-testid={`delete-location-${loc.id}`}
               onClick={() => onDelete(loc)}
-              className="text-muted-foreground hover:text-danger"
+              className="text-muted-foreground hover:text-danger-strong"
               aria-label={`Delete ${loc.city_name}`}
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />

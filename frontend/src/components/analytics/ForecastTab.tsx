@@ -79,15 +79,15 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard icon={BookOpen} iconBg="bg-hub-soft" iconColor="text-hub"
           label="Projected Classes (4wk)" value={projectedSummary.classes} />
-        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke"
+        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke-strong"
           label="Projected Class Hours" value={`${projectedSummary.classHours}h`} />
-        <SummaryCard icon={Car} iconBg="bg-warn-soft" iconColor="text-warn"
+        <SummaryCard icon={Car} iconBg="bg-warn-soft" iconColor="text-warn-strong"
           label="Projected Drive Hours" value={`${projectedSummary.driveHours}h`} />
         {growthRate !== null && (
           <SummaryCard
             icon={Number(growthRate) >= 0 ? TrendingUp : TrendingDown}
             iconBg={Number(growthRate) >= 0 ? 'bg-spoke-soft' : 'bg-danger-soft'}
-            iconColor={Number(growthRate) >= 0 ? 'text-spoke' : 'text-danger'}
+            iconColor={Number(growthRate) >= 0 ? 'text-spoke-strong' : 'text-danger-strong'}
             label="Growth Rate" value={`${growthRate}%`} />
         )}
       </div>
@@ -101,7 +101,7 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
             <Badge className="bg-hub-soft text-hub-strong border-0 text-[10px]">Linear Regression</Badge>
           )}
           {method === 'insufficient_data' && (
-            <Badge className="bg-warn-soft text-warn border-0 text-[10px]">Insufficient Data</Badge>
+            <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">Insufficient Data</Badge>
           )}
         </div>
         {isLoading && <LoadingChart />}

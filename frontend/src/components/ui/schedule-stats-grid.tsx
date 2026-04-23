@@ -52,22 +52,22 @@ export function ScheduleStatsGrid({
           testId: totalTestId,
         },
         {
-          icon: <Clock className="w-5 h-5 text-spoke" aria-hidden="true" />,
+          icon: <Clock className="w-5 h-5 text-spoke-strong" aria-hidden="true" />,
           value: formatHours(data.total_class_minutes),
           label: 'Class Time',
         },
         {
-          icon: <Car className="w-5 h-5 text-warn" aria-hidden="true" />,
+          icon: <Car className="w-5 h-5 text-warn-strong" aria-hidden="true" />,
           value: formatHours(data.total_drive_minutes),
           label: 'Drive Time',
         },
         {
-          icon: <CheckCircle2 className="w-5 h-5 text-spoke" aria-hidden="true" />,
+          icon: <CheckCircle2 className="w-5 h-5 text-spoke-strong" aria-hidden="true" />,
           value: data.completed,
           label: 'Completed',
         },
         {
-          icon: <CalendarDays className="w-5 h-5 text-ownership-partner" aria-hidden="true" />,
+          icon: <CalendarDays className="w-5 h-5 text-ownership-partner-strong" aria-hidden="true" />,
           value: data.upcoming,
           label: 'Upcoming',
         },

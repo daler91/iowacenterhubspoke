@@ -122,7 +122,7 @@ function TaskCard({
       >
         {/* At-risk banner */}
         {task.at_risk && (
-          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-semibold">
+          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-danger-soft text-danger-strong text-[10px] font-semibold">
             <AlertTriangle className="w-3.5 h-3.5" />
             AT RISK
           </div>
@@ -141,17 +141,17 @@ function TaskCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => handleToggleFlag('spotlight')}>
-                <Star className={cn('w-3.5 h-3.5 mr-2', task.spotlight && 'text-warn fill-warn')} />
+                <Star className={cn('w-3.5 h-3.5 mr-2', task.spotlight && 'text-warn-strong fill-warn')} />
                 {task.spotlight ? 'Remove Spotlight' : 'Spotlight Task'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleToggleFlag('at_risk')}>
-                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-danger')} />
+                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-danger-strong')} />
                 {task.at_risk ? 'Remove At Risk' : 'Mark at Risk'}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setShowDeleteConfirm(true)}
-                className="text-danger focus:text-danger"
+                className="text-danger-strong focus:text-danger-strong"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-2" />
                 Delete Task
@@ -183,7 +183,7 @@ function TaskCard({
                 >
                   <span className={cn('w-2.5 h-2.5 rounded-full mr-2 shrink-0', TASK_STATUS_COLORS[s])} />
                   {TASK_STATUS_LABELS[s]}
-                  {status === s && <Check className="w-3 h-3 ml-auto text-spoke" />}
+                  {status === s && <Check className="w-3 h-3 ml-auto text-spoke-strong" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -193,7 +193,7 @@ function TaskCard({
             {/* Spotlight icon */}
             {task.spotlight && (
               <div className="mb-1.5">
-                <Star className="w-4 h-4 text-warn fill-warn" />
+                <Star className="w-4 h-4 text-warn-strong fill-warn" />
               </div>
             )}
             <p className={cn(
@@ -208,7 +208,7 @@ function TaskCard({
               </Badge>
               <span className={cn(
                 'text-[10px]',
-                isOverdue ? 'text-danger font-semibold' : 'text-muted-foreground',
+                isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground',
               )}>
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
@@ -315,9 +315,9 @@ function AddTaskInline({
         <div className="flex gap-0.5">
           {(['internal', 'partner', 'both'] as const).map(o => {
             const ACTIVE_STYLES: Record<string, string> = {
-              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal',
-              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner',
-              both: 'bg-warn-soft border-warn/40 text-warn',
+              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal-strong',
+              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner-strong',
+              both: 'bg-warn-soft border-warn/40 text-warn-strong',
             };
             const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-border text-muted-foreground hover:border-border';
             return (
@@ -478,7 +478,7 @@ export default function ProjectDetail() {
               size="sm"
               onClick={() => setShowDeleteDialog(true)}
               aria-label="Delete project"
-              className="h-7 px-2 text-muted-foreground hover:text-danger"
+              className="h-7 px-2 text-muted-foreground hover:text-danger-strong"
             >
               <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             </Button>

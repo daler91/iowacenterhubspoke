@@ -286,7 +286,7 @@ export default function PartnerProfile() {
               <>
                 {contacts.map(contact => (
                   <div key={contact.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 dark:hover:bg-muted">
-                    <div className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke-strong font-semibold text-sm shrink-0">
                       {contact.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">

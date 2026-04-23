@@ -35,11 +35,11 @@ function PreviewResults({ file, previewData, onReset }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 rounded-lg border bg-spoke-soft border-spoke/30">
-          <div className="flex items-center text-spoke mb-2">
+          <div className="flex items-center text-spoke-strong mb-2">
             <CheckCircle2 className="h-5 w-5 mr-2" />
             <span className="font-semibold">Valid Rows ({previewData.valid_rows.length})</span>
           </div>
-          <p className="text-sm text-spoke">
+          <p className="text-sm text-spoke-strong">
             These schedules are ready to be imported into the system.
           </p>
         </div>
@@ -50,7 +50,7 @@ function PreviewResults({ file, previewData, onReset }) {
         )}>
           <div className={cn(
             "flex items-center mb-2",
-            hasErrors ? "text-danger" : "text-foreground"
+            hasErrors ? "text-danger-strong" : "text-foreground"
           )}>
             {hasErrors ? (
               <XCircle className="h-5 w-5 mr-2" />
@@ -61,7 +61,7 @@ function PreviewResults({ file, previewData, onReset }) {
           </div>
           <p className={cn(
             "text-sm",
-            hasErrors ? "text-danger" : "text-foreground/80 dark:text-muted-foreground"
+            hasErrors ? "text-danger-strong" : "text-foreground/80 dark:text-muted-foreground"
           )}>
             Rows with errors will be skipped during import.
           </p>
@@ -70,14 +70,14 @@ function PreviewResults({ file, previewData, onReset }) {
 
       {hasErrors && (
         <div className="border rounded-md mt-4 max-h-[300px] overflow-y-auto">
-          <div className="bg-danger-soft px-4 py-2 border-b border-danger/20 font-medium text-danger text-sm sticky top-0">
+          <div className="bg-danger-soft px-4 py-2 border-b border-danger/20 font-medium text-danger-strong text-sm sticky top-0">
             Error Details
           </div>
           <ul className="divide-y divide-danger/20 text-sm">
             {previewData.errors.slice(0, 50).map((err) => (
               <li key={`row-${err.row}`} className="p-3 bg-white dark:bg-card">
                 <div className="font-medium text-foreground mb-1">Row {err.row}</div>
-                <ul className="list-disc list-inside text-danger space-y-1 ml-1">
+                <ul className="list-disc list-inside text-danger-strong space-y-1 ml-1">
                   {err.errors.map((e) => <li key={`${err.row}-${e}`}>{e}</li>)}
                 </ul>
               </li>

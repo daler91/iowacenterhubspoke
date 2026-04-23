@@ -18,7 +18,7 @@ export default function DeleteProjectDialog({ open, onOpenChange, onConfirm, pro
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-danger" />
+            <AlertTriangle className="w-5 h-5 text-danger-strong" />
             Delete Project
           </AlertDialogTitle>
           <AlertDialogDescription>

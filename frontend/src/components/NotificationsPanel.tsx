@@ -72,7 +72,7 @@ function isAbortLike(err: unknown): boolean {
 }
 
 const SEVERITY_CONFIG = {
-  warning: { icon: AlertTriangle, color: 'text-warn', bg: 'bg-warn-soft', border: 'border-warn-soft' },
+  warning: { icon: AlertTriangle, color: 'text-warn-strong', bg: 'bg-warn-soft', border: 'border-warn-soft' },
   info: { icon: CalendarDays, color: 'text-hub', bg: 'bg-hub-soft', border: 'border-hub-soft' },
 };
 
@@ -316,7 +316,7 @@ export default function NotificationsPanel() {
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
               {warningCount > 0 && (
-                <Badge className="bg-warn-soft text-warn border-0 text-[10px]">
+                <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">
                   {warningCount} alerts
                 </Badge>
               )}
@@ -352,14 +352,14 @@ export default function NotificationsPanel() {
               data-testid="notifications-fetch-error"
               className="px-4 py-3 border-b border-danger-soft dark:border-danger-soft/40 bg-danger-soft/10 flex items-center gap-3"
             >
-              <WifiOff className="w-4 h-4 text-danger shrink-0" aria-hidden="true" />
-              <p className="text-xs text-danger flex-1">
+              <WifiOff className="w-4 h-4 text-danger-strong shrink-0" aria-hidden="true" />
+              <p className="text-xs text-danger-strong flex-1">
                 Couldn't load notifications. Showing cached items.
               </p>
               <button
                 type="button"
                 onClick={handleRetryFetch}
-                className="text-xs font-medium text-danger hover:text-danger dark:hover:text-danger-soft inline-flex items-center gap-1"
+                className="text-xs font-medium text-danger-strong hover:text-danger-strong dark:hover:text-danger-strong-soft inline-flex items-center gap-1"
                 data-testid="notifications-retry"
               >
                 <RefreshCw className="w-3 h-3" aria-hidden="true" />

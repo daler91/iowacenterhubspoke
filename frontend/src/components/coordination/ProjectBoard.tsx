@@ -97,7 +97,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
             {project.title}
           </h4>
           {hasOverdue && (
-            <AlertTriangle className="w-4 h-4 text-warn shrink-0 ml-1" aria-label="Has overdue tasks" />
+            <AlertTriangle className="w-4 h-4 text-warn-strong shrink-0 ml-1" aria-label="Has overdue tasks" />
           )}
         </div>
         <p className="text-xs text-muted-foreground mb-1">
@@ -371,7 +371,7 @@ export default function ProjectBoard() {
             className="flex items-center gap-2 text-sm font-semibold text-foreground/80 dark:text-muted-foreground hover:text-foreground transition-colors"
           >
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <CheckCircle2 className="w-4 h-4 text-spoke" />
+            <CheckCircle2 className="w-4 h-4 text-spoke-strong" />
             Completed ({board.columns.complete.length})
           </button>
           {showCompleted && (
@@ -391,7 +391,7 @@ export default function ProjectBoard() {
                       {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
                     </Badge>
                     {project.task_total ? (
-                      <span className="text-[10px] text-spoke">{project.task_completed}/{project.task_total} tasks</span>
+                      <span className="text-[10px] text-spoke-strong">{project.task_completed}/{project.task_total} tasks</span>
                     ) : null}
                   </div>
                 </Card>
@@ -415,7 +415,7 @@ export default function ProjectBoard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-warn" />
+              <AlertTriangle className="w-5 h-5 text-warn-strong" />
               Incomplete Tasks
             </DialogTitle>
           </DialogHeader>

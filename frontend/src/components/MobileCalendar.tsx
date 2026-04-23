@@ -136,7 +136,7 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                       </div>
 
                       {schedule.town_to_town && (
-                        <div className="mt-3 flex items-center gap-1.5 text-warn text-xs font-medium bg-warn-soft px-2 py-1.5 rounded-md">
+                        <div className="mt-3 flex items-center gap-1.5 text-warn-strong text-xs font-medium bg-warn-soft px-2 py-1.5 rounded-md">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           Town-to-Town Travel Detected
                         </div>
@@ -233,8 +233,8 @@ export default function MobileCalendar({ currentDate, schedules, onEditSchedule,
                 )}
 
                 {selectedSchedule.town_to_town && (
-                  <div className="flex items-start gap-2 text-sm text-warn bg-warn-soft p-3 rounded-lg border border-warn-soft">
-                    <AlertTriangle className="w-5 h-5 shrink-0 text-warn" />
+                  <div className="flex items-start gap-2 text-sm text-warn-strong bg-warn-soft p-3 rounded-lg border border-warn-soft">
+                    <AlertTriangle className="w-5 h-5 shrink-0 text-warn-strong" />
                     <p><strong>Warning:</strong> Back-to-back classes in different towns detected. Travel time may overlap with class time.</p>
                   </div>
                 )}

@@ -43,7 +43,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
             </p>
           </div>
           <div className="w-10 h-10 bg-spoke-soft rounded-xl flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-spoke" />
+            <TrendingUp className="w-5 h-5 text-spoke-strong" />
           </div>
         </div>
       </button>
@@ -79,7 +79,7 @@ export default function StatsStrip({ stats = {}, onStatClick }) {
             </p>
           </div>
           <div className="w-10 h-10 bg-warn-soft rounded-xl flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-warn" />
+            <MapPin className="w-5 h-5 text-warn-strong" />
           </div>
         </div>
       </button>

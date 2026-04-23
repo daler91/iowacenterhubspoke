@@ -33,7 +33,7 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
       <DialogContent className="sm:max-w-[480px] bg-white dark:bg-card" data-testid="relocate-conflict-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-warn" />
+            <AlertTriangle className="w-5 h-5 text-warn-strong" />
             Schedule Conflict Detected
           </DialogTitle>
           <DialogDescription>
@@ -43,9 +43,9 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
         <div className="space-y-2 max-h-60 overflow-y-auto">
           {(data?.conflicts || []).map((conflict, i) => (
             <div key={conflict.schedule_id || i} className="p-3 bg-warn-soft border border-warn-soft rounded-lg">
-              <p className="text-sm font-medium text-warn">{conflict.location}</p>
-              <p className="text-xs text-warn">{conflict.time}</p>
-              <p className="text-xs text-warn mt-1">{conflict.overlap}</p>
+              <p className="text-sm font-medium text-warn-strong">{conflict.location}</p>
+              <p className="text-xs text-warn-strong">{conflict.time}</p>
+              <p className="text-xs text-warn-strong mt-1">{conflict.overlap}</p>
             </div>
           ))}
         </div>

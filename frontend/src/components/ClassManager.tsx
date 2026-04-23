@@ -67,7 +67,7 @@ const ClassRow = memo(function ClassRow({
           size="sm"
           data-testid={`view-class-${classItem.id}`}
           onClick={() => onView(classItem.id)}
-          className="text-muted-foreground hover:text-spoke"
+          className="text-muted-foreground hover:text-spoke-strong"
           aria-label={`View ${classItem.name}`}
         >
           <Eye className="w-4 h-4" aria-hidden="true" />
@@ -89,7 +89,7 @@ const ClassRow = memo(function ClassRow({
               size="sm"
               data-testid={`delete-class-${classItem.id}`}
               onClick={() => onDelete(classItem)}
-              className="text-muted-foreground hover:text-danger"
+              className="text-muted-foreground hover:text-danger-strong"
               aria-label={`Delete ${classItem.name}`}
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />

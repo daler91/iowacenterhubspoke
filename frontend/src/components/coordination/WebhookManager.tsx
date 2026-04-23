@@ -141,7 +141,7 @@ export default function WebhookManager() {
                     <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>
                   ))}
                   {sub.failure_count > 0 && (
-                    <Badge className="text-[10px] bg-danger-soft text-danger">
+                    <Badge className="text-[10px] bg-danger-soft text-danger-strong">
                       {sub.failure_count} failures
                     </Badge>
                   )}
@@ -163,11 +163,11 @@ export default function WebhookManager() {
                   disabled={rotatingId === sub.id}
                   title="Rotate signing secret"
                   aria-label="Rotate webhook signing secret"
-                  className="text-warn hover:text-warn hover:bg-warn-soft"
+                  className="text-warn-strong hover:text-warn-strong hover:bg-warn-soft"
                 >
                   <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-danger" title="Delete" aria-label="Delete webhook">
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(sub.id)} className="text-danger-strong" title="Delete" aria-label="Delete webhook">
                   <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
               </div>
@@ -204,7 +204,7 @@ export default function WebhookManager() {
                 <Copy className="w-3.5 h-3.5" aria-hidden="true" />
               </Button>
             </div>
-            <p className="text-xs text-warn">
+            <p className="text-xs text-warn-strong">
               Update this value in your webhook receiver now. Deliveries
               signed with the old secret will fail verification until you do.
             </p>

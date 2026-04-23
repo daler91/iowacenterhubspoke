@@ -47,7 +47,7 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 
 function stepStyle(i: number, current: number): string {
   if (i === current) return 'bg-hub-soft text-hub-strong';
-  if (i < current) return 'bg-spoke-soft text-spoke';
+  if (i < current) return 'bg-spoke-soft text-spoke-strong';
   return 'bg-muted text-muted-foreground';
 }
 
@@ -334,7 +334,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 data-testid="schedule-delete-btn"
                 onClick={() => hasSeries && seriesAction === 'future' ? setShowSeriesDeleteConfirm(true) : handleDelete()}
                 disabled={loading}
-                className="text-danger border-danger/30 hover:bg-danger-soft"
+                className="text-danger-strong border-danger/30 hover:bg-danger-soft"
               >
                 <Trash2 className="w-4 h-4 mr-1" aria-hidden="true" />
                 {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}

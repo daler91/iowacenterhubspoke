@@ -42,17 +42,24 @@
     --hub-strong: 239 84% 50%;
     --spoke: 168 80% 30%;
     --spoke-soft: 168 80% 92%;
+    --spoke-strong: 168 80% 22%;
     --warn: 38 92% 50%;
     --warn-soft: 38 92% 94%;
+    --warn-strong: 38 92% 30%;
     --info: 217 91% 60%;
     --info-soft: 217 91% 94%;
+    --info-strong: 217 91% 38%;
     --progress: 142 71% 45%;
+    --progress-strong: 142 71% 28%;
     --danger: 0 84% 60%;
     --danger-soft: 0 84% 95%;
+    --danger-strong: 0 84% 38%;
     --ownership-internal: 217 91% 60%;
     --ownership-internal-soft: 217 91% 94%;
+    --ownership-internal-strong: 217 91% 38%;
     --ownership-partner: 280 65% 60%;
     --ownership-partner-soft: 280 65% 94%;
+    --ownership-partner-strong: 280 65% 35%;
   }
 
   .dark {
@@ -88,17 +95,24 @@
     --hub-strong: 239 84% 55%;
     --spoke: 168 70% 45%;
     --spoke-soft: 168 50% 18%;
+    --spoke-strong: 168 70% 65%;
     --warn: 38 92% 55%;
     --warn-soft: 38 60% 20%;
+    --warn-strong: 38 92% 70%;
     --info: 217 91% 65%;
     --info-soft: 217 60% 22%;
+    --info-strong: 217 91% 78%;
     --progress: 142 71% 50%;
+    --progress-strong: 142 71% 65%;
     --danger: 0 84% 60%;
     --danger-soft: 0 60% 22%;
+    --danger-strong: 0 84% 75%;
     --ownership-internal: 217 91% 65%;
     --ownership-internal-soft: 217 60% 22%;
+    --ownership-internal-strong: 217 91% 78%;
     --ownership-partner: 280 65% 65%;
     --ownership-partner-soft: 280 60% 22%;
+    --ownership-partner-strong: 280 65% 78%;
   }
 }
 

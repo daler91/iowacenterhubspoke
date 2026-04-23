@@ -74,28 +74,37 @@ module.exports = {
   			},
   			spoke: {
   				DEFAULT: 'hsl(var(--spoke))',
-  				soft: 'hsl(var(--spoke-soft))'
+  				soft: 'hsl(var(--spoke-soft))',
+  				strong: 'hsl(var(--spoke-strong))'
   			},
   			warn: {
   				DEFAULT: 'hsl(var(--warn))',
-  				soft: 'hsl(var(--warn-soft))'
+  				soft: 'hsl(var(--warn-soft))',
+  				strong: 'hsl(var(--warn-strong))'
   			},
   			info: {
   				DEFAULT: 'hsl(var(--info))',
-  				soft: 'hsl(var(--info-soft))'
+  				soft: 'hsl(var(--info-soft))',
+  				strong: 'hsl(var(--info-strong))'
   			},
-  			progress: 'hsl(var(--progress))',
+  			progress: {
+  				DEFAULT: 'hsl(var(--progress))',
+  				strong: 'hsl(var(--progress-strong))'
+  			},
   			danger: {
   				DEFAULT: 'hsl(var(--danger))',
-  				soft: 'hsl(var(--danger-soft))'
+  				soft: 'hsl(var(--danger-soft))',
+  				strong: 'hsl(var(--danger-strong))'
   			},
   			'ownership-internal': {
   				DEFAULT: 'hsl(var(--ownership-internal))',
-  				soft: 'hsl(var(--ownership-internal-soft))'
+  				soft: 'hsl(var(--ownership-internal-soft))',
+  				strong: 'hsl(var(--ownership-internal-strong))'
   			},
   			'ownership-partner': {
   				DEFAULT: 'hsl(var(--ownership-partner))',
-  				soft: 'hsl(var(--ownership-partner-soft))'
+  				soft: 'hsl(var(--ownership-partner-soft))',
+  				strong: 'hsl(var(--ownership-partner-strong))'
   			}
   		},
   		keyframes: {

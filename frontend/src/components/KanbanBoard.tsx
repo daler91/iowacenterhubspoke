@@ -133,7 +133,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
                 </span>
               </div>
               {schedule.town_to_town && (
-                <AlertTriangle className="w-4 h-4 text-warn" />
+                <AlertTriangle className="w-4 h-4 text-warn-strong" />
               )}
             </div>
 
@@ -345,8 +345,8 @@ export default function KanbanBoard() {
     >
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger hover:underline underline-offset-2">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger-strong hover:underline underline-offset-2">Retry</button>
         </div>
       )}
 

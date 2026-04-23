@@ -127,8 +127,8 @@ function CommentNode({
       <div className={cn(
         'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
         comment.sender_type === 'partner'
-          ? 'bg-ownership-partner-soft text-ownership-partner'
-          : 'bg-ownership-internal-soft text-ownership-internal',
+          ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+          : 'bg-ownership-internal-soft text-ownership-internal-strong',
       )}>
         {(comment.sender_name || '?').charAt(0).toUpperCase()}
       </div>
@@ -191,8 +191,8 @@ function ThreadSummary({
             className={cn(
               'w-5 h-5 rounded-md border border-white dark:border-card flex items-center justify-center text-[9px] font-semibold',
               a.sender_type === 'partner'
-                ? 'bg-ownership-partner-soft text-ownership-partner'
-                : 'bg-ownership-internal-soft text-ownership-internal',
+                ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                : 'bg-ownership-internal-soft text-ownership-internal-strong',
             )}
           >
             {(a.sender_name || '?').charAt(0).toUpperCase()}
@@ -258,8 +258,8 @@ function FlagPillSwitch({
       {icon}
       <span className={cn(
         'text-xs font-semibold',
-        checked && tint === 'amber' && 'text-warn',
-        checked && tint === 'danger' && 'text-danger',
+        checked && tint === 'amber' && 'text-warn-strong',
+        checked && tint === 'danger' && 'text-danger-strong',
         !checked && 'text-foreground/80 dark:text-muted-foreground',
       )}>
         {label}
@@ -725,7 +725,7 @@ export default function TaskDetailModal({
                 <FlagPillSwitch
                   id="task-spotlight-toggle"
                   label="Spotlight"
-                  icon={<Star className={cn('w-3.5 h-3.5', task.spotlight ? 'text-warn fill-warn' : 'text-muted-foreground')} />}
+                  icon={<Star className={cn('w-3.5 h-3.5', task.spotlight ? 'text-warn-strong fill-warn' : 'text-muted-foreground')} />}
                   checked={!!task.spotlight}
                   onCheckedChange={(v) => handleToggleFlag('spotlight', v)}
                   tint="amber"
@@ -733,7 +733,7 @@ export default function TaskDetailModal({
                 <FlagPillSwitch
                   id="task-at-risk-toggle"
                   label="At Risk"
-                  icon={<AlertTriangle className={cn('w-3.5 h-3.5', task.at_risk ? 'text-danger' : 'text-muted-foreground')} />}
+                  icon={<AlertTriangle className={cn('w-3.5 h-3.5', task.at_risk ? 'text-danger-strong' : 'text-muted-foreground')} />}
                   checked={!!task.at_risk}
                   onCheckedChange={(v) => handleToggleFlag('at_risk', v)}
                   tint="danger"
@@ -815,7 +815,7 @@ export default function TaskDetailModal({
               {/* Description (rich text) */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
+                  <FileText className="w-3.5 h-3.5 text-info-strong" aria-hidden="true" />
                   <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Description</span>
                 </div>
                 <TaskDescriptionEditor
@@ -833,9 +833,9 @@ export default function TaskDetailModal({
               {/* Internal Notes */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Lock className="w-3.5 h-3.5 text-warn" />
+                  <Lock className="w-3.5 h-3.5 text-warn-strong" />
                   <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Internal Notes</span>
-                  <span className="text-[9px] font-semibold text-warn bg-warn-soft dark:text-warn dark:bg-warn-soft/40 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Private</span>
+                  <span className="text-[9px] font-semibold text-warn-strong bg-warn-soft dark:text-warn-strong dark:bg-warn-soft/40 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Private</span>
                 </div>
                 <textarea
                   value={details}
@@ -846,7 +846,7 @@ export default function TaskDetailModal({
                     }
                   }}
                   rows={3}
-                  className="w-full text-sm rounded-xl px-3 py-2.5 bg-warn-soft/20 border border-warn-soft dark:border-warn-soft/40 focus-visible:outline-none focus-visible:border-warn-soft resize-y leading-relaxed text-foreground dark:text-warn placeholder:text-warn/50"
+                  className="w-full text-sm rounded-xl px-3 py-2.5 bg-warn-soft/20 border border-warn-soft dark:border-warn-soft/40 focus-visible:outline-none focus-visible:border-warn-soft resize-y leading-relaxed text-foreground dark:text-warn-strong placeholder:text-warn-strong/50"
                   placeholder="Private notes (not shared with partners)..."
                 />
               </div>
@@ -896,7 +896,7 @@ export default function TaskDetailModal({
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="text-muted-foreground hover:text-danger p-1 rounded transition-colors"
+                          className="text-muted-foreground hover:text-danger-strong p-1 rounded transition-colors"
                           aria-label={`Delete ${att.filename}`}
                         >
                           <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -939,7 +939,7 @@ export default function TaskDetailModal({
                   type="button"
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="border-danger/40 text-danger hover:bg-danger-soft hover:text-danger h-9"
+                  className="border-danger/40 text-danger-strong hover:bg-danger-soft hover:text-danger-strong h-9"
                 >
                   <Trash2 className="w-4 h-4 mr-2" /> Delete Task
                 </Button>

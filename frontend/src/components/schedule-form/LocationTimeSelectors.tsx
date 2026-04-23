@@ -8,9 +8,9 @@ import { RequiredMark } from './RequiredMark';
 
 const OUTLOOK_STATUS_LABELS = { busy: 'Busy', tentative: 'Tentative', oof: 'Out of Office' };
 const OUTLOOK_STATUS_COLORS = {
-  busy: 'bg-danger-soft text-danger',
-  tentative: 'bg-warn-soft text-warn',
-  oof: 'bg-ownership-partner-soft text-ownership-partner',
+  busy: 'bg-danger-soft text-danger-strong',
+  tentative: 'bg-warn-soft text-warn-strong',
+  oof: 'bg-ownership-partner-soft text-ownership-partner-strong',
 };
 
 function formatOutlookTime(dateTime) {
@@ -59,7 +59,7 @@ export function LocationTimeSelectors({
             {(locations || []).map(loc => (
               <SelectItem key={loc.id} value={loc.id}>
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-3 h-3 text-spoke" aria-hidden="true" />
+                  <MapPin className="w-3 h-3 text-spoke-strong" aria-hidden="true" />
                   {loc.city_name}
                   <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted text-foreground/80 dark:text-muted-foreground">
                     {loc.drive_time_minutes}m
@@ -142,15 +142,15 @@ export function LocationTimeSelectors({
           data-testid="conflict-preview-error"
           className="p-3 bg-danger-soft/10 border border-danger-soft dark:border-danger-soft/40 rounded-lg flex items-center gap-2"
         >
-          <WifiOff className="w-4 h-4 text-danger shrink-0" aria-hidden="true" />
-          <p className="text-xs text-danger flex-1">
+          <WifiOff className="w-4 h-4 text-danger-strong shrink-0" aria-hidden="true" />
+          <p className="text-xs text-danger-strong flex-1">
             Couldn't check for conflicts. Any hidden overlaps won't be shown until you retry.
           </p>
           {onRetryConflictPreview && (
             <button
               type="button"
               onClick={onRetryConflictPreview}
-              className="text-xs font-medium text-danger hover:text-danger dark:hover:text-danger-soft inline-flex items-center gap-1"
+              className="text-xs font-medium text-danger-strong hover:text-danger-strong dark:hover:text-danger-strong-soft inline-flex items-center gap-1"
               data-testid="conflict-preview-retry"
             >
               <RefreshCw className="w-3 h-3" aria-hidden="true" />
@@ -169,8 +169,8 @@ export function LocationTimeSelectors({
           {previewConflicts?.outlook_conflicts?.length > 0 && (
             <div className="p-3 bg-info-soft border border-info/30 rounded-lg space-y-2" data-testid="outlook-conflict-banner" role="alert">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-info" aria-hidden="true" />
-                <span className="text-xs font-semibold text-info">
+                <Calendar className="w-4 h-4 text-info-strong" aria-hidden="true" />
+                <span className="text-xs font-semibold text-info-strong">
                   Outlook Calendar Conflicts
                 </span>
               </div>
@@ -185,7 +185,7 @@ export function LocationTimeSelectors({
                   </Badge>
                 ))}
               </div>
-              <p className="text-[11px] text-info">
+              <p className="text-[11px] text-info-strong">
                 This employee has Outlook calendar conflicts during this time.
               </p>
             </div>
@@ -195,8 +195,8 @@ export function LocationTimeSelectors({
           {previewConflicts?.google_conflicts?.length > 0 && (
             <div className="p-3 bg-spoke-soft border border-spoke/30 rounded-lg space-y-2" data-testid="google-conflict-banner" role="alert">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-spoke" aria-hidden="true" />
-                <span className="text-xs font-semibold text-spoke">
+                <Calendar className="w-4 h-4 text-spoke-strong" aria-hidden="true" />
+                <span className="text-xs font-semibold text-spoke-strong">
                   Google Calendar Conflicts
                 </span>
               </div>
@@ -205,13 +205,13 @@ export function LocationTimeSelectors({
                   <Badge
                     key={`google-${c.start}-${c.end}`}
                     variant="secondary"
-                    className="text-[10px] px-2 py-0.5 bg-danger-soft text-danger"
+                    className="text-[10px] px-2 py-0.5 bg-danger-soft text-danger-strong"
                   >
                     Busy {formatOutlookTime(c.start)}&ndash;{formatOutlookTime(c.end)}
                   </Badge>
                 ))}
               </div>
-              <p className="text-[11px] text-spoke">
+              <p className="text-[11px] text-spoke-strong">
                 This employee has Google Calendar conflicts during this time.
               </p>
             </div>
@@ -221,14 +221,14 @@ export function LocationTimeSelectors({
           {previewConflicts?.conflicts?.length > 0 && (
             <div className="p-3 bg-warn-soft border border-warn/30 rounded-lg space-y-2" data-testid="internal-conflict-banner" role="alert">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-warn" aria-hidden="true" />
-                <span className="text-xs font-semibold text-warn">
+                <AlertTriangle className="w-4 h-4 text-warn-strong" aria-hidden="true" />
+                <span className="text-xs font-semibold text-warn-strong">
                   Schedule Conflicts
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {previewConflicts.conflicts.map((c) => (
-                  <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-warn-soft text-warn">
+                  <Badge key={`${c.location}-${c.time}`} variant="secondary" className="text-[10px] px-2 py-0.5 bg-warn-soft text-warn-strong">
                     {c.location} ({c.time})
                   </Badge>
                 ))}

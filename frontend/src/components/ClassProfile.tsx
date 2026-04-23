@@ -165,21 +165,21 @@ export default function ClassProfile({ classId: propId, onBack: propOnBack } = {
           {(data.projects_delivered > 0 || data.total_attendance > 0) && (
             <div className="grid grid-cols-3 gap-4">
               <Card className="p-4 text-center border-spoke/20">
-                <GraduationCap className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
+                <GraduationCap className="w-5 h-5 text-spoke-strong mx-auto mb-2" aria-hidden="true" />
                 <p className="text-2xl font-bold text-foreground font-display">
                   {data.projects_delivered}
                 </p>
                 <p className="text-xs text-foreground/80 dark:text-muted-foreground">Projects Delivered</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
-                <Users className="w-5 h-5 text-spoke mx-auto mb-2" aria-hidden="true" />
+                <Users className="w-5 h-5 text-spoke-strong mx-auto mb-2" aria-hidden="true" />
                 <p className="text-2xl font-bold text-foreground font-display">
                   {data.total_attendance}
                 </p>
                 <p className="text-xs text-foreground/80 dark:text-muted-foreground">Total Attendance</p>
               </Card>
               <Card className="p-4 text-center border-spoke/20">
-                <Flame className="w-5 h-5 text-warn mx-auto mb-2" aria-hidden="true" />
+                <Flame className="w-5 h-5 text-warn-strong mx-auto mb-2" aria-hidden="true" />
                 <p className="text-2xl font-bold text-foreground font-display">
                   {data.total_warm_leads}
                 </p>

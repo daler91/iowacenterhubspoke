@@ -55,9 +55,9 @@ export const EVENT_FORMAT_LABELS: Record<string, string> = {
 };
 
 export const OWNER_COLORS: Record<string, string> = {
-  internal: 'bg-ownership-internal-soft text-ownership-internal',
-  partner: 'bg-ownership-partner-soft text-ownership-partner',
-  both: 'bg-warn-soft text-warn',
+  internal: 'bg-ownership-internal-soft text-ownership-internal-strong',
+  partner: 'bg-ownership-partner-soft text-ownership-partner-strong',
+  both: 'bg-warn-soft text-warn-strong',
 };
 
 export const OWNER_LABELS: Record<string, string> = {
@@ -68,9 +68,9 @@ export const OWNER_LABELS: Record<string, string> = {
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
   prospect: 'bg-muted text-foreground/80',
-  onboarding: 'bg-warn-soft text-warn',
-  active: 'bg-spoke-soft text-spoke',
-  inactive: 'bg-danger-soft text-danger',
+  onboarding: 'bg-warn-soft text-warn-strong',
+  active: 'bg-spoke-soft text-spoke-strong',
+  inactive: 'bg-danger-soft text-danger-strong',
 };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {

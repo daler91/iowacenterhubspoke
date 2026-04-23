@@ -152,7 +152,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               </div>
               {schedule.town_to_town && !selectionMode && (
                 <div className="absolute top-1 right-1">
-                  <ArrowRightLeft className="w-3 h-3 text-spoke-soft" />
+                  <ArrowRightLeft className="w-3 h-3 text-spoke-strong-soft" />
                 </div>
               )}
             </button>
@@ -167,7 +167,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                 Hub drive: {schedule.drive_time_minutes}m each way
               </p>
               {schedule.town_to_town && schedule.town_to_town_drive_minutes && (
-                <p className="text-xs text-spoke">Town-to-town: ~{schedule.town_to_town_drive_minutes} min between locations</p>
+                <p className="text-xs text-spoke-strong">Town-to-town: ~{schedule.town_to_town_drive_minutes} min between locations</p>
               )}
             </div>
           </TooltipContent>
@@ -179,7 +179,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
           <TooltipTrigger asChild>
             <div
               data-testid={`drive-after-${schedule.id}`}
-              className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke !border-spoke-soft")}
+              className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke-strong !border-spoke-soft")}
               style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px`, ...overlapStyle }}
             >
               <div className="flex items-center gap-1">

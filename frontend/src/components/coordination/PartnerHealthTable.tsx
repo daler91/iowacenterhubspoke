@@ -18,10 +18,10 @@ interface PartnerHealthRow {
 }
 
 const TIER_COLORS: Record<string, string> = {
-  excellent: 'bg-spoke-soft text-spoke',
-  good: 'bg-info-soft text-info',
-  needs_attention: 'bg-warn-soft text-warn',
-  at_risk: 'bg-danger-soft text-danger',
+  excellent: 'bg-spoke-soft text-spoke-strong',
+  good: 'bg-info-soft text-info-strong',
+  needs_attention: 'bg-warn-soft text-warn-strong',
+  at_risk: 'bg-danger-soft text-danger-strong',
 };
 
 const TIER_LABELS: Record<string, string> = {
@@ -32,9 +32,9 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 function completionColor(rate: number): string {
-  if (rate >= 80) return 'text-spoke';
-  if (rate >= 50) return 'text-warn';
-  return 'text-danger';
+  if (rate >= 80) return 'text-spoke-strong';
+  if (rate >= 50) return 'text-warn-strong';
+  return 'text-danger-strong';
 }
 
 export default function PartnerHealthTable() {

@@ -179,7 +179,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-spoke" />
+              <Clock className="w-5 h-5 text-spoke-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Class Hours</span>
           </div>
@@ -190,7 +190,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-warn-soft rounded-lg flex items-center justify-center">
-              <Car className="w-5 h-5 text-warn" />
+              <Car className="w-5 h-5 text-warn-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Drive Hours</span>
           </div>
@@ -201,7 +201,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
         <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-spoke" />
+              <TrendingUp className="w-5 h-5 text-spoke-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Completed</span>
           </div>
@@ -305,7 +305,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
                 <div className="h-2 rounded-full bg-muted" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / maxDriveHours) * 100, 100)}%` }} />
               </div>
               <div className="flex gap-2 mt-3">
-                <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
+                <Badge className="bg-spoke-soft text-spoke-strong border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
                 <Badge className="bg-hub-soft text-hub-strong border-0 text-[10px]">{employeeWorkload.upcoming} upcoming</Badge>
               </div>
             </div>

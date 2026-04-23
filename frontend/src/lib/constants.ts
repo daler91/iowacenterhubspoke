@@ -35,8 +35,8 @@ export const COLORS = {
   },
   STATUS_TEXT: {
     UPCOMING: 'text-hub',
-    IN_PROGRESS: 'text-warn',
-    COMPLETED: 'text-spoke',
+    IN_PROGRESS: 'text-warn-strong',
+    COMPLETED: 'text-spoke-strong',
   }
 } as const;
 

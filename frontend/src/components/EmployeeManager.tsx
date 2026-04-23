@@ -73,14 +73,14 @@ const EmployeeRow = memo(function EmployeeRow({
             )}
             {emp.google_calendar_connected && (
               <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-spoke" />
-                <span className="text-xs text-spoke">Google Calendar</span>
+                <Calendar className="w-3 h-3 text-spoke-strong" />
+                <span className="text-xs text-spoke-strong">Google Calendar</span>
               </div>
             )}
             {emp.outlook_calendar_connected && (
               <div className="flex items-center gap-1">
-                <Mail className="w-3 h-3 text-info" aria-hidden="true" />
-                <span className="text-xs text-info">Outlook Calendar</span>
+                <Mail className="w-3 h-3 text-info-strong" aria-hidden="true" />
+                <span className="text-xs text-info-strong">Outlook Calendar</span>
               </div>
             )}
           </div>
@@ -92,7 +92,7 @@ const EmployeeRow = memo(function EmployeeRow({
           size="sm"
           data-testid={`view-employee-${emp.id}`}
           onClick={() => onView(emp.id)}
-          className="text-muted-foreground hover:text-spoke"
+          className="text-muted-foreground hover:text-spoke-strong"
           aria-label={`View ${emp.name}`}
         >
           <Eye className="w-4 h-4" aria-hidden="true" />
@@ -114,7 +114,7 @@ const EmployeeRow = memo(function EmployeeRow({
               size="sm"
               data-testid={`delete-employee-${emp.id}`}
               onClick={() => onDelete(emp)}
-              className="text-muted-foreground hover:text-danger"
+              className="text-muted-foreground hover:text-danger-strong"
               aria-label={`Delete ${emp.name}`}
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />

@@ -59,13 +59,13 @@ export default function DriveOptimizationTab() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Car} iconBg="bg-warn-soft" iconColor="text-warn"
+        <SummaryCard icon={Car} iconBg="bg-warn-soft" iconColor="text-warn-strong"
           label="Total Drive Hours" value={`${summary.total_drive_hours || 0}h`} />
-        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke"
+        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke-strong"
           label="Avg / Schedule" value={`${summary.avg_per_schedule || 0}h`} />
         <SummaryCard icon={TrendingUp} iconBg="bg-hub-soft" iconColor="text-hub"
           label="Highest Driver" value={summary.highest_driver || 'N/A'} />
-        <SummaryCard icon={Zap} iconBg="bg-spoke-soft" iconColor="text-spoke"
+        <SummaryCard icon={Zap} iconBg="bg-spoke-soft" iconColor="text-spoke-strong"
           label="Potential Savings" value={`${summary.potential_savings_hours || 0}h`} />
       </div>
 
@@ -107,8 +107,8 @@ export default function DriveOptimizationTab() {
               <tbody>
                 {suggestions.map((s: any) => {
                   let savingsBadgeClass = 'bg-muted/50 text-foreground/80';
-                  if (s.savings_mins >= 120) savingsBadgeClass = 'bg-spoke-soft text-spoke';
-                  else if (s.savings_mins >= 60) savingsBadgeClass = 'bg-warn-soft text-warn';
+                  if (s.savings_mins >= 120) savingsBadgeClass = 'bg-spoke-soft text-spoke-strong';
+                  else if (s.savings_mins >= 60) savingsBadgeClass = 'bg-warn-soft text-warn-strong';
 
                   return (
                   <tr key={`${s.date}-${s.schedule_a_id}-${s.schedule_b_id}`} className="border-b border-border hover:bg-muted/50">

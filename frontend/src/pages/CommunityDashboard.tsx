@@ -28,7 +28,7 @@ function MetricCard({
         <p className="text-2xl font-bold text-foreground dark:text-white">
           {value}
           {alert !== undefined && alert > 0 && (
-            <span className="ml-2 text-xs font-medium text-warn bg-warn-soft px-1.5 py-0.5 rounded">
+            <span className="ml-2 text-xs font-medium text-warn-strong bg-warn-soft px-1.5 py-0.5 rounded">
               {alert} overdue
             </span>
           )}
@@ -72,7 +72,7 @@ export default function CommunityDashboard() {
       {dashboard.orphan_completed_schedules > 0 && (
         <Card className="p-4 mb-6 border-warn/30 bg-warn-soft">
           <div className="flex items-center gap-3 text-sm">
-            <CalendarDays className="w-5 h-5 text-warn shrink-0" aria-hidden="true" />
+            <CalendarDays className="w-5 h-5 text-warn-strong shrink-0" aria-hidden="true" />
             <p className="text-foreground dark:text-muted-foreground">
               <strong>{dashboard.orphan_completed_schedules}</strong> completed schedule{dashboard.orphan_completed_schedules > 1 ? 's' : ''} {dashboard.orphan_completed_schedules > 1 ? 'have' : 'has'} no linked project — outcomes are not being tracked.
             </p>
@@ -126,7 +126,7 @@ export default function CommunityDashboard() {
             <h3 className="font-semibold text-foreground mb-2">{community.community}</h3>
             <div className="flex gap-4 text-sm mb-3">
               <div>
-                <span className="text-2xl font-bold text-spoke">{community.delivered}</span>
+                <span className="text-2xl font-bold text-spoke-strong">{community.delivered}</span>
                 <p className="text-[10px] text-muted-foreground">Delivered</p>
               </div>
               <div>

@@ -40,7 +40,7 @@ const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
           aria-hidden="true"
         >
           <div className="bg-white dark:bg-card rounded-lg shadow-xl border border-border p-3 w-[min(220px,calc(100vw-2rem))] text-left">
-            <p className="font-bold text-sm text-spoke">{loc.city_name}</p>
+            <p className="font-bold text-sm text-spoke-strong">{loc.city_name}</p>
             <div className="flex items-center gap-2 mt-1">
               <Car className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
               <span className="text-xs text-foreground/80 dark:text-muted-foreground">{loc.drive_time_minutes} min from Hub</span>

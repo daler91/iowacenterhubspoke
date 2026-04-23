@@ -185,12 +185,12 @@ export default function LoginPage() {
                 className="mb-4 p-3 bg-warn-soft border border-warn-soft rounded-lg flex gap-2"
                 data-testid="replay-logout-banner"
               >
-                <ShieldAlert className="w-4 h-4 text-warn shrink-0 mt-0.5" aria-hidden="true" />
+                <ShieldAlert className="w-4 h-4 text-warn-strong shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="text-sm text-warn font-medium">
+                  <p className="text-sm text-warn-strong font-medium">
                     All devices were signed out for safety
                   </p>
-                  <p className="text-xs text-warn mt-1">
+                  <p className="text-xs text-warn-strong mt-1">
                     We detected a reused session cookie — if that wasn&rsquo;t you,
                     someone may have copied an old cookie. Sign in again to continue.
                   </p>

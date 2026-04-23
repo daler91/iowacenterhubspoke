@@ -226,8 +226,8 @@ export default function MentionTextarea({
               <span className={cn(
                 'w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold shrink-0',
                 m.kind === 'partner'
-                  ? 'bg-ownership-partner-soft text-ownership-partner'
-                  : 'bg-ownership-internal-soft text-ownership-internal',
+                  ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                  : 'bg-ownership-internal-soft text-ownership-internal-strong',
               )}>
                 {(m.name || '?').charAt(0).toUpperCase()}
               </span>

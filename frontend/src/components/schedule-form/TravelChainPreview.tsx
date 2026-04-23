@@ -67,7 +67,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
             "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors cursor-pointer",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
             leg.is_overridden
-              ? "bg-info-soft text-info border-info/30 hover:bg-info-soft/70"
+              ? "bg-info-soft text-info-strong border-info/30 hover:bg-info-soft/70"
               : "bg-muted text-foreground/80 dark:text-muted-foreground border-border hover:bg-muted"
           )}
         >
@@ -230,12 +230,12 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-xs font-medium",
-                    leg.is_current ? "text-spoke" : "text-foreground"
+                    leg.is_current ? "text-spoke-strong" : "text-foreground"
                   )}>
                     {leg.location_name}
                   </span>
                   {leg.is_current && (
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-spoke-soft text-spoke">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-spoke-soft text-spoke-strong">
                       current
                     </Badge>
                   )}

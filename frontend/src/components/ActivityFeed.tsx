@@ -9,11 +9,11 @@ import { ScrollArea } from './ui/scroll-area';
 
 const ACTION_CONFIG = {
   schedule_created: { icon: CalendarPlus, color: 'text-hub', bg: 'bg-hub-soft', label: 'Scheduled' },
-  schedule_deleted: { icon: Trash2, color: 'text-danger', bg: 'bg-danger-soft', label: 'Removed' },
-  employee_created: { icon: UserPlus, color: 'text-spoke', bg: 'bg-spoke-soft', label: 'New Employee' },
-  location_created: { icon: MapPinPlus, color: 'text-spoke', bg: 'bg-spoke-soft', label: 'New Location' },
-  status_completed: { icon: CheckCircle2, color: 'text-spoke', bg: 'bg-spoke-soft', label: 'Completed' },
-  status_in_progress: { icon: PlayCircle, color: 'text-warn', bg: 'bg-warn-soft', label: 'In Progress' },
+  schedule_deleted: { icon: Trash2, color: 'text-danger-strong', bg: 'bg-danger-soft', label: 'Removed' },
+  employee_created: { icon: UserPlus, color: 'text-spoke-strong', bg: 'bg-spoke-soft', label: 'New Employee' },
+  location_created: { icon: MapPinPlus, color: 'text-spoke-strong', bg: 'bg-spoke-soft', label: 'New Location' },
+  status_completed: { icon: CheckCircle2, color: 'text-spoke-strong', bg: 'bg-spoke-soft', label: 'Completed' },
+  status_in_progress: { icon: PlayCircle, color: 'text-warn-strong', bg: 'bg-warn-soft', label: 'In Progress' },
   status_upcoming: { icon: Clock, color: 'text-hub', bg: 'bg-hub-soft', label: 'Reset' },
 };
 
