@@ -42,7 +42,7 @@ export default function ConsentBanner() {
         See our{" "}
         <a
           href="/privacy"
-          className="underline text-hub-soft"
+          className="underline text-hub-strong"
         >
           privacy policy
         </a>{" "}

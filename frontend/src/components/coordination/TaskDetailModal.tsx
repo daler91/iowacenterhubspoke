@@ -182,7 +182,7 @@ function ThreadSummary({
     <button
       type="button"
       onClick={onExpand}
-      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-hub-soft hover:bg-hub-soft dark:hover:bg-hub-soft/30 transition-colors"
+      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-hub-strong hover:bg-hub-soft dark:hover:bg-hub-soft/30 transition-colors"
     >
       <div className="flex -space-x-1.5">
         {avatars.map(a => (
@@ -353,7 +353,7 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
       <div className="px-5 py-4 border-b border-hub-soft/70 dark:border-hub-soft/50 bg-white/60 dark:bg-card/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-hub-soft/50 flex items-center justify-center">
-            <MessageSquare className="w-3.5 h-3.5 text-hub-soft" />
+            <MessageSquare className="w-3.5 h-3.5 text-hub-strong" />
           </div>
           <h2 className="text-base font-semibold text-foreground font-display">Conversations</h2>
           {comments.length > 0 && (
@@ -705,7 +705,7 @@ export default function TaskDetailModal({
             <div className="flex-1 overflow-y-auto px-7 pt-7 pb-3">
               {/* Project name */}
               {projectTitle && (
-                <p className="text-[11px] text-hub-soft font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
+                <p className="text-[11px] text-hub-strong font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
               )}
 
               {/* Title + Flag switches + Phase badge */}

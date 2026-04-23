@@ -12,7 +12,7 @@
     --card-foreground: 215 25% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 15%;
-    --primary: 239 84% 67%;
+    --primary: 244 76% 59%;
     --primary-foreground: 0 0% 100%;
     --secondary: 168 80% 30%;
     --secondary-foreground: 0 0% 100%;
@@ -26,8 +26,8 @@
     --destructive-foreground: 0 0% 98%;
     --border: 214 20% 90%;
     --input: 214 20% 90%;
-    --ring: 239 84% 67%;
-    --chart-1: 239 84% 67%;
+    --ring: 244 76% 59%;
+    --chart-1: 244 76% 59%;
     --chart-2: 168 80% 30%;
     --chart-3: 38 92% 50%;
     --chart-4: 0 84% 60%;
@@ -37,7 +37,7 @@
 
     /* Brand semantic tokens — map to the Hub Indigo / Spoke Teal / Warning Amber palette. */
     /* Prefer these over raw Tailwind color classes (bg-blue-*, bg-purple-*, etc). */
-    --hub: 239 84% 67%;
+    --hub: 244 76% 59%;
     --hub-soft: 239 84% 95%;
     --hub-strong: 239 84% 50%;
     --spoke: 168 80% 30%;
@@ -69,7 +69,7 @@
     --card-foreground: 210 20% 98%;
     --popover: 222 47% 13%;
     --popover-foreground: 210 20% 98%;
-    --primary: 239 84% 67%;
+    --primary: 244 76% 59%;
     --primary-foreground: 0 0% 100%;
     --secondary: 168 80% 30%;
     --secondary-foreground: 0 0% 100%;
@@ -82,8 +82,8 @@
     --destructive-foreground: 0 0% 98%;
     --border: 223 30% 22%;
     --input: 223 30% 22%;
-    --ring: 239 84% 67%;
-    --chart-1: 239 84% 67%;
+    --ring: 244 76% 59%;
+    --chart-1: 244 76% 59%;
     --chart-2: 168 80% 42%;
     --chart-3: 38 92% 55%;
     --chart-4: 0 84% 60%;

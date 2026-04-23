@@ -299,7 +299,7 @@ export default function CalendarView() {
               </Link>
             </div>
             {(locations || []).length > 0 && (employees || []).length > 0 && (classes || []).length > 0 && (
-              <p className="text-sm text-hub-soft font-medium">
+              <p className="text-sm text-hub-strong font-medium">
                 All set! Click "New Schedule" in the sidebar to create your first class assignment.
               </p>
             )}

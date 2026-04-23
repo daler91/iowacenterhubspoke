@@ -355,7 +355,7 @@ export default function KanbanBoard() {
           data-testid="kanban-onboarding"
           className="bg-white dark:bg-card rounded-lg border border-border p-8 text-center"
         >
-          <CalendarDays className="w-12 h-12 mx-auto text-hub-soft dark:text-hub mb-3" aria-hidden="true" />
+          <CalendarDays className="w-12 h-12 mx-auto text-hub-strong dark:text-hub mb-3" aria-hidden="true" />
           <h3 className="text-base font-semibold text-foreground mb-1">No schedules yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Kanban cards will appear here once you start scheduling classes.
