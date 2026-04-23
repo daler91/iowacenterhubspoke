@@ -1,6 +1,6 @@
-# Iowa Center Hub & Spoke — Scheduling Platform
+# HubSpoke — Scheduling Platform
 
-A full-stack scheduling platform built for the Iowa Center to manage employee class assignments across multiple satellite locations. The "hub and spoke" model uses Des Moines as the central hub, with employees traveling to surrounding Iowa cities.
+A full-stack scheduling platform for managing employee class assignments across multiple satellite locations. The "hub and spoke" model uses Des Moines as the central hub, with employees traveling to surrounding Iowa cities.
 
 ## Features
 

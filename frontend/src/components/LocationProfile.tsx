@@ -74,7 +74,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
       size="sm"
       onClick={onBack}
       data-testid="location-profile-back-btn"
-      className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 -ml-2"
+      className="text-foreground/80 dark:text-muted-foreground hover:text-foreground -ml-2"
     >
       <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
       Back to Locations
@@ -106,12 +106,12 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           <Card className="p-6">
             <div className="flex items-center gap-5">
               <div className="w-16 h-16 rounded-2xl bg-spoke-soft flex items-center justify-center shrink-0">
-                <MapPin className="w-8 h-8 text-spoke" aria-hidden="true" />
+                <MapPin className="w-8 h-8 text-spoke-strong" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1 mt-1">
                   <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-sm text-slate-600 dark:text-gray-400">{location.drive_time_minutes} min from Hub</span>
+                  <span className="text-sm text-foreground/80 dark:text-muted-foreground">{location.drive_time_minutes} min from Hub</span>
                 </div>
               </div>
             </div>
@@ -120,31 +120,31 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           {/* Date filter */}
           <Card className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-slate-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-foreground/80 dark:text-muted-foreground">
                 <Filter className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Date Range</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="location-date-from" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">From</Label>
+                  <Label htmlFor="location-date-from" className="text-xs text-foreground/80 dark:text-muted-foreground whitespace-nowrap">From</Label>
                   <Input
                     id="location-date-from"
                     type="date"
                     data-testid="location-profile-date-from"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-40 h-8 text-sm bg-gray-50/50 dark:bg-gray-800/50"
+                    className="w-40 h-8 text-sm bg-muted/50 dark:bg-muted/50"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="location-date-to" className="text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap">To</Label>
+                  <Label htmlFor="location-date-to" className="text-xs text-foreground/80 dark:text-muted-foreground whitespace-nowrap">To</Label>
                   <Input
                     id="location-date-to"
                     type="date"
                     data-testid="location-profile-date-to"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-40 h-8 text-sm bg-gray-50/50 dark:bg-gray-800/50"
+                    className="w-40 h-8 text-sm bg-muted/50 dark:bg-muted/50"
                   />
                 </div>
                 {hasDateFilter && (
@@ -153,7 +153,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                     size="sm"
                     data-testid="location-profile-clear-dates"
                     onClick={() => { setDateFrom(''); setDateTo(''); }}
-                    className="text-xs text-muted-foreground hover:text-slate-600"
+                    className="text-xs text-muted-foreground hover:text-foreground/80"
                   >
                     Clear
                   </Button>
@@ -184,7 +184,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Employee breakdown */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-foreground mb-4 font-display">
                 Employees at this Location
               </h2>
               {data.employee_breakdown?.length > 0 ? (
@@ -206,7 +206,7 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
 
             {/* Class breakdown */}
             <Card className="p-6">
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
+              <h2 className="text-sm font-semibold text-foreground mb-4 font-display">
                 Classes Taught
               </h2>
               {data.class_breakdown?.length > 0 ? (
@@ -230,13 +230,13 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
 
           {/* Recent schedules */}
           <Card className="p-6">
-            <h2 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
+            <h2 className="text-sm font-semibold text-foreground mb-4 font-display">
               Recent Assignments
             </h2>
             <ScrollArea className="max-h-[300px]">
               <div className="space-y-3">
                 {(data.recent_schedules || []).map(s => (
-                  <div key={s.id} className="flex items-center gap-3 p-3 bg-gray-50/50 dark:bg-gray-800/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
+                  <div key={s.id} className="flex items-center gap-3 p-3 bg-muted/50 dark:bg-muted/50 rounded-lg" data-testid={`recent-schedule-${s.id}`}>
                     <div className="w-8 h-8 rounded-lg bg-hub-soft flex items-center justify-center shrink-0">
                       <Users className="w-4 h-4 text-hub" aria-hidden="true" />
                     </div>
@@ -244,12 +244,12 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                       {s.employees?.length > 0 ? (
                         s.employees.map((emp, i) => (
                           <span key={emp.id}>
-                            <EntityLink type="employee" id={emp.id} className="text-sm font-medium text-slate-700 dark:text-gray-200">{emp.name}</EntityLink>
+                            <EntityLink type="employee" id={emp.id} className="text-sm font-medium text-foreground">{emp.name}</EntityLink>
                             {i < s.employees.length - 1 && ', '}
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm font-medium text-slate-700 dark:text-gray-200">Unassigned</span>
+                        <span className="text-sm font-medium text-foreground">Unassigned</span>
                       )}
                       <p className="text-xs text-muted-foreground">{s.class_name} | {s.date} | {s.start_time}-{s.end_time}</p>
                     </div>

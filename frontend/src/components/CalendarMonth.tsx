@@ -16,15 +16,15 @@ const MonthCell = memo(function MonthCell({ day, dateStr, dayLabel, daySchedules
       data-testid={`month-cell-${dateStr}`}
       onClick={() => onDateClick(day)}
       className={cn(
-        "min-h-[72px] sm:min-h-[100px] p-2 cursor-pointer transition-colors hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 appearance-none border-0 bg-transparent text-left",
-        !inMonth && "bg-gray-50/50 dark:bg-gray-800/50"
+        "min-h-[72px] sm:min-h-[100px] p-2 cursor-pointer transition-colors hover:bg-hub-soft/30 dark:hover:bg-hub-soft/30 appearance-none border-0 bg-transparent text-left",
+        !inMonth && "bg-muted/50 dark:bg-muted/50"
       )}
     >
       <div className="flex items-center justify-between mb-1">
         <span className={cn(
           "text-sm font-medium",
-          today && "bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center",
-          !today && inMonth && "text-slate-700 dark:text-gray-200",
+          today && "bg-hub text-white w-7 h-7 rounded-full flex items-center justify-center",
+          !today && inMonth && "text-foreground",
           !today && !inMonth && "text-muted-foreground"
         )}>
           {dayLabel}
@@ -87,9 +87,9 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
   }, [schedules]);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-month">
+    <div className="bg-white dark:bg-card rounded-lg shadow-sm border border-border overflow-hidden" data-testid="calendar-month">
       {/* Day headers */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+      <div className="grid grid-cols-7 border-b border-border bg-muted/50 dark:bg-muted/50">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
           <div key={d} className="p-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {d}
@@ -98,9 +98,9 @@ export default function CalendarMonth({ currentDate, schedules, onDateClick }) {
       </div>
 
       {/* Calendar grid */}
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="divide-y divide-border">
         {weeks.map((week, wi) => (
-          <div key={format(week[0], 'yyyy-MM-dd')} className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-800">
+          <div key={format(week[0], 'yyyy-MM-dd')} className="grid grid-cols-7 divide-x divide-border">
             {week.map(day => {
               const dateStr = format(day, 'yyyy-MM-dd');
               return (

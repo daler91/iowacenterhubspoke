@@ -7,9 +7,9 @@ import { Link } from "react-router-dom";
  */
 export default function Privacy() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10 text-slate-800 dark:text-slate-100">
+    <main className="mx-auto max-w-3xl px-6 py-10 text-foreground">
       <nav className="mb-6 text-sm">
-        <Link to="/" className="text-indigo-600 hover:underline">
+        <Link to="/" className="text-hub hover:underline">
           &larr; Back to app
         </Link>
       </nav>

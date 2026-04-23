@@ -61,7 +61,7 @@ export function SearchableSelect({
           aria-controls={listboxId}
           aria-describedby={ariaDescribedBy}
           className={cn(
-            'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 dark:bg-gray-900 dark:border-gray-700 data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2',
+            'flex h-10 w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 dark:bg-card dark:border-border data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2',
             !selected && 'text-muted-foreground',
             className,
           )}

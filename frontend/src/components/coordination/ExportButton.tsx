@@ -42,16 +42,16 @@ export default function ExportButton({
             onClick={() => setOpen(false)}
             aria-label="Close export menu"
           />
-          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-card border rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
             <button
               onClick={() => handleExport('csv')}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 dark:hover:bg-muted"
             >
               Export CSV
             </button>
             <button
               onClick={() => handleExport('xlsx')}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 dark:hover:bg-muted"
             >
               Export Excel
             </button>

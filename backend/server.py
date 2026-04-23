@@ -399,9 +399,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Iowa Center Hub & Spoke API",
+    title="HubSpoke API",
     description=(
-        "Scheduling platform for the Iowa Center's hub-and-spoke model. "
+        "Scheduling platform for the HubSpoke hub-and-spoke model. "
         "Manages employee class assignments across satellite locations with "
         "drive time calculations, conflict detection, and analytics."
     ),

@@ -6,8 +6,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Logo } from '../components/ui/logo';
 import { toast } from 'sonner';
-import { MapPin } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -29,16 +29,14 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] dark:bg-gray-950 flex items-center justify-center p-4 sm:p-8" data-testid="forgot-password-page">
-      <Card className="w-full max-w-md border-0 shadow-lg bg-white dark:bg-gray-900">
+    <div className="min-h-screen min-h-[100dvh] bg-background flex items-center justify-center p-4 sm:p-8" data-testid="forgot-password-page">
+      <Card className="w-full max-w-md border-0 shadow-lg bg-card">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>HubSpoke</span>
+            <Logo aria-hidden="true" className="size-8 text-hub" />
+            <span className="font-bold text-lg font-display">HubSpoke</span>
           </div>
-          <CardTitle className="text-2xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <CardTitle className="text-2xl font-bold font-display">
             Forgot password
           </CardTitle>
           <CardDescription>
@@ -48,17 +46,17 @@ export default function ForgotPasswordPage() {
         <CardContent>
           {submitted ? (
             <div className="space-y-4">
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <p className="text-sm text-indigo-700 font-medium">
+              <div className="p-3 bg-hub-soft border border-hub-soft rounded-lg">
+                <p className="text-sm text-hub-strong font-medium">
                   Check your inbox
                 </p>
-                <p className="text-xs text-indigo-500 mt-1">
+                <p className="text-xs text-hub mt-1">
                   If an account exists for that email, a reset link has been sent. The link expires in 1 hour.
                 </p>
               </div>
               <Link
                 to="/login"
-                className="block text-center text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                className="block text-center text-sm text-hub hover:text-hub-strong font-medium"
               >
                 Back to sign in
               </Link>
@@ -75,21 +73,21 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
+                  className="h-11 bg-muted/50"
                 />
               </div>
               <Button
                 type="submit"
                 data-testid="forgot-submit-button"
                 disabled={loading}
-                className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+                className="w-full h-11 bg-hub hover:bg-hub-strong text-white font-medium rounded-lg"
               >
                 {loading ? 'Sending...' : 'Send reset link'}
               </Button>
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  className="text-sm text-hub hover:text-hub-strong font-medium"
                 >
                   Back to sign in
                 </Link>

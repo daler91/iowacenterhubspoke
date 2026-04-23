@@ -93,9 +93,9 @@ export default function InsightsPage() {
       subtitle="Reports, workload analysis, trends, and activity history."
     >
       <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="bg-slate-100/80 dark:bg-gray-800/50">
+        <TabsList className="bg-muted/80 dark:bg-muted/50">
           {TABS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger key={value} value={value} className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900">
+            <TabsTrigger key={value} value={value} className="data-[state=active]:bg-card dark:data-[state=active]:bg-card">
               <Icon className="w-4 h-4 mr-1.5" aria-hidden="true" /> {label}
             </TabsTrigger>
           ))}

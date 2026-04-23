@@ -163,10 +163,10 @@ export default function DashboardPage() {
   ]);
 
   return (
-    <div className="flex h-screen bg-[#F9FAFB] dark:bg-gray-950 overflow-hidden" data-testid="dashboard-page">
+    <div className="flex h-screen bg-background overflow-hidden" data-testid="dashboard-page">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:dark:bg-gray-900 focus:text-indigo-600 focus:px-4 focus:py-2 focus:rounded-md focus:shadow-lg focus:ring-2 focus:ring-indigo-500"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-card focus:text-hub focus:px-4 focus:py-2 focus:rounded-md focus:shadow-lg focus:ring-2 focus:ring-hub"
         data-testid="skip-to-content"
       >
         Skip to main content
@@ -195,18 +195,18 @@ export default function DashboardPage() {
       </div>
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar with hamburger + notifications */}
-        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0" data-testid="top-bar">
+        <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border bg-card shrink-0" data-testid="top-bar">
           <button
             type="button"
             aria-label={mobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileSidebarOpen}
             aria-controls="app-sidebar"
-            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             data-testid="mobile-menu-btn"
           >
-            <svg className="w-5 h-5 text-slate-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path className="text-slate-600 dark:text-muted-foreground" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg className="w-5 h-5 text-foreground/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path className="text-foreground/80" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <div className="ml-auto">

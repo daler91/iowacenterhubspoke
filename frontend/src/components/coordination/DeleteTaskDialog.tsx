@@ -19,7 +19,7 @@ export default function DeleteTaskDialog({ open, onOpenChange, onConfirm, taskTi
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-danger" />
+            <AlertTriangle className="w-5 h-5 text-danger-strong" />
             Delete Task
           </AlertDialogTitle>
           <AlertDialogDescription>

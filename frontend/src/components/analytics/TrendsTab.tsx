@@ -64,9 +64,9 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
   }, [trends]);
 
   const trendConfig: Record<string, { icon: typeof TrendingUp; bg: string; color: string; label: string }> = {
-    up: { icon: TrendingUp, bg: 'bg-spoke-soft', color: 'text-spoke', label: 'Growing' },
-    down: { icon: TrendingDown, bg: 'bg-danger-soft', color: 'text-danger', label: 'Declining' },
-    flat: { icon: TrendingUp, bg: 'bg-slate-50', color: 'text-slate-600', label: 'Stable' },
+    up: { icon: TrendingUp, bg: 'bg-spoke-soft', color: 'text-spoke-strong', label: 'Growing' },
+    down: { icon: TrendingDown, bg: 'bg-danger-soft', color: 'text-danger-strong', label: 'Declining' },
+    flat: { icon: TrendingUp, bg: 'bg-muted/50', color: 'text-foreground/80', label: 'Stable' },
   };
   const currentTrend = trendConfig[summary.trend] || trendConfig.flat;
 
@@ -94,20 +94,20 @@ export default function TrendsTab({ employees, locations, classes }: Readonly<Tr
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={BookOpen} iconBg="bg-indigo-50" iconColor="text-indigo-600"
+        <SummaryCard icon={BookOpen} iconBg="bg-hub-soft" iconColor="text-hub"
           label="Avg Classes / Period" value={summary.avgClasses} />
-        <SummaryCard icon={Clock} iconBg="bg-teal-50" iconColor="text-teal-600"
+        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke-strong"
           label="Total Class Hours" value={`${summary.totalHours}h`} />
         <SummaryCard icon={currentTrend.icon}
           iconBg={currentTrend.bg}
           iconColor={currentTrend.color}
           label="Trend" value={currentTrend.label} />
-        <SummaryCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600"
+        <SummaryCard icon={Zap} iconBg="bg-warn-soft" iconColor="text-warn-strong"
           label="Busiest Period" value={summary.busiest} />
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4">
+      <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
+        <h3 className="text-sm font-semibold text-foreground mb-4">
           Trends Over Time
         </h3>
         {isLoading && <LoadingChart />}

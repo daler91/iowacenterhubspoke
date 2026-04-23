@@ -34,15 +34,15 @@ export default function ConsentBanner() {
       // visible — a mid-task bulk action takes precedence over a
       // one-time consent prompt. On narrow phones push the banner up
       // so it clears the ~60px bulk bar even when both are stacked.
-      className="fixed bottom-20 md:bottom-4 inset-x-4 md:inset-x-auto md:right-6 md:max-w-md z-40 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 shadow-lg p-4"
+      className="fixed bottom-20 md:bottom-4 inset-x-4 md:inset-x-auto md:right-6 md:max-w-md z-40 rounded-lg border border-border bg-white dark:bg-card dark:border-border shadow-lg p-4"
     >
-      <p className="text-sm text-slate-700 dark:text-slate-200">
+      <p className="text-sm text-foreground">
         We use Sentry to detect errors and PostHog to understand product usage.
         Accept to enable analytics, or reject to load only error monitoring.
         See our{" "}
         <a
           href="/privacy"
-          className="underline text-indigo-600 dark:text-indigo-400"
+          className="underline text-hub-strong"
         >
           privacy policy
         </a>{" "}
@@ -52,14 +52,14 @@ export default function ConsentBanner() {
         <button
           type="button"
           onClick={reject}
-          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-slate-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+          className="px-3 py-1.5 text-sm rounded-md border border-border text-foreground hover:bg-muted/50 dark:hover:bg-muted"
         >
           Reject
         </button>
         <button
           type="button"
           onClick={accept}
-          className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+          className="px-3 py-1.5 text-sm rounded-md bg-hub text-white hover:bg-hub-strong"
         >
           Accept
         </button>

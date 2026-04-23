@@ -112,7 +112,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                   if (canEdit) return "cursor-grab";
                   return "cursor-default";
                 })(),
-                selected && "ring-2 ring-indigo-500 ring-offset-1"
+                selected && "ring-2 ring-hub ring-offset-1"
               )}
               style={{
                 top: `${classTop}px`,
@@ -134,7 +134,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                   "absolute top-1 left-1 w-4 h-4 rounded border-2 flex items-center justify-center z-10",
                   selected ? "bg-white border-white" : "border-white/70 bg-transparent"
                 )}>
-                  {selected && <Check className="w-3 h-3 text-indigo-600" />}
+                  {selected && <Check className="w-3 h-3 text-hub" />}
                 </div>
               )}
               {!selectionMode && (
@@ -152,7 +152,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
               </div>
               {schedule.town_to_town && !selectionMode && (
                 <div className="absolute top-1 right-1">
-                  <ArrowRightLeft className="w-3 h-3 text-teal-300" />
+                  <ArrowRightLeft className="w-3 h-3 text-spoke-strong-soft" />
                 </div>
               )}
             </button>
@@ -167,7 +167,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
                 Hub drive: {schedule.drive_time_minutes}m each way
               </p>
               {schedule.town_to_town && schedule.town_to_town_drive_minutes && (
-                <p className="text-xs text-teal-600">Town-to-town: ~{schedule.town_to_town_drive_minutes} min between locations</p>
+                <p className="text-xs text-spoke-strong">Town-to-town: ~{schedule.town_to_town_drive_minutes} min between locations</p>
               )}
             </div>
           </TooltipContent>
@@ -179,7 +179,7 @@ const DraggableBlock = memo(function DraggableBlock({ schedule, dateStr, canEdit
           <TooltipTrigger asChild>
             <div
               data-testid={`drive-after-${schedule.id}`}
-              className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+              className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke-strong !border-spoke-soft")}
               style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 20)}px`, ...overlapStyle }}
             >
               <div className="flex items-center gap-1">
@@ -207,15 +207,15 @@ function DroppableDay({ dateStr, children, dropIndicatorMinutes, isToday, curren
       ref={setNodeRef}
       aria-label={`Schedule drop zone for ${dateStr}`}
       className={cn(
-        "border-r border-gray-100 dark:border-gray-800 last:border-r-0 relative",
-        isOver && "bg-indigo-50/20 dark:bg-indigo-950/20",
-        isToday && "bg-indigo-50/10 dark:bg-indigo-950/10"
+        "border-r border-border last:border-r-0 relative",
+        isOver && "bg-hub-soft/20 dark:bg-hub-soft/20",
+        isToday && "bg-hub-soft/10 dark:bg-hub-soft/10"
       )}
     >
       {HOURS.map(hour => (
         <div
           key={hour}
-          className="h-[60px] border-b border-gray-50 dark:border-gray-800 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 transition-colors"
+          className="h-[60px] border-b border-border hover:bg-hub-soft/30 dark:hover:bg-hub-soft/30 transition-colors"
         />
       ))}
 
@@ -413,18 +413,18 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       <p id={DND_INSTRUCTIONS_ID} className="sr-only">
         Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
       </p>
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-week">
+      <div className="bg-white dark:bg-card rounded-lg shadow-sm border border-border overflow-hidden" data-testid="calendar-week">
         {/* Header row */}
-        <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-          <div className="p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider border-r border-gray-100 dark:border-gray-800">
+        <div className="grid grid-cols-8 border-b border-border bg-muted/50 dark:bg-muted/50">
+          <div className="p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider border-r border-border">
             Time
           </div>
           {days.map(day => (
-            <div key={day.toISOString()} className="p-3 text-center border-r border-gray-100 dark:border-gray-800 last:border-r-0">
+            <div key={day.toISOString()} className="p-3 text-center border-r border-border last:border-r-0">
               <p className="text-xs font-medium text-muted-foreground uppercase">{format(day, 'EEE')}</p>
               <p className={cn(
                 "text-lg font-bold mt-0.5 font-display",
-                isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-800 dark:text-gray-100"
+                isSameDay(day, new Date()) ? "text-hub" : "text-foreground"
               )}>
                 {format(day, 'd')}
               </p>
@@ -447,7 +447,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
         >
           <div className="grid grid-cols-8 relative">
             {/* Time labels column */}
-            <div className="border-r border-gray-100 dark:border-gray-800">
+            <div className="border-r border-border">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[60px] px-2 flex items-start justify-end pt-1">
                   <span className="text-[11px] text-muted-foreground font-medium">

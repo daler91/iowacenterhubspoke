@@ -34,7 +34,7 @@ function DroppableColumn({ phase, children }: Readonly<{ phase: string; children
         // Teal accent on hover — visually distinct from the indigo Schedule
         // Tracker kanban so the two boards don't blur together.
         'flex-1 min-w-[280px] rounded-lg p-3 transition-colors',
-        isOver ? 'bg-spoke-soft ring-2 ring-spoke/30' : 'bg-gray-50 dark:bg-gray-900/50',
+        isOver ? 'bg-spoke-soft ring-2 ring-spoke/30' : 'bg-muted/50 dark:bg-card/50',
       )}
     >
       {children}
@@ -93,11 +93,11 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-start justify-between mb-1.5">
-          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 flex-1">
+          <h4 className="text-sm font-semibold text-foreground line-clamp-2 flex-1">
             {project.title}
           </h4>
           {hasOverdue && (
-            <AlertTriangle className="w-4 h-4 text-warn shrink-0 ml-1" aria-label="Has overdue tasks" />
+            <AlertTriangle className="w-4 h-4 text-warn-strong shrink-0 ml-1" aria-label="Has overdue tasks" />
           )}
         </div>
         <p className="text-xs text-muted-foreground mb-1">
@@ -124,7 +124,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
               <span>{project.task_completed}/{project.task_total} tasks</span>
               <span>{progress}%</span>
             </div>
-            <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-spoke rounded-full transition-all"
                 style={{ width: `${progress}%` }}
@@ -250,7 +250,7 @@ export default function ProjectBoard() {
       subtitle="Manage partner coordination — track projects through planning, promotion, delivery, and follow-up"
       status={isLoading ? { kind: 'loading', variant: 'cards' } : { kind: 'ready' }}
       actions={
-        <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+        <Button onClick={() => setShowCreate(true)} className="bg-hub hover:bg-hub-strong text-white">
           <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> New Project
         </Button>
       }
@@ -321,7 +321,7 @@ export default function ProjectBoard() {
               <DroppableColumn key={phase} phase={phase}>
                 <div className="flex items-center gap-2 mb-3 px-1">
                   <div className={cn('w-2.5 h-2.5 rounded-full', PHASE_DOT_COLORS[phase])} />
-                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {PHASE_LABELS[phase]}
                   </h3>
                   <span className="text-xs text-muted-foreground ml-auto">
@@ -368,10 +368,10 @@ export default function ProjectBoard() {
         <div className="mt-6">
           <button
             onClick={() => setShowCompleted(!showCompleted)}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-muted-foreground hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+            className="flex items-center gap-2 text-sm font-semibold text-foreground/80 dark:text-muted-foreground hover:text-foreground transition-colors"
           >
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <CheckCircle2 className="w-4 h-4 text-spoke" />
+            <CheckCircle2 className="w-4 h-4 text-spoke-strong" />
             Completed ({board.columns.complete.length})
           </button>
           {showCompleted && (
@@ -382,7 +382,7 @@ export default function ProjectBoard() {
                   className="p-3 cursor-pointer hover:shadow-md transition-shadow border opacity-75 hover:opacity-100"
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
                 >
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 line-clamp-1">{project.title}</h4>
+                  <h4 className="text-sm font-semibold text-foreground line-clamp-1">{project.title}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
                     {new Date(project.event_date).toLocaleDateString()} &middot; {project.community}
                   </p>
@@ -391,7 +391,7 @@ export default function ProjectBoard() {
                       {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
                     </Badge>
                     {project.task_total ? (
-                      <span className="text-[10px] text-spoke">{project.task_completed}/{project.task_total} tasks</span>
+                      <span className="text-[10px] text-spoke-strong">{project.task_completed}/{project.task_total} tasks</span>
                     ) : null}
                   </div>
                 </Card>
@@ -415,26 +415,26 @@ export default function ProjectBoard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <AlertTriangle className="w-5 h-5 text-warn-strong" />
               Incomplete Tasks
             </DialogTitle>
           </DialogHeader>
           {phaseGateWarning && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600 dark:text-muted-foreground">
+              <p className="text-sm text-foreground/80 dark:text-muted-foreground">
                 <strong>{phaseGateWarning.completionPercentage}%</strong> of tasks in{' '}
                 <strong>{PHASE_LABELS[phaseGateWarning.currentPhase]}</strong> are complete.
                 The following tasks are still open:
               </p>
               <ul className="max-h-48 overflow-y-auto space-y-1 text-sm">
                 {phaseGateWarning.incompleteTasks.map(t => (
-                  <li key={t.id} className="flex items-center gap-2 text-slate-700 dark:text-muted-foreground">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                  <li key={t.id} className="flex items-center gap-2 text-foreground dark:text-muted-foreground">
+                    <span className="w-1.5 h-1.5 rounded-full bg-warn flex-shrink-0" />
                     {t.title}
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-foreground/80">
                 Advance to <strong>{PHASE_LABELS[phaseGateWarning.nextPhase]}</strong> anyway?
               </p>
             </div>

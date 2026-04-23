@@ -43,7 +43,7 @@ const ClassRow = memo(function ClassRow({
   return (
     <div
       data-testid={`class-card-${classItem.id}`}
-      className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
+      className="bg-white dark:bg-card rounded-lg border border-border p-4 flex items-start justify-between gap-4 hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-4 min-w-0">
         <div
@@ -52,10 +52,10 @@ const ClassRow = memo(function ClassRow({
           data-testid={`class-color-swatch-${classItem.id}`}
         />
         <div className="min-w-0">
-          <EntityLink type="class" id={classItem.id} className="font-semibold text-slate-800 dark:text-gray-100 truncate block" data-testid={`class-name-${classItem.id}`}>
+          <EntityLink type="class" id={classItem.id} className="font-semibold text-foreground truncate block" data-testid={`class-name-${classItem.id}`}>
             {classItem.name}
           </EntityLink>
-          <p className="text-xs text-slate-600 dark:text-gray-400 mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
+          <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-1 break-words" data-testid={`class-description-${classItem.id}`}>
             {classItem.description || 'No description added yet.'}
           </p>
         </div>
@@ -67,7 +67,7 @@ const ClassRow = memo(function ClassRow({
           size="sm"
           data-testid={`view-class-${classItem.id}`}
           onClick={() => onView(classItem.id)}
-          className="text-muted-foreground hover:text-teal-600"
+          className="text-muted-foreground hover:text-spoke-strong"
           aria-label={`View ${classItem.name}`}
         >
           <Eye className="w-4 h-4" aria-hidden="true" />
@@ -79,7 +79,7 @@ const ClassRow = memo(function ClassRow({
               size="sm"
               data-testid={`edit-class-${classItem.id}`}
               onClick={() => onEdit(classItem)}
-              className="text-muted-foreground hover:text-indigo-600"
+              className="text-muted-foreground hover:text-hub"
               aria-label={`Edit ${classItem.name}`}
             >
               <Pencil className="w-4 h-4" aria-hidden="true" />
@@ -89,7 +89,7 @@ const ClassRow = memo(function ClassRow({
               size="sm"
               data-testid={`delete-class-${classItem.id}`}
               onClick={() => onDelete(classItem)}
-              className="text-muted-foreground hover:text-danger"
+              className="text-muted-foreground hover:text-danger-strong"
               aria-label={`Delete ${classItem.name}`}
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
@@ -200,7 +200,7 @@ export default function ClassManager() {
             data-testid="add-class-button"
             onClick={openNew}
             disabled={!!loadingState?.classes}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+            className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Class
@@ -251,7 +251,7 @@ export default function ClassManager() {
       </AlertDialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[460px] bg-white dark:bg-gray-900" data-testid="class-form-dialog">
+        <DialogContent className="sm:max-w-[460px] bg-white dark:bg-card" data-testid="class-form-dialog">
           <DialogHeader>
             <DialogTitle>
               {editing ? 'Edit Class' : 'Add Class'}
@@ -270,7 +270,7 @@ export default function ClassManager() {
                 placeholder="Financial Literacy"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="bg-gray-50/50"
+                className="bg-muted/50"
                 required
               />
             </div>
@@ -283,7 +283,7 @@ export default function ClassManager() {
                 placeholder="Optional notes about the class type"
                 value={form.description}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="min-h-[100px] bg-gray-50/50 resize-none"
+                className="min-h-[100px] bg-muted/50 resize-none"
               />
             </div>
 
@@ -314,14 +314,14 @@ export default function ClassManager() {
                     className={cn(
                       'h-8 w-8 rounded-full transition-transform',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-                      form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105',
+                      form.color === color ? 'ring-2 ring-offset-2 ring-foreground scale-110' : 'hover:scale-105',
                     )}
                     style={{ backgroundColor: color }}
                     aria-label={`Use ${color} for class`}
                   />
                 ))}
-                <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-slate-300 hover:border-slate-400 cursor-pointer transition-colors flex items-center justify-center group">
-                  <Plus className="w-3 h-3 text-muted-foreground group-hover:text-slate-600" aria-hidden="true" />
+                <label className="relative h-8 w-8 rounded-full border-2 border-dashed border-border hover:border-border cursor-pointer transition-colors flex items-center justify-center group">
+                  <Plus className="w-3 h-3 text-muted-foreground group-hover:text-foreground/80" aria-hidden="true" />
                   <input
                     type="color"
                     value={form.color}
@@ -332,7 +332,7 @@ export default function ClassManager() {
                 </label>
                 {!CLASS_COLORS.includes(form.color) && (
                   <div
-                    className="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-slate-900 scale-110"
+                    className="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-foreground scale-110"
                     style={{ backgroundColor: form.color }}
                     aria-hidden="true"
                   />
@@ -345,7 +345,7 @@ export default function ClassManager() {
                 type="submit"
                 data-testid="class-save-button"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="w-full bg-hub hover:bg-hub-strong text-white"
               >
                 {saveButtonLabel}
               </Button>

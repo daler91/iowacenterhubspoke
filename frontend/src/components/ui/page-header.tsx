@@ -37,11 +37,11 @@ export function PageHeader({
       )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground dark:text-white">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">
               {subtitle}
             </p>
           )}

@@ -36,7 +36,7 @@ export const PHASE_COLORS: Record<string, string> = {
   promotion: 'bg-warn',
   delivery: 'bg-spoke',
   follow_up: 'bg-ownership-partner',
-  complete: 'bg-slate-400',
+  complete: 'bg-muted-foreground',
 };
 
 export const PHASE_DOT_COLORS: Record<string, string> = {
@@ -44,7 +44,7 @@ export const PHASE_DOT_COLORS: Record<string, string> = {
   promotion: 'bg-warn',
   delivery: 'bg-spoke',
   follow_up: 'bg-ownership-partner',
-  complete: 'bg-slate-300',
+  complete: 'bg-muted-foreground',
 };
 
 export const EVENT_FORMAT_LABELS: Record<string, string> = {
@@ -55,9 +55,9 @@ export const EVENT_FORMAT_LABELS: Record<string, string> = {
 };
 
 export const OWNER_COLORS: Record<string, string> = {
-  internal: 'bg-ownership-internal-soft text-ownership-internal',
-  partner: 'bg-ownership-partner-soft text-ownership-partner',
-  both: 'bg-warn-soft text-warn',
+  internal: 'bg-ownership-internal-soft text-ownership-internal-strong',
+  partner: 'bg-ownership-partner-soft text-ownership-partner-strong',
+  both: 'bg-warn-soft text-warn-strong',
 };
 
 export const OWNER_LABELS: Record<string, string> = {
@@ -67,10 +67,10 @@ export const OWNER_LABELS: Record<string, string> = {
 };
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
-  prospect: 'bg-slate-100 text-slate-600',
-  onboarding: 'bg-warn-soft text-warn',
-  active: 'bg-spoke-soft text-spoke',
-  inactive: 'bg-danger-soft text-danger',
+  prospect: 'bg-muted text-foreground/80',
+  onboarding: 'bg-warn-soft text-warn-strong',
+  active: 'bg-spoke-soft text-spoke-strong',
+  inactive: 'bg-danger-soft text-danger-strong',
 };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
@@ -81,14 +81,14 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
-  to_do: 'bg-slate-400',
+  to_do: 'bg-muted-foreground',
   in_progress: 'bg-info',
   completed: 'bg-spoke',
   on_hold: 'bg-warn',
 };
 
 export const TASK_STATUS_RING_COLORS: Record<string, string> = {
-  to_do: 'ring-slate-400',
+  to_do: 'ring-muted-foreground',
   in_progress: 'ring-info',
   completed: 'ring-spoke',
   on_hold: 'ring-warn',

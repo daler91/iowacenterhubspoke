@@ -21,23 +21,23 @@ export default function AdvancedAnalytics(props: Readonly<AdvancedAnalyticsProps
   return (
     <div className="space-y-6 animate-slide-in" data-testid="advanced-analytics">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100">
+        <h2 className="text-2xl font-bold text-foreground">
           Advanced Analytics
         </h2>
-        <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">
+        <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">
           Historical trends, utilization forecasting, and drive time optimization.
         </p>
       </div>
 
       <Tabs defaultValue="trends" className="w-full">
-        <TabsList className="bg-slate-100/80 dark:bg-gray-800/50">
-          <TabsTrigger value="trends" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900">
+        <TabsList className="bg-muted/80 dark:bg-muted/50">
+          <TabsTrigger value="trends" className="data-[state=active]:bg-card dark:data-[state=active]:bg-card">
             <TrendingUp className="w-4 h-4 mr-1.5" /> Trends
           </TabsTrigger>
-          <TabsTrigger value="forecast" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900">
+          <TabsTrigger value="forecast" className="data-[state=active]:bg-card dark:data-[state=active]:bg-card">
             <Zap className="w-4 h-4 mr-1.5" /> Forecast
           </TabsTrigger>
-          <TabsTrigger value="drive" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900">
+          <TabsTrigger value="drive" className="data-[state=active]:bg-card dark:data-[state=active]:bg-card">
             <Car className="w-4 h-4 mr-1.5" /> Drive Optimization
           </TabsTrigger>
         </TabsList>

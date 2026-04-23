@@ -257,49 +257,49 @@ export default function CalendarView() {
           subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
         />
         {(schedules || []).length === 0 && (
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
-            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
-            <p className="text-sm text-slate-600 dark:text-gray-400">Before you can schedule classes, make sure you have the basics set up:</p>
+          <div className="bg-white dark:bg-card border border-border rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
+            <h3 className="text-lg font-semibold text-foreground">Get started with scheduling</h3>
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">Before you can schedule classes, make sure you have the basics set up:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Link to="/locations" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (locations || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
-                  <p className="text-xs text-slate-600 dark:text-gray-400">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
+                  <p className="text-sm font-medium text-foreground">Locations</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
                 </div>
               </Link>
               <Link to="/employees" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (employees || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
-                  <p className="text-xs text-slate-600 dark:text-gray-400">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
+                  <p className="text-sm font-medium text-foreground">Employees</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
                 </div>
               </Link>
               <Link to="/classes" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (classes || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
-                  <p className="text-xs text-slate-600 dark:text-gray-400">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
+                  <p className="text-sm font-medium text-foreground">Classes</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
                 </div>
               </Link>
             </div>
             {(locations || []).length > 0 && (employees || []).length > 0 && (classes || []).length > 0 && (
-              <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+              <p className="text-sm text-hub-strong font-medium">
                 All set! Click "New Schedule" in the sidebar to create your first class assignment.
               </p>
             )}
@@ -313,9 +313,9 @@ export default function CalendarView() {
         {(schedules || []).length > 0 && filteredSchedules.length === 0 && (
           <output
             data-testid="calendar-filtered-empty"
-            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex items-center justify-between gap-4 w-full"
+            className="bg-white dark:bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-4 w-full"
           >
-            <p className="text-sm text-slate-600 dark:text-gray-300">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">
               No schedules match the current filters.
             </p>
             {(filterEmployee !== 'all' || filterLocation !== 'all' || filterClass !== 'all') && (
@@ -332,7 +332,7 @@ export default function CalendarView() {
                     return next;
                   });
                 }}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                className="text-sm font-medium text-hub hover:text-hub-strong"
                 data-testid="calendar-clear-filters"
               >
                 Clear filters
@@ -374,8 +374,8 @@ export default function CalendarView() {
 
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger hover:underline">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger-strong hover:underline">Retry</button>
         </div>
       )}
 
@@ -429,16 +429,16 @@ export default function CalendarView() {
 
       <div className="flex items-center gap-4 px-2">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-indigo-600" />
-          <span className="text-xs text-slate-600 dark:text-gray-400">Class Time</span>
+          <div className="w-4 h-4 rounded bg-hub" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Class Time</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-gray-200 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600" />
-          <span className="text-xs text-slate-600 dark:text-gray-400">Drive Time</span>
+          <div className="w-4 h-4 rounded bg-muted border border-dashed border-border" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Drive Time</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300" />
-          <span className="text-xs text-slate-600 dark:text-gray-400">Town-to-Town Warning</span>
+          <div className="w-4 h-4 rounded bg-warn-soft border border-warn-soft" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Town-to-Town Warning</span>
         </div>
       </div>
 

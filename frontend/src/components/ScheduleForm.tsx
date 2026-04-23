@@ -47,8 +47,8 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 
 function stepStyle(i: number, current: number): string {
   if (i === current) return 'bg-hub-soft text-hub-strong';
-  if (i < current) return 'bg-spoke-soft text-spoke';
-  return 'bg-gray-100 dark:bg-gray-800 text-muted-foreground';
+  if (i < current) return 'bg-spoke-soft text-spoke-strong';
+  return 'bg-muted text-muted-foreground';
 }
 
 function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: number) => void }>) {
@@ -127,7 +127,7 @@ function WizardNextButton({ step, form, onNext }: Readonly<{
         onClick={onNext}
         disabled={disabled}
         aria-describedby={disabled ? WIZARD_NEXT_HINT_ID : undefined}
-        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+        className="bg-hub hover:bg-hub-strong text-white"
       >
         Next <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
       </Button>
@@ -235,7 +235,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[520px] bg-white dark:bg-gray-900 overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
+      <DialogContent className="sm:max-w-[520px] bg-white dark:bg-card overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}
@@ -249,7 +249,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           {isWizard && <WizardSteps step={step} onStep={setStep} />}
 
           {editSchedule && hasSeries && (
-            <fieldset className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+            <fieldset className="flex items-center gap-4 p-3 bg-muted/50 dark:bg-card rounded-lg border">
               <legend className="sr-only">Series edit scope</legend>
               <Repeat className="w-4 h-4 text-hub shrink-0" aria-hidden="true" />
               <div className="flex gap-4 text-sm">
@@ -334,7 +334,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 data-testid="schedule-delete-btn"
                 onClick={() => hasSeries && seriesAction === 'future' ? setShowSeriesDeleteConfirm(true) : handleDelete()}
                 disabled={loading}
-                className="text-danger border-danger/30 hover:bg-danger-soft"
+                className="text-danger-strong border-danger/30 hover:bg-danger-soft"
               >
                 <Trash2 className="w-4 h-4 mr-1" aria-hidden="true" />
                 {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}
@@ -352,7 +352,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 disabled={loading}
                 className={cn(
                   'text-white flex-1',
-                  outlookOverride || googleOverride ? 'bg-warn hover:bg-warn/90' : 'bg-indigo-600 hover:bg-indigo-700',
+                  outlookOverride || googleOverride ? 'bg-warn hover:bg-warn/90' : 'bg-hub hover:bg-hub-strong',
                 )}
               >
                 {submitLabel}
@@ -387,7 +387,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           <DialogHeader>
             <DialogTitle>Delete All Future Schedules?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600 dark:text-muted-foreground">
+          <p className="text-sm text-foreground/80 dark:text-muted-foreground">
             This will delete all future schedules in this recurring series. Past schedules will be preserved.
           </p>
           <DialogFooter className="gap-2">
@@ -435,7 +435,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
             <AlertDialogCancel data-testid="schedule-keep-editing">Keep editing</AlertDialogCancel>
             <AlertDialogAction
               data-testid="schedule-discard-confirm"
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-danger hover:bg-danger"
               onClick={(e) => {
                 e.preventDefault();
                 setDiscardConfirmOpen(false);

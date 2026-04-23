@@ -97,7 +97,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
             if (canEdit) return "cursor-grab";
             return "cursor-default";
           })(),
-          selected && "ring-2 ring-indigo-500 ring-offset-1"
+          selected && "ring-2 ring-hub ring-offset-1"
         )}
         style={{
           top: `${classTop}px`,
@@ -120,7 +120,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
             "absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center z-10",
             selected ? "bg-white border-white" : "border-white/70 bg-transparent"
           )}>
-            {selected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+            {selected && <Check className="w-3.5 h-3.5 text-hub" />}
           </div>
         )}
         {!selectionMode && canEdit && (
@@ -135,7 +135,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
           <p className="text-xs opacity-70">{schedule.start_time} - {schedule.end_time}</p>
         </div>
         {schedule.town_to_town && !selectionMode && (
-          <div className="absolute top-2 right-2 bg-teal-500 rounded-full p-1">
+          <div className="absolute top-2 right-2 bg-spoke rounded-full p-1">
             <ArrowRightLeft className="w-3 h-3 text-white" />
           </div>
         )}
@@ -144,7 +144,7 @@ const DraggableDayBlock = memo(function DraggableDayBlock({ schedule, canEdit, s
       {/* Drive after (hub return for last, city-to-city for others in chain) */}
       {driveAfterMin > 0 && (
         <div
-          className={cn("schedule-block drive-block", isTTAfter && "!bg-teal-100 !text-teal-700 !border-teal-200")}
+          className={cn("schedule-block drive-block", isTTAfter && "!bg-spoke-soft !text-spoke-strong !border-spoke-soft")}
           style={{ top: `${driveAfterTop}px`, height: `${Math.max(driveAfterHeight, 24)}px`, right: hasOverlap ? 'auto' : '16px', ...overlapStyle }}
         >
           <div className="flex items-center gap-2">
@@ -167,7 +167,7 @@ function DroppableDayArea({ dateStr, children, dropIndicatorMinutes }) {
   return (
     <div ref={setNodeRef} className="relative">
       {HOURS.map(hour => (
-        <div key={hour} className={cn("h-[80px] border-b border-gray-50 dark:border-gray-800 transition-colors", isOver && "bg-indigo-50/20 dark:bg-indigo-950/20")} />
+        <div key={hour} className={cn("h-[80px] border-b border-border transition-colors", isOver && "bg-hub-soft/20 dark:bg-hub-soft/20")} />
       ))}
 
       {/* Drop indicator */}
@@ -293,15 +293,15 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
       <p id={DND_INSTRUCTIONS_ID} className="sr-only">
         Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.
       </p>
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="calendar-day">
+      <div className="bg-white dark:bg-card rounded-lg shadow-sm border border-border overflow-hidden" data-testid="calendar-day">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+        <div className="p-4 border-b border-border bg-muted/50 dark:bg-muted/50">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{format(currentDate, 'EEEE')}</p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
+          <p className="text-2xl font-bold text-foreground font-display">
             {format(currentDate, 'MMMM d, yyyy')}
           </p>
           {daySchedules.length > 0 && (
-            <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">{daySchedules.length} class{daySchedules.length === 1 ? '' : 'es'} scheduled</p>
           )}
         </div>
 
@@ -309,7 +309,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <div className="grid grid-cols-[80px_1fr] relative">
             {/* Time labels */}
-            <div className="border-r border-gray-100 dark:border-gray-800">
+            <div className="border-r border-border">
               {HOURS.map(hour => (
                 <div key={hour} className="h-[80px] px-3 flex items-start justify-end pt-1">
                   <span className="text-xs text-muted-foreground font-medium">

@@ -9,7 +9,7 @@
 export function RequiredMark() {
   return (
     <>
-      <span className="text-danger" aria-hidden="true">*</span>
+      <span className="text-danger-strong" aria-hidden="true">*</span>
       <span className="sr-only">(required)</span>
     </>
   );

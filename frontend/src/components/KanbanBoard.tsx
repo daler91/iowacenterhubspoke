@@ -104,11 +104,11 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             }}
             onKeyDown={handleKeyDown}
             className={cn(
-              "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+              "bg-white dark:bg-card rounded-lg border border-border border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
               selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
               isDragging && "opacity-50 scale-95",
-              selected && "ring-2 ring-indigo-500 ring-offset-1"
+              selected && "ring-2 ring-hub ring-offset-1"
             )}
             style={{ borderLeftColor: classColor, ...transformStyle }}
           >
@@ -117,12 +117,12 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
                 {selectionMode ? (
                   <div className={cn(
                     "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                    selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
+                    selected ? "bg-hub border-hub" : "border-border bg-transparent"
                   )}>
                     {selected && <Check className="w-3 h-3 text-white" />}
                   </div>
                 ) : (
-                  <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 )}
                 <span
                   className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
@@ -133,16 +133,16 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
                 </span>
               </div>
               {schedule.town_to_town && (
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <AlertTriangle className="w-4 h-4 text-warn-strong" />
               )}
             </div>
 
         <div className="pl-[26px] space-y-2">
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <MapPin className="w-3 h-3" />
             <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <User className="w-3 h-3" />
             {schedule.employees?.length > 0 ? (
               schedule.employees.map((emp, i) => (
@@ -155,7 +155,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
               <span>Unassigned</span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
           </div>
@@ -164,7 +164,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <span>{schedule.drive_time_minutes}m drive each way</span>
           </div>
           {schedule.linked_project && (
-            <div className="flex items-center gap-1.5 text-xs text-indigo-600">
+            <div className="flex items-center gap-1.5 text-xs text-hub">
               <Handshake className="w-3 h-3" />
               <span className="truncate font-medium">{schedule.linked_project.title}</span>
               <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-auto shrink-0">
@@ -186,7 +186,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
           size="sm"
           variant="ghost"
           onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
-          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-600 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
+          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-foreground/80 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground bg-white/80 dark:bg-card/80 backdrop-blur-sm"
           data-testid={`kanban-advance-${schedule.id}`}
         >
           <ChevronRight className="w-3 h-3 mr-0.5" />
@@ -336,7 +336,7 @@ export default function KanbanBoard() {
           size="sm"
           data-testid="kanban-select-mode"
           onClick={toggleSelectionMode}
-          className={selectionMode ? '' : 'border-gray-200 dark:border-gray-700'}
+          className={selectionMode ? '' : 'border-border'}
         >
           <ListChecks className="w-4 h-4 mr-1" aria-hidden="true" />
           Bulk Select
@@ -345,18 +345,18 @@ export default function KanbanBoard() {
     >
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger hover:underline underline-offset-2">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger-strong hover:underline underline-offset-2">Retry</button>
         </div>
       )}
 
       {(schedules || []).length === 0 && !loadingState?.schedules && !fetchErrors?.schedules && (
         <div
           data-testid="kanban-onboarding"
-          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center"
+          className="bg-white dark:bg-card rounded-lg border border-border p-8 text-center"
         >
-          <CalendarDays className="w-12 h-12 mx-auto text-indigo-400 dark:text-indigo-500 mb-3" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-slate-800 dark:text-gray-100 mb-1">No schedules yet</h3>
+          <CalendarDays className="w-12 h-12 mx-auto text-hub-strong dark:text-hub mb-3" aria-hidden="true" />
+          <h3 className="text-base font-semibold text-foreground mb-1">No schedules yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Kanban cards will appear here once you start scheduling classes.
           </p>
@@ -365,7 +365,7 @@ export default function KanbanBoard() {
               type="button"
               onClick={() => onNewSchedule()}
               data-testid="kanban-onboarding-new"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="bg-hub hover:bg-hub-strong text-white"
             >
               Create your first schedule
             </Button>
@@ -386,10 +386,10 @@ export default function KanbanBoard() {
               <section
                 aria-label={`${col.label} column`}
                 data-testid={`kanban-column-${col.id}`}
-                className="bg-gray-50/80 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[400px]"
+                className="bg-muted/50/80 dark:bg-muted/80 rounded-lg border border-border min-h-[400px]"
               >
                 {/* Column header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div className="p-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {selectionMode && items.length > 0 && (
                       <Checkbox
@@ -400,7 +400,7 @@ export default function KanbanBoard() {
                       />
                     )}
                     <div className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
-                    <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{col.label}</h3>
+                    <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
                   </div>
                   <Badge className={cn("border-0 text-[10px] px-2", col.lightColor, col.textColor)}>
                     {items.length}

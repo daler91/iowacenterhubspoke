@@ -29,11 +29,11 @@ interface Funnel {
 }
 
 const STATUSES = [
-  { value: 'attended', label: 'Attended', color: 'bg-info-soft text-info' },
-  { value: 'contacted', label: 'Contacted', color: 'bg-warn-soft text-warn' },
-  { value: 'consultation', label: 'Consultation', color: 'bg-ownership-partner-soft text-ownership-partner' },
-  { value: 'converted', label: 'Converted', color: 'bg-spoke-soft text-spoke' },
-  { value: 'lost', label: 'Lost', color: 'bg-danger-soft text-danger' },
+  { value: 'attended', label: 'Attended', color: 'bg-info-soft text-info-strong' },
+  { value: 'contacted', label: 'Contacted', color: 'bg-warn-soft text-warn-strong' },
+  { value: 'consultation', label: 'Consultation', color: 'bg-ownership-partner-soft text-ownership-partner-strong' },
+  { value: 'converted', label: 'Converted', color: 'bg-spoke-soft text-spoke-strong' },
+  { value: 'lost', label: 'Lost', color: 'bg-danger-soft text-danger-strong' },
 ];
 
 interface Props {
@@ -179,7 +179,7 @@ export default function OutcomeTracker({ projectId }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+        <h3 className="font-semibold text-foreground flex items-center gap-2">
           <Users className="w-4 h-4" /> Outcomes
         </h3>
         <div className="flex items-center gap-2">
@@ -194,21 +194,21 @@ export default function OutcomeTracker({ projectId }: Props) {
 
       {/* Quick Add Row */}
       {showQuickAdd && (
-        <Card className="p-3 mb-4 border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/20">
+        <Card className="p-3 mb-4 border-hub-soft dark:border-hub-soft bg-hub-soft/30 dark:bg-hub-soft/20">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label htmlFor="quick-add-name" className="text-[10px] text-slate-600 uppercase tracking-wide">Name *</label>
+              <label htmlFor="quick-add-name" className="text-[10px] text-foreground/80 uppercase tracking-wide">Name *</label>
               <Input id="quick-add-name" value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="Attendee name" className="h-8 text-sm" />
             </div>
             <div className="flex-1">
-              <label htmlFor="quick-add-email" className="text-[10px] text-slate-600 uppercase tracking-wide">Email</label>
+              <label htmlFor="quick-add-email" className="text-[10px] text-foreground/80 uppercase tracking-wide">Email</label>
               <Input id="quick-add-email" value={quickEmail} onChange={e => setQuickEmail(e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
             </div>
             <div className="w-32">
-              <label htmlFor="quick-add-phone" className="text-[10px] text-slate-600 uppercase tracking-wide">Phone</label>
+              <label htmlFor="quick-add-phone" className="text-[10px] text-foreground/80 uppercase tracking-wide">Phone</label>
               <Input id="quick-add-phone" value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="515-555-0100" className="h-8 text-sm" />
             </div>
-            <Button size="sm" onClick={handleQuickAdd} disabled={quickAdding || !quickName.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white h-8">
+            <Button size="sm" onClick={handleQuickAdd} disabled={quickAdding || !quickName.trim()} className="bg-hub hover:bg-hub-strong text-white h-8">
               Add
             </Button>
           </div>
@@ -234,7 +234,7 @@ export default function OutcomeTracker({ projectId }: Props) {
               );
             })}
           </div>
-          <div className="flex justify-between mt-2 text-xs text-slate-600">
+          <div className="flex justify-between mt-2 text-xs text-foreground/80">
             <span>{funnel.total} total</span>
             <span>{funnel.conversion_rate}% conversion</span>
           </div>
@@ -269,7 +269,7 @@ export default function OutcomeTracker({ projectId }: Props) {
               <select
                 value={o.status}
                 onChange={e => handleStatusChange(o.id, e.target.value)}
-                className={cn('text-xs border rounded px-2 py-1', statusDef?.color || 'bg-white dark:bg-gray-900')}
+                className={cn('text-xs border rounded px-2 py-1', statusDef?.color || 'bg-white dark:bg-card')}
               >
                 {STATUSES.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -294,10 +294,10 @@ export default function OutcomeTracker({ projectId }: Props) {
           </DialogHeader>
           {showPreview ? (
             <>
-              <p className="text-sm text-slate-600 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
+              <p className="text-sm text-foreground/80 mb-2">{parsedAttendees.length} attendee(s) parsed:</p>
               <div className="max-h-60 overflow-y-auto border rounded-lg">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                  <thead className="bg-muted/50 dark:bg-muted sticky top-0">
                     <tr>
                       <th className="text-left px-3 py-1.5 font-medium">Name</th>
                       <th className="text-left px-3 py-1.5 font-medium">Email</th>
@@ -308,8 +308,8 @@ export default function OutcomeTracker({ projectId }: Props) {
                     {parsedAttendees.map((a) => (
                       <tr key={a.attendee_name + (a.attendee_email || '')} className="border-t">
                         <td className="px-3 py-1.5">{a.attendee_name}</td>
-                        <td className="px-3 py-1.5 text-slate-600">{a.attendee_email || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-600">{a.attendee_phone || '-'}</td>
+                        <td className="px-3 py-1.5 text-foreground/80">{a.attendee_email || '-'}</td>
+                        <td className="px-3 py-1.5 text-foreground/80">{a.attendee_phone || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -317,26 +317,26 @@ export default function OutcomeTracker({ projectId }: Props) {
               </div>
               <div className="flex justify-end gap-2 mt-2">
                 <Button variant="outline" onClick={() => setShowPreview(false)}>Back</Button>
-                <Button onClick={handleBulkAdd} disabled={adding} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button onClick={handleBulkAdd} disabled={adding} className="bg-hub hover:bg-hub-strong text-white">
                   {adding ? 'Adding...' : `Add ${parsedAttendees.length} Attendees`}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <p className="text-sm text-slate-600 mb-2">
+              <p className="text-sm text-foreground/80 mb-2">
                 Enter one attendee per line (Name, Email, Phone):
               </p>
               <textarea
                 value={bulkText}
                 onChange={e => setBulkText(e.target.value)}
                 rows={8}
-                className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
+                className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-card dark:border-border"
                 placeholder="John Smith, john@example.com, 515-555-0100&#10;Jane Doe, jane@example.com&#10;Bob Jones"
               />
               <div className="flex justify-end gap-2 mt-2">
                 <Button variant="outline" onClick={() => setShowBulkAdd(false)}>Cancel</Button>
-                <Button onClick={handleParsePreview} disabled={!bulkText.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button onClick={handleParsePreview} disabled={!bulkText.trim()} className="bg-hub hover:bg-hub-strong text-white">
                   Preview
                 </Button>
               </div>
@@ -352,7 +352,7 @@ export default function OutcomeTracker({ projectId }: Props) {
             <DialogTitle>Confirm Status Change</DialogTitle>
           </DialogHeader>
           {transitionWarning && (
-            <p className="text-sm text-slate-600 dark:text-muted-foreground">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">
               Move <strong>{transitionWarning.attendeeName}</strong> from{' '}
               <strong>{transitionWarning.currentStatus}</strong> back to{' '}
               <strong>{transitionWarning.requestedStatus}</strong>?
@@ -360,7 +360,7 @@ export default function OutcomeTracker({ projectId }: Props) {
           )}
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => setTransitionWarning(null)}>Cancel</Button>
-            <Button onClick={handleForceTransition} className="bg-amber-600 hover:bg-amber-700 text-white">
+            <Button onClick={handleForceTransition} className="bg-warn hover:bg-warn text-white">
               Confirm
             </Button>
           </div>
