@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useDashboardData, type ScheduleWindow } from '../hooks/useDashboardData';
 import { useScheduleModal } from '../hooks/useScheduleModal';
 import { useStatModal } from '../hooks/useStatModal';
+import { useHotkey } from '../hooks/useHotkey';
 import { cn } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -38,11 +39,13 @@ function defaultCalendarWindow(): ScheduleWindow {
 const ScheduleForm = lazy(() => import('../components/ScheduleForm'));
 const StatModal = lazy(() => import('../components/StatModal'));
 const NotificationsPanel = lazy(() => import('../components/NotificationsPanel'));
+const ShortcutCheatsheet = lazy(() => import('../components/ShortcutCheatsheet'));
 
 export default function DashboardPage() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const {
     scheduleFormOpen,
@@ -51,6 +54,12 @@ export default function DashboardPage() {
     handleNewSchedule,
     handleEditSchedule
   } = useScheduleModal();
+
+  // Global keyboard shortcuts. `useHotkey` itself ignores events
+  // originating from text inputs / contentEditable, so typing "n" in
+  // a form field won't fire the New Schedule handler.
+  useHotkey('n', handleNewSchedule);
+  useHotkey('?', () => setShortcutsOpen(true));
 
   // Gate the heavier fetches by route + active Insights tab so Calendar /
   // Kanban / Map don't pay for data only /insights consumes, and so the
@@ -259,6 +268,17 @@ export default function DashboardPage() {
               classes={classes}
               employees={employees}
               locations={locations}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {shortcutsOpen && (
+        <ErrorBoundary fallback={shellFallback}>
+          <Suspense fallback={null}>
+            <ShortcutCheatsheet
+              open={shortcutsOpen}
+              onOpenChange={setShortcutsOpen}
             />
           </Suspense>
         </ErrorBoundary>
