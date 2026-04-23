@@ -1,14 +1,15 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { AxeResults } from 'axe-core';
+import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 
 /**
  * Axe scans for interactive surfaces that the initial-render
  * `a11y.spec.ts` can't reach: modal dialogs, dropdowns, and other UI
- * that only mounts after user interaction. Keeps the same
- * critical+serious failure gate as the base spec. Moderate+minor
- * violations are summarised in the console but not fail the build —
- * they'll show up in the Playwright HTML report for triage.
+ * that only mounts after user interaction. Same `critical` +
+ * `serious` failure gate as the base spec. Lower-severity violations
+ * surface in the Playwright HTML report for triage without blocking
+ * the build.
  */
 
 const BLOCKING_IMPACTS: ReadonlyArray<'critical' | 'serious'> = ['critical', 'serious'];
@@ -19,64 +20,52 @@ function summariseViolations(results: AxeResults): string {
     .join('\n');
 }
 
-function blocking(results: AxeResults): AxeResults['violations'] {
+function blockingViolations(results: AxeResults): AxeResults['violations'] {
   return results.violations.filter(v => BLOCKING_IMPACTS.includes(v.impact as 'critical' | 'serious'));
 }
 
-test('a11y: ScheduleForm wizard has no critical or serious violations', async ({ page }) => {
-  await page.goto('/calendar');
-  await page.waitForLoadState('networkidle');
+interface InteractiveSurface {
+  readonly name: string;
+  readonly testId: string;
+  readonly open: (page: Page) => Promise<void>;
+}
 
-  // The wizard opens via the `N` hotkey (see DashboardPage / useHotkey).
-  // That's the most surface-agnostic path — no sidebar DOM lookup needed.
-  await page.keyboard.press('n');
-  await page.getByTestId('schedule-form-dialog').waitFor({ state: 'visible' });
+const SURFACES: ReadonlyArray<InteractiveSurface> = [
+  {
+    name: 'ScheduleForm wizard',
+    testId: 'schedule-form-dialog',
+    // Triggered via the global `N` hotkey (wired in Phase 7). Using the
+    // hotkey keeps the test independent of sidebar DOM structure.
+    open: async (page) => { await page.keyboard.press('n'); },
+  },
+  {
+    name: 'NotificationsPanel dropdown',
+    testId: 'notifications-dropdown',
+    open: async (page) => { await page.getByTestId('notifications-bell').click(); },
+  },
+  {
+    name: 'ShortcutCheatsheet modal',
+    testId: 'shortcut-cheatsheet',
+    open: async (page) => { await page.keyboard.press('?'); },
+  },
+];
 
-  // Restrict the scan to the dialog so we don't re-report violations the
-  // base route spec already covers.
-  const results = await new AxeBuilder({ page })
-    .include('[data-testid="schedule-form-dialog"]')
-    .analyze();
+for (const { name, testId, open } of SURFACES) {
+  test(`a11y: ${name} has no critical or serious violations`, async ({ page }) => {
+    await page.goto('/calendar');
+    await page.waitForLoadState('networkidle');
+    await open(page);
+    await page.getByTestId(testId).waitFor({ state: 'visible' });
 
-  const offenders = blocking(results);
-  expect(
-    offenders,
-    `ScheduleForm dialog a11y violations:\n${summariseViolations(results)}`,
-  ).toEqual([]);
-});
+    // `.include(...)` scopes the scan to the surface so we don't
+    // double-report violations the base route spec already covers.
+    const results = await new AxeBuilder({ page })
+      .include(`[data-testid="${testId}"]`)
+      .analyze();
 
-test('a11y: NotificationsPanel dropdown has no critical or serious violations', async ({ page }) => {
-  await page.goto('/calendar');
-  await page.waitForLoadState('networkidle');
-
-  await page.getByTestId('notifications-bell').click();
-  await page.getByTestId('notifications-dropdown').waitFor({ state: 'visible' });
-
-  const results = await new AxeBuilder({ page })
-    .include('[data-testid="notifications-dropdown"]')
-    .analyze();
-
-  const offenders = blocking(results);
-  expect(
-    offenders,
-    `NotificationsPanel a11y violations:\n${summariseViolations(results)}`,
-  ).toEqual([]);
-});
-
-test('a11y: keyboard-shortcut cheatsheet has no critical or serious violations', async ({ page }) => {
-  await page.goto('/calendar');
-  await page.waitForLoadState('networkidle');
-
-  await page.keyboard.press('?');
-  await page.getByTestId('shortcut-cheatsheet').waitFor({ state: 'visible' });
-
-  const results = await new AxeBuilder({ page })
-    .include('[data-testid="shortcut-cheatsheet"]')
-    .analyze();
-
-  const offenders = blocking(results);
-  expect(
-    offenders,
-    `ShortcutCheatsheet a11y violations:\n${summariseViolations(results)}`,
-  ).toEqual([]);
-});
+    expect(
+      blockingViolations(results),
+      `${name} a11y violations:\n${summariseViolations(results)}`,
+    ).toEqual([]);
+  });
+}
