@@ -9,7 +9,11 @@ const buttonVariants = cva(
   // design_guidelines.json. Previously buttons used `rounded-md` and cards
   // used `rounded-xl`, which created three different corner radii in the
   // wild. Now every primitive shares rounded-lg.
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // `ring-2` + `ring-offset-2` keeps the indigo focus ring visible even
+  // on primary-coloured buttons where the button background is itself
+  // indigo. The offset is drawn using `ring-offset-background` so the
+  // ring reads against page chrome rather than the button itself.
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { PageShell } from './ui/page-shell';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -86,53 +87,55 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
 
   return (
     <div className="relative mb-2">
-      <button
-        ref={setNodeRef}
-        type="button"
-        {...(selectionMode ? {} : { ...listeners, ...attributes })}
-        data-testid={`kanban-card-${schedule.id}`}
-        aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
-        onClick={() => {
-          if (selectionMode) {
-            toggleItem?.(schedule.id);
-          } else {
-            onEdit?.(schedule);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
-          selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
-          isDragging && "opacity-50 scale-95",
-          selected && "ring-2 ring-indigo-500 ring-offset-1"
-        )}
-        style={{ borderLeftColor: classColor, ...transformStyle }}
-      >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {selectionMode ? (
-              <div className={cn(
-                "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
-              )}>
-                {selected && <Check className="w-3 h-3 text-white" />}
-              </div>
-            ) : (
-              <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={setNodeRef}
+            type="button"
+            {...(selectionMode ? {} : { ...listeners, ...attributes })}
+            data-testid={`kanban-card-${schedule.id}`}
+            aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
+            onClick={() => {
+              if (selectionMode) {
+                toggleItem?.(schedule.id);
+              } else {
+                onEdit?.(schedule);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
+              selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+              isDragging && "opacity-50 scale-95",
+              selected && "ring-2 ring-indigo-500 ring-offset-1"
             )}
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
-              style={{ backgroundColor: classColor }}
-              data-testid={`kanban-class-name-${schedule.id}`}
-            >
-              {className}
-            </span>
-          </div>
-          {schedule.town_to_town && (
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-          )}
-        </div>
+            style={{ borderLeftColor: classColor, ...transformStyle }}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {selectionMode ? (
+                  <div className={cn(
+                    "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                    selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
+                  )}>
+                    {selected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                ) : (
+                  <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
+                  style={{ backgroundColor: classColor }}
+                  data-testid={`kanban-class-name-${schedule.id}`}
+                >
+                  {className}
+                </span>
+              </div>
+              {schedule.town_to_town && (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              )}
+            </div>
 
         <div className="pl-[26px] space-y-2">
           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
@@ -173,7 +176,10 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <p className="text-[11px] text-muted-foreground italic truncate">{schedule.notes}</p>
           )}
         </div>
-      </button>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{className}</TooltipContent>
+      </Tooltip>
 
       {canAdvance && (
         <Button
@@ -204,7 +210,7 @@ function DroppableColumn({ id, children }: Readonly<{ id: string; children: Reac
 
 export default function KanbanBoard() {
   const navigate = useNavigate();
-  const { schedules, employees, locations, classes, loadingState, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
+  const { schedules, employees, locations, classes, loadingState, onEditSchedule, onNewSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
 
   const {
     selectionMode,
@@ -317,6 +323,7 @@ export default function KanbanBoard() {
   }, [selectedIds, selectAll]);
 
   return (
+    <TooltipProvider delayDuration={400}>
     <PageShell
       testId="kanban-board"
       breadcrumbs={[{ label: 'Planning' }, { label: 'Delivery Pipeline' }]}
@@ -340,6 +347,29 @@ export default function KanbanBoard() {
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
           <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
           <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger hover:underline underline-offset-2">Retry</button>
+        </div>
+      )}
+
+      {(schedules || []).length === 0 && !loadingState?.schedules && !fetchErrors?.schedules && (
+        <div
+          data-testid="kanban-onboarding"
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center"
+        >
+          <CalendarDays className="w-12 h-12 mx-auto text-indigo-400 dark:text-indigo-500 mb-3" aria-hidden="true" />
+          <h3 className="text-base font-semibold text-slate-800 dark:text-gray-100 mb-1">No schedules yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Kanban cards will appear here once you start scheduling classes.
+          </p>
+          {onNewSchedule && (
+            <Button
+              type="button"
+              onClick={() => onNewSchedule()}
+              data-testid="kanban-onboarding-new"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Create your first schedule
+            </Button>
+          )}
         </div>
       )}
 
@@ -418,6 +448,7 @@ export default function KanbanBoard() {
         />
       )}
     </PageShell>
+    </TooltipProvider>
   );
 }
 
