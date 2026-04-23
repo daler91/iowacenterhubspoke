@@ -30,10 +30,10 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
 
   return (
     <Dialog open={data !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-900" data-testid="relocate-conflict-dialog">
+      <DialogContent className="sm:max-w-[480px] bg-white dark:bg-card" data-testid="relocate-conflict-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <AlertTriangle className="w-5 h-5 text-warn" />
             Schedule Conflict Detected
           </DialogTitle>
           <DialogDescription>
@@ -42,10 +42,10 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
         </DialogHeader>
         <div className="space-y-2 max-h-60 overflow-y-auto">
           {(data?.conflicts || []).map((conflict, i) => (
-            <div key={conflict.schedule_id || i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm font-medium text-amber-800">{conflict.location}</p>
-              <p className="text-xs text-amber-600">{conflict.time}</p>
-              <p className="text-xs text-amber-500 mt-1">{conflict.overlap}</p>
+            <div key={conflict.schedule_id || i} className="p-3 bg-warn-soft border border-warn-soft rounded-lg">
+              <p className="text-sm font-medium text-warn">{conflict.location}</p>
+              <p className="text-xs text-warn">{conflict.time}</p>
+              <p className="text-xs text-warn mt-1">{conflict.overlap}</p>
             </div>
           ))}
         </div>
@@ -70,7 +70,7 @@ export default function RelocateConflictDialog({ data, onClose, onForce }: Reado
             data-testid="relocate-conflict-force"
             onClick={() => onForce(reason)}
             disabled={!reason.trim()}
-            className="bg-amber-600 hover:bg-amber-700"
+            className="bg-warn hover:bg-warn"
           >
             Force Move
           </Button>

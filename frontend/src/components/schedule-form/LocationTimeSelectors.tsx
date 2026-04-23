@@ -41,14 +41,14 @@ export function LocationTimeSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+        <Label htmlFor="schedule-location-select" className="text-sm font-medium text-foreground">
           Location <RequiredMark />
         </Label>
         <Select value={form.location_id} onValueChange={(v) => setForm({ ...form, location_id: v })}>
           <SelectTrigger
             id="schedule-location-select"
             data-testid="schedule-location-select"
-            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            className="h-10 bg-muted/50 dark:bg-muted/50"
             aria-required="true"
             aria-describedby={selectedLocation ? 'schedule-location-drive' : undefined}
             aria-invalid={locationInvalid || undefined}
@@ -61,7 +61,7 @@ export function LocationTimeSelectors({
                 <div className="flex items-center gap-2">
                   <MapPin className="w-3 h-3 text-spoke" aria-hidden="true" />
                   {loc.city_name}
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-muted text-foreground/80 dark:text-muted-foreground">
                     {loc.drive_time_minutes}m
                   </Badge>
                 </div>
@@ -72,11 +72,11 @@ export function LocationTimeSelectors({
         {selectedLocation && (
           <div
             id="schedule-location-drive"
-            className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            className="flex items-center gap-2 px-3 py-2 bg-muted/50 dark:bg-muted rounded-lg"
           >
             <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <span className="text-xs text-slate-600 dark:text-gray-400">
-              Estimated drive: <span className="font-semibold text-slate-700 dark:text-gray-200">{selectedLocation.drive_time_minutes} min</span> each way from Hub
+            <span className="text-xs text-foreground/80 dark:text-muted-foreground">
+              Estimated drive: <span className="font-semibold text-foreground">{selectedLocation.drive_time_minutes} min</span> each way from Hub
             </span>
           </div>
         )}
@@ -84,7 +84,7 @@ export function LocationTimeSelectors({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+          <Label htmlFor="schedule-date-input" className="text-sm font-medium text-foreground">
             Date <RequiredMark />
           </Label>
           <Input
@@ -93,7 +93,7 @@ export function LocationTimeSelectors({
             data-testid="schedule-date-input"
             value={form.date}
             onChange={(e) => onDateChange(e.target.value)}
-            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            className="h-10 bg-muted/50 dark:bg-muted/50"
             required
             aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
@@ -101,7 +101,7 @@ export function LocationTimeSelectors({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+          <Label htmlFor="schedule-start-time" className="text-sm font-medium text-foreground">
             Start Time <RequiredMark />
           </Label>
           <Input
@@ -110,7 +110,7 @@ export function LocationTimeSelectors({
             data-testid="schedule-start-time"
             value={form.start_time}
             onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            className="h-10 bg-muted/50 dark:bg-muted/50"
             required
             aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
@@ -118,7 +118,7 @@ export function LocationTimeSelectors({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-slate-700 dark:text-gray-200">
+          <Label htmlFor="schedule-end-time" className="text-sm font-medium text-foreground">
             End Time <RequiredMark />
           </Label>
           <Input
@@ -127,7 +127,7 @@ export function LocationTimeSelectors({
             data-testid="schedule-end-time"
             value={form.end_time}
             onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            className="h-10 bg-muted/50 dark:bg-muted/50"
             required
             aria-required="true"
             aria-describedby={hasConflicts ? 'schedule-conflicts-region' : undefined}
@@ -140,17 +140,17 @@ export function LocationTimeSelectors({
         <div
           role="alert"
           data-testid="conflict-preview-error"
-          className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 rounded-lg flex items-center gap-2"
+          className="p-3 bg-danger-soft/10 border border-danger-soft dark:border-danger-soft/40 rounded-lg flex items-center gap-2"
         >
-          <WifiOff className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" aria-hidden="true" />
-          <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+          <WifiOff className="w-4 h-4 text-danger shrink-0" aria-hidden="true" />
+          <p className="text-xs text-danger flex-1">
             Couldn't check for conflicts. Any hidden overlaps won't be shown until you retry.
           </p>
           {onRetryConflictPreview && (
             <button
               type="button"
               onClick={onRetryConflictPreview}
-              className="text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 inline-flex items-center gap-1"
+              className="text-xs font-medium text-danger hover:text-danger dark:hover:text-danger-soft inline-flex items-center gap-1"
               data-testid="conflict-preview-retry"
             >
               <RefreshCw className="w-3 h-3" aria-hidden="true" />
@@ -179,7 +179,7 @@ export function LocationTimeSelectors({
                   <Badge
                     key={`${c.status}-${c.start}-${c.end}`}
                     variant="secondary"
-                    className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}
+                    className={`text-[10px] px-2 py-0.5 ${OUTLOOK_STATUS_COLORS[c.status] || 'bg-muted text-foreground'}`}
                   >
                     {OUTLOOK_STATUS_LABELS[c.status] || c.status} {formatOutlookTime(c.start)}–{formatOutlookTime(c.end)}
                   </Badge>
@@ -242,14 +242,14 @@ export function LocationTimeSelectors({
       <TravelChainPreview travelChain={travelChain} onOverrideChange={onOverrideChange} />
 
       <div className="space-y-2">
-        <Label htmlFor="schedule-notes-input" className="text-sm font-medium text-slate-700 dark:text-gray-200">Notes (optional)</Label>
+        <Label htmlFor="schedule-notes-input" className="text-sm font-medium text-foreground">Notes (optional)</Label>
         <Input
           id="schedule-notes-input"
           data-testid="schedule-notes-input"
           placeholder="Additional notes..."
           value={form.notes}
           onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+          className="h-10 bg-muted/50 dark:bg-muted/50"
         />
       </div>
     </>

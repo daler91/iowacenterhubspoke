@@ -28,7 +28,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 # something other than localhost. Otherwise we log-only — useful in dev.
 EMAIL_ENABLED = bool(SMTP_HOST) and SMTP_HOST != "localhost"
 
-_SIGNATURE = "<p>— Iowa Center for Economic Success</p>"
+_SIGNATURE = "<p>— HubSpoke</p>"
 _BUTTON_STYLE = (
     "display:inline-block;padding:12px 24px;"
     "background-color:#4F46E5;color:#ffffff;text-decoration:none;"
@@ -144,14 +144,14 @@ async def send_portal_invite(
     body = (
         f"<p>Hi {_e(contact_name)},</p>"
         f"<p>You've been invited to access the <strong>{_e(org_name)}</strong> "
-        f"partner portal for the Iowa Center for Economic Success.</p>"
+        f"partner portal on HubSpoke.</p>"
         f"<p>Use the link below to view your upcoming classes, tasks, "
         f"shared documents, and messages:</p>"
         f'<p><a href="{_e(portal_url)}" '
         f'style="{_BUTTON_STYLE}">Open Partner Portal</a></p>'
         f'<p style="color:#6b7280;font-size:13px;">This link expires in '
-        f"{PORTAL_TOKEN_EXPIRY_DAYS} day(s). If it expires, ask your Iowa "
-        f"Center contact to send a new one.</p>"
+        f"{PORTAL_TOKEN_EXPIRY_DAYS} day(s). If it expires, ask your HubSpoke "
+        f"contact to send a new one.</p>"
         f"{_SIGNATURE}"
     )
     return await send_email(to, subject, body)
@@ -161,12 +161,12 @@ async def send_user_invite(
     to: str, name: str, role: str, invite_url: str,
 ) -> bool:
     """Send an admin-created user invitation with a signup link."""
-    subject = "You're invited to the Iowa Center Hub"
+    subject = "You're invited to HubSpoke"
     display_name = name or "there"
     body = (
         f"<p>Hi {_e(display_name)},</p>"
-        f"<p>You've been invited to join the Iowa Center for Economic "
-        f"Success scheduling hub as a <strong>{_e(role)}</strong>.</p>"
+        f"<p>You've been invited to join HubSpoke "
+        f"as a <strong>{_e(role)}</strong>.</p>"
         f"<p>Click the button below to create your account and get started:</p>"
         f'<p><a href="{_e(invite_url)}" '
         f'style="{_BUTTON_STYLE}">Accept Invitation</a></p>'
@@ -179,13 +179,13 @@ async def send_user_invite(
 
 async def send_welcome_pending(to: str, name: str) -> bool:
     """Acknowledge a self-service registration that needs admin approval."""
-    subject = "Your Iowa Center Hub registration is pending"
+    subject = "Your HubSpoke registration is pending"
     display_name = name or "there"
     body = (
         f"<p>Hi {_e(display_name)},</p>"
-        f"<p>Thanks for signing up for the Iowa Center for Economic Success "
-        f"scheduling hub. Your account has been created and is now waiting "
-        f"for an administrator to review and approve it.</p>"
+        f"<p>Thanks for signing up for HubSpoke. Your account has "
+        f"been created and is now waiting for an administrator to "
+        f"review and approve it.</p>"
         f"<p>You'll receive another email as soon as your account is "
         f"approved and you can sign in.</p>"
         f"{_SIGNATURE}"
@@ -197,11 +197,11 @@ async def send_account_approved(
     to: str, name: str, login_url: str,
 ) -> bool:
     """Notify a user that their pending account has been approved."""
-    subject = "Your Iowa Center Hub account is approved"
+    subject = "Your HubSpoke account is approved"
     display_name = escape(name) if name else "there"
     body = (
         f"<p>Hi {_e(display_name)},</p>"
-        f"<p>Good news — an administrator has approved your Iowa Center Hub "
+        f"<p>Good news — an administrator has approved your HubSpoke "
         f"account. You can sign in any time using the button below.</p>"
         f'<p><a href="{_e(login_url)}" '
         f'style="{_BUTTON_STYLE}">Sign In</a></p>'
@@ -216,14 +216,14 @@ async def send_account_rejected(to: str, name: str) -> bool:
     Transactional — kept short and respectful. No link (there's no next
     step for them in the app); we direct them to reach out to an admin.
     """
-    subject = "Update on your Iowa Center Hub registration"
+    subject = "Update on your HubSpoke registration"
     display_name = escape(name) if name else "there"
     body = (
         f"<p>Hi {display_name},</p>"
-        f"<p>Thanks for your interest in the Iowa Center Hub. After review, "
+        f"<p>Thanks for your interest in HubSpoke. After review, "
         f"an administrator has declined your registration request.</p>"
         f"<p>If you believe this was a mistake or you'd like more context, "
-        f"please reply to this email or reach out to your Iowa Center "
+        f"please reply to this email or reach out to your HubSpoke "
         f"contact directly.</p>"
         f"{_SIGNATURE}"
     )
@@ -236,7 +236,7 @@ async def send_password_reset(
     """Send a password reset link. Expiry comes from email_jobs so
     the copy stays in sync with the actual token lifetime."""
     from services.email_jobs import PASSWORD_RESET_EXPIRY_HOURS
-    subject = "Reset your Iowa Center Hub password"
+    subject = "Reset your HubSpoke password"
     display_name = name or "there"
     body = (
         f"<p>Hi {_e(display_name)},</p>"
@@ -315,7 +315,7 @@ async def send_digest_email(
 
     display_name = escape(name) if name else "there"
     label = "daily" if frequency == "daily" else "weekly"
-    subject = f"Your {label} Iowa Center Hub digest ({len(items)} update"
+    subject = f"Your {label} HubSpoke digest ({len(items)} update"
     if len(items) != 1:
         subject += "s"
     subject += ")"
@@ -348,7 +348,7 @@ async def send_digest_email(
         )
     body_html = (
         f"<p>Hi {display_name},</p>"
-        f"<p>Here's your {label} round-up from the Iowa Center Hub:</p>"
+        f"<p>Here's your {label} round-up from HubSpoke:</p>"
         f"<table style=\"width:100%;border-collapse:collapse;\">"
         f"{''.join(rows)}"
         f"</table>"

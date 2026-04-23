@@ -7,14 +7,14 @@ export const fetcher = <T,>(apiFn: (params: T) => Promise<{ data: unknown }>, pa
 
 export function SummaryCard({ icon: Icon, iconBg, iconColor, label, value }: Readonly<SummaryCardProps>) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5">
+    <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
       <div className="flex items-center gap-3 mb-2">
         <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
         <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
+      <p className="text-2xl font-bold text-foreground font-display">
         {value}
       </p>
     </div>
@@ -27,7 +27,7 @@ export function FilterSelect({ label, value, onChange, options }: Readonly<Filte
     <div className="min-w-[160px] space-y-2">
       <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={selectId} className="bg-white dark:bg-gray-900">
+        <SelectTrigger id={selectId} className="bg-white dark:bg-card">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

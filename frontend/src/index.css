@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -112,6 +112,15 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Manrope', sans-serif;
+  }
+  code, pre, kbd, samp, .mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 

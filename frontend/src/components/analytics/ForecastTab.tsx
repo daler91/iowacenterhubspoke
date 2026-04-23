@@ -77,11 +77,11 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={BookOpen} iconBg="bg-indigo-50" iconColor="text-indigo-600"
+        <SummaryCard icon={BookOpen} iconBg="bg-hub-soft" iconColor="text-hub"
           label="Projected Classes (4wk)" value={projectedSummary.classes} />
-        <SummaryCard icon={Clock} iconBg="bg-teal-50" iconColor="text-teal-600"
+        <SummaryCard icon={Clock} iconBg="bg-spoke-soft" iconColor="text-spoke"
           label="Projected Class Hours" value={`${projectedSummary.classHours}h`} />
-        <SummaryCard icon={Car} iconBg="bg-amber-50" iconColor="text-amber-600"
+        <SummaryCard icon={Car} iconBg="bg-warn-soft" iconColor="text-warn"
           label="Projected Drive Hours" value={`${projectedSummary.driveHours}h`} />
         {growthRate !== null && (
           <SummaryCard
@@ -92,16 +92,16 @@ export default function ForecastTab({ employees, classes }: Readonly<ForecastTab
         )}
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">
+          <h3 className="text-sm font-semibold text-foreground">
             Historical & Forecast
           </h3>
           {method === 'linear_regression' && (
-            <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">Linear Regression</Badge>
+            <Badge className="bg-hub-soft text-hub-strong border-0 text-[10px]">Linear Regression</Badge>
           )}
           {method === 'insufficient_data' && (
-            <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px]">Insufficient Data</Badge>
+            <Badge className="bg-warn-soft text-warn border-0 text-[10px]">Insufficient Data</Badge>
           )}
         </div>
         {isLoading && <LoadingChart />}

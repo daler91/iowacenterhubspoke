@@ -383,7 +383,7 @@ def _render_weekly_summary_pdf(data: dict) -> bytes:
     period = data.get("period", {})
     totals = data.get("totals", {})
     story = []
-    story.append(Paragraph("Iowa Center — Weekly Summary", h1))
+    story.append(Paragraph("HubSpoke — Weekly Summary", h1))
     story.append(Paragraph(
         f"Period: {period.get('from', '?')} \u2013 {period.get('to', '?')}", body,
     ))

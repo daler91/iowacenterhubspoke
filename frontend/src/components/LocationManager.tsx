@@ -44,18 +44,18 @@ const LocationRow = memo(function LocationRow({
   return (
     <div
       data-testid={`location-card-${loc.id}`}
-      className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+      className="bg-white dark:bg-card rounded-lg border border-border p-4 flex items-center justify-between hover:shadow-md transition-shadow"
     >
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
-          <MapPin className="w-5 h-5 text-teal-600" />
+        <div className="w-10 h-10 bg-spoke-soft rounded-lg flex items-center justify-center">
+          <MapPin className="w-5 h-5 text-spoke" />
         </div>
         <div>
-          <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
+          <EntityLink type="location" id={loc.id} className="font-semibold text-foreground">{loc.city_name}</EntityLink>
           <div className="flex items-center gap-3 mt-1">
             <div className="flex items-center gap-1">
               <Car className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-slate-600 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
+              <span className="text-xs text-foreground/80 dark:text-muted-foreground">{loc.drive_time_minutes} min from Hub</span>
             </div>
             {loc.latitude && (
               <span className="text-xs text-muted-foreground">
@@ -71,7 +71,7 @@ const LocationRow = memo(function LocationRow({
           size="sm"
           data-testid={`view-location-${loc.id}`}
           onClick={() => onView(loc.id)}
-          className="text-muted-foreground hover:text-teal-600"
+          className="text-muted-foreground hover:text-spoke"
           aria-label={`View ${loc.city_name}`}
         >
           <Eye className="w-4 h-4" aria-hidden="true" />
@@ -83,7 +83,7 @@ const LocationRow = memo(function LocationRow({
               size="sm"
               data-testid={`edit-location-${loc.id}`}
               onClick={() => onEdit(loc)}
-              className="text-muted-foreground hover:text-indigo-600"
+              className="text-muted-foreground hover:text-hub"
               aria-label={`Edit ${loc.city_name}`}
             >
               <Pencil className="w-4 h-4" aria-hidden="true" />
@@ -246,7 +246,7 @@ export default function LocationManager() {
             data-testid="add-location-btn"
             onClick={openNew}
             disabled={!!loadingState?.locations}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+            className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Location
@@ -256,12 +256,12 @@ export default function LocationManager() {
     >
       {/* Hub Info */}
       <div className="bg-hub-soft border border-hub/20 rounded-lg p-4 flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-hub rounded-lg flex items-center justify-center">
           <MapPin className="w-5 h-5 text-white" />
         </div>
         <div>
-          <p className="font-semibold text-indigo-900 text-sm">Hub Location</p>
-          <p className="text-xs text-indigo-600">2210 Grand Ave, Des Moines, IA 50312</p>
+          <p className="font-semibold text-hub-strong text-sm">Hub Location</p>
+          <p className="text-xs text-hub">2210 Grand Ave, Des Moines, IA 50312</p>
         </div>
       </div>
 
@@ -290,7 +290,7 @@ export default function LocationManager() {
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
-          className="sm:max-w-[440px] bg-white dark:bg-gray-900"
+          className="sm:max-w-[440px] bg-white dark:bg-card"
           data-testid="location-form-dialog"
           onPointerDownOutside={(e) => {
             // Radix uses custom events - the real DOM target is in detail.originalEvent
@@ -354,11 +354,11 @@ export default function LocationManager() {
                         setDriveTimeTouched(e.target.value !== '');
                       }}
                       required
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                     {calculatingDrive && (
                       <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" aria-label="Calculating drive time" />
+                        <Loader2 className="w-4 h-4 animate-spin text-hub" aria-label="Calculating drive time" />
                       </div>
                     )}
                   </div>
@@ -374,7 +374,7 @@ export default function LocationManager() {
                       placeholder="41.5868"
                       value={form.latitude}
                       onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                   </div>
                   <div className="space-y-2">
@@ -387,7 +387,7 @@ export default function LocationManager() {
                       placeholder="-93.6540"
                       value={form.longitude}
                       onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                   </div>
                 </div>
@@ -396,7 +396,7 @@ export default function LocationManager() {
                     type="submit"
                     data-testid="location-save-btn"
                     disabled={loading || calculatingDrive}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                    className="bg-hub hover:bg-hub-strong text-white w-full"
                   >
                     {calculatingDrive ? 'Calculating drive time...' : saveLabel}
                   </Button>
@@ -414,7 +414,7 @@ export default function LocationManager() {
                   value={form.city_name}
                   onChange={(e) => setForm({ ...form, city_name: e.target.value })}
                   required
-                  className="bg-gray-50/50"
+                  className="bg-muted/50"
                 />
               </div>
               <div className="space-y-2">
@@ -430,7 +430,7 @@ export default function LocationManager() {
                     setDriveTimeTouched(e.target.value !== '');
                   }}
                   required
-                  className="bg-gray-50/50"
+                  className="bg-muted/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -444,7 +444,7 @@ export default function LocationManager() {
                     placeholder="41.5868"
                     value={form.latitude}
                     onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                    className="bg-gray-50/50"
+                    className="bg-muted/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -457,7 +457,7 @@ export default function LocationManager() {
                     placeholder="-93.6540"
                     value={form.longitude}
                     onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                    className="bg-gray-50/50"
+                    className="bg-muted/50"
                   />
                 </div>
               </div>
@@ -466,7 +466,7 @@ export default function LocationManager() {
                   type="submit"
                   data-testid="location-save-btn"
                   disabled={loading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                  className="bg-hub hover:bg-hub-strong text-white w-full"
                 >
                   {saveLabel}
                 </Button>
@@ -492,7 +492,7 @@ export default function LocationManager() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+            <AlertDialogAction className="bg-danger hover:bg-danger" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

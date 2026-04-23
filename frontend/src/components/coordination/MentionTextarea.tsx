@@ -27,7 +27,7 @@ export function renderMentionBody(body: string, _mentions?: Mention[]): ReactNod
     out.push(
       <span
         key={`mention-${keyIdx++}`}
-        className="inline-flex items-center rounded px-1 py-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-medium"
+        className="inline-flex items-center rounded px-1 py-0 bg-hub-soft text-hub-strong dark:bg-hub-soft/40 dark:text-hub-soft font-medium"
       >
         @{m[1]}
       </span>,
@@ -196,13 +196,13 @@ export default function MentionTextarea({
         rows={rows}
         disabled={disabled}
         className={cn(
-          'w-full bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400 text-sm',
+          'w-full bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-muted-foreground text-sm',
           textareaClassName,
         )}
       />
       {trigger && filtered.length > 0 && (
         <div
-          className="absolute bottom-full left-0 mb-1 w-64 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg z-50"
+          className="absolute bottom-full left-0 mb-1 w-64 max-h-56 overflow-y-auto rounded-lg border border-border bg-white dark:bg-card shadow-lg z-50"
           role="menu"
           aria-label="Mention a project member"
         >
@@ -219,8 +219,8 @@ export default function MentionTextarea({
               className={cn(
                 'w-full text-left px-3 py-1.5 flex items-center gap-2 text-xs',
                 idx === activeIdx
-                  ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200'
-                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800',
+                  ? 'bg-hub-soft/40 text-hub-strong dark:text-hub-soft'
+                  : 'text-foreground hover:bg-muted/50 dark:hover:bg-muted',
               )}
             >
               <span className={cn(
@@ -232,7 +232,7 @@ export default function MentionTextarea({
                 {(m.name || '?').charAt(0).toUpperCase()}
               </span>
               <span className="flex-1 truncate font-medium">{m.name}</span>
-              <span className="text-[9px] uppercase tracking-wide text-slate-400">
+              <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
                 {m.kind}
               </span>
             </button>

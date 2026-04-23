@@ -30,17 +30,17 @@ function RouteBoundary({ children }: Readonly<{ children: ReactNode }>) {
 function DashboardShellSkeleton() {
   return (
     <div
-      className="flex h-screen bg-[#F9FAFB] dark:bg-gray-950 overflow-hidden"
+      className="flex h-screen bg-background overflow-hidden"
       role="status"
       aria-live="polite"
       aria-label="Loading"
     >
-      <div className="hidden md:block w-60 border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950" />
+      <div className="hidden md:block w-60 border-r border-border bg-card" />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="h-14 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0" />
+        <header className="h-14 border-b border-border bg-card shrink-0" />
         <main className="flex-1 flex items-center justify-center">
           <div
-            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            className="w-10 h-10 border-3 border-hub border-t-transparent rounded-full animate-spin"
             aria-hidden="true"
           />
           <span className="sr-only">Loading</span>
@@ -78,7 +78,7 @@ function RoleGate({
         role="alert"
         aria-live="polite"
       >
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
+        <h2 className="text-lg font-semibold text-foreground mb-2">
           Not authorised
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -124,12 +124,12 @@ function AppRoutes() {
     <BrowserRouter>
       <Suspense fallback={
         <div
-          className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950"
+          className="min-h-screen flex items-center justify-center bg-background"
           role="status"
           aria-live="polite"
         >
           <div
-            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            className="w-10 h-10 border-3 border-hub border-t-transparent rounded-full animate-spin"
             aria-hidden="true"
           />
           <span className="sr-only">Loading page</span>

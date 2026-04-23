@@ -209,7 +209,7 @@ export default function PortalDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
         <output aria-label="Loading portal">
           <span className="block w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin" />
         </output>
@@ -219,11 +219,11 @@ export default function PortalDashboard() {
 
   if (error || !org || !contact) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
         <Card className="p-6 sm:p-8 w-full max-w-sm text-center" role="alert">
           <AlertTriangle className="w-12 h-12 text-warn mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-          <p className="text-sm text-slate-600">{error || 'Invalid portal link'}</p>
+          <p className="text-sm text-foreground/80">{error || 'Invalid portal link'}</p>
         </Card>
       </div>
     );
@@ -239,7 +239,7 @@ export default function PortalDashboard() {
               <CalendarDays className="w-8 h-8 text-hub shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.upcoming_classes}</p>
-                <p className="text-xs text-slate-600">Upcoming Classes</p>
+                <p className="text-xs text-foreground/80">Upcoming Classes</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
@@ -254,14 +254,14 @@ export default function PortalDashboard() {
                     <span className="text-xs text-warn ml-1">({dashboardData.overdue_tasks} overdue)</span>
                   )}
                 </p>
-                <p className="text-xs text-slate-600">Open Tasks</p>
+                <p className="text-xs text-foreground/80">Open Tasks</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3 sm:col-span-2 lg:col-span-1">
               <GraduationCap className="w-8 h-8 text-spoke shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.classes_hosted}</p>
-                <p className="text-xs text-slate-600">Classes Hosted</p>
+                <p className="text-xs text-foreground/80">Classes Hosted</p>
               </div>
             </Card>
           </div>
@@ -271,14 +271,14 @@ export default function PortalDashboard() {
             {dashboardData.projects.map(project => (
               <Card key={project.id} className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-1 flex-wrap">
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 min-w-0">
+                  <h3 className="font-semibold text-foreground min-w-0">
                     {project.title}
                   </h3>
                   <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[project.phase], 'text-white')}>
                     {PHASE_LABELS[project.phase]}
                   </Badge>
                 </div>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-foreground/80">
                   {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
                 </p>
               </Card>
@@ -298,7 +298,7 @@ export default function PortalDashboard() {
             if (tasks.length === 0) return null;
             return (
               <div key={project.id}>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{project.title}</h3>
+                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
                 <div className="space-y-2">
                   {tasks.map(task => {
                     const isOverdue = !task.completed && task.due_date < new Date().toISOString();
@@ -315,7 +315,7 @@ export default function PortalDashboard() {
                               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                               task.completed
                                 ? 'bg-spoke border-spoke text-white'
-                                : 'border-slate-300 hover:border-hub',
+                                : 'border-border hover:border-hub',
                             )}
                           >
                             {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
@@ -353,7 +353,7 @@ export default function PortalDashboard() {
             if (docs.length === 0) return null;
             return (
               <div key={project.id}>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{project.title}</h3>
+                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
                 <div className="space-y-2">
                   {docs.map(doc => (
                     <Card key={doc.id} className="p-3 flex items-center gap-3">
@@ -427,7 +427,7 @@ export default function PortalDashboard() {
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                   activeProject === project.id
                     ? 'bg-hub-soft text-hub-strong'
-                    : 'bg-gray-100 text-slate-600 hover:bg-gray-200',
+                    : 'bg-muted text-foreground/80 hover:bg-muted',
                 )}
               >
                 {project.title}
@@ -459,7 +459,7 @@ export default function PortalDashboard() {
                           {new Date(msg.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-muted-foreground mt-0.5 break-words">
+                      <p className="text-sm text-foreground dark:text-muted-foreground mt-0.5 break-words">
                         {renderMentionBody(msg.body, msg.mentions)}
                       </p>
                     </div>
@@ -472,7 +472,7 @@ export default function PortalDashboard() {
           </Card>
 
           {/* Input */}
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-white dark:bg-card px-3 py-1">
             <label htmlFor="portal-message-input" className="sr-only">Message</label>
             <MentionTextarea
               value={msgBody}
@@ -501,7 +501,7 @@ export default function PortalDashboard() {
         <div className="max-w-2xl">
           <Card className="p-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-1">Notifications</h2>
-            <p className="text-sm text-slate-600 mb-4">
+            <p className="text-sm text-foreground/80 mb-4">
               Choose which emails and in-portal alerts you receive.
             </p>
             <NotificationPreferences mode="portal" portalToken={token} />

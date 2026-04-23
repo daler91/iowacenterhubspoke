@@ -15,6 +15,7 @@ module.exports = {
   		fontFamily: {
   			display: ['Manrope', 'sans-serif'],
   			sans: ['Inter', 'sans-serif'],
+  			mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

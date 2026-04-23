@@ -269,7 +269,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   id="project-community"
                   value={community}
                   disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-600"
+                  className="bg-muted/50 dark:bg-muted text-foreground/80"
                   placeholder="Auto-filled from partner"
                 />
               </div>
@@ -289,7 +289,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
                   id="project-venue"
                   value={venueName}
                   disabled
-                  className="bg-slate-50 dark:bg-slate-800 text-slate-600"
+                  className="bg-muted/50 dark:bg-muted text-foreground/80"
                   placeholder="Auto-filled from partner"
                 />
               </div>
@@ -298,21 +298,21 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
 
           {/* Auto-create schedule section */}
           {showAutoScheduleSection && (
-            <div className="border rounded-lg p-3 space-y-3 bg-indigo-50/50 dark:bg-indigo-950/20">
+            <div className="border rounded-lg p-3 space-y-3 bg-hub-soft/50 dark:bg-hub-soft/20">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={autoCreateSchedule}
                   onChange={e => setAutoCreateSchedule(e.target.checked)}
-                  className="accent-indigo-600"
+                  className="accent-hub"
                 />
-                <CalendarPlus className="w-4 h-4 text-indigo-600" />
+                <CalendarPlus className="w-4 h-4 text-hub" />
                 <span className="text-sm font-medium">Also create a class schedule</span>
               </label>
 
               {autoCreateSchedule && (
                 <div className="space-y-3 pl-6">
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-foreground/80">
                     A schedule will be created at the partner&apos;s location.
                   </p>
                   <div>
@@ -341,7 +341,7 @@ export default function ProjectCreateDialog({ onClose, onCreated, classes = [], 
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+            <Button onClick={handleSubmit} disabled={loading} className="bg-hub hover:bg-hub-strong text-white">
               {loading ? 'Creating...' : 'Create Project'}
             </Button>
           </div>

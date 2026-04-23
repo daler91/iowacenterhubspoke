@@ -24,11 +24,11 @@ export default function ShortcutCheatsheet({ open, onOpenChange }: ShortcutCheat
             Available anywhere in the app. Shortcuts are ignored while you're typing into a text field.
           </DialogDescription>
         </DialogHeader>
-        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+        <ul className="divide-y divide-border">
           {SHORTCUTS.map(({ keys, label }) => (
             <li key={keys} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-slate-700 dark:text-gray-200">{label}</span>
-              <kbd className="inline-flex min-w-[28px] justify-center rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:text-gray-200">
+              <span className="text-foreground">{label}</span>
+              <kbd className="inline-flex min-w-[28px] justify-center rounded-md border border-border bg-muted/50 dark:bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">
                 {keys}
               </kbd>
             </li>

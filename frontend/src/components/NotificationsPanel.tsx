@@ -72,8 +72,8 @@ function isAbortLike(err: unknown): boolean {
 }
 
 const SEVERITY_CONFIG = {
-  warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-  info: { icon: CalendarDays, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  warning: { icon: AlertTriangle, color: 'text-warn', bg: 'bg-warn-soft', border: 'border-warn-soft' },
+  info: { icon: CalendarDays, color: 'text-hub', bg: 'bg-hub-soft', border: 'border-hub-soft' },
 };
 
 export default function NotificationsPanel() {
@@ -287,15 +287,15 @@ export default function NotificationsPanel() {
         aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-600 dark:text-gray-400" aria-hidden="true" />
+        <Bell className="w-5 h-5 text-foreground/80 dark:text-muted-foreground" aria-hidden="true" />
         {activeNotifications.length > 0 && !fetchError && (
           <span
             aria-hidden="true"
             className={cn(
               "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1",
-              warningCount > 0 ? "bg-amber-500" : "bg-indigo-600"
+              warningCount > 0 ? "bg-warn" : "bg-hub"
             )}
           >
             {activeNotifications.length}
@@ -305,18 +305,18 @@ export default function NotificationsPanel() {
           <span
             aria-hidden="true"
             data-testid="notifications-error-dot"
-            className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-gray-900"
+            className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-danger border-2 border-white dark:border-border"
           />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <div className="absolute right-0 top-12 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-card rounded-lg shadow-xl border border-border z-50 animate-slide-in" data-testid="notifications-dropdown">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Notifications</h3>
+              <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
               {warningCount > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px]">
+                <Badge className="bg-warn-soft text-warn border-0 text-[10px]">
                   {warningCount} alerts
                 </Badge>
               )}
@@ -327,7 +327,7 @@ export default function NotificationsPanel() {
                   <button
                     type="button"
                     onClick={handleMarkAllRead}
-                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    className="text-xs text-hub hover:text-hub-strong font-medium flex items-center gap-1"
                     data-testid="mark-all-read"
                     aria-label="Mark all as read"
                   >
@@ -337,7 +337,7 @@ export default function NotificationsPanel() {
                 )}
                 <button
                   onClick={handleDismissAll}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  className="text-xs text-hub hover:text-hub-strong font-medium"
                   data-testid="dismiss-all-notifications"
                 >
                   Dismiss all
@@ -350,16 +350,16 @@ export default function NotificationsPanel() {
             <div
               role="alert"
               data-testid="notifications-fetch-error"
-              className="px-4 py-3 border-b border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 flex items-center gap-3"
+              className="px-4 py-3 border-b border-danger-soft dark:border-danger-soft/40 bg-danger-soft/10 flex items-center gap-3"
             >
-              <WifiOff className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" aria-hidden="true" />
-              <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+              <WifiOff className="w-4 h-4 text-danger shrink-0" aria-hidden="true" />
+              <p className="text-xs text-danger flex-1">
                 Couldn't load notifications. Showing cached items.
               </p>
               <button
                 type="button"
                 onClick={handleRetryFetch}
-                className="text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 inline-flex items-center gap-1"
+                className="text-xs font-medium text-danger hover:text-danger dark:hover:text-danger-soft inline-flex items-center gap-1"
                 data-testid="notifications-retry"
               >
                 <RefreshCw className="w-3 h-3" aria-hidden="true" />
@@ -371,11 +371,11 @@ export default function NotificationsPanel() {
           <ScrollArea className="max-h-[400px]">
             {activeNotifications.length === 0 ? (
               <div className="p-8 text-center">
-                <BellOff className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" aria-hidden="true" />
+                <BellOff className="w-8 h-8 text-muted-foreground dark:text-foreground mx-auto mb-2" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 dark:divide-gray-800">
+              <div className="divide-y divide-border">
                 {activeNotifications.map(notification => {
                   const config = SEVERITY_CONFIG[notification.severity] || SEVERITY_CONFIG.info;
                   const Icon = config.icon;
@@ -403,17 +403,17 @@ export default function NotificationsPanel() {
                           {isUnread && (
                             <span
                               aria-label="Unread"
-                              className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"
+                              className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
                             />
                           )}
-                          <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {notification.title}
                           </p>
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5 line-clamp-2">
+                        <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
                           {description}
                         </p>
-                        {hasLink && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
+                        {hasLink && <p className="text-[10px] text-hub mt-1">Click to view</p>}
                       </div>
                     </>
                   );
@@ -422,7 +422,7 @@ export default function NotificationsPanel() {
                       {hasLink ? (
                         <button
                           type="button"
-                          className="flex-1 p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
+                          className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
                           onClick={() => handleClick(notification)}
                         >
                           {content}
@@ -435,7 +435,7 @@ export default function NotificationsPanel() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDismiss(notification); }}
-                        className="text-muted-foreground hover:text-slate-600 shrink-0 p-4 pl-0"
+                        className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >
                         <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -449,11 +449,11 @@ export default function NotificationsPanel() {
 
           {/* Settings link — surfaces the preferences UI so users don't have
               to hunt through Settings for notification controls. */}
-          <div className="p-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="p-2 border-t border-border">
             <button
               type="button"
               onClick={() => { navigate('/settings#notifications'); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/80 dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted rounded-md transition-colors"
             >
               <SettingsIcon className="w-3.5 h-3.5" />
               Notification settings

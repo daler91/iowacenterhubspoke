@@ -1,7 +1,7 @@
 {
-  "name": "iowa-center-hub-spoke",
+  "name": "hubspoke",
   "version": "1.0.0",
-  "description": "Iowa Center Hub Spoke scheduling app — root-level tooling scripts",
+  "description": "HubSpoke scheduling app — root-level tooling scripts",
   "private": true,
   "scripts": {
     "seed": "node seed-demo-data.js"

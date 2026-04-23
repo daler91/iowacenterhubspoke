@@ -79,9 +79,9 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
   if (!editor) return null;
 
   const btnCls = (active: boolean) => cn(
-    'p-1.5 rounded transition-colors text-slate-600 dark:text-slate-300',
-    'hover:bg-slate-200/70 dark:hover:bg-slate-700/70',
-    active && 'bg-slate-200 dark:bg-slate-700 text-hub',
+    'p-1.5 rounded transition-colors text-foreground/80 dark:text-muted-foreground',
+    'hover:bg-muted/70 dark:hover:bg-muted/70',
+    active && 'bg-muted text-hub',
   );
 
   // Prevent toolbar buttons from stealing focus from the editor. Without this,
@@ -90,8 +90,8 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
   const preventBlur = (e: React.MouseEvent) => e.preventDefault();
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900 focus-within:border-slate-300 dark:focus-within:border-slate-600 transition-colors">
-      <div className="border-b border-slate-200 dark:border-slate-700 px-2 py-1 flex items-center gap-0.5 bg-slate-50 dark:bg-slate-800/60">
+    <div className="rounded-xl border border-border overflow-hidden bg-white dark:bg-card focus-within:border-border dark:focus-within:border-border transition-colors">
+      <div className="border-b border-border px-2 py-1 flex items-center gap-0.5 bg-muted/50 dark:bg-muted/60">
         <button
           type="button"
           aria-label="Bold"
@@ -119,7 +119,7 @@ export function TaskDescriptionEditor({ value, onBlurSave, placeholder }: Props)
         >
           <UnderlineIcon className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
-        <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
+        <div className="w-px h-4 bg-muted-foreground dark:bg-muted mx-1" />
         <button
           type="button"
           aria-label="Numbered list"

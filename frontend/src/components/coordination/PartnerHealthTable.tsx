@@ -78,7 +78,7 @@ export default function PartnerHealthTable() {
   const renderSortHeader = useCallback((col: string, label: string) => (
     <th
       key={col}
-      className="px-4 py-3 font-medium cursor-pointer hover:text-slate-700"
+      className="px-4 py-3 font-medium cursor-pointer hover:text-foreground"
       onClick={() => toggleSort(col)}
     >
       {label}
@@ -93,7 +93,7 @@ export default function PartnerHealthTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-600">
+            <tr className="border-b bg-muted/50 dark:bg-card/50 text-left text-foreground/80">
               {renderSortHeader("name", "Partner")}
               {renderSortHeader("community", "Community")}
               {renderSortHeader("health_score", "Health")}
@@ -106,17 +106,17 @@ export default function PartnerHealthTable() {
             {sorted.map(p => (
               <tr
                 key={p.partner_org_id}
-                className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                className="border-b last:border-0 hover:bg-muted/50 dark:hover:bg-muted cursor-pointer"
                 onClick={() => navigate(`/coordination/partners/${p.partner_org_id}`)}
               >
                 <td className="px-4 py-3 font-medium">{p.name}</td>
-                <td className="px-4 py-3 text-slate-600">{p.community}</td>
+                <td className="px-4 py-3 text-foreground/80">{p.community}</td>
                 <td className="px-4 py-3">
                   <Badge className={cn('text-[10px]', TIER_COLORS[p.health_tier])}>
                     {TIER_LABELS[p.health_tier] || p.health_tier} ({p.health_score})
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{p.classes_hosted}</td>
+                <td className="px-4 py-3 text-foreground/80">{p.classes_hosted}</td>
                 <td className="px-4 py-3">
                   <span className={cn(
                     'text-sm font-medium',

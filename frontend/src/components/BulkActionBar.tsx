@@ -107,7 +107,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-lg px-6 py-3 animate-in slide-in-from-bottom-2 duration-200">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-card border-t border-border shadow-lg px-6 py-3 animate-in slide-in-from-bottom-2 duration-200">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="text-sm px-3 py-1">
@@ -117,7 +117,7 @@ export default function BulkActionBar({ selectedCount, selectedIds, onComplete, 
               variant="ghost"
               size="sm"
               onClick={onDeselectAll}
-              className="text-slate-600 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
+              className="text-foreground/80 dark:text-muted-foreground hover:text-foreground"
             >
               <X className="w-4 h-4 mr-1" />
               Deselect All

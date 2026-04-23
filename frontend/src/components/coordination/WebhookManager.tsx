@@ -119,10 +119,10 @@ export default function WebhookManager() {
   return (
     <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">
           Webhooks
         </h1>
-        <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+        <Button onClick={() => setShowCreate(true)} className="bg-hub hover:bg-hub-strong text-white">
           <Plus className="w-4 h-4 mr-1" /> Add Webhook
         </Button>
       </div>
@@ -163,7 +163,7 @@ export default function WebhookManager() {
                   disabled={rotatingId === sub.id}
                   title="Rotate signing secret"
                   aria-label="Rotate webhook signing secret"
-                  className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                  className="text-warn hover:text-warn hover:bg-warn-soft"
                 >
                   <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
@@ -188,12 +188,12 @@ export default function WebhookManager() {
             <DialogTitle>New signing secret</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 break-all">
+            <p className="text-sm text-foreground/80 break-all">
               For <span className="font-mono text-xs">{rotatedFor}</span>.
               Save it now &mdash; it won&rsquo;t be shown again.
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded font-mono break-all">
+              <code className="flex-1 text-xs bg-muted p-2 rounded font-mono break-all">
                 {rotatedSecret}
               </code>
               <Button
@@ -204,7 +204,7 @@ export default function WebhookManager() {
                 <Copy className="w-3.5 h-3.5" aria-hidden="true" />
               </Button>
             </div>
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-warn">
               Update this value in your webhook receiver now. Deliveries
               signed with the old secret will fail verification until you do.
             </p>
@@ -226,11 +226,11 @@ export default function WebhookManager() {
           </DialogHeader>
           {createdSecret ? (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-foreground/80">
                 Save this secret — it won't be shown again:
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded font-mono break-all">
+                <code className="flex-1 text-xs bg-muted p-2 rounded font-mono break-all">
                   {createdSecret}
                 </code>
                 <Button
@@ -269,7 +269,7 @@ export default function WebhookManager() {
               </fieldset>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-                <Button onClick={handleCreate} disabled={creating} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button onClick={handleCreate} disabled={creating} className="bg-hub hover:bg-hub-strong text-white">
                   {creating ? 'Creating...' : 'Create'}
                 </Button>
               </div>

@@ -61,15 +61,15 @@ const UserRow = memo(function UserRow({
   onDelete,
 }: UserRowProps) {
   return (
-    <tr className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+    <tr className="border-b border-border hover:bg-muted/50">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
+          <div className="w-8 h-8 rounded-full bg-hub-soft flex items-center justify-center text-hub-strong font-semibold text-sm">
             {u.name?.charAt(0)?.toUpperCase()}
           </div>
           <div>
-            <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
-            <p className="text-xs text-slate-600 dark:text-gray-400">{u.email}</p>
+            <p className="font-medium text-foreground text-sm">{u.name}</p>
+            <p className="text-xs text-foreground/80 dark:text-muted-foreground">{u.email}</p>
           </div>
         </div>
       </td>
@@ -102,7 +102,7 @@ const UserRow = memo(function UserRow({
             onClick={() => onOpenSessions({ id: u.id, email: u.email || '' })}
             aria-label={`View sessions for ${u.email || 'user'}`}
             title="View active sessions"
-            className="text-muted-foreground hover:text-indigo-600"
+            className="text-muted-foreground hover:text-hub"
           >
             <LogOut className="w-4 h-4" aria-hidden="true" />
           </Button>
@@ -365,7 +365,7 @@ export default function UserManager() {
       actions={
         <Button
           onClick={() => setInviteDialogOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
         >
           <UserPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           Invite User
@@ -379,19 +379,19 @@ export default function UserManager() {
           {pendingUsers.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Approval ({pendingUsers.length})</h2>
+                <Clock className="w-4 h-4 text-warn" />
+                <h2 className="text-lg font-semibold text-foreground">Pending Approval ({pendingUsers.length})</h2>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+              <div className="bg-warn-soft border border-warn-soft rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
-                  <div key={u.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
+                  <div key={u.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-warn-soft flex items-center justify-center text-warn font-semibold text-sm">
                         {u.name?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-gray-100">{u.name}</p>
-                        <p className="text-sm text-slate-600 dark:text-gray-400">{u.email}</p>
+                        <p className="font-medium text-foreground">{u.name}</p>
+                        <p className="text-sm text-foreground/80 dark:text-muted-foreground">{u.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -423,22 +423,22 @@ export default function UserManager() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-info" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Invitations ({pendingInvitations.length})</h2>
+                <h2 className="text-lg font-semibold text-foreground">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
               <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
-                  <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
+                  <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info font-semibold text-sm">
                         {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-gray-100">{inv.name || 'No name'}</p>
-                        <p className="text-sm text-slate-600 dark:text-gray-400">{inv.email}</p>
+                        <p className="font-medium text-foreground">{inv.name || 'No name'}</p>
+                        <p className="text-sm text-foreground/80 dark:text-muted-foreground">{inv.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-hub-soft text-hub-strong">
                         {inv.role}
                       </span>
                       <Button
@@ -460,7 +460,7 @@ export default function UserManager() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-danger" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
+                <h2 className="text-lg font-semibold text-foreground">
                   Security Lockouts ({lockouts.length})
                 </h2>
               </div>
@@ -473,13 +473,13 @@ export default function UserManager() {
                 {lockouts.map((l) => (
                   <div
                     key={l.email}
-                    className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-3 shadow-sm"
+                    className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-3 shadow-sm"
                   >
                     <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-gray-100">
+                      <p className="text-sm font-medium text-foreground">
                         {l.email}
                       </p>
-                      <p className="text-xs text-slate-600 dark:text-gray-400">
+                      <p className="text-xs text-foreground/80 dark:text-muted-foreground">
                         {l.count} failures &middot; unlocks {new Date(l.expires_at).toLocaleString()}
                       </p>
                     </div>
@@ -499,15 +499,15 @@ export default function UserManager() {
           )}
 
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">All Users</h2>
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <h2 className="text-lg font-semibold text-foreground">All Users</h2>
+            <div className="bg-white dark:bg-card border border-border rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Role</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-gray-400">Actions</th>
+                  <tr className="border-b border-border bg-muted/50 dark:bg-muted/50">
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">User</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -531,7 +531,7 @@ export default function UserManager() {
       {/* Invite User Dialog — hoisted outside PageShell so it stays mounted
           during the loading state. */}
       <Dialog open={inviteDialogOpen} onOpenChange={closeInviteDialog}>
-        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-gray-900">
+        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Invite User</DialogTitle>
             <DialogDescription>
@@ -551,7 +551,7 @@ export default function UserManager() {
                     : `Invitation created for ${invitationSent.email}`}
                 </p>
                 {!invitationSent.emailSent && (
-                  <p className="text-xs text-amber-700 mt-2">
+                  <p className="text-xs text-warn mt-2">
                     We couldn&rsquo;t send the email right now. The invitation is
                     still valid &mdash; you can resend it from the Pending
                     Invitations list below, or ask the user to check their
@@ -563,7 +563,7 @@ export default function UserManager() {
                 <Button
                   type="button"
                   onClick={closeInviteDialog}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="bg-hub hover:bg-hub-strong text-white"
                 >
                   Done
                 </Button>
@@ -580,7 +580,7 @@ export default function UserManager() {
                   value={inviteForm.email}
                   onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                   required
-                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
+                  className="h-10 bg-muted/50 dark:bg-muted"
                 />
               </div>
               <div className="space-y-2">
@@ -590,7 +590,7 @@ export default function UserManager() {
                   placeholder="John Doe"
                   value={inviteForm.name}
                   onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
+                  className="h-10 bg-muted/50 dark:bg-muted"
                 />
               </div>
               <div className="space-y-2">
@@ -613,7 +613,7 @@ export default function UserManager() {
                 <Button
                   type="submit"
                   disabled={inviteLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="bg-hub hover:bg-hub-strong text-white"
                 >
                   {inviteLoading ? 'Creating...' : 'Create Invitation'}
                 </Button>
@@ -628,7 +628,7 @@ export default function UserManager() {
           every refresh token for that user across every device; their
           current access token lives until it expires (typically 4h). */}
       <Dialog open={!!sessionsFor} onOpenChange={(o) => { if (!o) closeSessions(); }}>
-        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-900">
+        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Active sessions</DialogTitle>
             <DialogDescription>
@@ -644,7 +644,7 @@ export default function UserManager() {
               <span className="sr-only">Loading sessions</span>
               <span
                 aria-hidden="true"
-                className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"
+                className="w-5 h-5 border-2 border-hub border-t-transparent rounded-full animate-spin"
               />
             </div>
           )}
@@ -658,13 +658,13 @@ export default function UserManager() {
               {sessions.map((s) => (
                 <div
                   key={s.jti}
-                  className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3"
+                  className="flex items-center justify-between bg-muted/50 dark:bg-muted rounded-lg p-3"
                 >
                   <div>
-                    <p className="text-sm font-mono text-slate-900 dark:text-gray-100">
+                    <p className="text-sm font-mono text-foreground">
                       {s.jti_prefix}&hellip;
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-gray-400">
+                    <p className="text-xs text-foreground/80 dark:text-muted-foreground">
                       {s.issued_at
                         ? `issued ${new Date(s.issued_at).toLocaleString()}`
                         : 'issue time unknown'}
@@ -731,7 +731,7 @@ export default function UserManager() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-danger hover:bg-danger"
               disabled={deleteTarget?.role === 'admin' && deleteConfirmText !== 'DELETE'}
               onClick={(e) => { e.preventDefault(); confirmDelete(); }}
             >

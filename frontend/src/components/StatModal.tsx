@@ -65,18 +65,18 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 const dateText = isToday ? 'Today' : format(new Date(schedule.date), 'MMM d, yyyy');
 
                 return (
-                  <div key={schedule.id} className="flex flex-col p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <div key={schedule.id} className="flex flex-col p-4 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: displayClass.color }} />
-                        <span className="font-semibold text-slate-800 dark:text-gray-100">{displayClass.name}</span>
+                        <span className="font-semibold text-foreground">{displayClass.name}</span>
                       </div>
-                      <Badge variant="outline" className="text-xs bg-slate-50 dark:bg-gray-800">
+                      <Badge variant="outline" className="text-xs bg-muted/50 dark:bg-muted">
                         {dateText}
                       </Badge>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-600 dark:text-gray-300">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-foreground/80 dark:text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <span>{schedule.start_time} - {schedule.end_time}</span>
@@ -86,24 +86,24 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                         {schedule.employees?.length > 0 ? (
                           schedule.employees.map((emp, i) => (
                             <span key={emp.id}>
-                              <EntityLink type="employee" id={emp.id} className="text-slate-600 dark:text-gray-300">{emp.name}</EntityLink>
+                              <EntityLink type="employee" id={emp.id} className="text-foreground/80 dark:text-muted-foreground">{emp.name}</EntityLink>
                               {i < schedule.employees.length - 1 && ', '}
                             </span>
                           ))
                         ) : (
-                          <span className="text-slate-600 dark:text-gray-300">Unassigned</span>
+                          <span className="text-foreground/80 dark:text-muted-foreground">Unassigned</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 sm:col-span-2">
                         <MapPin className="w-4 h-4 text-muted-foreground" />
-                        <EntityLink type="location" id={schedule.location_id} className="text-slate-600 dark:text-gray-300">{location.city_name}</EntityLink>
+                        <EntityLink type="location" id={schedule.location_id} className="text-foreground/80 dark:text-muted-foreground">{location.city_name}</EntityLink>
                       </div>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No schedules found.</div>
+              <div className="text-center py-8 text-foreground/80 dark:text-muted-foreground">No schedules found.</div>
             )
           )}
 
@@ -111,19 +111,19 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.map((emp) => (
-                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <div key={emp.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium" style={{ backgroundColor: emp.color }}>
                       {(emp.name || '?').charAt(0)}
                     </div>
                     <div>
-                      <EntityLink type="employee" id={emp.id} className="font-medium text-slate-800 dark:text-gray-100">{emp.name || 'Unknown'}</EntityLink>
-                      {emp.email && <div className="text-xs text-slate-600 dark:text-gray-400">{emp.email}</div>}
+                      <EntityLink type="employee" id={emp.id} className="font-medium text-foreground">{emp.name || 'Unknown'}</EntityLink>
+                      {emp.email && <div className="text-xs text-foreground/80 dark:text-muted-foreground">{emp.email}</div>}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No team members found.</div>
+              <div className="text-center py-8 text-foreground/80 dark:text-muted-foreground">No team members found.</div>
             )
           )}
 
@@ -131,19 +131,19 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 gap-3">
                 {data.map((loc) => (
-                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
-                    <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-amber-600" />
+                  <div key={loc.id} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">
+                    <div className="w-10 h-10 bg-warn-soft rounded-lg flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-warn" />
                     </div>
                     <div>
-                      <EntityLink type="location" id={loc.id} className="font-medium text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
-                      <div className="text-sm text-slate-600 dark:text-gray-400 mt-1 line-clamp-2">{loc.address}</div>
+                      <EntityLink type="location" id={loc.id} className="font-medium text-foreground">{loc.city_name}</EntityLink>
+                      <div className="text-sm text-foreground/80 dark:text-muted-foreground mt-1 line-clamp-2">{loc.address}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No locations found.</div>
+              <div className="text-center py-8 text-foreground/80 dark:text-muted-foreground">No locations found.</div>
             )
           )}
 
@@ -151,19 +151,19 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
             data.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.map((classItem) => (
-                  <div key={classItem.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <div key={classItem.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ backgroundColor: classItem.color || '#0F766E' }}>
                       <BookOpen className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <EntityLink type="class" id={classItem.id} className="font-medium text-slate-800 dark:text-gray-100">{classItem.name}</EntityLink>
-                      <div className="text-xs text-slate-600 dark:text-gray-400 mt-1 break-words">{classItem.description || 'No description'}</div>
+                      <EntityLink type="class" id={classItem.id} className="font-medium text-foreground">{classItem.name}</EntityLink>
+                      <div className="text-xs text-foreground/80 dark:text-muted-foreground mt-1 break-words">{classItem.description || 'No description'}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-600 dark:text-gray-400">No class types found.</div>
+              <div className="text-center py-8 text-foreground/80 dark:text-muted-foreground">No class types found.</div>
             )
           )}
           </div>

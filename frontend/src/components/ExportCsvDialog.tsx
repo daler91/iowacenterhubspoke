@@ -105,7 +105,7 @@ export default function ExportCsvDialog({ open, onOpenChange, currentFilters }) 
                     id={`field-${field.id}`}
                     checked={selectedFields.includes(field.id)}
                     onChange={() => toggleField(field.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary mt-0.5"
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary mt-0.5"
                     aria-describedby={field.hint ? `field-${field.id}-hint` : undefined}
                   />
                   <div className="min-w-0">
