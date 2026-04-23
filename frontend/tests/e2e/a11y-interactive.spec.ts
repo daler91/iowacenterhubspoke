@@ -12,7 +12,7 @@ import { test, expect } from './fixtures';
  * the build.
  */
 
-const BLOCKING_IMPACTS: ReadonlyArray<'critical' | 'serious'> = ['critical', 'serious'];
+const BLOCKING_IMPACTS = new Set(['critical', 'serious']);
 
 function summariseViolations(results: AxeResults): string {
   return results.violations
@@ -21,7 +21,7 @@ function summariseViolations(results: AxeResults): string {
 }
 
 function blockingViolations(results: AxeResults): AxeResults['violations'] {
-  return results.violations.filter(v => BLOCKING_IMPACTS.includes(v.impact as 'critical' | 'serious'));
+  return results.violations.filter(v => v.impact != null && BLOCKING_IMPACTS.has(v.impact));
 }
 
 interface InteractiveSurface {
