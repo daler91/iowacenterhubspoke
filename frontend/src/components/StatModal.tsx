@@ -47,10 +47,8 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
 
         <div className="flex-1 relative min-h-0">
           <div
-            role="region"
             aria-label={title}
-            tabIndex={0}
-            className="absolute inset-0 overflow-y-auto py-4 pr-2 space-y-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
+            className="absolute inset-0 overflow-y-auto py-4 pr-2 space-y-3"
           >
           {(type === 'today' || type === 'scheduled') && (
             data.length > 0 ? (
