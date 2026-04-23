@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HubSpoke — Brand Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root {
+    /* Lifted verbatim from frontend/src/index.css */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 168 80% 30%;
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 15% 45%;
+    --accent: 38 92% 50%;
+    --destructive: 0 84% 60%;
+    --border: 214 20% 90%;
+    --ring: 239 84% 67%;
+
+    --hub: 239 84% 67%;
+    --hub-soft: 239 84% 95%;
+    --hub-strong: 239 84% 50%;
+    --spoke: 168 80% 30%;
+    --spoke-soft: 168 80% 92%;
+    --warn: 38 92% 50%;
+    --warn-soft: 38 92% 94%;
+    --info: 217 91% 60%;
+    --info-soft: 217 91% 94%;
+    --progress: 142 71% 45%;
+    --danger: 0 84% 60%;
+    --danger-soft: 0 84% 95%;
+    --own-int: 217 91% 60%;
+    --own-int-soft: 217 91% 94%;
+    --own-part: 280 65% 60%;
+    --own-part-soft: 280 65% 94%;
+
+    --radius: 0.625rem;
+
+    /* Derived neutrals */
+    --ink-900: hsl(215 28% 13%);
+    --ink-700: hsl(215 20% 28%);
+    --ink-500: hsl(215 15% 45%);
+    --ink-400: hsl(215 12% 58%);
+    --ink-300: hsl(214 15% 75%);
+    --ink-200: hsl(214 20% 90%);
+    --ink-100: hsl(210 20% 96%);
+    --ink-50:  hsl(210 20% 98%);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    color: var(--ink-900);
+    background: var(--ink-50);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; margin: 0; letter-spacing: -0.01em; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* --- Layout shell --- */
+  .shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  /* --- Left rail (brand TOC) --- */
+  .rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    background: white;
+    border-right: 1px solid var(--ink-200);
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .brand-mark {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: hsl(var(--hub));
+    display: grid; place-items: center;
+    position: relative;
+    box-shadow: 0 1px 0 hsl(var(--hub-strong));
+  }
+  .brand-mark svg { color: white; }
+  .brand-name { font-family: 'Manrope'; font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 11px; color: var(--ink-500); margin-top: 2px; letter-spacing: 0.02em; }
+
+  .toc-label { font-size: 10px; color: var(--ink-400); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: 8px; }
+  .toc a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    font-size: 13px; color: var(--ink-700);
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .toc a:hover { background: var(--ink-100); color: var(--ink-900); }
+  .toc a .num { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--ink-400); width: 18px; }
+
+  .rail-meta {
+    margin-top: auto;
+    font-size: 11px; color: var(--ink-400); line-height: 1.6;
+  }
+  .rail-meta code { font-family: 'JetBrains Mono'; font-size: 10.5px; background: var(--ink-100); padding: 1px 5px; border-radius: 3px; color: var(--ink-700); }
+
+  /* --- Main content --- */
+  main { padding: 48px 64px 120px; max-width: 1200px; }
+
+  section { margin-bottom: 96px; scroll-margin-top: 24px; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ink-200);
+  }
+  .sec-num { font-family: 'JetBrains Mono'; font-size: 12px; color: var(--ink-400); }
+  .sec-title { font-size: 28px; font-weight: 700; }
+  .sec-sub { margin-left: auto; font-size: 13px; color: var(--ink-500); max-width: 420px; text-align: right; }
+
+  .lede {
+    font-size: 15.5px; line-height: 1.65;
+    color: var(--ink-700);
+    max-width: 68ch;
+    margin-bottom: 32px;
+  }
+
+  /* --- Hero / cover --- */
+  .cover {
+    position: relative;
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 16px;
+    padding: 56px 56px 0;
+    margin-bottom: 96px;
+    overflow: hidden;
+  }
+  .cover-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: end; }
+  .cover h1 {
+    font-size: 56px; font-weight: 800; line-height: 1.02;
+    letter-spacing: -0.025em;
+  }
+  .cover h1 em {
+    font-style: normal;
+    color: hsl(var(--hub));
+  }
+  .cover-kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono'; font-size: 11px;
+    color: var(--ink-500);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .cover-kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--hub)); }
+  .cover-tag {
+    font-size: 17px; line-height: 1.55;
+    color: var(--ink-700);
+    margin: 22px 0 36px;
+    max-width: 48ch;
+  }
+  .cover-meta {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; padding: 20px 0 32px;
+    border-top: 1px solid var(--ink-200);
+  }
+  .cover-meta .k { font-size: 10px; color: var(--ink-400); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: 6px; }
+  .cover-meta .v { font-size: 13px; color: var(--ink-900); font-weight: 500; }
+
+  /* Hub & spoke diagram as hero */
+  .hub-diagram { padding: 24px 0 0; aspect-ratio: 1 / 0.9; }
+  .hub-diagram svg { width: 100%; height: 100%; display: block; }
+
+  /* --- Palette grid --- */
+  .swatches {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .swatch {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .swatch-chip {
+    height: 140px;
+    position: relative;
+    display: flex; align-items: flex-end;
+    padding: 14px;
+  }
+  .swatch-chip .role {
+    font-family: 'JetBrains Mono'; font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.9);
+    color: var(--ink-900);
+    font-weight: 500; letter-spacing: 0.06em;
+  }
+  .swatch-chip.dark .role { background: rgba(0,0,0,0.25); color: white; backdrop-filter: blur(4px); }
+  .swatch-body { padding: 14px 16px 16px; }
+  .swatch-name { font-family: 'Manrope'; font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .swatch-alias { font-size: 11.5px; color: var(--ink-500); margin-bottom: 10px; }
+  .swatch-codes { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-family: 'JetBrains Mono'; font-size: 11px; }
+  .swatch-codes .k { color: var(--ink-400); }
+  .swatch-codes .v { color: var(--ink-700); }
+
+  /* --- Semantic palette: the 3 "role pairs" --- */
+  .role-pairs {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-top: 24px;
+  }
+  .pair {
+    display: flex; align-items: stretch;
+    border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--ink-200);
+    background: white;
+  }
+  .pair .soft, .pair .strong { flex: 1; padding: 14px 16px; min-height: 76px; }
+  .pair .soft { color: var(--ink-700); }
+  .pair .strong { color: white; font-weight: 600; display: flex; align-items: flex-end; }
+  .pair .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+  .pair .val { font-family: 'JetBrains Mono'; font-size: 11px; opacity: 0.85; margin-top: 4px; }
+
+  /* --- Typography --- */
+  .type-block {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 32px 36px;
+  }
+  .type-row {
+    display: grid;
+    grid-template-columns: 180px 1fr auto;
+    align-items: baseline;
+    gap: 24px;
+    padding: 20px 0;
+    border-bottom: 1px dashed var(--ink-200);
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-spec { font-size: 11px; color: var(--ink-500); font-family: 'JetBrains Mono'; line-height: 1.5; }
+  .type-spec strong { display: block; font-family: 'Manrope'; font-size: 12px; color: var(--ink-900); font-weight: 700; margin-bottom: 4px; letter-spacing: 0; }
+  .type-sample { color: var(--ink-900); }
+  .type-meta { font-family: 'JetBrains Mono'; font-size: 10.5px; color: var(--ink-400); text-align: right; white-space: nowrap; }
+
+  .h1-sample { font-family: 'Manrope'; font-size: 36px; font-weight: 700; letter-spacing: -0.025em; color: hsl(215 25% 15%); }
+  .h2-sample { font-family: 'Manrope'; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; color: hsl(215 25% 18%); }
+  .h3-sample { font-family: 'Manrope'; font-size: 22px; font-weight: 600; color: hsl(215 25% 20%); }
+  .body-sample { font-family: 'Inter'; font-size: 16px; font-weight: 400; line-height: 1.65; color: var(--ink-700); max-width: 56ch; }
+  .caption-sample { font-family: 'Inter'; font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-500); }
+  .metric-sample { font-family: 'Manrope'; font-size: 40px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: hsl(var(--hub-strong)); }
+
+  /* --- Logo lockups --- */
+  .logos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .logo-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 32px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 180px;
+    position: relative;
+  }
+  .logo-card.dark { background: var(--ink-900); }
+  .logo-card.hub { background: hsl(var(--hub)); }
+  .logo-card .tag {
+    position: absolute; top: 12px; left: 14px;
+    font-family: 'JetBrains Mono'; font-size: 10px;
+    color: var(--ink-400); text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .logo-card.dark .tag, .logo-card.hub .tag { color: rgba(255,255,255,0.55); }
+
+  .logo-lockup { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 40px; height: 40px;
+    border-radius: 9px;
+    background: hsl(var(--hub));
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .logo-mark.inv { background: white; }
+  .logo-mark.ghost { background: transparent; border: 1.5px solid white; }
+  .logo-word { font-family: 'Manrope'; font-weight: 800; font-size: 20px; letter-spacing: -0.02em; color: var(--ink-900); }
+  .logo-word.inv { color: white; }
+  .logo-tld { color: var(--ink-400); font-weight: 600; }
+  .logo-word.inv .logo-tld { color: rgba(255,255,255,0.55); }
+
+  /* Hub-spoke glyph — abstract, modern. An offset hub node with two asymmetric
+     orbital arcs and a single kinetic spoke. Reads as motion radiating outward. */
+  .hs-icon { width: 24px; height: 24px; overflow: visible; }
+  .hs-icon .arc { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; opacity: 0.55; }
+  .hs-icon .arc-2 { opacity: 0.32; }
+  .hs-icon .hub-core { fill: currentColor; }
+  .hs-icon .hub-ring { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: 0.9; }
+  .hs-icon .spoke-node { fill: currentColor; }
+  .hs-icon .spoke-line { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; opacity: 0.7; }
+
+  /* Brand-mark color slots (inverse / ghost variants override these) */
+  .brand-mark .hs-icon { color: white; }
+  .logo-mark .hs-icon { color: white; }
+  .logo-mark.inv .hs-icon { color: hsl(var(--hub)); }
+  .logo-mark.inv .hs-icon .spoke-node { color: hsl(var(--spoke)); fill: hsl(var(--spoke)); }
+  .logo-mark.ghost .hs-icon { color: white; }
+
+  /* --- Iconography --- */
+  .icon-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+  .icon-cell {
+    aspect-ratio: 1/1;
+    border: 1px solid var(--ink-200);
+    background: white;
+    border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px;
+    color: var(--ink-700);
+    transition: background 120ms;
+  }
+  .icon-cell:hover { background: var(--ink-100); }
+  .icon-cell i { width: 22px; height: 22px; }
+  .icon-cell span { font-size: 10px; color: var(--ink-500); font-family: 'JetBrains Mono'; }
+
+  /* --- Components: buttons, inputs, chips --- */
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .cmp-card {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .cmp-card h4 { font-size: 11px; color: var(--ink-400); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: 20px; font-family: 'Inter'; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .row + .row { margin-top: 14px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-family: 'Inter'; font-size: 13.5px; font-weight: 500;
+    cursor: pointer; border: none;
+    transition: all 120ms ease;
+    font-feature-settings: "ss01";
+  }
+  .btn i { width: 15px; height: 15px; }
+  .btn-primary { background: hsl(var(--hub)); color: white; box-shadow: 0 1px 0 hsl(var(--hub-strong)), 0 1px 2px rgba(79,70,229,0.2); }
+  .btn-primary:hover { background: hsl(var(--hub-strong)); }
+  .btn-secondary { background: white; color: var(--ink-700); border: 1px solid var(--ink-200); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .btn-secondary:hover { background: var(--ink-100); }
+  .btn-destructive { background: hsl(var(--danger-soft)); color: hsl(var(--danger)); border: 1px solid hsl(0 84% 88%); }
+  .btn-destructive:hover { background: hsl(0 84% 92%); }
+  .btn-ghost { background: transparent; color: var(--ink-700); }
+  .btn-ghost:hover { background: var(--ink-100); }
+  .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 6px; }
+
+  .input {
+    display: block; width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--ink-200);
+    background: hsla(210 20% 96% / 0.5);
+    font-family: 'Inter'; font-size: 13.5px;
+    color: var(--ink-900);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02) inset;
+  }
+  .input:focus { outline: none; border-color: hsl(var(--hub)); box-shadow: 0 0 0 3px hsl(var(--hub) / 0.15); }
+  .input::placeholder { color: var(--ink-400); }
+  .field-label { font-size: 11.5px; color: var(--ink-500); font-weight: 500; margin-bottom: 6px; display: block; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11.5px; font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+  }
+  .chip i { width: 12px; height: 12px; }
+  .chip-hub { background: hsl(var(--hub-soft)); color: hsl(var(--hub-strong)); }
+  .chip-spoke { background: hsl(var(--spoke-soft)); color: hsl(var(--spoke)); }
+  .chip-warn { background: hsl(var(--warn-soft)); color: hsl(38 92% 38%); }
+  .chip-info { background: hsl(var(--info-soft)); color: hsl(217 91% 45%); }
+  .chip-danger { background: hsl(var(--danger-soft)); color: hsl(var(--danger)); }
+  .chip-progress { background: hsl(142 71% 94%); color: hsl(var(--progress)); }
+  .chip-internal { background: hsl(var(--own-int-soft)); color: hsl(217 91% 45%); }
+  .chip-partner { background: hsl(var(--own-part-soft)); color: hsl(280 65% 48%); }
+  .chip-muted { background: var(--ink-100); color: var(--ink-500); }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* --- Schedule blocks (the hero pattern) --- */
+  .schedule-demo {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 32px;
+    display: grid; grid-template-columns: 80px 1fr; gap: 24px;
+  }
+  .tl-axis { display: flex; flex-direction: column; gap: 0; padding-top: 4px; }
+  .tl-axis .t { font-family: 'JetBrains Mono'; font-size: 10.5px; color: var(--ink-400); height: 32px; }
+  .tl-track { display: flex; flex-direction: column; gap: 4px; }
+
+  .blk {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12.5px; line-height: 1.35;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .blk .title { font-weight: 600; font-family: 'Manrope'; }
+  .blk .meta { font-size: 11px; opacity: 0.8; display: flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono'; }
+  .blk .meta i { width: 11px; height: 11px; }
+
+  .blk-class {
+    background: hsl(var(--hub));
+    color: white;
+    border-left: 4px solid hsl(var(--hub-strong));
+    height: 64px;
+    box-shadow: 0 1px 0 hsl(var(--hub-strong));
+  }
+  .blk-drive {
+    height: 28px;
+    background: repeating-linear-gradient(
+      -45deg,
+      hsl(var(--ink-100)),
+      hsl(var(--ink-100)) 4px,
+      var(--ink-200) 4px,
+      var(--ink-200) 5px
+    );
+    border: 1px dashed var(--ink-300);
+    color: var(--ink-500);
+    padding: 5px 12px;
+    justify-content: center;
+  }
+  .blk-drive .title { font-weight: 500; font-size: 11.5px; color: var(--ink-500); font-family: 'Inter'; }
+  .blk-warn {
+    height: 44px;
+    background: hsl(var(--warn-soft));
+    color: hsl(38 92% 32%);
+    border: 1px solid hsl(38 92% 82%);
+    border-left: 4px solid hsl(var(--warn));
+  }
+
+  /* --- Map legend / hub marker --- */
+  .map-demo {
+    background: linear-gradient(180deg, hsl(210 25% 97%), hsl(210 20% 94%));
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    height: 360px;
+    position: relative;
+    overflow: hidden;
+  }
+  .map-demo::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(hsl(214 20% 88%) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(214 20% 88%) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.6;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 90%);
+  }
+  .mk {
+    position: absolute;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px;
+    transform: translate(-50%, -100%);
+  }
+  .mk-dot { width: 22px; height: 22px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+  .mk-hub .mk-dot { background: hsl(var(--hub)); width: 30px; height: 30px; }
+  .mk-hub .mk-label { font-weight: 700; color: hsl(var(--hub-strong)); }
+  .mk-spoke .mk-dot { background: hsl(var(--spoke)); }
+  .mk-label { font-family: 'Manrope'; font-weight: 600; font-size: 11.5px; color: var(--ink-700); background: white; padding: 2px 7px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); white-space: nowrap; }
+  .mk-line { position: absolute; height: 1px; background: hsl(var(--hub) / 0.3); transform-origin: left center; border-top: 1px dashed hsl(var(--hub) / 0.55); }
+
+  .legend {
+    position: absolute; top: 16px; right: 16px;
+    background: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    font-size: 11.5px; color: var(--ink-700);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .legend .lg-row { display: flex; align-items: center; gap: 8px; }
+  .legend .lg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* --- Voice & content --- */
+  .voice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .voice-col {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 24px 28px;
+  }
+  .voice-col.do { border-top: 3px solid hsl(var(--progress)); }
+  .voice-col.dont { border-top: 3px solid hsl(var(--danger)); }
+  .voice-col h4 { font-family: 'Manrope'; font-size: 13px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .voice-col.do h4 { color: hsl(var(--progress)); }
+  .voice-col.dont h4 { color: hsl(var(--danger)); }
+  .voice-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .voice-col li { font-size: 13.5px; color: var(--ink-700); line-height: 1.55; padding-left: 16px; position: relative; }
+  .voice-col li::before { content: ''; position: absolute; left: 0; top: 9px; width: 6px; height: 6px; border-radius: 50%; }
+  .voice-col.do li::before { background: hsl(var(--progress)); }
+  .voice-col.dont li::before { background: hsl(var(--danger)); }
+  .voice-col li em { font-style: normal; color: var(--ink-900); font-weight: 600; font-family: 'Manrope'; }
+  .voice-col li code { font-family: 'JetBrains Mono'; font-size: 12px; background: var(--ink-100); padding: 1px 6px; border-radius: 3px; color: var(--ink-700); }
+
+  /* --- Principles / philosophy --- */
+  .principles {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .principle {
+    background: white;
+    border: 1px solid var(--ink-200);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .principle-num { font-family: 'JetBrains Mono'; font-size: 11px; color: hsl(var(--hub)); margin-bottom: 16px; letter-spacing: 0.1em; }
+  .principle h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .principle p { font-size: 13px; color: var(--ink-500); line-height: 1.55; margin: 0; }
+
+  /* --- Spacing scale viz --- */
+  .spacing-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
+  .spacing-bar { height: 20px; background: hsl(var(--hub-soft)); border-radius: 3px; }
+  .spacing-lbl { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink-500); min-width: 80px; }
+  .spacing-val { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink-400); }
+
+  /* --- Footer note --- */
+  footer {
+    padding: 40px 64px;
+    border-top: 1px solid var(--ink-200);
+    color: var(--ink-400);
+    font-size: 12px;
+    font-family: 'JetBrains Mono';
+    display: flex; justify-content: space-between;
+  }
+
+  /* --- Responsive guard --- */
+  @media (max-width: 960px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; }
+    main { padding: 32px 24px 80px; }
+    .sec-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .sec-sub { margin: 0; text-align: left; }
+    .swatches, .cover-grid, .voice-grid, .cmp-grid, .principles, .logos-grid, .role-pairs { grid-template-columns: 1fr; }
+    .icon-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg class="hs-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <!-- sweeping orbital arc (background depth) -->
+          <path class="arc arc-2" d="M 2.5 16.5 A 10.5 10.5 0 0 1 20.5 6.5" />
+          <!-- spokes: varied lengths, asymmetric angles, all from core at (12,12) -->
+          <line class="spoke-line" x1="12" y1="12" x2="21" y2="5" />
+          <line class="spoke-line" x1="12" y1="12" x2="22" y2="11.5" />
+          <line class="spoke-line" x1="12" y1="12" x2="19" y2="19.5" />
+          <line class="spoke-line" x1="12" y1="12" x2="6" y2="20" />
+          <line class="spoke-line" x1="12" y1="12" x2="3" y2="13" />
+          <line class="spoke-line" x1="12" y1="12" x2="5.5" y2="5.5" />
+          <!-- spoke nodes at each endpoint, varied sizes for rhythm -->
+          <circle class="spoke-node" cx="21" cy="5" r="1.6" />
+          <circle class="spoke-node" cx="22" cy="11.5" r="1.2" />
+          <circle class="spoke-node" cx="19" cy="19.5" r="1.4" />
+          <circle class="spoke-node" cx="6" cy="20" r="1.2" />
+          <circle class="spoke-node" cx="3" cy="13" r="1.4" />
+          <circle class="spoke-node" cx="5.5" cy="5.5" r="1.2" />
+          <!-- hub ring + solid core, centered -->
+          <circle class="hub-ring" cx="12" cy="12" r="3.4" />
+          <circle class="hub-core" cx="12" cy="12" r="1.6" />
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">HubSpoke</div>
+        <div class="brand-sub">Brand Kit · v1</div>
+      </div>
+    </div>
+
+    <nav class="toc">
+      <div class="toc-label">Contents</div>
+      <a href="#identity"><span class="num">01</span> Identity</a>
+      <a href="#principles"><span class="num">02</span> Principles</a>
+      <a href="#logo"><span class="num">03</span> Logo</a>
+      <a href="#palette"><span class="num">04</span> Palette</a>
+      <a href="#semantic"><span class="num">05</span> Semantic Colors</a>
+      <a href="#type"><span class="num">06</span> Typography</a>
+      <a href="#icons"><span class="num">07</span> Iconography</a>
+      <a href="#components"><span class="num">08</span> Components</a>
+      <a href="#schedule"><span class="num">09</span> Schedule Blocks</a>
+      <a href="#map"><span class="num">10</span> Map Markers</a>
+      <a href="#voice"><span class="num">11</span> Voice & Tone</a>
+      <a href="#spacing"><span class="num">12</span> Spacing & Radius</a>
+    </nav>
+
+    <div class="rail-meta">
+      Tokens sourced from <code>frontend/src/index.css</code> and <code>design_guidelines.json</code>. Match, don't reinvent.
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- COVER -->
+    <div class="cover" id="identity">
+      <div class="cover-grid">
+        <div>
+          <div class="cover-kicker">
+            <span class="dot"></span>
+            <span>Iowa Center · Internal Platform · Est. 2025</span>
+          </div>
+          <h1>Scheduling, <em>radially</em>.<br/>Des Moines out.</h1>
+          <p class="cover-tag">HubSpoke coordinates the movement of Iowa Center employees from a central hub to satellite locations across the state — where every class has a drive time, and every drive time has weight.</p>
+
+          <div class="cover-meta">
+            <div><div class="k">Surface</div><div class="v">Web app + scheduler</div></div>
+            <div><div class="k">Audience</div><div class="v">Logistics managers, schedulers, partner orgs</div></div>
+            <div><div class="k">Identity</div><div class="v">The "E1" Logistics Architect</div></div>
+          </div>
+        </div>
+
+        <div class="hub-diagram">
+          <svg viewBox="0 0 400 360">
+            <defs>
+              <radialGradient id="hubglow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="hsl(239 84% 67% / 0.18)" />
+                <stop offset="100%" stop-color="hsl(239 84% 67% / 0)" />
+              </radialGradient>
+            </defs>
+            <!-- Concentric rings -->
+            <circle cx="200" cy="180" r="160" fill="none" stroke="hsl(214 20% 90%)" stroke-dasharray="2 5" />
+            <circle cx="200" cy="180" r="110" fill="none" stroke="hsl(214 20% 90%)" stroke-dasharray="2 5" />
+            <circle cx="200" cy="180" r="60" fill="none" stroke="hsl(214 20% 90%)" stroke-dasharray="2 5" />
+            <circle cx="200" cy="180" r="180" fill="url(#hubglow)" />
+
+            <!-- Spoke lines -->
+            <g stroke="hsl(239 84% 67% / 0.45)" stroke-width="1.2">
+              <line x1="200" y1="180" x2="80" y2="60" />
+              <line x1="200" y1="180" x2="340" y2="80" />
+              <line x1="200" y1="180" x2="360" y2="220" />
+              <line x1="200" y1="180" x2="70" y2="260" />
+              <line x1="200" y1="180" x2="260" y2="320" />
+              <line x1="200" y1="180" x2="140" y2="320" />
+              <line x1="200" y1="180" x2="40" y2="160" />
+            </g>
+
+            <!-- Spoke markers (teal) -->
+            <g>
+              <g transform="translate(80 60)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(340 80)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(360 220)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(70 260)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(260 320)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(140 320)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+              <g transform="translate(40 160)"><circle r="7" fill="white" /><circle r="5" fill="hsl(168 80% 30%)" /></g>
+            </g>
+
+            <!-- Hub -->
+            <circle cx="200" cy="180" r="16" fill="white" stroke="hsl(239 84% 67%)" stroke-width="2" />
+            <circle cx="200" cy="180" r="9" fill="hsl(239 84% 50%)" />
+
+            <!-- City labels -->
+            <g font-family="Inter" font-size="10" fill="hsl(215 15% 45%)">
+              <text x="200" y="215" text-anchor="middle" font-weight="600" fill="hsl(215 25% 15%)">Des Moines</text>
+              <text x="200" y="228" text-anchor="middle" font-size="9" fill="hsl(215 15% 55%)">The Hub · 2210 Grand Ave</text>
+              <text x="82" y="48" text-anchor="middle">Ames</text>
+              <text x="340" y="68" text-anchor="middle">Marshalltown</text>
+              <text x="360" y="238" text-anchor="start" dx="-18">Iowa City</text>
+              <text x="70" y="278" text-anchor="middle">Council Bluffs</text>
+              <text x="260" y="338" text-anchor="middle">Ottumwa</text>
+              <text x="140" y="338" text-anchor="middle">Creston</text>
+              <text x="40" y="148" text-anchor="start" dx="8">Sioux City</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRINCIPLES -->
+    <section id="principles">
+      <div class="sec-head">
+        <div class="sec-num">02</div>
+        <h2 class="sec-title">Design principles</h2>
+        <div class="sec-sub">The four rules every screen lives by. Break one, and the platform loses its edge — ambiguity in logistics is fatal.</div>
+      </div>
+
+      <div class="principles">
+        <div class="principle">
+          <div class="principle-num">01 / 04</div>
+          <h3>Clarity is king</h3>
+          <p>In logistics, ambiguity is fatal. Every pixel serves a purpose. If it doesn't communicate state or enable action, it comes out.</p>
+        </div>
+        <div class="principle">
+          <div class="principle-num">02 / 04</div>
+          <h3>Radiate from the hub</h3>
+          <p>Layouts, maps, and diagrams emanate from a central point. Des Moines sits at the center; spokes extend outward. Visual weight follows the metaphor.</p>
+        </div>
+        <div class="principle">
+          <div class="principle-num">03 / 04</div>
+          <h3>Time is physical</h3>
+          <p>Drive time has <em>weight</em> — dashed, gray, textured. Class time has <em>energy</em> — solid, saturated indigo. You can feel the trip.</p>
+        </div>
+        <div class="principle">
+          <div class="principle-num">04 / 04</div>
+          <h3>Iowa-grounded, not rustic</h3>
+          <p>The roots are earthy — soil, corn, sky. The execution is a precise SaaS instrument. No wood textures, no wheat motifs. Flat, high-contrast, anchored.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOGO -->
+    <section id="logo">
+      <div class="sec-head">
+        <div class="sec-num">03</div>
+        <h2 class="sec-title">Logo &amp; mark</h2>
+        <div class="sec-sub">A central hub, six spokes. No wordmark file exists — build it from the mark + Manrope 800.</div>
+      </div>
+
+      <p class="lede">The HubSpoke mark is a literal diagram: a filled hub at the center, six outbound connections to smaller spoke nodes. It carries the metaphor in two seconds. The wordmark is Manrope ExtraBold, all-lowercase, with the <code>.scheduler</code> suffix drawn in muted ink for registration.</p>
+
+      <div class="logos-grid">
+        <div class="logo-card">
+          <div class="tag">Primary</div>
+          <div class="logo-lockup">
+            <div class="logo-mark">
+              <svg class="hs-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path class="arc arc-2" d="M 2.5 16.5 A 10.5 10.5 0 0 1 20.5 6.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="21" y2="5" />
+                <line class="spoke-line" x1="12" y1="12" x2="22" y2="11.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="19" y2="19.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="6" y2="20" />
+                <line class="spoke-line" x1="12" y1="12" x2="3" y2="13" />
+                <line class="spoke-line" x1="12" y1="12" x2="5.5" y2="5.5" />
+                <circle class="spoke-node" cx="21" cy="5" r="1.6" />
+                <circle class="spoke-node" cx="22" cy="11.5" r="1.2" />
+                <circle class="spoke-node" cx="19" cy="19.5" r="1.4" />
+                <circle class="spoke-node" cx="6" cy="20" r="1.2" />
+                <circle class="spoke-node" cx="3" cy="13" r="1.4" />
+                <circle class="spoke-node" cx="5.5" cy="5.5" r="1.2" />
+                <circle class="hub-ring" cx="12" cy="12" r="3.4" />
+                <circle class="hub-core" cx="12" cy="12" r="1.6" />
+              </svg>
+            </div>
+            <div class="logo-word">hubspoke<span class="logo-tld">.scheduler</span></div>
+          </div>
+        </div>
+
+        <div class="logo-card dark">
+          <div class="tag">On dark</div>
+          <div class="logo-lockup">
+            <div class="logo-mark inv">
+              <svg class="hs-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path class="arc arc-2" d="M 2.5 16.5 A 10.5 10.5 0 0 1 20.5 6.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="21" y2="5" />
+                <line class="spoke-line" x1="12" y1="12" x2="22" y2="11.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="19" y2="19.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="6" y2="20" />
+                <line class="spoke-line" x1="12" y1="12" x2="3" y2="13" />
+                <line class="spoke-line" x1="12" y1="12" x2="5.5" y2="5.5" />
+                <circle class="spoke-node" cx="21" cy="5" r="1.6" />
+                <circle class="spoke-node" cx="22" cy="11.5" r="1.2" />
+                <circle class="spoke-node" cx="19" cy="19.5" r="1.4" />
+                <circle class="spoke-node" cx="6" cy="20" r="1.2" />
+                <circle class="spoke-node" cx="3" cy="13" r="1.4" />
+                <circle class="spoke-node" cx="5.5" cy="5.5" r="1.2" />
+                <circle class="hub-ring" cx="12" cy="12" r="3.4" />
+                <circle class="hub-core" cx="12" cy="12" r="1.6" />
+              </svg>
+            </div>
+            <div class="logo-word inv">hubspoke<span class="logo-tld">.scheduler</span></div>
+          </div>
+        </div>
+
+        <div class="logo-card hub">
+          <div class="tag">On brand</div>
+          <div class="logo-lockup">
+            <div class="logo-mark ghost">
+              <svg class="hs-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path class="arc arc-2" d="M 2.5 16.5 A 10.5 10.5 0 0 1 20.5 6.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="21" y2="5" />
+                <line class="spoke-line" x1="12" y1="12" x2="22" y2="11.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="19" y2="19.5" />
+                <line class="spoke-line" x1="12" y1="12" x2="6" y2="20" />
+                <line class="spoke-line" x1="12" y1="12" x2="3" y2="13" />
+                <line class="spoke-line" x1="12" y1="12" x2="5.5" y2="5.5" />
+                <circle class="spoke-node" cx="21" cy="5" r="1.6" />
+                <circle class="spoke-node" cx="22" cy="11.5" r="1.2" />
+                <circle class="spoke-node" cx="19" cy="19.5" r="1.4" />
+                <circle class="spoke-node" cx="6" cy="20" r="1.2" />
+                <circle class="spoke-node" cx="3" cy="13" r="1.4" />
+                <circle class="spoke-node" cx="5.5" cy="5.5" r="1.2" />
+                <circle class="hub-ring" cx="12" cy="12" r="3.4" />
+                <circle class="hub-core" cx="12" cy="12" r="1.6" />
+              </svg>
+            </div>
+            <div class="logo-word inv">hubspoke<span class="logo-tld">.scheduler</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PALETTE -->
+    <section id="palette">
+      <div class="sec-head">
+        <div class="sec-num">04</div>
+        <h2 class="sec-title">Core palette</h2>
+        <div class="sec-sub">Hub Indigo drives every action. Spoke Teal marks every destination. Warning Amber catches every conflict.</div>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch">
+          <div class="swatch-chip" style="background: hsl(var(--hub));">
+            <span class="role">Primary</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Hub Indigo</div>
+            <div class="swatch-alias">Primary actions · The Hub location · Active states</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#4F46E5</span>
+              <span class="k">HSL</span><span class="v">239 84% 67%</span>
+              <span class="k">TOKEN</span><span class="v">--primary · --hub</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-chip" style="background: hsl(var(--spoke));">
+            <span class="role">Secondary</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Spoke Teal</div>
+            <div class="swatch-alias">Spoke locations · Successful routes</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#0D9488</span>
+              <span class="k">HSL</span><span class="v">168 80% 30%</span>
+              <span class="k">TOKEN</span><span class="v">--secondary · --spoke</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-chip" style="background: hsl(var(--accent));">
+            <span class="role">Accent</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Warning Amber</div>
+            <div class="swatch-alias">Town-to-town warnings · Conflicts · Alerts</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#F59E0B</span>
+              <span class="k">HSL</span><span class="v">38 92% 50%</span>
+              <span class="k">TOKEN</span><span class="v">--accent · --warn</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-chip dark" style="background: var(--ink-900);">
+            <span class="role">Ink 900</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Deep Soil</div>
+            <div class="swatch-alias">Primary text · Foreground</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#1E2733</span>
+              <span class="k">HSL</span><span class="v">215 25% 15%</span>
+              <span class="k">TOKEN</span><span class="v">--foreground</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-chip" style="background: var(--ink-100); border-bottom: 1px solid var(--ink-200);">
+            <span class="role">Neutral</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Drive Time Gray</div>
+            <div class="swatch-alias">Drive blocks · Inactive states · Dashed fills</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#E5E7EB</span>
+              <span class="k">HSL</span><span class="v">214 20% 90%</span>
+              <span class="k">TOKEN</span><span class="v">--border · --muted</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-chip" style="background: var(--ink-50); border-bottom: 1px solid var(--ink-200);">
+            <span class="role">Canvas</span>
+          </div>
+          <div class="swatch-body">
+            <div class="swatch-name">Canvas White</div>
+            <div class="swatch-alias">App background</div>
+            <div class="swatch-codes">
+              <span class="k">HEX</span><span class="v">#F9FAFB</span>
+              <span class="k">HSL</span><span class="v">210 20% 98%</span>
+              <span class="k">TOKEN</span><span class="v">--background</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEMANTIC -->
+    <section id="semantic">
+      <div class="sec-head">
+        <div class="sec-num">05</div>
+        <h2 class="sec-title">Semantic color tokens</h2>
+        <div class="sec-sub">Every state has a soft (background) and strong (fill/text) pair. Never use raw <code>bg-blue-500</code> — reach for the semantic token.</div>
+      </div>
+
+      <p class="lede">Inside the app, color is meaning. Indigo always means "hub action." Teal always means "spoke." Ownership — internal vs. partner-run — gets its own blue/purple pair so schedulers can sort by organization at a glance without a legend.</p>
+
+      <div class="role-pairs">
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--hub-soft));"><div class="label" style="color: hsl(var(--hub-strong));">Hub · soft</div><div class="val" style="color: hsl(var(--hub-strong));">--hub-soft</div></div>
+          <div class="strong" style="background: hsl(var(--hub));"><div><div class="label">Hub</div><div class="val">--hub</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--spoke-soft));"><div class="label" style="color: hsl(var(--spoke));">Spoke · soft</div><div class="val" style="color: hsl(var(--spoke));">--spoke-soft</div></div>
+          <div class="strong" style="background: hsl(var(--spoke));"><div><div class="label">Spoke</div><div class="val">--spoke</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--warn-soft));"><div class="label" style="color: hsl(38 92% 38%);">Warn · soft</div><div class="val" style="color: hsl(38 92% 38%);">--warn-soft</div></div>
+          <div class="strong" style="background: hsl(var(--warn));"><div><div class="label">Warn</div><div class="val">--warn</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--info-soft));"><div class="label" style="color: hsl(217 91% 45%);">Info · soft</div><div class="val" style="color: hsl(217 91% 45%);">--info-soft</div></div>
+          <div class="strong" style="background: hsl(var(--info));"><div><div class="label">Info</div><div class="val">--info</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--danger-soft));"><div class="label" style="color: hsl(var(--danger));">Danger · soft</div><div class="val" style="color: hsl(var(--danger));">--danger-soft</div></div>
+          <div class="strong" style="background: hsl(var(--danger));"><div><div class="label">Danger</div><div class="val">--danger</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(142 71% 94%);"><div class="label" style="color: hsl(var(--progress));">Progress · soft</div><div class="val" style="color: hsl(var(--progress));">--progress/10</div></div>
+          <div class="strong" style="background: hsl(var(--progress));"><div><div class="label">Progress</div><div class="val">--progress</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--own-int-soft));"><div class="label" style="color: hsl(217 91% 45%);">Internal · soft</div><div class="val" style="color: hsl(217 91% 45%);">--ownership-internal-soft</div></div>
+          <div class="strong" style="background: hsl(var(--own-int));"><div><div class="label">Internal</div><div class="val">--ownership-internal</div></div></div>
+        </div>
+        <div class="pair">
+          <div class="soft" style="background: hsl(var(--own-part-soft));"><div class="label" style="color: hsl(280 65% 48%);">Partner · soft</div><div class="val" style="color: hsl(280 65% 48%);">--ownership-partner-soft</div></div>
+          <div class="strong" style="background: hsl(var(--own-part));"><div><div class="label">Partner</div><div class="val">--ownership-partner</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TYPOGRAPHY -->
+    <section id="type">
+      <div class="sec-head">
+        <div class="sec-num">06</div>
+        <h2 class="sec-title">Typography</h2>
+        <div class="sec-sub">Manrope for headings and display. Inter for UI and body. JetBrains Mono for data — times, HEX codes, IDs.</div>
+      </div>
+
+      <p class="lede">Headings get Manrope's slight geometric warmth — it feels built, not generic. Body copy is Inter at 16px with a 1.65 line-height for density that doesn't strain the eye on ops-heavy screens. Every number in the product uses a monospaced, tabular-lined face because shifting digits in a schedule is how mistakes happen.</p>
+
+      <div class="type-block">
+        <div class="type-row">
+          <div class="type-spec"><strong>H1 · Display</strong>Manrope 700<br/>tracking -0.025em</div>
+          <div class="type-sample h1-sample">Every drive has a weight</div>
+          <div class="type-meta">text-4xl<br/>36px / 700</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec"><strong>H2 · Section</strong>Manrope 600<br/>tracking -0.02em</div>
+          <div class="type-sample h2-sample">This week across the network</div>
+          <div class="type-meta">text-3xl<br/>28px / 600</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec"><strong>H3 · Card</strong>Manrope 600</div>
+          <div class="type-sample h3-sample">Marshalltown — Wednesday</div>
+          <div class="type-meta">text-2xl<br/>22px / 600</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec"><strong>Body</strong>Inter 400<br/>line-height 1.65</div>
+          <div class="type-sample body-sample">HubSpoke coordinates the movement of Iowa Center employees from a central hub in Des Moines to classes held at partner sites across the state. Drive time is first-class: every trip is blocked on the calendar before and after the class itself.</div>
+          <div class="type-meta">text-base<br/>16px / 400</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec"><strong>Caption · Label</strong>Inter 500<br/>uppercase, tracking 0.12em</div>
+          <div class="type-sample caption-sample">Next departure · 08:45 am</div>
+          <div class="type-meta">text-xs<br/>11.5px / 500</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec"><strong>Metric</strong>Manrope 800<br/>tabular-nums</div>
+          <div class="type-sample metric-sample">14,328<span style="font-size: 16px; color: var(--ink-500); margin-left: 8px;">drive minutes saved</span></div>
+          <div class="type-meta">text-4xl<br/>40px / 800</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ICONS -->
+    <section id="icons">
+      <div class="sec-head">
+        <div class="sec-num">07</div>
+        <h2 class="sec-title">Iconography</h2>
+        <div class="sec-sub">Lucide, exclusively. 1.5px stroke, 16–24px. Every icon pairs with a label — icon-only controls need a tooltip.</div>
+      </div>
+
+      <div class="icon-grid">
+        <div class="icon-cell"><i data-lucide="calendar-days"></i><span>calendar</span></div>
+        <div class="icon-cell"><i data-lucide="map-pin"></i><span>pin</span></div>
+        <div class="icon-cell"><i data-lucide="car"></i><span>drive</span></div>
+        <div class="icon-cell"><i data-lucide="route"></i><span>route</span></div>
+        <div class="icon-cell"><i data-lucide="users-round"></i><span>employees</span></div>
+        <div class="icon-cell"><i data-lucide="graduation-cap"></i><span>class</span></div>
+        <div class="icon-cell"><i data-lucide="building-2"></i><span>location</span></div>
+        <div class="icon-cell"><i data-lucide="trending-up"></i><span>analytics</span></div>
+        <div class="icon-cell"><i data-lucide="file-spreadsheet"></i><span>import</span></div>
+        <div class="icon-cell"><i data-lucide="triangle-alert"></i><span>conflict</span></div>
+        <div class="icon-cell"><i data-lucide="clock"></i><span>time</span></div>
+        <div class="icon-cell"><i data-lucide="repeat"></i><span>recurrence</span></div>
+        <div class="icon-cell"><i data-lucide="check-circle-2"></i><span>confirmed</span></div>
+        <div class="icon-cell"><i data-lucide="bell"></i><span>notify</span></div>
+        <div class="icon-cell"><i data-lucide="shield-check"></i><span>rbac</span></div>
+        <div class="icon-cell"><i data-lucide="settings"></i><span>settings</span></div>
+      </div>
+    </section>
+
+    <!-- COMPONENTS -->
+    <section id="components">
+      <div class="sec-head">
+        <div class="sec-num">08</div>
+        <h2 class="sec-title">Components</h2>
+        <div class="sec-sub">The primitives: buttons, inputs, chips, status indicators. Everything rounds at <code>--radius</code> (10px) or its derived steps.</div>
+      </div>
+
+      <div class="cmp-grid">
+        <div class="cmp-card">
+          <h4>Buttons</h4>
+          <div class="row">
+            <button class="btn btn-primary"><i data-lucide="plus"></i>New schedule</button>
+            <button class="btn btn-secondary">Cancel</button>
+            <button class="btn btn-destructive"><i data-lucide="trash-2"></i>Delete</button>
+            <button class="btn btn-ghost"><i data-lucide="more-horizontal"></i></button>
+          </div>
+          <div class="row">
+            <button class="btn btn-primary btn-sm">Assign</button>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="download"></i>Export CSV</button>
+            <button class="btn btn-secondary btn-sm"><i data-lucide="calendar-plus"></i>Add to Outlook</button>
+          </div>
+        </div>
+
+        <div class="cmp-card">
+          <h4>Inputs</h4>
+          <label class="field-label">Employee name</label>
+          <input class="input" placeholder="Search by name or ID…" />
+          <div style="height: 14px;"></div>
+          <label class="field-label">Location</label>
+          <input class="input" value="Marshalltown · Central Iowa Branch" />
+          <div style="height: 14px;"></div>
+          <label class="field-label">Drive buffer (min)</label>
+          <input class="input" value="15" style="max-width: 120px;" />
+        </div>
+
+        <div class="cmp-card">
+          <h4>Status chips</h4>
+          <div class="row">
+            <span class="chip chip-hub"><i data-lucide="building-2"></i>Des Moines · Hub</span>
+            <span class="chip chip-spoke"><i data-lucide="map-pin"></i>Ames</span>
+            <span class="chip chip-warn"><i data-lucide="triangle-alert"></i>Town-to-town</span>
+            <span class="chip chip-info"><i data-lucide="clock"></i>Scheduled</span>
+          </div>
+          <div class="row">
+            <span class="chip chip-progress"><span class="dot" style="background: hsl(var(--progress));"></span>Completed</span>
+            <span class="chip chip-danger"><i data-lucide="x-circle"></i>Conflict</span>
+            <span class="chip chip-muted">Draft</span>
+            <span class="chip chip-internal">Iowa Center</span>
+            <span class="chip chip-partner">Partner org</span>
+          </div>
+        </div>
+
+        <div class="cmp-card">
+          <h4>Metric card</h4>
+          <div style="border: 1px solid var(--ink-200); border-radius: 10px; padding: 20px; background: white;">
+            <div class="caption-sample" style="margin-bottom: 10px;">This week · drive time</div>
+            <div style="display: flex; align-items: baseline; gap: 10px;">
+              <div style="font-family: 'Manrope'; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink-900); font-variant-numeric: tabular-nums;">42<span style="font-size: 18px; color: var(--ink-500); margin-left: 2px;">h 15m</span></div>
+              <span class="chip chip-progress" style="margin-left: auto;">↓ 12%</span>
+            </div>
+            <div style="height: 6px; background: var(--ink-100); border-radius: 3px; margin-top: 14px; overflow: hidden;">
+              <div style="height: 100%; width: 62%; background: hsl(var(--hub)); border-radius: 3px;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono'; font-size: 10.5px; color: var(--ink-400); margin-top: 8px;">
+              <span>42h of 68h planned</span>
+              <span>Mon 04/20 – Sun 04/26</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCHEDULE BLOCKS -->
+    <section id="schedule">
+      <div class="sec-head">
+        <div class="sec-num">09</div>
+        <h2 class="sec-title">Schedule blocks</h2>
+        <div class="sec-sub">The signature pattern. Class time has energy (indigo, solid). Drive time has weight (gray, dashed diagonal). Town-to-town gets amber.</div>
+      </div>
+
+      <p class="lede">Every class block in the calendar is automatically bracketed by a drive-time block derived from the distance between the previous location and this one. The visual contrast — solid vs. hatched — lets a scheduler spot an over-packed day in a single glance.</p>
+
+      <div class="schedule-demo">
+        <div class="tl-axis">
+          <div class="t">08:00</div>
+          <div class="t">08:30</div>
+          <div class="t">09:00</div>
+          <div class="t">09:30</div>
+          <div class="t">10:00</div>
+          <div class="t">10:30</div>
+          <div class="t">11:00</div>
+          <div class="t">11:30</div>
+          <div class="t">12:00</div>
+        </div>
+        <div class="tl-track">
+          <div class="blk blk-drive" style="height: 28px;">
+            <div class="title">Drive · Des Moines → Ames · 38 min</div>
+          </div>
+          <div class="blk blk-class">
+            <div class="title">Intro to Job Readiness</div>
+            <div class="meta"><i data-lucide="map-pin"></i>Ames · DMACC Campus<span style="margin: 0 6px;">·</span><i data-lucide="user"></i>J. Okafor<span style="margin: 0 6px;">·</span>09:00 – 10:00</div>
+          </div>
+          <div class="blk blk-drive" style="height: 28px;">
+            <div class="title">Drive · Ames → Marshalltown · 52 min</div>
+          </div>
+          <div class="blk blk-warn">
+            <div class="title" style="display: flex; align-items: center; gap: 6px;"><i data-lucide="triangle-alert" style="width: 13px; height: 13px;"></i>Town-to-town · tight connection</div>
+            <div class="meta" style="color: hsl(38 92% 36%);">3 min buffer after drive. Consider moving the 11:00 class out by 15 min.</div>
+          </div>
+          <div class="blk blk-class" style="background: hsl(var(--hub-strong));">
+            <div class="title">Employer Partnership Workshop</div>
+            <div class="meta"><i data-lucide="map-pin"></i>Marshalltown · MCC<span style="margin: 0 6px;">·</span>11:03 – 12:00</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section id="map">
+      <div class="sec-head">
+        <div class="sec-num">10</div>
+        <h2 class="sec-title">Map markers &amp; legend</h2>
+        <div class="sec-sub">Hub is a bigger indigo pin. Spokes are smaller teal pins. Routes are dashed indigo. Never use Google's default red drop-pin.</div>
+      </div>
+
+      <div class="map-demo">
+        <!-- Dashed connection lines, roughly laid out -->
+        <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+          <defs>
+            <pattern id="dot-g" width="8" height="8" patternUnits="userSpaceOnUse">
+              <circle cx="4" cy="4" r="0.7" fill="hsl(214 20% 85%)" />
+            </pattern>
+          </defs>
+          <line x1="50%" y1="55%" x2="22%" y2="30%" stroke="hsl(var(--hub))" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+          <line x1="50%" y1="55%" x2="80%" y2="32%" stroke="hsl(var(--hub))" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+          <line x1="50%" y1="55%" x2="18%" y2="78%" stroke="hsl(var(--hub))" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+          <line x1="50%" y1="55%" x2="82%" y2="78%" stroke="hsl(var(--hub))" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+          <line x1="50%" y1="55%" x2="40%" y2="22%" stroke="hsl(var(--hub))" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+        </svg>
+
+        <div class="mk mk-hub" style="left: 50%; top: 55%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Des Moines · The Hub</div>
+        </div>
+        <div class="mk mk-spoke" style="left: 22%; top: 30%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Sioux City</div>
+        </div>
+        <div class="mk mk-spoke" style="left: 40%; top: 22%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Ames</div>
+        </div>
+        <div class="mk mk-spoke" style="left: 80%; top: 32%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Cedar Rapids</div>
+        </div>
+        <div class="mk mk-spoke" style="left: 18%; top: 78%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Council Bluffs</div>
+        </div>
+        <div class="mk mk-spoke" style="left: 82%; top: 78%;">
+          <div class="mk-dot"></div>
+          <div class="mk-label">Iowa City</div>
+        </div>
+
+        <div class="legend">
+          <div class="lg-row"><span class="lg-dot" style="background: hsl(var(--hub)); width: 14px; height: 14px;"></span>Hub (Des Moines)</div>
+          <div class="lg-row"><span class="lg-dot" style="background: hsl(var(--spoke));"></span>Spoke location</div>
+          <div class="lg-row"><span class="lg-dot" style="background: transparent; border: 1px dashed hsl(var(--hub));"></span>Planned route</div>
+          <div class="lg-row"><span class="lg-dot" style="background: hsl(var(--warn));"></span>Town-to-town</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VOICE -->
+    <section id="voice">
+      <div class="sec-head">
+        <div class="sec-num">11</div>
+        <h2 class="sec-title">Voice &amp; tone</h2>
+        <div class="sec-sub">Sentence case. Second person. Times in 12-hour. Talk like a dispatcher briefing a driver: short, specific, next-action oriented.</div>
+      </div>
+
+      <div class="voice-grid">
+        <div class="voice-col do">
+          <h4><i data-lucide="check"></i>Do</h4>
+          <ul>
+            <li><em>Write like a dispatcher.</em> "Ames class at 9 am. 38 min drive. Leave Des Moines by 8:20."</li>
+            <li><em>Surface the next decision.</em> Copy should always answer "what do I do next?" — <code>Assign driver</code>, <code>Confirm route</code>, <code>Resolve conflict</code>.</li>
+            <li><em>Use second person.</em> "Your Wednesday has two town-to-town trips."</li>
+            <li><em>Name the cities.</em> Never "the spoke location." Always "Marshalltown."</li>
+            <li><em>Keep numbers in mono.</em> <code>42h 15m</code>, <code>08:45</code>, <code>$1,240</code>.</li>
+            <li><em>Sentence case.</em> <code>Generate weekly report</code>, not <code>Generate Weekly Report</code>.</li>
+          </ul>
+        </div>
+
+        <div class="voice-col dont">
+          <h4><i data-lucide="x"></i>Don't</h4>
+          <ul>
+            <li><em>No corporate fluff.</em> "Empowering your scheduling journey" — cut it.</li>
+            <li><em>No emoji in UI.</em> Use Lucide icons. ✨📅🚗 are banned in product surfaces.</li>
+            <li><em>No acronym soup.</em> "ICH uses RBAC w/ JWT" on a user-facing screen is a failure.</li>
+            <li><em>No Title Case buttons.</em> Sentence case everywhere — proper nouns excepted.</li>
+            <li><em>No vague error text.</em> Not "Something went wrong." → "Couldn't save: Marshalltown class overlaps with 10:30 drive from Ames."</li>
+            <li><em>No gradients for meaning.</em> Color is semantic. A gradient button carries no hub/spoke signal.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SPACING -->
+    <section id="spacing">
+      <div class="sec-head">
+        <div class="sec-num">12</div>
+        <h2 class="sec-title">Spacing &amp; radius</h2>
+        <div class="sec-sub">Tailwind 4-point scale. Container padding 24–32px. Cards round at 12px; pills at the full height.</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px;">
+        <div class="cmp-card">
+          <h4>Spacing scale</h4>
+          <div>
+            <div class="spacing-row"><span class="spacing-lbl">xs · 4px</span><div class="spacing-bar" style="width: 4px;"></div><span class="spacing-val">gap between chip icon and label</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">sm · 8px</span><div class="spacing-bar" style="width: 8px;"></div><span class="spacing-val">chip padding · icon-to-text</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">md · 16px</span><div class="spacing-bar" style="width: 16px;"></div><span class="spacing-val">card internal gutters</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">lg · 24px</span><div class="spacing-bar" style="width: 24px;"></div><span class="spacing-val">card padding · grid gap</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">xl · 32px</span><div class="spacing-bar" style="width: 32px;"></div><span class="spacing-val">section gap · container padding</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">2xl · 48px</span><div class="spacing-bar" style="width: 48px;"></div><span class="spacing-val">section breathers on desktop</span></div>
+            <div class="spacing-row"><span class="spacing-lbl">3xl · 64px</span><div class="spacing-bar" style="width: 64px;"></div><span class="spacing-val">page-level vertical rhythm</span></div>
+          </div>
+        </div>
+
+        <div class="cmp-card">
+          <h4>Corner radius</h4>
+          <div style="display: flex; flex-direction: column; gap: 18px;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 56px; height: 56px; background: hsl(var(--hub-soft)); border: 1px solid hsl(var(--hub) / 0.3); border-radius: 4px;"></div>
+              <div>
+                <div style="font-family: 'Manrope'; font-weight: 600; font-size: 13px;">Inputs · buttons sm</div>
+                <div class="mono" style="font-size: 11px; color: var(--ink-500);">radius 4px · calc(--radius − 4)</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 56px; height: 56px; background: hsl(var(--hub-soft)); border: 1px solid hsl(var(--hub) / 0.3); border-radius: 8px;"></div>
+              <div>
+                <div style="font-family: 'Manrope'; font-weight: 600; font-size: 13px;">Buttons · chips · menus</div>
+                <div class="mono" style="font-size: 11px; color: var(--ink-500);">radius 8px · calc(--radius − 2)</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 56px; height: 56px; background: hsl(var(--hub-soft)); border: 1px solid hsl(var(--hub) / 0.3); border-radius: 10px;"></div>
+              <div>
+                <div style="font-family: 'Manrope'; font-weight: 600; font-size: 13px;">Cards · modals</div>
+                <div class="mono" style="font-size: 11px; color: var(--ink-500);">radius 10px · --radius (0.625rem)</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 56px; height: 56px; background: hsl(var(--hub-soft)); border: 1px solid hsl(var(--hub) / 0.3); border-radius: 12px;"></div>
+              <div>
+                <div style="font-family: 'Manrope'; font-weight: 600; font-size: 13px;">Feature cards · large surfaces</div>
+                <div class="mono" style="font-size: 11px; color: var(--ink-500);">radius 12px · rounded-xl</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div>HubSpoke Brand Kit · v1.0 · Derived from design_guidelines.json + frontend tokens</div>
+  <div>Iowa Center · Internal · 2025</div>
+</footer>
+
+<script>
+  // Initialize Lucide icons.
+  if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>

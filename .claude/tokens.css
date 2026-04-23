@@ -1,0 +1,107 @@
+/* HubSpoke Brand Tokens
+ * Mirrors frontend/src/index.css. Import or copy these values rather than
+ * inventing new colors. All values are HSL components (hue sat% light%) so
+ * they work with Tailwind's `hsl(var(--token))` and `hsl(var(--token) / 0.5)`
+ * opacity syntax.
+ */
+
+:root {
+  /* Base */
+  --background: 210 20% 98%;
+  --foreground: 215 25% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 25% 15%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 25% 15%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 168 80% 30%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 210 15% 95%;
+  --muted-foreground: 215 15% 45%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 214 20% 90%;
+  --input: 214 20% 90%;
+  --ring: 239 84% 67%;
+
+  /* Chart series */
+  --chart-1: 239 84% 67%;
+  --chart-2: 168 80% 30%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 0 84% 60%;
+  --chart-5: 280 65% 60%;
+
+  --radius: 0.625rem;
+  --sidebar-width: 260px;
+
+  /* Semantic brand tokens — prefer these over raw Tailwind color classes. */
+  --hub: 239 84% 67%;
+  --hub-soft: 239 84% 95%;
+  --hub-strong: 239 84% 50%;
+  --spoke: 168 80% 30%;
+  --spoke-soft: 168 80% 92%;
+  --warn: 38 92% 50%;
+  --warn-soft: 38 92% 94%;
+  --info: 217 91% 60%;
+  --info-soft: 217 91% 94%;
+  --progress: 142 71% 45%;
+  --danger: 0 84% 60%;
+  --danger-soft: 0 84% 95%;
+  --ownership-internal: 217 91% 60%;
+  --ownership-internal-soft: 217 91% 94%;
+  --ownership-partner: 280 65% 60%;
+  --ownership-partner-soft: 280 65% 94%;
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 20% 98%;
+  --card: 222 47% 13%;
+  --card-foreground: 210 20% 98%;
+  --popover: 222 47% 13%;
+  --popover-foreground: 210 20% 98%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 168 80% 30%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 223 40% 18%;
+  --muted-foreground: 215 15% 65%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 223 30% 22%;
+  --input: 223 30% 22%;
+  --ring: 239 84% 67%;
+
+  --chart-1: 239 84% 67%;
+  --chart-2: 168 80% 42%;
+  --chart-3: 38 92% 55%;
+  --chart-4: 0 84% 60%;
+  --chart-5: 280 65% 65%;
+
+  --hub: 239 84% 70%;
+  --hub-soft: 239 50% 22%;
+  --hub-strong: 239 84% 55%;
+  --spoke: 168 70% 45%;
+  --spoke-soft: 168 50% 18%;
+  --warn: 38 92% 55%;
+  --warn-soft: 38 60% 20%;
+  --info: 217 91% 65%;
+  --info-soft: 217 60% 22%;
+  --progress: 142 71% 50%;
+  --danger: 0 84% 60%;
+  --danger-soft: 0 60% 22%;
+  --ownership-internal: 217 91% 65%;
+  --ownership-internal-soft: 217 60% 22%;
+  --ownership-partner: 280 65% 65%;
+  --ownership-partner-soft: 280 60% 22%;
+}
+
+/* Type stack */
+body { font-family: 'Inter', sans-serif; }
+h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; }
+.mono, code, pre { font-family: 'JetBrains Mono', ui-monospace, monospace; }
