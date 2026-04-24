@@ -551,7 +551,7 @@ export default function TaskDetailModal({
     return () => { cancelled = true; };
   }, [open, projectId]);
 
-  const saveField = async (field: string, value: string | boolean) => {
+  const saveField = async (field: string, value: string | boolean | null) => {
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
@@ -614,6 +614,15 @@ export default function TaskDetailModal({
     const next = v as TaskOwner;
     setOwner(next);
     await saveField('owner', next);
+  };
+
+  const handleDueDateChange = async (nextDueDate: string) => {
+    setDueDate(nextDueDate);
+    if (!nextDueDate) {
+      await saveField('due_date', null);
+      return;
+    }
+    await saveField('due_date', new Date(nextDueDate).toISOString());
   };
 
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
@@ -781,9 +790,8 @@ export default function TaskDetailModal({
                   <Input
                     type="date"
                     value={dueDate}
-                    onChange={e => setDueDate(e.target.value)}
-                    onBlur={() => {
-                      if (dueDate) saveField('due_date', new Date(dueDate).toISOString());
+                    onChange={e => {
+                      void handleDueDateChange(e.target.value);
                     }}
                     className="text-sm border-0 p-0 h-7 shadow-none focus-visible:ring-0 bg-transparent"
                   />
