@@ -551,7 +551,7 @@ export default function TaskDetailModal({
     return () => { cancelled = true; };
   }, [open, projectId]);
 
-  const saveField = async (field: string, value: string | boolean) => {
+  const saveField = async (field: string, value: string | boolean | null) => {
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
@@ -619,7 +619,7 @@ export default function TaskDetailModal({
   const handleDueDateChange = async (nextDueDate: string) => {
     setDueDate(nextDueDate);
     if (!nextDueDate) {
-      await saveField('due_date', '');
+      await saveField('due_date', null);
       return;
     }
     await saveField('due_date', new Date(nextDueDate).toISOString());
