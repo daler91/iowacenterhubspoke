@@ -2,6 +2,7 @@ from datetime import date as dt_date, timedelta as td
 from fastapi import APIRouter
 from typing import List, Optional, Tuple
 from collections import defaultdict
+from itertools import combinations, product
 from database import db
 from core.auth import CurrentUser
 from services.schedule_utils import calculate_class_minutes
@@ -10,6 +11,10 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 _ANALYTICS_CAP = 5000
+_SWAP_GUARDRAIL_DAY_SCHEDULE_THRESHOLD = 120
+_SWAP_TOP_K_PER_EMPLOYEE_DAY = 6
+_SWAP_TOP_K_PER_GROUP_APPROX = 2
+_SWAP_MAX_APPROX_PAIRS_PER_DAY = 4000
 
 
 def _warn_on_truncation(rows: list, query: dict, endpoint: str) -> None:
@@ -184,8 +189,12 @@ async def get_forecast(
     for h in historical:
         h["is_forecast"] = False
 
+    truncated = len(schedules) >= _ANALYTICS_CAP
     if len(historical) < 2:
-        return {"historical": historical, "forecast": [], "method": "insufficient_data"}
+        return {
+            "historical": historical, "forecast": [],
+            "method": "insufficient_data", "truncated": truncated,
+        }
 
     # Linear regression on each metric (closed-form least squares over x = 0..n-1).
     classes_slope, classes_intercept = _linear_regression([h["classes"] for h in historical])
@@ -206,7 +215,10 @@ async def get_forecast(
             "is_forecast": True,
         })
 
-    return {"historical": historical, "forecast": forecast, "method": "linear_regression"}
+    return {
+        "historical": historical, "forecast": forecast,
+        "method": "linear_regression", "truncated": truncated,
+    }
 
 
 def _compute_driver_totals(schedules):
@@ -223,14 +235,6 @@ def _compute_driver_totals(schedules):
     return total_drive_mins, driver_totals
 
 
-def _get_other_locations(by_date, date_key, employee_id, exclude_id):
-    return {
-        s.get("location_id")
-        for s in by_date[date_key]
-        if employee_id in s.get("employee_ids", []) and s["id"] != exclude_id
-    }
-
-
 def _first_employee_name(s):
     """Get the first employee name from the employees array."""
     employees = s.get("employees", [])
@@ -243,16 +247,74 @@ def _first_employee_id(s):
     return ids[0] if ids else ""
 
 
-def _compute_swap_savings(a, b, by_date, date_key):
-    a_drive = a.get("drive_time_minutes", 0)
-    b_drive = b.get("drive_time_minutes", 0)
+def _derive_day_schedule_cache(day_schedules):
+    by_primary_employee = defaultdict(list)
+    by_location_and_primary_employee = defaultdict(list)
+    employee_location_counts = defaultdict(lambda: defaultdict(int))
+    cache = {}
+
+    for s in day_schedules:
+        first_emp_id = _first_employee_id(s)
+        first_emp_name = _first_employee_name(s)
+        location_id = s.get("location_id")
+        schedule_id = s.get("id")
+        drive_mins = s.get("drive_time_minutes", 0)
+        employee_ids_set = set(s.get("employee_ids", []))
+
+        by_primary_employee[first_emp_id].append(s)
+        by_location_and_primary_employee[(location_id, first_emp_id)].append(s)
+        for emp_id in employee_ids_set:
+            employee_location_counts[emp_id][location_id] += 1
+        cache[schedule_id] = {
+            "first_employee_id": first_emp_id,
+            "first_employee_name": first_emp_name,
+            "employee_ids_set": employee_ids_set,
+            "location_id": location_id,
+            "drive_mins": drive_mins,
+            "other_locations": set(),  # filled in after employee_locations built
+        }
+
+    for s in day_schedules:
+        sid = s.get("id")
+        cached = cache[sid]
+        first_emp_id = cached["first_employee_id"]
+        current_loc = cached["location_id"]
+        visit_counts = employee_location_counts[first_emp_id]
+        other_locations = set()
+        for loc_id, visits in visit_counts.items():
+            remaining_visits = visits
+            if loc_id == current_loc and first_emp_id in cached["employee_ids_set"]:
+                remaining_visits -= 1
+            if remaining_visits > 0:
+                other_locations.add(loc_id)
+        cached["other_locations"] = other_locations
+
+    return cache, by_primary_employee, by_location_and_primary_employee
+
+
+def _prune_candidates(day_schedules, cache, top_k_per_employee):
+    by_primary_employee = defaultdict(list)
+    for s in day_schedules:
+        sid = s.get("id")
+        by_primary_employee[cache[sid]["first_employee_id"]].append(s)
+
+    selected = []
+    for schedules in by_primary_employee.values():
+        ranked = sorted(schedules, key=lambda s: cache[s.get("id")]["drive_mins"], reverse=True)
+        selected.extend(ranked[:top_k_per_employee])
+    return selected
+
+
+def _compute_swap_savings(a, b, cache):
+    a_cache = cache[a.get("id")]
+    b_cache = cache[b.get("id")]
+    a_drive = a_cache["drive_mins"]
+    b_drive = b_cache["drive_mins"]
     if a_drive == b_drive:
         return 0, ""
 
-    a_emp_id = _first_employee_id(a)
-    b_emp_id = _first_employee_id(b)
-    a_other_locs = _get_other_locations(by_date, date_key, a_emp_id, a["id"])
-    b_other_locs = _get_other_locations(by_date, date_key, b_emp_id, b["id"])
+    a_other_locs = a_cache["other_locations"]
+    b_other_locs = b_cache["other_locations"]
 
     savings = 0
     reason = ""
@@ -285,9 +347,9 @@ def _build_suggestion(a, b, date_key, savings, reason):
     }
 
 
-def _should_skip_pair(a, b, loc_map):
-    a_ids = set(a.get("employee_ids", []))
-    b_ids = set(b.get("employee_ids", []))
+def _should_skip_pair(a, b, loc_map, cache):
+    a_ids = cache[a.get("id")]["employee_ids_set"]
+    b_ids = cache[b.get("id")]["employee_ids_set"]
     if a_ids & b_ids:
         return True
     if a.get("location_id") == b.get("location_id"):
@@ -297,16 +359,64 @@ def _should_skip_pair(a, b, loc_map):
     return False
 
 
-def _evaluate_day_swaps(day_schedules, by_date, date_key, loc_map):
+def _group_pairs_for_evaluation(day_schedules, cache, approx_mode):
+    groups = defaultdict(list)
+    for s in day_schedules:
+        sid = s.get("id")
+        c = cache[sid]
+        groups[(c["location_id"], c["first_employee_id"])].append(s)
+
+    if approx_mode:
+        for key in list(groups.keys()):
+            groups[key] = sorted(
+                groups[key], key=lambda s: cache[s.get("id")]["drive_mins"], reverse=True
+            )[:_SWAP_TOP_K_PER_GROUP_APPROX]
+    return list(groups.values())
+
+
+def _can_day_produce_savings(day_schedules, cache):
+    return any(cache[s.get("id")]["other_locations"] for s in day_schedules)
+
+
+def _iter_group_pairs(grouped_schedules):
+    for i, left_group in enumerate(grouped_schedules):
+        for j in range(i, len(grouped_schedules)):
+            right_group = grouped_schedules[j]
+            pair_iter = (
+                combinations(left_group, 2)
+                if i == j
+                else product(left_group, right_group)
+            )
+            yield from pair_iter
+
+
+def _select_day_candidates(day_schedules, cache, approx_mode):
+    if not approx_mode:
+        return day_schedules
+    return _prune_candidates(day_schedules, cache, _SWAP_TOP_K_PER_EMPLOYEE_DAY)
+
+
+def _evaluate_day_swaps(day_schedules, date_key, loc_map, cache, approx_mode=False):
+    if len(day_schedules) < 2:
+        return []
+
+    if not _can_day_produce_savings(day_schedules, cache):
+        return []
+
+    candidate_schedules = _select_day_candidates(day_schedules, cache, approx_mode)
+    grouped_schedules = _group_pairs_for_evaluation(candidate_schedules, cache, approx_mode)
+
     results = []
-    for i in range(len(day_schedules)):
-        for j in range(i + 1, len(day_schedules)):
-            a, b = day_schedules[i], day_schedules[j]
-            if _should_skip_pair(a, b, loc_map):
-                continue
-            savings, reason = _compute_swap_savings(a, b, by_date, date_key)
-            if savings > 0:
-                results.append(_build_suggestion(a, b, date_key, savings, reason))
+    pair_count = 0
+    for a, b in _iter_group_pairs(grouped_schedules):
+        pair_count += 1
+        if approx_mode and pair_count > _SWAP_MAX_APPROX_PAIRS_PER_DAY:
+            return results
+        if _should_skip_pair(a, b, loc_map, cache):
+            continue
+        savings, reason = _compute_swap_savings(a, b, cache)
+        if savings > 0:
+            results.append(_build_suggestion(a, b, date_key, savings, reason))
     return results
 
 
@@ -316,13 +426,16 @@ def _find_swap_suggestions(schedules, loc_map):
         by_date[s["date"]].append(s)
 
     suggestions = []
+    partial = False
     for date_key, day_schedules in by_date.items():
-        if len(day_schedules) < 2:
-            continue
-        suggestions.extend(_evaluate_day_swaps(day_schedules, by_date, date_key, loc_map))
+        cache, _by_emp, _by_loc_emp = _derive_day_schedule_cache(day_schedules)
+        approx_mode = len(day_schedules) > _SWAP_GUARDRAIL_DAY_SCHEDULE_THRESHOLD
+        if approx_mode:
+            partial = True
+        suggestions.extend(_evaluate_day_swaps(day_schedules, date_key, loc_map, cache, approx_mode=approx_mode))
 
     suggestions.sort(key=lambda s: -s["savings_mins"])
-    return suggestions
+    return suggestions, partial
 
 
 @router.get("/drive-optimization", summary="Get drive time optimization suggestions")
@@ -373,7 +486,7 @@ async def get_drive_optimization(
         else {"name": "N/A", "drive_mins": 0}
     )
 
-    suggestions = _find_swap_suggestions(schedules, loc_map)
+    suggestions, partial = _find_swap_suggestions(schedules, loc_map)
 
     employee_drive = sorted(
         [{"name": v["name"], "drive_hours": round(v["drive_mins"] / 60, 1), "schedules": v["schedules"]}
@@ -393,4 +506,5 @@ async def get_drive_optimization(
         },
         "employee_drive": employee_drive,
         "suggestions": suggestions[:20],
+        "partial": partial,
     }

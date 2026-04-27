@@ -6,8 +6,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Logo } from '../components/ui/logo';
 import { toast } from 'sonner';
-import { MapPin } from 'lucide-react';
 
 type TokenState = 'checking' | 'valid' | 'invalid';
 
@@ -63,16 +63,14 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] dark:bg-gray-950 flex items-center justify-center p-4 sm:p-8" data-testid="reset-password-page">
-      <Card className="w-full max-w-md border-0 shadow-lg bg-white dark:bg-gray-900">
+    <div className="min-h-screen min-h-[100dvh] bg-background flex items-center justify-center p-4 sm:p-8" data-testid="reset-password-page">
+      <Card className="w-full max-w-md border-0 shadow-lg bg-card">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg" style={{ fontFamily: 'Manrope, sans-serif' }}>HubSpoke</span>
+            <Logo aria-hidden="true" className="size-8 text-hub" />
+            <span className="font-bold text-lg font-display">HubSpoke</span>
           </div>
-          <CardTitle className="text-2xl font-bold" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <CardTitle className="text-2xl font-bold font-display">
             Reset password
           </CardTitle>
           <CardDescription>
@@ -83,21 +81,21 @@ export default function ResetPasswordPage() {
         </CardHeader>
         <CardContent>
           {tokenState === 'checking' && (
-            <p className="text-sm text-slate-500 dark:text-gray-400 text-center py-8">Validating reset link...</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Validating reset link...</p>
           )}
           {tokenState === 'invalid' && (
             <div className="space-y-4">
               <div className="p-3 bg-danger-soft border border-danger/30 rounded-lg" role="alert">
-                <p className="text-sm text-danger font-medium">
+                <p className="text-sm text-danger-strong font-medium">
                   Invalid or expired reset link
                 </p>
-                <p className="text-xs text-danger mt-1">
+                <p className="text-xs text-danger-strong mt-1">
                   Reset links expire after 1 hour. Request a new one to continue.
                 </p>
               </div>
               <Link
                 to="/forgot-password"
-                className="block text-center text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                className="block text-center text-sm text-hub hover:text-hub-strong font-medium"
               >
                 Request a new reset link
               </Link>
@@ -116,7 +114,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
+                  className="h-11 bg-muted/50"
                 />
               </div>
               <div className="space-y-2">
@@ -130,14 +128,14 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setConfirm(e.target.value)}
                   required
                   minLength={8}
-                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
+                  className="h-11 bg-muted/50"
                 />
               </div>
               <Button
                 type="submit"
                 data-testid="reset-submit-button"
                 disabled={loading}
-                className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+                className="w-full h-11 bg-hub hover:bg-hub-strong text-white font-medium rounded-lg"
               >
                 {loading ? 'Saving...' : 'Set new password'}
               </Button>

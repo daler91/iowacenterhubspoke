@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,20 +12,22 @@
     --card-foreground: 215 25% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 15%;
-    --primary: 239 84% 67%;
+    --primary: 244 76% 59%;
     --primary-foreground: 0 0% 100%;
     --secondary: 168 80% 30%;
     --secondary-foreground: 0 0% 100%;
     --muted: 210 15% 95%;
-    --muted-foreground: 215 15% 45%;
+    /* Darkened from 45% lightness so body-sized muted text clears 4.5:1
+       (WCAG AA) on --background. Was ~4.2:1, now ~8:1. */
+    --muted-foreground: 215 20% 35%;
     --accent: 38 92% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     --border: 214 20% 90%;
     --input: 214 20% 90%;
-    --ring: 239 84% 67%;
-    --chart-1: 239 84% 67%;
+    --ring: 244 76% 59%;
+    --chart-1: 244 76% 59%;
     --chart-2: 168 80% 30%;
     --chart-3: 38 92% 50%;
     --chart-4: 0 84% 60%;
@@ -35,22 +37,29 @@
 
     /* Brand semantic tokens — map to the Hub Indigo / Spoke Teal / Warning Amber palette. */
     /* Prefer these over raw Tailwind color classes (bg-blue-*, bg-purple-*, etc). */
-    --hub: 239 84% 67%;
+    --hub: 244 76% 59%;
     --hub-soft: 239 84% 95%;
     --hub-strong: 239 84% 50%;
     --spoke: 168 80% 30%;
     --spoke-soft: 168 80% 92%;
+    --spoke-strong: 168 80% 22%;
     --warn: 38 92% 50%;
     --warn-soft: 38 92% 94%;
+    --warn-strong: 38 92% 30%;
     --info: 217 91% 60%;
     --info-soft: 217 91% 94%;
+    --info-strong: 217 91% 38%;
     --progress: 142 71% 45%;
+    --progress-strong: 142 71% 28%;
     --danger: 0 84% 60%;
     --danger-soft: 0 84% 95%;
+    --danger-strong: 0 84% 38%;
     --ownership-internal: 217 91% 60%;
     --ownership-internal-soft: 217 91% 94%;
+    --ownership-internal-strong: 217 91% 38%;
     --ownership-partner: 280 65% 60%;
     --ownership-partner-soft: 280 65% 94%;
+    --ownership-partner-strong: 280 65% 35%;
   }
 
   .dark {
@@ -60,20 +69,21 @@
     --card-foreground: 210 20% 98%;
     --popover: 222 47% 13%;
     --popover-foreground: 210 20% 98%;
-    --primary: 239 84% 67%;
+    --primary: 244 76% 59%;
     --primary-foreground: 0 0% 100%;
     --secondary: 168 80% 30%;
     --secondary-foreground: 0 0% 100%;
     --muted: 223 40% 18%;
-    --muted-foreground: 215 15% 65%;
+    /* Brightened slightly for AA on dark --background (~6:1). */
+    --muted-foreground: 215 20% 72%;
     --accent: 38 92% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
     --border: 223 30% 22%;
     --input: 223 30% 22%;
-    --ring: 239 84% 67%;
-    --chart-1: 239 84% 67%;
+    --ring: 244 76% 59%;
+    --chart-1: 244 76% 59%;
     --chart-2: 168 80% 42%;
     --chart-3: 38 92% 55%;
     --chart-4: 0 84% 60%;
@@ -85,17 +95,24 @@
     --hub-strong: 239 84% 55%;
     --spoke: 168 70% 45%;
     --spoke-soft: 168 50% 18%;
+    --spoke-strong: 168 70% 65%;
     --warn: 38 92% 55%;
     --warn-soft: 38 60% 20%;
+    --warn-strong: 38 92% 70%;
     --info: 217 91% 65%;
     --info-soft: 217 60% 22%;
+    --info-strong: 217 91% 78%;
     --progress: 142 71% 50%;
+    --progress-strong: 142 71% 65%;
     --danger: 0 84% 60%;
     --danger-soft: 0 60% 22%;
+    --danger-strong: 0 84% 75%;
     --ownership-internal: 217 91% 65%;
     --ownership-internal-soft: 217 60% 22%;
+    --ownership-internal-strong: 217 91% 78%;
     --ownership-partner: 280 65% 65%;
     --ownership-partner-soft: 280 60% 22%;
+    --ownership-partner-strong: 280 65% 78%;
   }
 }
 
@@ -109,6 +126,15 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Manrope', sans-serif;
+  }
+  code, pre, kbd, samp, .mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 

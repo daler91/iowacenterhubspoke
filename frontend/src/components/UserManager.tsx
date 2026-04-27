@@ -1,9 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { PageShell } from './ui/page-shell';
 import { CheckCircle, XCircle, Trash2, Shield, Clock, UserPlus, Mail, LogOut, Lock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,16 +29,104 @@ const ROLES = [
 ];
 
 const STATUS_STYLES = {
-  pending: 'bg-warn-soft text-warn',
-  approved: 'bg-spoke-soft text-spoke',
-  rejected: 'bg-danger-soft text-danger',
+  pending: 'bg-warn-soft text-warn-strong',
+  approved: 'bg-spoke-soft text-spoke-strong',
+  rejected: 'bg-danger-soft text-danger-strong',
 };
 
 const INVITE_STATUS_STYLES = {
-  pending: 'bg-info-soft text-info',
-  accepted: 'bg-spoke-soft text-spoke',
-  revoked: 'bg-danger-soft text-danger',
+  pending: 'bg-info-soft text-info-strong',
+  accepted: 'bg-spoke-soft text-spoke-strong',
+  revoked: 'bg-danger-soft text-danger-strong',
 };
+
+// Isolate one "All Users" row into its own memoized component so typing
+// in the invite dialog, revoking a single invitation, or changing one
+// role doesn't re-render the other N-1 rows. Paired with useCallback'd
+// handlers on the parent, changing one user leaves the other rows'
+// React output fully cached.
+type UserRowProps = {
+  u: { id: string; name?: string; email?: string; role?: string; status?: string };
+  isSelf: boolean;
+  onRoleChange: (userId: string, role: string) => void;
+  onOpenSessions: (u: { id: string; email: string }) => void;
+  onDelete: (userId: string) => void;
+};
+
+const UserRow = memo(function UserRow({
+  u,
+  isSelf,
+  onRoleChange,
+  onOpenSessions,
+  onDelete,
+}: UserRowProps) {
+  return (
+    <tr className="border-b border-border hover:bg-muted/50">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-hub-soft flex items-center justify-center text-hub-strong font-semibold text-sm">
+            {u.name?.charAt(0)?.toUpperCase()}
+          </div>
+          <div>
+            <p className="font-medium text-foreground text-sm">{u.name}</p>
+            <p className="text-xs text-foreground/80 dark:text-muted-foreground">{u.email}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[u.status] || STATUS_STYLES.approved}`}>
+          {u.status || 'approved'}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <Select
+          value={u.role}
+          onValueChange={(value) => onRoleChange(u.id, value)}
+          disabled={isSelf}
+        >
+          <SelectTrigger className="w-32 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLES.map(r => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onOpenSessions({ id: u.id, email: u.email || '' })}
+            aria-label={`View sessions for ${u.email || 'user'}`}
+            title="View active sessions"
+            className="text-muted-foreground hover:text-hub"
+          >
+            <LogOut className="w-4 h-4" aria-hidden="true" />
+          </Button>
+          {!isSelf && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onDelete(u.id)}
+              aria-label={`Delete ${u.email || 'user'}`}
+              className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          )}
+          {isSelf && (
+            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 ml-1">
+              <Shield className="w-3 h-3" /> You
+            </span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 export default function UserManager() {
   const { user } = useAuth();
@@ -49,6 +147,8 @@ export default function UserManager() {
   // Active brute-force lockouts. Fetched alongside users and rendered
   // inline above the user list when non-empty.
   const [lockouts, setLockouts] = useState<Array<{ email: string; email_masked: string; count: number; expires_at: string }>>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email?: string; name?: string; role?: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -80,9 +180,11 @@ export default function UserManager() {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-    fetchInvitations();
-    fetchLockouts();
+    // Run the three independent fetches in parallel — serialising them
+    // forced first paint to wait for ~3× the slowest single round-trip.
+    Promise.all([fetchUsers(), fetchInvitations(), fetchLockouts()]).catch(() => {
+      // Each fetch already surfaces its own error; nothing to do here.
+    });
   }, [fetchUsers, fetchInvitations, fetchLockouts]);
 
   const handleApprove = async (userId) => {
@@ -105,7 +207,10 @@ export default function UserManager() {
     }
   };
 
-  const handleRoleChange = async (userId, role) => {
+  // useCallback so UserRow's React.memo comparison keeps sibling rows
+  // from re-rendering when only one row mutates. fetchUsers is already
+  // memoized, so each callback has a stable identity across renders.
+  const handleRoleChange = useCallback(async (userId: string, role: string) => {
     try {
       await usersAPI.updateRole(userId, role);
       toast.success(`Role updated to ${role}`);
@@ -113,9 +218,9 @@ export default function UserManager() {
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to update role'));
     }
-  };
+  }, [fetchUsers]);
 
-  const handleDelete = async (userId) => {
+  const handleDelete = useCallback(async (userId: string) => {
     try {
       await usersAPI.delete(userId);
       toast.success('User deleted');
@@ -123,7 +228,22 @@ export default function UserManager() {
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to delete user'));
     }
-  };
+  }, [fetchUsers]);
+
+  const requestDelete = useCallback((userId: string) => {
+    const u = users.find(x => x.id === userId);
+    if (!u) return;
+    setDeleteConfirmText('');
+    setDeleteTarget({ id: u.id, email: u.email, name: u.name, role: u.role });
+  }, [users]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+    await handleDelete(target.id);
+  }, [deleteTarget, handleDelete]);
 
   const handleInvite = async (e) => {
     e.preventDefault();
@@ -171,7 +291,7 @@ export default function UserManager() {
     setInviteForm({ email: '', name: '', role: 'viewer' });
   };
 
-  const openSessions = async (u: { id: string; email: string }) => {
+  const openSessions = useCallback(async (u: { id: string; email: string }) => {
     setSessionsFor(u);
     setSessions([]);
     setSessionsLoading(true);
@@ -183,7 +303,7 @@ export default function UserManager() {
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, []);
 
   const closeSessions = () => {
     setSessionsFor(null);
@@ -245,7 +365,7 @@ export default function UserManager() {
       actions={
         <Button
           onClick={() => setInviteDialogOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+          className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
         >
           <UserPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           Invite User
@@ -259,19 +379,19 @@ export default function UserManager() {
           {pendingUsers.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Approval ({pendingUsers.length})</h2>
+                <Clock className="w-4 h-4 text-warn-strong" />
+                <h2 className="text-lg font-semibold text-foreground">Pending Approval ({pendingUsers.length})</h2>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+              <div className="bg-warn-soft border border-warn-soft rounded-lg p-4 space-y-3">
                 {pendingUsers.map(u => (
-                  <div key={u.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
+                  <div key={u.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-warn-soft flex items-center justify-center text-warn-strong font-semibold text-sm">
                         {u.name?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-gray-100">{u.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400">{u.email}</p>
+                        <p className="font-medium text-foreground">{u.name}</p>
+                        <p className="text-sm text-foreground/80 dark:text-muted-foreground">{u.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -287,7 +407,7 @@ export default function UserManager() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleReject(u.id)}
-                        className="border-danger/30 text-danger hover:bg-danger-soft"
+                        className="border-danger/30 text-danger-strong hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4 mr-1" />
                         Reject
@@ -302,30 +422,30 @@ export default function UserManager() {
           {pendingInvitations.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-info" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Pending Invitations ({pendingInvitations.length})</h2>
+                <Mail className="w-4 h-4 text-info-strong" aria-hidden="true" />
+                <h2 className="text-lg font-semibold text-foreground">Pending Invitations ({pendingInvitations.length})</h2>
               </div>
               <div className="bg-info-soft border border-info/20 rounded-lg p-4 space-y-3">
                 {pendingInvitations.map(inv => (
-                  <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-4 shadow-sm">
+                  <div key={inv.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info font-semibold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-info-soft flex items-center justify-center text-info-strong font-semibold text-sm">
                         {(inv.name || inv.email)?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-gray-100">{inv.name || 'No name'}</p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400">{inv.email}</p>
+                        <p className="font-medium text-foreground">{inv.name || 'No name'}</p>
+                        <p className="text-sm text-foreground/80 dark:text-muted-foreground">{inv.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-hub-soft text-hub-strong">
                         {inv.role}
                       </span>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleRevokeInvitation(inv.id)}
-                        className="text-danger hover:text-danger hover:bg-danger-soft"
+                        className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
                       >
                         <XCircle className="w-4 h-4" />
                       </Button>
@@ -339,13 +459,13 @@ export default function UserManager() {
           {lockouts.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-danger" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
+                <Lock className="w-4 h-4 text-danger-strong" aria-hidden="true" />
+                <h2 className="text-lg font-semibold text-foreground">
                   Security Lockouts ({lockouts.length})
                 </h2>
               </div>
               <div className="bg-danger-soft border border-danger/20 rounded-lg p-4 space-y-2">
-                <p className="text-xs text-danger">
+                <p className="text-xs text-danger-strong">
                   These accounts have hit the per-email failed-login threshold
                   and are temporarily blocked from signing in. Clear a
                   lockout if the user is locked out by mistake.
@@ -353,13 +473,13 @@ export default function UserManager() {
                 {lockouts.map((l) => (
                   <div
                     key={l.email}
-                    className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-3 shadow-sm"
+                    className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-3 shadow-sm"
                   >
                     <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-gray-100">
+                      <p className="text-sm font-medium text-foreground">
                         {l.email}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                      <p className="text-xs text-foreground/80 dark:text-muted-foreground">
                         {l.count} failures &middot; unlocks {new Date(l.expires_at).toLocaleString()}
                       </p>
                     </div>
@@ -367,7 +487,7 @@ export default function UserManager() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleClearLockout(l.email)}
-                      className="border-spoke/30 text-spoke hover:bg-spoke-soft"
+                      className="border-spoke/30 text-spoke-strong hover:bg-spoke-soft"
                     >
                       <Unlock className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
                       Clear
@@ -379,83 +499,27 @@ export default function UserManager() {
           )}
 
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">All Users</h2>
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <h2 className="text-lg font-semibold text-foreground">All Users</h2>
+            <div className="bg-white dark:bg-card border border-border rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Role</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Actions</th>
+                  <tr className="border-b border-border bg-muted/50 dark:bg-muted/50">
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">User</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {otherUsers.map(u => (
-                    <tr key={u.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
-                            {u.name?.charAt(0)?.toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-gray-100 text-sm">{u.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[u.status] || STATUS_STYLES.approved}`}>
-                          {u.status || 'approved'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Select
-                          value={u.role}
-                          onValueChange={(value) => handleRoleChange(u.id, value)}
-                          disabled={u.id === user.id}
-                        >
-                          <SelectTrigger className="w-32 h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROLES.map(r => (
-                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openSessions({ id: u.id, email: u.email })}
-                            aria-label={`View sessions for ${u.email || 'user'}`}
-                            title="View active sessions"
-                            className="text-muted-foreground hover:text-indigo-600"
-                          >
-                            <LogOut className="w-4 h-4" aria-hidden="true" />
-                          </Button>
-                          {u.id !== user.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(u.id)}
-                              aria-label={`Delete ${u.email || 'user'}`}
-                              className="text-danger hover:text-danger hover:bg-danger-soft"
-                            >
-                              <Trash2 className="w-4 h-4" aria-hidden="true" />
-                            </Button>
-                          )}
-                          {u.id === user.id && (
-                            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 ml-1">
-                              <Shield className="w-3 h-3" /> You
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                    <UserRow
+                      key={u.id}
+                      u={u}
+                      isSelf={u.id === user.id}
+                      onRoleChange={handleRoleChange}
+                      onOpenSessions={openSessions}
+                      onDelete={requestDelete}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -467,7 +531,7 @@ export default function UserManager() {
       {/* Invite User Dialog — hoisted outside PageShell so it stays mounted
           during the loading state. */}
       <Dialog open={inviteDialogOpen} onOpenChange={closeInviteDialog}>
-        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-gray-900">
+        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Invite User</DialogTitle>
             <DialogDescription>
@@ -480,14 +544,14 @@ export default function UserManager() {
           {invitationSent ? (
             <div className="space-y-4">
               <div className="p-3 rounded-lg bg-spoke-soft border border-spoke/20">
-                <p className="text-sm font-medium text-spoke flex items-center gap-2">
+                <p className="text-sm font-medium text-spoke-strong flex items-center gap-2">
                   <Mail className="w-4 h-4" aria-hidden="true" />
                   {invitationSent.emailSent
                     ? `Invitation emailed to ${invitationSent.email}`
                     : `Invitation created for ${invitationSent.email}`}
                 </p>
                 {!invitationSent.emailSent && (
-                  <p className="text-xs text-amber-700 mt-2">
+                  <p className="text-xs text-warn-strong mt-2">
                     We couldn&rsquo;t send the email right now. The invitation is
                     still valid &mdash; you can resend it from the Pending
                     Invitations list below, or ask the user to check their
@@ -499,7 +563,7 @@ export default function UserManager() {
                 <Button
                   type="button"
                   onClick={closeInviteDialog}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="bg-hub hover:bg-hub-strong text-white"
                 >
                   Done
                 </Button>
@@ -516,7 +580,7 @@ export default function UserManager() {
                   value={inviteForm.email}
                   onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                   required
-                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
+                  className="h-10 bg-muted/50 dark:bg-muted"
                 />
               </div>
               <div className="space-y-2">
@@ -526,7 +590,7 @@ export default function UserManager() {
                   placeholder="John Doe"
                   value={inviteForm.name}
                   onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                  className="h-10 bg-gray-50/50 dark:bg-gray-800"
+                  className="h-10 bg-muted/50 dark:bg-muted"
                 />
               </div>
               <div className="space-y-2">
@@ -549,7 +613,7 @@ export default function UserManager() {
                 <Button
                   type="submit"
                   disabled={inviteLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="bg-hub hover:bg-hub-strong text-white"
                 >
                   {inviteLoading ? 'Creating...' : 'Create Invitation'}
                 </Button>
@@ -564,7 +628,7 @@ export default function UserManager() {
           every refresh token for that user across every device; their
           current access token lives until it expires (typically 4h). */}
       <Dialog open={!!sessionsFor} onOpenChange={(o) => { if (!o) closeSessions(); }}>
-        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-900">
+        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Active sessions</DialogTitle>
             <DialogDescription>
@@ -580,7 +644,7 @@ export default function UserManager() {
               <span className="sr-only">Loading sessions</span>
               <span
                 aria-hidden="true"
-                className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"
+                className="w-5 h-5 border-2 border-hub border-t-transparent rounded-full animate-spin"
               />
             </div>
           )}
@@ -594,13 +658,13 @@ export default function UserManager() {
               {sessions.map((s) => (
                 <div
                   key={s.jti}
-                  className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3"
+                  className="flex items-center justify-between bg-muted/50 dark:bg-muted rounded-lg p-3"
                 >
                   <div>
-                    <p className="text-sm font-mono text-slate-900 dark:text-gray-100">
+                    <p className="text-sm font-mono text-foreground">
                       {s.jti_prefix}&hellip;
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                    <p className="text-xs text-foreground/80 dark:text-muted-foreground">
                       {s.issued_at
                         ? `issued ${new Date(s.issued_at).toLocaleString()}`
                         : 'issue time unknown'}
@@ -629,6 +693,53 @@ export default function UserManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteConfirmText(''); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.name || deleteTarget?.email || 'user'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.role === 'admin' ? (
+                <>
+                  <strong>{deleteTarget?.email}</strong> is an <strong>administrator</strong>.
+                  Deleting this account revokes their access and cannot be undone.
+                  Type <strong>DELETE</strong> below to confirm.
+                </>
+              ) : (
+                <>
+                  This removes <strong>{deleteTarget?.email}</strong> and revokes all their active sessions.
+                  This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteTarget?.role === 'admin' && (
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              aria-label="Type DELETE to confirm"
+              autoComplete="off"
+              className="mt-2"
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger hover:bg-danger"
+              disabled={deleteTarget?.role === 'admin' && deleteConfirmText !== 'DELETE'}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

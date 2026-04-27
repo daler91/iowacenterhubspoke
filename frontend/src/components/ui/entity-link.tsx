@@ -17,7 +17,7 @@ export function EntityLink({ type, id, children, className }) {
     <Link
       to={`/${basePath}/${id}`}
       className={cn(
-        'hover:underline hover:text-indigo-600 transition-colors cursor-pointer',
+        'hover:underline hover:text-hub transition-colors cursor-pointer',
         className
       )}
       onClick={(e) => e.stopPropagation()}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -19,21 +19,108 @@ import LocationProfile from './LocationProfile';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
+// One location card, memoized so editing or deleting a single location
+// doesn't force every sibling card to re-render. The parent stabilises
+// the handlers with useCallback so the memo comparison actually skips.
+type Location = {
+  id: string;
+  city_name?: string;
+  drive_time_minutes?: number;
+  latitude?: number;
+  longitude?: number;
+};
+
+type LocationRowProps = {
+  loc: Location;
+  isAdmin: boolean;
+  onView: (id: string) => void;
+  onEdit: (loc: Location) => void;
+  onDelete: (loc: Location) => void;
+};
+
+const LocationRow = memo(function LocationRow({
+  loc, isAdmin, onView, onEdit, onDelete,
+}: LocationRowProps) {
+  return (
+    <div
+      data-testid={`location-card-${loc.id}`}
+      className="bg-white dark:bg-card rounded-lg border border-border p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 bg-spoke-soft rounded-lg flex items-center justify-center">
+          <MapPin className="w-5 h-5 text-spoke-strong" />
+        </div>
+        <div>
+          <EntityLink type="location" id={loc.id} className="font-semibold text-foreground">{loc.city_name}</EntityLink>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-1">
+              <Car className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-foreground/80 dark:text-muted-foreground">{loc.drive_time_minutes} min from Hub</span>
+            </div>
+            {loc.latitude && (
+              <span className="text-xs text-muted-foreground">
+                {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid={`view-location-${loc.id}`}
+          onClick={() => onView(loc.id)}
+          className="text-muted-foreground hover:text-spoke-strong"
+          aria-label={`View ${loc.city_name}`}
+        >
+          <Eye className="w-4 h-4" aria-hidden="true" />
+        </Button>
+        {isAdmin && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`edit-location-${loc.id}`}
+              onClick={() => onEdit(loc)}
+              className="text-muted-foreground hover:text-hub"
+              aria-label={`Edit ${loc.city_name}`}
+            >
+              <Pencil className="w-4 h-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`delete-location-${loc.id}`}
+              onClick={() => onDelete(loc)}
+              className="text-muted-foreground hover:text-danger-strong"
+              aria-label={`Delete ${loc.city_name}`}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function LocationManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { locations, fetchLocations, fetchActivities } = useOutletContext();
-  const onRefresh = () => {
+  const { locations, schedules, loadingState, fetchLocations, fetchActivities } = useOutletContext();
+  const onRefresh = useCallback(() => {
     fetchLocations();
     fetchActivities();
-  };
+  }, [fetchLocations, fetchActivities]);
   const [selectedLocationId, setSelectedLocationId] = useState(null);
-  const onViewProfile = (id) => setSelectedLocationId(id);
+  const onViewProfile = useCallback((id) => setSelectedLocationId(id), []);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const [driveTimeTouched, setDriveTimeTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
@@ -44,27 +131,43 @@ export default function LocationManager() {
       longitude: String(longitude),
     }));
 
-    // Auto-calculate drive time from hub
+    // If the user has already typed a drive-time value manually, don't
+    // clobber it. Users expect their explicit edits to survive when they
+    // tweak the address. They can clear the field to re-trigger auto-calc.
+    if (driveTimeTouched) {
+      toast.info('Kept your manual drive-time value. Clear the field to auto-calculate.');
+      return;
+    }
+
+    // Auto-calculate drive time from hub. If the lookup fails (Google
+    // Distance Matrix down, no API key, etc.) drop in a conservative
+    // default so the form is still submittable — users frequently miss
+    // the toast, then hit "save" and bounce off backend validation.
     setCalculatingDrive(true);
     try {
       const res = await locationsAPI.getDriveTimeFromHub(latitude, longitude);
       setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
     } catch {
-      toast.error(
-        'Drive time auto-calc failed. Please enter the minutes manually.',
+      const FALLBACK_DRIVE_MINUTES = '15';
+      setForm(prev => ({ ...prev, drive_time_minutes: FALLBACK_DRIVE_MINUTES }));
+      toast.warning(
+        `Drive time auto-calc failed. Using ${FALLBACK_DRIVE_MINUTES} min estimate — adjust manually if needed.`,
       );
     } finally {
       setCalculatingDrive(false);
     }
-  }, []);
+  }, [driveTimeTouched]);
 
   const openNew = () => {
     setEditing(null);
     setForm({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
+    setDriveTimeTouched(false);
     setDialogOpen(true);
   };
 
-  const openEdit = (loc) => {
+  // Stable handlers so LocationRow's React.memo can skip re-renders for
+  // sibling cards when one card mutates.
+  const openEdit = useCallback((loc) => {
     setEditing(loc);
     setForm({
       city_name: loc.city_name,
@@ -72,8 +175,13 @@ export default function LocationManager() {
       latitude: loc.latitude ? String(loc.latitude) : '',
       longitude: loc.longitude ? String(loc.longitude) : '',
     });
+    // Existing rows start untouched — the stored value is the source of
+    // truth until the user either clears the field or edits it.
+    setDriveTimeTouched(false);
     setDialogOpen(true);
-  };
+  }, []);
+
+  const openDelete = useCallback((loc) => setDeleteTarget(loc), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -131,12 +239,14 @@ export default function LocationManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Locations' }]}
       title="Locations"
       subtitle="Manage spoke locations and drive times from Hub"
+      status={loadingState?.locations ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         isAdmin ? (
           <Button
             data-testid="add-location-btn"
             onClick={openNew}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+            disabled={!!loadingState?.locations}
+            className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Location
@@ -146,79 +256,26 @@ export default function LocationManager() {
     >
       {/* Hub Info */}
       <div className="bg-hub-soft border border-hub/20 rounded-lg p-4 flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-hub rounded-lg flex items-center justify-center">
           <MapPin className="w-5 h-5 text-white" />
         </div>
         <div>
-          <p className="font-semibold text-indigo-900 text-sm">Hub Location</p>
-          <p className="text-xs text-indigo-600">2210 Grand Ave, Des Moines, IA 50312</p>
+          <p className="font-semibold text-hub-strong text-sm">Hub Location</p>
+          <p className="text-xs text-hub">2210 Grand Ave, Des Moines, IA 50312</p>
         </div>
       </div>
 
       {/* Location list */}
       <div className="grid gap-3">
         {(locations || []).map(loc => (
-          <div
+          <LocationRow
             key={loc.id}
-            data-testid={`location-card-${loc.id}`}
-            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-teal-600" />
-              </div>
-              <div>
-                <EntityLink type="location" id={loc.id} className="font-semibold text-slate-800 dark:text-gray-100">{loc.city_name}</EntityLink>
-                <div className="flex items-center gap-3 mt-1">
-                  <div className="flex items-center gap-1">
-                    <Car className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-slate-500 dark:text-gray-400">{loc.drive_time_minutes} min from Hub</span>
-                  </div>
-                  {loc.latitude && (
-                    <span className="text-xs text-muted-foreground">
-                      {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`view-location-${loc.id}`}
-                onClick={() => onViewProfile(loc.id)}
-                className="text-muted-foreground hover:text-teal-600"
-                aria-label={`View ${loc.city_name}`}
-              >
-                <Eye className="w-4 h-4" aria-hidden="true" />
-              </Button>
-              {isAdmin && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`edit-location-${loc.id}`}
-                    onClick={() => openEdit(loc)}
-                    className="text-muted-foreground hover:text-indigo-600"
-                    aria-label={`Edit ${loc.city_name}`}
-                  >
-                    <Pencil className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`delete-location-${loc.id}`}
-                    onClick={() => setDeleteTarget(loc)}
-                    className="text-muted-foreground hover:text-danger"
-                    aria-label={`Delete ${loc.city_name}`}
-                  >
-                    <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+            loc={loc}
+            isAdmin={isAdmin}
+            onView={onViewProfile}
+            onEdit={openEdit}
+            onDelete={openDelete}
+          />
         ))}
 
         {(!locations || locations.length === 0) && (
@@ -233,7 +290,7 @@ export default function LocationManager() {
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
-          className="sm:max-w-[440px] bg-white dark:bg-gray-900"
+          className="sm:max-w-[440px] bg-white dark:bg-card"
           data-testid="location-form-dialog"
           onPointerDownOutside={(e) => {
             // Radix uses custom events - the real DOM target is in detail.originalEvent
@@ -292,13 +349,16 @@ export default function LocationManager() {
                       data-testid="location-drive-time-input"
                       placeholder="e.g. 45"
                       value={form.drive_time_minutes}
-                      onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                      onChange={(e) => {
+                        setForm({ ...form, drive_time_minutes: e.target.value });
+                        setDriveTimeTouched(e.target.value !== '');
+                      }}
                       required
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                     {calculatingDrive && (
                       <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" aria-label="Calculating drive time" />
+                        <Loader2 className="w-4 h-4 animate-spin text-hub" aria-label="Calculating drive time" />
                       </div>
                     )}
                   </div>
@@ -314,7 +374,7 @@ export default function LocationManager() {
                       placeholder="41.5868"
                       value={form.latitude}
                       onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                   </div>
                   <div className="space-y-2">
@@ -327,7 +387,7 @@ export default function LocationManager() {
                       placeholder="-93.6540"
                       value={form.longitude}
                       onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                      className="bg-gray-50/50"
+                      className="bg-muted/50"
                     />
                   </div>
                 </div>
@@ -336,7 +396,7 @@ export default function LocationManager() {
                     type="submit"
                     data-testid="location-save-btn"
                     disabled={loading || calculatingDrive}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                    className="bg-hub hover:bg-hub-strong text-white w-full"
                   >
                     {calculatingDrive ? 'Calculating drive time...' : saveLabel}
                   </Button>
@@ -354,7 +414,7 @@ export default function LocationManager() {
                   value={form.city_name}
                   onChange={(e) => setForm({ ...form, city_name: e.target.value })}
                   required
-                  className="bg-gray-50/50"
+                  className="bg-muted/50"
                 />
               </div>
               <div className="space-y-2">
@@ -365,9 +425,12 @@ export default function LocationManager() {
                   data-testid="location-drive-time-input"
                   placeholder="e.g. 45"
                   value={form.drive_time_minutes}
-                  onChange={(e) => setForm({ ...form, drive_time_minutes: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, drive_time_minutes: e.target.value });
+                    setDriveTimeTouched(e.target.value !== '');
+                  }}
                   required
-                  className="bg-gray-50/50"
+                  className="bg-muted/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -381,7 +444,7 @@ export default function LocationManager() {
                     placeholder="41.5868"
                     value={form.latitude}
                     onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                    className="bg-gray-50/50"
+                    className="bg-muted/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -394,7 +457,7 @@ export default function LocationManager() {
                     placeholder="-93.6540"
                     value={form.longitude}
                     onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                    className="bg-gray-50/50"
+                    className="bg-muted/50"
                   />
                 </div>
               </div>
@@ -403,7 +466,7 @@ export default function LocationManager() {
                   type="submit"
                   data-testid="location-save-btn"
                   disabled={loading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                  className="bg-hub hover:bg-hub-strong text-white w-full"
                 >
                   {saveLabel}
                 </Button>
@@ -418,12 +481,18 @@ export default function LocationManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleteTarget?.city_name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the location from the system. This action cannot be easily undone.
+              {(() => {
+                const count = (schedules || []).filter(s => s.location_id === deleteTarget?.id).length;
+                if (count === 0) {
+                  return 'This location has no schedules. Deleting it cannot be undone.';
+                }
+                return `${deleteTarget?.city_name} is used by ${count} schedule${count === 1 ? '' : 's'}. Deleting it may fail on the backend. This action cannot be undone.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+            <AlertDialogAction className="bg-danger hover:bg-danger" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -18,12 +18,12 @@ function PreviewResults({ file, previewData, onReset }) {
   const hasErrors = previewData.errors.length > 0;
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 bg-muted/50 dark:bg-muted rounded-lg border dark:border-border">
         <div className="flex items-center space-x-3">
           <FileText className="h-6 w-6 text-primary" />
           <div>
             <p className="text-sm font-medium">{file.name}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-muted-foreground">
               {previewData.total_rows} total rows processed
             </p>
           </div>
@@ -35,22 +35,22 @@ function PreviewResults({ file, previewData, onReset }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 rounded-lg border bg-spoke-soft border-spoke/30">
-          <div className="flex items-center text-spoke mb-2">
+          <div className="flex items-center text-spoke-strong mb-2">
             <CheckCircle2 className="h-5 w-5 mr-2" />
             <span className="font-semibold">Valid Rows ({previewData.valid_rows.length})</span>
           </div>
-          <p className="text-sm text-spoke">
+          <p className="text-sm text-spoke-strong">
             These schedules are ready to be imported into the system.
           </p>
         </div>
 
         <div className={cn(
           "p-4 rounded-lg border",
-          hasErrors ? "bg-danger-soft border-danger/30" : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+          hasErrors ? "bg-danger-soft border-danger/30" : "bg-muted/50 dark:bg-muted border-border"
         )}>
           <div className={cn(
             "flex items-center mb-2",
-            hasErrors ? "text-danger" : "text-gray-700 dark:text-gray-200"
+            hasErrors ? "text-danger-strong" : "text-foreground"
           )}>
             {hasErrors ? (
               <XCircle className="h-5 w-5 mr-2" />
@@ -61,7 +61,7 @@ function PreviewResults({ file, previewData, onReset }) {
           </div>
           <p className={cn(
             "text-sm",
-            hasErrors ? "text-danger" : "text-gray-600 dark:text-gray-300"
+            hasErrors ? "text-danger-strong" : "text-foreground/80 dark:text-muted-foreground"
           )}>
             Rows with errors will be skipped during import.
           </p>
@@ -70,20 +70,20 @@ function PreviewResults({ file, previewData, onReset }) {
 
       {hasErrors && (
         <div className="border rounded-md mt-4 max-h-[300px] overflow-y-auto">
-          <div className="bg-danger-soft px-4 py-2 border-b border-danger/20 font-medium text-danger text-sm sticky top-0">
+          <div className="bg-danger-soft px-4 py-2 border-b border-danger/20 font-medium text-danger-strong text-sm sticky top-0">
             Error Details
           </div>
           <ul className="divide-y divide-danger/20 text-sm">
             {previewData.errors.slice(0, 50).map((err) => (
-              <li key={`row-${err.row}`} className="p-3 bg-white dark:bg-gray-900">
-                <div className="font-medium text-gray-900 dark:text-gray-100 mb-1">Row {err.row}</div>
-                <ul className="list-disc list-inside text-danger space-y-1 ml-1">
+              <li key={`row-${err.row}`} className="p-3 bg-white dark:bg-card">
+                <div className="font-medium text-foreground mb-1">Row {err.row}</div>
+                <ul className="list-disc list-inside text-danger-strong space-y-1 ml-1">
                   {err.errors.map((e) => <li key={`${err.row}-${e}`}>{e}</li>)}
                 </ul>
               </li>
             ))}
             {previewData.errors.length > 50 && (
-              <li className="p-3 text-center text-gray-500 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800">
+              <li className="p-3 text-center text-muted-foreground italic bg-muted/50 dark:bg-muted">
                 ...and {previewData.errors.length - 50} more errors
               </li>
             )}
@@ -181,12 +181,12 @@ export default function ImportCsvDialog({ open, onOpenChange, onImportSuccess })
               onReset={() => setPreviewData(null)}
             />
           ) : (
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center flex flex-col items-center justify-center bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-              <Upload className="h-10 w-10 text-gray-400 mb-4" />
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center flex flex-col items-center justify-center bg-muted/50 dark:bg-muted/50 hover:bg-muted/50 dark:hover:bg-muted transition-colors">
+              <Upload className="h-10 w-10 text-muted-foreground mb-4" />
+              <p className="text-sm font-medium text-foreground mb-1">
                 {file ? file.name : 'Click to upload or drag and drop'}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">CSV files only (max. 10MB)</p>
+              <p className="text-xs text-muted-foreground mb-4">CSV files only (max. 10MB)</p>
 
               <input
                 type="file"

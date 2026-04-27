@@ -54,7 +54,7 @@ export default function PartnerManager() {
       subtitle="Host organizations and contacts across Iowa communities"
       status={isLoading ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
-        <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+        <Button onClick={() => setShowCreate(true)} className="bg-hub hover:bg-hub-strong text-white">
           <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> Add Partner
         </Button>
       }
@@ -80,8 +80,8 @@ export default function PartnerManager() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100">{org.name}</h3>
-                <p className="text-sm text-slate-500">{org.community}</p>
+                <h3 className="font-semibold text-foreground">{org.name}</h3>
+                <p className="text-sm text-foreground/80">{org.community}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge className={cn('text-xs', STATUS_BADGE_COLORS[org.status])}>
@@ -118,7 +118,7 @@ export default function PartnerManager() {
                 id="partner-status"
                 value={form.status}
                 onChange={e => setForm({ ...form, status: e.target.value })}
-                className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-gray-900 dark:border-gray-700"
+                className="w-full text-sm border rounded-lg px-3 py-2 bg-white dark:bg-card dark:border-border"
               >
                 <option value="prospect">Prospect</option>
                 <option value="onboarding">Onboarding</option>
@@ -132,7 +132,7 @@ export default function PartnerManager() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={creating} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Button onClick={handleCreate} disabled={creating} className="bg-hub hover:bg-hub-strong text-white">
                 {creating ? 'Creating...' : 'Create'}
               </Button>
             </div>

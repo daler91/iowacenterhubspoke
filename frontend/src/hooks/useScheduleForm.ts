@@ -3,6 +3,7 @@ import { mutate } from 'swr';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
+import { isSchedulesSwrKey } from './useDashboardData';
 import type { Schedule } from '../lib/types';
 import { extractErrorMessage } from '../lib/types';
 
@@ -70,6 +71,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
   });
   const [loading, setLoading] = useState(false);
   const [previewConflicts, setPreviewConflicts] = useState<ConflictPreview>({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
+  const [conflictPreviewError, setConflictPreviewError] = useState(false);
   const [townToTown, setTownToTown] = useState<Record<string, unknown> | null>(null);
   const [travelChain, setTravelChain] = useState<Record<string, unknown> | null>(null);
   const [outlookOverride, setOutlookOverride] = useState(false);
@@ -123,6 +125,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
+      // A prior /check-conflicts failure is no longer relevant once the form
+      // is incomplete — clear so a stale red banner doesn't linger on reopen.
+      setConflictPreviewError(false);
       return;
     }
     const payload: Record<string, unknown> = {
@@ -145,10 +150,12 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       });
       setTownToTown(res.data.town_to_town || null);
       setTravelChain(res.data.travel_chain || null);
+      setConflictPreviewError(false);
     } catch {
       setPreviewConflicts({ conflicts: [], outlook_conflicts: [], google_conflicts: [] });
       setTownToTown(null);
       setTravelChain(null);
+      setConflictPreviewError(true);
     }
   }, [form.employee_ids, form.location_id, form.date, form.start_time, form.end_time, form.drive_to_override_minutes, form.drive_from_override_minutes, editSchedule]);
 
@@ -246,8 +253,23 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       const skippedMsg = skipped ? `, ${skipped} skipped (conflicts)` : '';
       toast.success(`${Number(res.data.total_created)} classes created${skippedMsg}`);
     }
+    // Backend signals (via partner_project_warning) when it expected to
+    // auto-create a coordination project but couldn't — surface it so the
+    // scheduler isn't left thinking partner sync happened silently.
+    const partnerWarning = res.data.partner_project_warning;
+    if (typeof partnerWarning === 'string' && partnerWarning) {
+      toast.warning(partnerWarning, { duration: 8000 });
+    }
     // Prompt to create a coordination project for new single schedules
-    if (isSingleCreation && form.recurrence === 'none' && onProjectPrompt) {
+    // (only when no auto-link was attempted/created on the backend).
+    const autoLinked = Boolean(res.data.linked_project_id);
+    if (
+      isSingleCreation
+      && form.recurrence === 'none'
+      && onProjectPrompt
+      && !autoLinked
+      && !partnerWarning
+    ) {
       toast('Track partner coordination for this class?', {
         duration: 8000,
         action: {
@@ -365,7 +387,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     try {
       await schedulesAPI.update(scheduleId, { [fieldKey]: minutes });
       fetchConflictPreview();
-      mutate('schedules'); // Invalidate calendar data so drive blocks update
+      mutate(isSchedulesSwrKey); // Invalidate every windowed schedules cache so drive blocks update
     } catch {
       // silently fail — chain will show stale data until next refresh
     }
@@ -377,7 +399,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, townToTown, travelChain, outlookOverride, setOutlookOverride, googleOverride, setGoogleOverride,
+    previewConflicts, conflictPreviewError, retryConflictPreview: fetchConflictPreview, townToTown, travelChain, outlookOverride, setOutlookOverride, googleOverride, setGoogleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   };

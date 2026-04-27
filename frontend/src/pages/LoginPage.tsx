@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Logo } from '../components/ui/logo';
 import { toast } from 'sonner';
 import { MapPin, Clock, Users, ShieldAlert } from 'lucide-react';
 
@@ -111,14 +112,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#F9FAFB] dark:bg-gray-950 flex" data-testid="login-page">
+    <div className="min-h-screen min-h-[100dvh] bg-background flex" data-testid="login-page">
       {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 relative overflow-hidden flex-col justify-between p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-hub relative overflow-hidden flex-col justify-between p-12">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-white" />
-            </div>
+            <Logo aria-hidden="true" className="size-10 text-white" />
             <span className="text-white text-xl font-bold font-display">
               HubSpoke
             </span>
@@ -126,52 +125,50 @@ export default function LoginPage() {
           <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6 font-display">
             Smart Employee<br />Scheduling
           </h1>
-          <p className="text-indigo-100 text-lg max-w-md leading-relaxed">
+          <p className="text-white/80 text-lg max-w-md leading-relaxed">
             Manage your hub-and-spoke travel model with automatic drive time blocking and intelligent scheduling.
           </p>
         </div>
         <div className="relative z-10 flex gap-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-indigo-200" />
+              <Clock className="w-5 h-5 text-white/80" />
             </div>
             <div>
               <p className="text-white font-semibold text-sm">Auto Travel</p>
-              <p className="text-indigo-200 text-xs">Time blocking</p>
+              <p className="text-white/70 text-xs">Time blocking</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-indigo-200" />
+              <Users className="w-5 h-5 text-white/80" />
             </div>
             <div>
               <p className="text-white font-semibold text-sm">Team View</p>
-              <p className="text-indigo-200 text-xs">Weekly calendar</p>
+              <p className="text-white/70 text-xs">Weekly calendar</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-indigo-200" />
+              <MapPin className="w-5 h-5 text-white/80" />
             </div>
             <div>
               <p className="text-white font-semibold text-sm">Map View</p>
-              <p className="text-indigo-200 text-xs">Visual routes</p>
+              <p className="text-white/70 text-xs">Visual routes</p>
             </div>
           </div>
         </div>
         {/* Decorative circles */}
-        <div className="absolute top-1/4 right-0 w-96 h-96 bg-indigo-500 rounded-full opacity-30 translate-x-1/2" />
-        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-indigo-700 rounded-full opacity-40 translate-y-1/2" />
+        <div className="absolute top-1/4 right-0 w-96 h-96 bg-hub-strong rounded-full opacity-30 translate-x-1/2" />
+        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-hub-strong rounded-full opacity-40 translate-y-1/2" />
       </div>
 
       {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-y-auto relative z-10">
-        <Card className="w-full max-w-md border-0 shadow-lg bg-white dark:bg-gray-900">
+        <Card className="w-full max-w-md border-0 shadow-lg bg-card">
           <CardHeader className="space-y-1 pb-6">
             <div className="lg:hidden flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-white" />
-              </div>
+              <Logo aria-hidden="true" className="size-8 text-hub" />
               <span className="font-bold text-lg font-display">HubSpoke</span>
             </div>
             <CardTitle className="text-2xl font-bold font-display">
@@ -185,15 +182,15 @@ export default function LoginPage() {
             {replayLogout && (
               <div
                 role="alert"
-                className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2"
+                className="mb-4 p-3 bg-warn-soft border border-warn-soft rounded-lg flex gap-2"
                 data-testid="replay-logout-banner"
               >
-                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+                <ShieldAlert className="w-4 h-4 text-warn-strong shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="text-sm text-amber-800 font-medium">
+                  <p className="text-sm text-warn-strong font-medium">
                     All devices were signed out for safety
                   </p>
-                  <p className="text-xs text-amber-700 mt-1">
+                  <p className="text-xs text-warn-strong mt-1">
                     We detected a reused session cookie — if that wasn&rsquo;t you,
                     someone may have copied an old cookie. Sign in again to continue.
                   </p>
@@ -201,11 +198,11 @@ export default function LoginPage() {
               </div>
             )}
             {inviteData && (
-              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <p className="text-sm text-indigo-700 font-medium">
+              <div className="mb-4 p-3 bg-hub-soft border border-hub-soft rounded-lg">
+                <p className="text-sm text-hub-strong font-medium">
                   Invitation for {inviteData.email}
                 </p>
-                <p className="text-xs text-indigo-500 mt-1">
+                <p className="text-xs text-hub mt-1">
                   Complete your registration below to get started.
                 </p>
               </div>
@@ -221,7 +218,7 @@ export default function LoginPage() {
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     required={!isLogin}
-                    className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
+                    className="h-11 bg-muted/50"
                   />
                 </div>
               )}
@@ -236,7 +233,7 @@ export default function LoginPage() {
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
                   disabled={!!inviteData}
-                  className={`h-11 bg-gray-50/50 dark:bg-gray-800/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`h-11 bg-muted/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div className="space-y-2">
@@ -246,7 +243,7 @@ export default function LoginPage() {
                     <Link
                       to="/forgot-password"
                       data-testid="forgot-password-link"
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                      className="text-xs text-hub hover:text-hub-strong font-medium"
                     >
                       Forgot password?
                     </Link>
@@ -260,7 +257,7 @@ export default function LoginPage() {
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
-                  className="h-11 bg-gray-50/50 dark:bg-gray-800/50"
+                  className="h-11 bg-muted/50"
                 />
               </div>
               {!isLogin && !inviteData && (
@@ -288,7 +285,7 @@ export default function LoginPage() {
                 type="submit"
                 data-testid="login-submit-button"
                 disabled={loading}
-                className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+                className="w-full h-11 bg-hub hover:bg-hub-strong text-white font-medium rounded-lg"
               >
                 {(() => {
                   if (loading) return 'Please wait...';
@@ -303,7 +300,7 @@ export default function LoginPage() {
                   type="button"
                   data-testid="toggle-auth-mode"
                   onClick={() => setIsLogin(!isLogin)}
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  className="text-sm text-hub hover:text-hub-strong font-medium"
                 >
                   {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
                 </button>

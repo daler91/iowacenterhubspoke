@@ -7,6 +7,18 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+SINGLE_CONFLICT_LOG_THRESHOLD = 100
+BULK_CONFLICT_LOG_THRESHOLD = 10_000
+
+SCHEDULE_CONFLICT_PROJECTION = {
+    "id": 1,
+    "start_time": 1,
+    "end_time": 1,
+    "drive_time_minutes": 1,
+    "location_name": 1,
+    "date": 1,
+}
+
 # Default to Central Time (Iowa) but leave overridable for tenants in
 # other zones without forcing a config change in code.
 SCHEDULE_TIMEZONE = os.environ.get("SCHEDULE_TIMEZONE", "America/Chicago")
@@ -247,10 +259,10 @@ async def check_conflicts(
     # bulk-schedule routes.
     logger.debug("Checking conflicts")
 
-    existing = await db.schedules.find(query, {"_id": 0}).to_list(100)
-
     conflicts = []
-    for s in existing:
+    seen_count = 0
+    async for s in db.schedules.find(query, SCHEDULE_CONFLICT_PROJECTION):
+        seen_count += 1
         s_drive = s.get('drive_time_minutes', 0)
         s_start = time_to_minutes(s['start_time']) - s_drive
         s_end = time_to_minutes(s['end_time']) + s_drive
@@ -261,15 +273,29 @@ async def check_conflicts(
                 "time": f"{s['start_time']}-{s['end_time']}",
                 "overlap": f"Blocks overlap (including {s_drive}m drive)"
             })
+
+    if seen_count > SINGLE_CONFLICT_LOG_THRESHOLD:
+        logger.warning(
+            "Large conflict candidate result set",
+            extra={"context": {"candidate_count": seen_count}}
+        )
+
     return conflicts
 
 
-async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+async def check_outlook_conflicts(
+    employee_id: str,
+    date: str,
+    start_time: str,
+    end_time: str,
+    employee: dict | None = None,
+) -> list:
     from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
     if not OUTLOOK_CALENDAR_ENABLED:
         return []
 
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if employee is None:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee or not employee.get("email"):
         return []
 
@@ -277,12 +303,19 @@ async def check_outlook_conflicts(employee_id: str, date: str, start_time: str, 
     return await check_outlook_availability(employee["email"], date, start_time, end_time, employee=employee)
 
 
-async def check_google_conflicts(employee_id: str, date: str, start_time: str, end_time: str) -> list:
+async def check_google_conflicts(
+    employee_id: str,
+    date: str,
+    start_time: str,
+    end_time: str,
+    employee: dict | None = None,
+) -> list:
     from core.google_config import GOOGLE_CALENDAR_ENABLED
     if not GOOGLE_CALENDAR_ENABLED:
         return []
 
-    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if employee is None:
+        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee or not employee.get("google_calendar_connected"):
         return []
 
@@ -308,17 +341,16 @@ async def check_conflicts_bulk(
 
     logger.debug(
         "Checking bulk conflicts",
-        extra={"context": {"employee_id": employee_id, "dates_count": len(dates)}}
+        extra={"context": {"dates_count": len(dates)}}
     )
-
-    # We might have many schedules, let's use a larger limit
-    existing = await db.schedules.find(query, {"_id": 0}).to_list(10000)
 
     # Group by date for quick lookup
     from collections import defaultdict
     conflicts_by_date = defaultdict(list)
+    seen_count = 0
 
-    for s in existing:
+    async for s in db.schedules.find(query, SCHEDULE_CONFLICT_PROJECTION):
+        seen_count += 1
         s_date = s['date']
         s_drive = s.get('drive_time_minutes', 0)
         s_start = time_to_minutes(s['start_time']) - s_drive
@@ -330,5 +362,11 @@ async def check_conflicts_bulk(
                 "time": f"{s['start_time']}-{s['end_time']}",
                 "overlap": f"Blocks overlap (including {s_drive}m drive)"
             })
+
+    if seen_count > BULK_CONFLICT_LOG_THRESHOLD:
+        logger.warning(
+            "Large bulk conflict candidate result set",
+            extra={"context": {"candidate_count": seen_count}}
+        )
 
     return conflicts_by_date

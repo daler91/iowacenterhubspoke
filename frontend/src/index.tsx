@@ -25,11 +25,28 @@ if (sentryDsn) {
 // inline <script> blocks. Gated behind the analytics consent banner — we
 // boot immediately if consent was previously granted, and listen for the
 // consent-changed event so a mid-session grant loads PostHog live.
-initPostHogIfConsented();
-if (globalThis.window !== undefined) {
-  globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
-    initPostHogIfConsented();
-  });
+// Deferred to idle so PostHog's ~50KB JS doesn't compete with React hydration
+// for main-thread time; falls back to a short setTimeout on browsers without
+// requestIdleCallback (Safari < 17).
+const bootAnalytics = () => {
+  initPostHogIfConsented();
+  if (globalThis.window !== undefined) {
+    globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
+      initPostHogIfConsented();
+    });
+  }
+};
+if (typeof globalThis.requestIdleCallback === 'function') {
+  // Drop the deadline on fast connections so PostHog initialises sooner
+  // and we don't lose the first batch of events to the gap; fall back to
+  // the conservative budget on slow / unknown connections so the bundle
+  // doesn't muscle in on hydration.
+  type ConnLike = { effectiveType?: string };
+  const conn = (navigator as unknown as { connection?: ConnLike }).connection;
+  const fast = conn?.effectiveType === '4g' || conn?.effectiveType === '5g';
+  globalThis.requestIdleCallback(bootAnalytics, { timeout: fast ? 1500 : 3000 });
+} else {
+  setTimeout(bootAnalytics, 1000);
 }
 
 const resizeObserverMessages = new Set([
@@ -91,9 +108,43 @@ if (globalThis.window !== undefined) {
   });
 }
 
+// Bookend performance marks for the app shell so we can measure how long
+// the initial bundle takes to hydrate, before and after the lazy-load /
+// tab-gating work lands. Paired with the `insights-tab-switch` measure in
+// InsightsPage; both emit to whatever consumes User Timing entries
+// (PostHog / Sentry / devtools).
+const MARK_APP_SHELL_START = 'app-shell-bootstrap-start';
+const MARK_APP_SHELL_READY = 'app-shell-ready';
+if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
+  try { performance.mark(MARK_APP_SHELL_START); } catch { /* older browsers */ }
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
 );
+
+// Mark the shell as ready once React has flushed its first commit. We use
+// requestAnimationFrame inside requestIdleCallback so the measure reflects
+// real paint + hydration, not just render-tree construction.
+if (
+  typeof performance !== 'undefined'
+  && typeof performance.mark === 'function'
+  && typeof performance.measure === 'function'
+  && import.meta.env.MODE !== 'test'
+) {
+  const finish = () => {
+    try {
+      performance.mark(MARK_APP_SHELL_READY);
+      performance.measure('app-shell-ready', MARK_APP_SHELL_START, MARK_APP_SHELL_READY);
+    } catch { /* ignore missing start mark in fast-refresh reloads */ }
+  };
+  const onIdle = () => globalThis.requestAnimationFrame(finish);
+  if (typeof globalThis.requestIdleCallback === 'function') {
+    globalThis.requestIdleCallback(onIdle, { timeout: 3000 });
+  } else {
+    setTimeout(onIdle, 500);
+  }
+}

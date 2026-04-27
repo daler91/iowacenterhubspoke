@@ -3,10 +3,20 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="description" content="Iowa Center HubSpoke Scheduler" />
+        <meta name="theme-color" content="#4F46E5" />
+        <meta name="description" content="HubSpoke scheduling" />
+        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <!--
+        Preconnect to the backend origin so the TLS/DNS handshake for the
+        first /auth/me (and the immediate /locations, /employees, /classes,
+        /schedules, /dashboard/stats fan-out) overlaps HTML parsing rather
+        than blocking it. Vite substitutes %VITE_BACKEND_URL% at build
+        time from import.meta.env (see `vite.config.js`). When the backend
+        is same-origin the var is empty and this tag is a harmless no-op.
+        -->
+        <link rel="preconnect" href="%VITE_BACKEND_URL%" crossorigin />
 
         <!--
         manifest.json provides metadata used when your web app is installed on a
@@ -21,7 +31,7 @@
         work correctly both with client-side routing and a non-root public URL.
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
-        <title>Iowa Center HubSpoke Scheduler</title>
+        <title>HubSpoke</title>
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>

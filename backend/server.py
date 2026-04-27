@@ -38,7 +38,7 @@ from routers import (  # noqa: E402
     auth, locations, employees, classes, schedules, reports,
     system, analytics, users, google_oauth, outlook_oauth,
     partner_orgs, projects, project_tasks, project_docs,
-    project_messages, portal,
+    project_members, project_messages, portal,
     exports, event_outcomes, promotion_checklist, webhooks,
     notification_preferences,
 )
@@ -79,9 +79,9 @@ async def _run_startup_migrations():
 async def _ensure_indexes():
     """Create required database indexes."""
     try:
-        await db.schedules.create_index([("employee_ids", 1), ("date", 1)])
-        await db.schedules.create_index([("employee_ids", 1), ("date", 1), ("deleted_at", 1)])
-        await db.schedules.create_index([("location_id", 1), ("date", 1)])
+        await db.schedules.create_index([("employee_ids", 1), ("deleted_at", 1), ("date", 1)])
+        await db.schedules.create_index([("location_id", 1), ("deleted_at", 1), ("date", 1)])
+        await db.schedules.create_index([("class_id", 1), ("deleted_at", 1), ("date", 1)])
         await db.schedules.create_index([("date", 1), ("status", 1)])
         await db.schedules.create_index([("deleted_at", 1)])
         # Compound partial-unique index on (created_by_user_id,
@@ -232,7 +232,7 @@ async def _ensure_indexes():
 async def _seed_default_locations():
     """Seed default locations if the collection is empty."""
     try:
-        count = await db.locations.count_documents({})
+        count = await db.locations.estimated_document_count()
         if count == 0:
             default_locations = [
                 {"id": str(uuid.uuid4()), "city_name": "Oskaloosa",
@@ -294,7 +294,7 @@ async def _ensure_redis_client(app: FastAPI):
         client_ = _async_redis.from_url(
             redis_url,
             socket_connect_timeout=2,
-            max_connections=5,
+            max_connections=20,
         )
         await client_.ping()
     except Exception as e:
@@ -374,6 +374,12 @@ async def lifespan(app: FastAPI):
     app.state.redis = None
     await _ensure_redis_client(app)
 
+    # Wire the workload cache to pull from app.state.redis on demand, so a
+    # reconnect inside _ensure_redis_client (called from the health probe)
+    # flows through without extra plumbing.
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(lambda: getattr(app.state, "redis", None))
+
     yield
 
     # ---- Shutdown ----
@@ -386,14 +392,16 @@ async def lifespan(app: FastAPI):
             logger.warning("Cancelling %d calendar tasks that didn't finish in time", len(pending))
             for task in pending:
                 task.cancel()
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(None)
     await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
 
 
 app = FastAPI(
-    title="Iowa Center Hub & Spoke API",
+    title="HubSpoke API",
     description=(
-        "Scheduling platform for the Iowa Center's hub-and-spoke model. "
+        "Scheduling platform for the HubSpoke hub-and-spoke model. "
         "Manages employee class assignments across satellite locations with "
         "drive time calculations, conflict detection, and analytics."
     ),
@@ -535,6 +543,17 @@ _CACHE_MAX_AGE = {
     "/api/v1/classes": 300,            # 5 min
     "/api/v1/dashboard/stats": 60,     # 1 min
     "/api/v1/health": 30,             # 30 sec
+    # /api/v1/workload deliberately NOT listed: it's cached server-side
+    # for 60s via services.workload_cache with explicit invalidation on
+    # every mutation (schedule_crud/_bulk/_import, classes, employees).
+    # Adding a positive max-age here would let browsers serve a stale
+    # response for up to 60s after a mutation — the mutation happens on
+    # a different URL, so nothing busts the browser entry. Falling
+    # through to _DEFAULT_API_MAX_AGE = 0 keeps freshness correct; the
+    # Redis cache still makes revalidation (ETag → 304) nearly free.
+    # Analytics endpoints are heavy aggregations that don't need second-
+    # fresh data — Trends / Forecast / Drive Optimization share a prefix.
+    "/api/v1/analytics": 30,
 }
 _DEFAULT_API_MAX_AGE = 0  # default: must-revalidate (ETag only)
 
@@ -586,18 +605,42 @@ _CSP = (
     "font-src 'self' https: data:; "
     "connect-src 'self' https:; "
     "worker-src 'self' blob:; "
+    # Allow same-origin and blob: in <iframe> — the attachment previewer
+    # embeds same-origin download URLs (internal) and blob: URLs built
+    # from bearer-authed downloads (portal).
+    "frame-src 'self' blob:; "
     "frame-ancestors 'none'"
 )
+
+# Per-response override for attachment preview: the default ``frame-ancestors
+# 'none'`` blocks even same-origin iframing, which the in-app preview needs.
+_CSP_INLINE_FRAME = _CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+
+
+def _is_inline_attachment_download(request: Request) -> bool:
+    # Match the three download endpoints when the client opts into inline
+    # disposition via ``?inline=true``. Keep the set narrow so no other
+    # route accidentally inherits relaxed frame headers.
+    if request.query_params.get("inline") != "true":
+        return False
+    path = request.url.path
+    return path.endswith("/download") and (
+        "/attachments/" in path or "/documents/" in path
+    )
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = _CSP
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if _is_inline_attachment_download(request):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Content-Security-Policy"] = _CSP_INLINE_FRAME
+    else:
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = _CSP
     return response
 
 
@@ -663,6 +706,16 @@ if not origins:
     else:
         origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+# Response compression. Added BEFORE CORS so that CORS remains the last
+# registered middleware and therefore the outermost wrapper on the ASGI
+# stack — Starlette inserts each new middleware at the head of the list,
+# so "added last == outermost". Keeping CORS outermost matters for
+# preflight handling; gzip still sees every response body because it
+# sits immediately inside CORS. The 1 KB floor skips trivial bodies
+# where the fixed encoding overhead would dominate.
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -687,6 +740,7 @@ api_router.include_router(partner_orgs.router)
 api_router.include_router(projects.router)
 api_router.include_router(project_tasks.router)
 api_router.include_router(project_docs.router)
+api_router.include_router(project_members.router)
 api_router.include_router(project_messages.router)
 api_router.include_router(portal.router)
 api_router.include_router(projects.templates_router)
@@ -754,12 +808,18 @@ async def get_csrf_token(request: Request):
     return {"csrf_token": token}
 
 
+# Mount the readiness probe under both ``/ready`` (legacy) and ``/readyz``
+# (Kubernetes/Railway convention) so ops tooling can use whichever name
+# their template defaults to without us having to maintain two impls.
 @api_router.get("/ready", tags=["system"])
+@api_router.get("/readyz", tags=["system"])
 async def readiness_check(request: Request):
     """Readiness probe — 503 if any hard dependency (Mongo, Redis) is down.
 
     Distinct from ``/health`` so orchestrators can remove the pod from the
     load balancer (readiness) without killing the container (liveness).
+    Worker heartbeat is intentionally excluded — a degraded worker should
+    not pull the API out of LB rotation.
     """
     checks = {"status": "ready", "mongo": "ok", "redis": "ok"}
     try:

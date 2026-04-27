@@ -29,7 +29,10 @@ class ProjectCreate(BaseModel):
     partner_org_id: str
     event_date: str  # ISO date or datetime string
     community: Optional[str] = Field(None, max_length=120)
-    venue_name: Optional[str] = Field(None, max_length=200)
+    # Must fit the widest partner name the API accepts — PartnerOrgCreate caps
+    # ``name`` at 300, and the UI copies that value in verbatim via a disabled
+    # input, so any cap below 300 makes long-named partners un-bookable.
+    venue_name: Optional[str] = Field(None, max_length=300)
     template_id: Optional[str] = None
     schedule_id: Optional[str] = None
     class_id: Optional[str] = None
@@ -82,7 +85,7 @@ class ProjectUpdate(BaseModel):
         "planning", "promotion", "delivery", "follow_up", "complete"
     ]] = None
     community: Optional[str] = Field(None, max_length=120)
-    venue_name: Optional[str] = Field(None, max_length=200)
+    venue_name: Optional[str] = Field(None, max_length=300)
     registration_count: Optional[int] = Field(None, ge=0, le=1_000_000)
     attendance_count: Optional[int] = Field(None, ge=0, le=1_000_000)
     warm_leads: Optional[int] = Field(None, ge=0, le=1_000_000)
@@ -144,9 +147,19 @@ class TaskReorder(BaseModel):
     task_ids: List[str]
 
 
+class MentionRef(BaseModel):
+    """An @-mention reference. ``id`` is a user id (internal) or partner
+    contact id (partner); ``kind`` disambiguates because the two id spaces
+    are independent."""
+
+    id: str = Field(..., min_length=1, max_length=120)
+    kind: Literal["internal", "partner"]
+
+
 class TaskCommentCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=10_000)
     parent_comment_id: Optional[str] = None
+    mentions: Optional[List[MentionRef]] = Field(default=None, max_length=25)
 
 
 # ── Partner Orgs ──────────────────────────────────────────────────────
@@ -214,6 +227,7 @@ class MessageCreate(BaseModel):
     channel: str = Field(..., min_length=1, max_length=120)
     body: str = Field(..., min_length=1, max_length=20_000)
     visibility: Literal["internal", "shared"] = "shared"
+    mentions: Optional[List[MentionRef]] = Field(default=None, max_length=25)
 
 
 # ── Portal Auth ───────────────────────────────────────────────────────

@@ -92,14 +92,14 @@ class ErrorBoundary extends React.Component<
         >
           <div className="flex items-start gap-3">
             <AlertTriangle
-              className="w-5 h-5 text-danger shrink-0 mt-0.5"
+              className="w-5 h-5 text-danger-strong shrink-0 mt-0.5"
               aria-hidden="true"
             />
             <div className="flex-1">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <h2 className="text-base font-semibold text-foreground">
                 {heading}
               </h2>
-              <p className="text-sm text-slate-600 dark:text-muted-foreground mt-1">
+              <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">
                 {body}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -107,7 +107,7 @@ class ErrorBoundary extends React.Component<
                   <button
                     type="button"
                     onClick={this.handleReload}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    className="px-4 py-2 bg-hub hover:bg-hub-strong text-white text-sm font-medium rounded-lg transition-colors"
                   >
                     Reload now
                   </button>
@@ -116,14 +116,14 @@ class ErrorBoundary extends React.Component<
                     <button
                       type="button"
                       onClick={this.reset}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      className="px-4 py-2 bg-hub hover:bg-hub-strong text-white text-sm font-medium rounded-lg transition-colors"
                     >
                       Try again
                     </button>
                     <button
                       type="button"
                       onClick={this.handleReload}
-                      className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium rounded-lg transition-colors"
+                      className="px-4 py-2 bg-white dark:bg-card border border-border hover:bg-muted/50 dark:hover:bg-muted text-sm font-medium rounded-lg transition-colors"
                     >
                       Reload page
                     </button>
@@ -131,7 +131,7 @@ class ErrorBoundary extends React.Component<
                 )}
               </div>
               {!chunkError && rawMessage && (
-                <details className="mt-4 text-xs text-slate-500 dark:text-muted-foreground">
+                <details className="mt-4 text-xs text-foreground/80 dark:text-muted-foreground">
                   <summary className="cursor-pointer">Show technical details</summary>
                   <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px]">
                     {rawMessage}

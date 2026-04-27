@@ -1,15 +1,17 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Clock, MapPin, Car, User, GripVertical, ChevronRight, AlertTriangle, ListChecks, Check, Handshake, CalendarDays } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { PageShell } from './ui/page-shell';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
 import { EntityLink } from './ui/entity-link';
 import { mutate } from 'swr';
+import { isSchedulesSwrKey } from '../hooks/useDashboardData';
 import { SCHEDULE_STATUS, COLORS } from '../lib/constants';
 import BulkActionBar from './BulkActionBar';
 import useSelectionMode from '../hooks/useSelectionMode';
@@ -24,6 +26,7 @@ const COLUMNS = [
   { id: SCHEDULE_STATUS.IN_PROGRESS, label: 'In Progress', color: COLORS.STATUS.IN_PROGRESS, lightColor: COLORS.STATUS_LIGHT.IN_PROGRESS, textColor: COLORS.STATUS_TEXT.IN_PROGRESS },
   { id: SCHEDULE_STATUS.COMPLETED, label: 'Completed', color: COLORS.STATUS.COMPLETED, lightColor: COLORS.STATUS_LIGHT.COMPLETED, textColor: COLORS.STATUS_TEXT.COMPLETED },
 ];
+const KNOWN_STATUSES = new Set<string>(COLUMNS.map(c => c.id));
 
 const DND_INSTRUCTIONS_ID = 'kanban-board-dnd-instructions';
 
@@ -84,60 +87,62 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
 
   return (
     <div className="relative mb-2">
-      <button
-        ref={setNodeRef}
-        type="button"
-        {...(selectionMode ? {} : { ...listeners, ...attributes })}
-        data-testid={`kanban-card-${schedule.id}`}
-        aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
-        onClick={() => {
-          if (selectionMode) {
-            toggleItem?.(schedule.id);
-          } else {
-            onEdit?.(schedule);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          "bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
-          selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
-          isDragging && "opacity-50 scale-95",
-          selected && "ring-2 ring-indigo-500 ring-offset-1"
-        )}
-        style={{ borderLeftColor: classColor, ...transformStyle }}
-      >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {selectionMode ? (
-              <div className={cn(
-                "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
-                selected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-transparent"
-              )}>
-                {selected && <Check className="w-3 h-3 text-white" />}
-              </div>
-            ) : (
-              <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={setNodeRef}
+            type="button"
+            {...(selectionMode ? {} : { ...listeners, ...attributes })}
+            data-testid={`kanban-card-${schedule.id}`}
+            aria-describedby={selectionMode ? undefined : DND_INSTRUCTIONS_ID}
+            onClick={() => {
+              if (selectionMode) {
+                toggleItem?.(schedule.id);
+              } else {
+                onEdit?.(schedule);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              "bg-white dark:bg-card rounded-lg border border-border border-l-4 p-4 hover:shadow-md transition-all group text-left w-full touch-none block",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
+              selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+              isDragging && "opacity-50 scale-95",
+              selected && "ring-2 ring-hub ring-offset-1"
             )}
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
-              style={{ backgroundColor: classColor }}
-              data-testid={`kanban-class-name-${schedule.id}`}
-            >
-              {className}
-            </span>
-          </div>
-          {schedule.town_to_town && (
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-          )}
-        </div>
+            style={{ borderLeftColor: classColor, ...transformStyle }}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {selectionMode ? (
+                  <div className={cn(
+                    "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                    selected ? "bg-hub border-hub" : "border-border bg-transparent"
+                  )}>
+                    {selected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                ) : (
+                  <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[180px]"
+                  style={{ backgroundColor: classColor }}
+                  data-testid={`kanban-class-name-${schedule.id}`}
+                >
+                  {className}
+                </span>
+              </div>
+              {schedule.town_to_town && (
+                <AlertTriangle className="w-4 h-4 text-warn-strong" />
+              )}
+            </div>
 
         <div className="pl-[26px] space-y-2">
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <MapPin className="w-3 h-3" />
             <EntityLink type="location" id={schedule.location_id}>{schedule.location_name}</EntityLink>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <User className="w-3 h-3" />
             {schedule.employees?.length > 0 ? (
               schedule.employees.map((emp, i) => (
@@ -150,7 +155,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
               <span>Unassigned</span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-foreground/80 dark:text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span>{schedule.date} | {schedule.start_time} - {schedule.end_time}</span>
           </div>
@@ -159,7 +164,7 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <span>{schedule.drive_time_minutes}m drive each way</span>
           </div>
           {schedule.linked_project && (
-            <div className="flex items-center gap-1.5 text-xs text-indigo-600">
+            <div className="flex items-center gap-1.5 text-xs text-hub">
               <Handshake className="w-3 h-3" />
               <span className="truncate font-medium">{schedule.linked_project.title}</span>
               <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-auto shrink-0">
@@ -171,14 +176,17 @@ const KanbanCard = memo(function KanbanCard({ schedule, onStatusChange, onEdit, 
             <p className="text-[11px] text-muted-foreground italic truncate">{schedule.notes}</p>
           )}
         </div>
-      </button>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{className}</TooltipContent>
+      </Tooltip>
 
       {canAdvance && (
         <Button
           size="sm"
           variant="ghost"
           onClick={() => onStatusChange(schedule.id, (schedule.status || 'upcoming') === 'upcoming' ? 'in_progress' : 'completed')}
-          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
+          className="absolute bottom-2 right-2 h-6 text-[10px] px-2 text-foreground/80 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground bg-white/80 dark:bg-card/80 backdrop-blur-sm"
           data-testid={`kanban-advance-${schedule.id}`}
         >
           <ChevronRight className="w-3 h-3 mr-0.5" />
@@ -202,7 +210,7 @@ function DroppableColumn({ id, children }: Readonly<{ id: string; children: Reac
 
 export default function KanbanBoard() {
   const navigate = useNavigate();
-  const { schedules, employees, locations, classes, onEditSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
+  const { schedules, employees, locations, classes, loadingState, onEditSchedule, onNewSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
 
   const {
     selectionMode,
@@ -216,14 +224,16 @@ export default function KanbanBoard() {
     clearSelection,
   } = useSelectionMode();
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     fetchSchedules();
     fetchActivities();
     fetchWorkload();
-  };
-  const handleStatusChange = async (scheduleId, newStatus) => {
-    // Optimistic UI cache swap for instantaneous feedback
-    mutate('schedules', (currentData) => {
+  }, [fetchSchedules, fetchActivities, fetchWorkload]);
+  const handleStatusChange = useCallback(async (scheduleId, newStatus) => {
+    // Optimistic UI cache swap for instantaneous feedback. The matcher
+    // covers every windowed `schedules` key (Calendar uses a date-bounded
+    // fetch, Kanban uses unbounded — both need the status flipped).
+    mutate(isSchedulesSwrKey, (currentData) => {
       if (!currentData) return currentData;
       return currentData.map(s => s.id === scheduleId ? { ...s, status: newStatus } : s);
     }, { revalidate: false });
@@ -248,10 +258,10 @@ export default function KanbanBoard() {
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
-      // Rollback cache
-      mutate('schedules');
+      // Rollback cache across every windowed variant
+      mutate(isSchedulesSwrKey);
     }
-  };
+  }, [navigate, onRefresh]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
@@ -268,16 +278,35 @@ export default function KanbanBoard() {
     await handleStatusChange(schedule.id, targetStatus);
   }, [handleStatusChange]);
 
-  const getColumnSchedules = (status) =>
-    (schedules || []).filter(s => (s.status || SCHEDULE_STATUS.UPCOMING) === status)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
+  // Bucket + sort once per schedules change instead of once per render per
+  // column. With 3 columns and 100+ schedules this previously did 3×O(n)
+  // filter + O(n log n) sort on every parent render (including selection-mode
+  // toggles and drag frames).
+  const schedulesByStatus = useMemo(() => {
+    const buckets: Record<string, typeof schedules> = {};
+    for (const col of COLUMNS) buckets[col.id] = [];
+    for (const s of schedules || []) {
+      const raw = s.status || SCHEDULE_STATUS.UPCOMING;
+      // Drop unknown statuses into Upcoming so stale/legacy values never
+      // land in an uninitialised bucket. Keeps the hot loop free of any
+      // assignment-in-expression (Sonar typescript:S6660).
+      const status = KNOWN_STATUSES.has(raw) ? raw : SCHEDULE_STATUS.UPCOMING;
+      buckets[status].push(s);
+    }
+    for (const key of Object.keys(buckets)) {
+      buckets[key].sort((a, b) =>
+        a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time),
+      );
+    }
+    return buckets;
+  }, [schedules]);
 
-  const handleBulkComplete = () => {
+  const handleBulkComplete = useCallback(() => {
     clearSelection();
     onRefresh();
-  };
+  }, [clearSelection, onRefresh]);
 
-  const handleColumnSelectAll = (columnItems) => {
+  const handleColumnSelectAll = useCallback((columnItems) => {
     const columnIds = columnItems.map(s => s.id);
     const allSelected = columnIds.every(id => selectedIds.has(id));
     if (allSelected) {
@@ -291,21 +320,23 @@ export default function KanbanBoard() {
       columnIds.forEach(id => newIds.add(id));
       selectAll(Array.from(newIds));
     }
-  };
+  }, [selectedIds, selectAll]);
 
   return (
+    <TooltipProvider delayDuration={400}>
     <PageShell
       testId="kanban-board"
       breadcrumbs={[{ label: 'Planning' }, { label: 'Delivery Pipeline' }]}
       title="Delivery Pipeline"
       subtitle="Track class delivery status — drag cards through upcoming, in progress, and completed"
+      status={loadingState?.schedules ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         <Button
           variant={selectionMode ? 'default' : 'outline'}
           size="sm"
           data-testid="kanban-select-mode"
           onClick={toggleSelectionMode}
-          className={selectionMode ? '' : 'border-gray-200 dark:border-gray-700'}
+          className={selectionMode ? '' : 'border-border'}
         >
           <ListChecks className="w-4 h-4 mr-1" aria-hidden="true" />
           Bulk Select
@@ -314,8 +345,31 @@ export default function KanbanBoard() {
     >
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger hover:underline underline-offset-2">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => onRefresh()} className="text-sm font-medium text-danger-strong hover:underline underline-offset-2">Retry</button>
+        </div>
+      )}
+
+      {(schedules || []).length === 0 && !loadingState?.schedules && !fetchErrors?.schedules && (
+        <div
+          data-testid="kanban-onboarding"
+          className="bg-white dark:bg-card rounded-lg border border-border p-8 text-center"
+        >
+          <CalendarDays className="w-12 h-12 mx-auto text-hub-strong dark:text-hub mb-3" aria-hidden="true" />
+          <h3 className="text-base font-semibold text-foreground mb-1">No schedules yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Kanban cards will appear here once you start scheduling classes.
+          </p>
+          {onNewSchedule && (
+            <Button
+              type="button"
+              onClick={() => onNewSchedule()}
+              data-testid="kanban-onboarding-new"
+              className="bg-hub hover:bg-hub-strong text-white"
+            >
+              Create your first schedule
+            </Button>
+          )}
         </div>
       )}
 
@@ -325,17 +379,17 @@ export default function KanbanBoard() {
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {COLUMNS.map(col => {
-          const items = getColumnSchedules(col.id);
+          const items = schedulesByStatus[col.id] || [];
           const allSelected = selectionMode && items.length > 0 && items.every(s => selectedIds.has(s.id));
           return (
             <DroppableColumn key={col.id} id={col.id}>
               <section
                 aria-label={`${col.label} column`}
                 data-testid={`kanban-column-${col.id}`}
-                className="bg-gray-50/80 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[400px]"
+                className="bg-muted/50/80 dark:bg-muted/80 rounded-lg border border-border min-h-[400px]"
               >
                 {/* Column header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div className="p-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {selectionMode && items.length > 0 && (
                       <Checkbox
@@ -346,7 +400,7 @@ export default function KanbanBoard() {
                       />
                     )}
                     <div className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
-                    <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{col.label}</h3>
+                    <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
                   </div>
                   <Badge className={cn("border-0 text-[10px] px-2", col.lightColor, col.textColor)}>
                     {items.length}
@@ -394,6 +448,7 @@ export default function KanbanBoard() {
         />
       )}
     </PageShell>
+    </TooltipProvider>
   );
 }
 

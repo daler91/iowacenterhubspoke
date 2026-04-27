@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
+import { SWRConfig } from "swr";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
 import LoginPage from "./pages/LoginPage";
@@ -20,17 +21,39 @@ function RouteBoundary({ children }: Readonly<{ children: ReactNode }>) {
   return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
 }
 
+/**
+ * Lightweight dashboard-shaped skeleton rendered while /auth/me is in
+ * flight. Gives the user a structural first paint (sidebar rail + top
+ * bar) instead of an empty screen; once auth resolves, the real
+ * DashboardPage swaps in. Must not make any authenticated API calls.
+ */
+function DashboardShellSkeleton() {
+  return (
+    <div
+      className="flex h-screen bg-background overflow-hidden"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
+      <div className="hidden md:block w-60 border-r border-border bg-card" />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-14 border-b border-border bg-card shrink-0" />
+        <main className="flex-1 flex items-center justify-center">
+          <div
+            className="w-10 h-10 border-3 border-hub border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Loading</span>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   const { user, loading } = useAuth();
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500">Loading...</p>
-        </div>
-      </div>
-    );
+    return <DashboardShellSkeleton />;
   }
   return user ? children : <Navigate to="/login" replace />;
 }
@@ -55,7 +78,7 @@ function RoleGate({
         role="alert"
         aria-live="polite"
       >
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
+        <h2 className="text-lg font-semibold text-foreground mb-2">
           Not authorised
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -101,12 +124,12 @@ function AppRoutes() {
     <BrowserRouter>
       <Suspense fallback={
         <div
-          className="min-h-screen flex items-center justify-center bg-[#F9FAFB] dark:bg-gray-950"
+          className="min-h-screen flex items-center justify-center bg-background"
           role="status"
           aria-live="polite"
         >
           <div
-            className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
+            className="w-10 h-10 border-3 border-hub border-t-transparent rounded-full animate-spin"
             aria-hidden="true"
           />
           <span className="sr-only">Loading page</span>
@@ -183,14 +206,26 @@ function AppRoutes() {
   );
 }
 
+// Single source of truth for SWR behaviour. Per-hook overrides used to
+// drift (coordination at 2s, dashboard at 15s) and caused redundant
+// fetches on every nav. Hooks can still override locally when they
+// genuinely need different semantics.
+const swrConfig = {
+  dedupingInterval: 15000,
+  revalidateOnFocus: false,
+  errorRetryCount: 3,
+};
+
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <AuthProvider>
-        <AppRoutes />
-        <ConsentBanner />
-        <Toaster position="top-right" richColors />
-      </AuthProvider>
+      <SWRConfig value={swrConfig}>
+        <AuthProvider>
+          <AppRoutes />
+          <ConsentBanner />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
+      </SWRConfig>
     </ThemeProvider>
   );
 }

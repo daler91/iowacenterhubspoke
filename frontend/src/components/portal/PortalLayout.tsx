@@ -33,15 +33,15 @@ export default function PortalLayout({
   org, contact, activeTab, onTabChange, children, token,
 }: Props) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-muted/50 dark:bg-background">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-3 sm:py-4">
+      <header className="bg-white dark:bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
         <div className="max-w-5xl mx-auto flex items-start sm:items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-base sm:text-lg font-bold text-foreground dark:text-white truncate">
               {org.name}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 truncate">{org.community}</p>
+            <p className="text-xs sm:text-sm text-foreground/80 truncate">{org.community}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {token && (
@@ -51,12 +51,12 @@ export default function PortalLayout({
               />
             )}
             <div
-              className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke font-semibold text-sm"
+              className="w-8 h-8 rounded-full bg-spoke-soft flex items-center justify-center text-spoke-strong font-semibold text-sm"
               aria-hidden="true"
             >
               {contact.name.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-muted-foreground hidden sm:inline">
+            <span className="text-xs sm:text-sm font-medium text-foreground dark:text-muted-foreground hidden sm:inline">
               {contact.name}
             </span>
             <span className="sr-only">Signed in as {contact.name}</span>
@@ -68,7 +68,7 @@ export default function PortalLayout({
           stay reachable without cramping. */}
       <nav
         aria-label="Portal sections"
-        className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6"
+        className="bg-white dark:bg-card border-b border-border px-4 sm:px-6"
       >
         <div className="max-w-5xl mx-auto flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           {TABS.map(tab => (
@@ -82,7 +82,7 @@ export default function PortalLayout({
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1 rounded-t',
                 activeTab === tab.id
                   ? 'border-hub text-hub'
-                  : 'border-transparent text-slate-500 hover:text-slate-700',
+                  : 'border-transparent text-foreground/80 hover:text-foreground',
               )}
             >
               {tab.label}

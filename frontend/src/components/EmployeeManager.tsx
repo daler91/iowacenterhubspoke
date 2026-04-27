@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState, memo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -18,25 +18,144 @@ import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
 import EmployeeProfile from './EmployeeProfile';
 
+// Extract one employee card into a memoized component so edits to a
+// single employee, or a toast render, don't re-render every other card
+// in the list. Handlers are passed in as stable references (useCallback
+// on the parent), so the React.memo comparison keeps sibling rows' JSX
+// output fully cached.
+type Employee = {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  color?: string;
+  google_calendar_connected?: boolean;
+  outlook_calendar_connected?: boolean;
+};
+
+type EmployeeRowProps = {
+  emp: Employee;
+  isAdmin: boolean;
+  onView: (id: string) => void;
+  onEdit: (emp: Employee) => void;
+  onDelete: (emp: Employee) => void;
+};
+
+const EmployeeRow = memo(function EmployeeRow({
+  emp, isAdmin, onView, onEdit, onDelete,
+}: EmployeeRowProps) {
+  return (
+    <div
+      data-testid={`employee-card-${emp.id}`}
+      className="bg-white dark:bg-card rounded-lg border border-border p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-center gap-4">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+          style={{ backgroundColor: emp.color || '#4F46E5' }}
+        >
+          {emp.name?.charAt(0)?.toUpperCase()}
+        </div>
+        <div>
+          <EntityLink type="employee" id={emp.id} className="font-semibold text-foreground">{emp.name}</EntityLink>
+          <div className="flex items-center gap-3 mt-1">
+            {emp.email && (
+              <div className="flex items-center gap-1">
+                <Mail className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-foreground/80 dark:text-muted-foreground">{emp.email}</span>
+              </div>
+            )}
+            {emp.phone && (
+              <div className="flex items-center gap-1">
+                <Phone className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-foreground/80 dark:text-muted-foreground">{emp.phone}</span>
+              </div>
+            )}
+            {emp.google_calendar_connected && (
+              <div className="flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-spoke-strong" />
+                <span className="text-xs text-spoke-strong">Google Calendar</span>
+              </div>
+            )}
+            {emp.outlook_calendar_connected && (
+              <div className="flex items-center gap-1">
+                <Mail className="w-3 h-3 text-info-strong" aria-hidden="true" />
+                <span className="text-xs text-info-strong">Outlook Calendar</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid={`view-employee-${emp.id}`}
+          onClick={() => onView(emp.id)}
+          className="text-muted-foreground hover:text-spoke-strong"
+          aria-label={`View ${emp.name}`}
+        >
+          <Eye className="w-4 h-4" aria-hidden="true" />
+        </Button>
+        {isAdmin && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`edit-employee-${emp.id}`}
+              onClick={() => onEdit(emp)}
+              className="text-muted-foreground hover:text-hub"
+              aria-label={`Edit ${emp.name}`}
+            >
+              <Pencil className="w-4 h-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid={`delete-employee-${emp.id}`}
+              onClick={() => onDelete(emp)}
+              className="text-muted-foreground hover:text-danger-strong"
+              aria-label={`Delete ${emp.name}`}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function EmployeeManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { employees, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
+  const { employees, schedules, loadingState, fetchEmployees, fetchActivities, fetchWorkload } = useOutletContext();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     fetchEmployees();
     fetchActivities();
     fetchWorkload();
-  };
+  }, [fetchEmployees, fetchActivities, fetchWorkload]);
 
-  const onViewProfile = (id) => setSelectedEmployeeId(id);
+  const onViewProfile = useCallback((id) => setSelectedEmployeeId(id), []);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', color: '#4F46E5' });
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Stable handlers so EmployeeRow's React.memo can skip re-renders for
+  // sibling cards when one card mutates (edit dialog open, delete
+  // confirmation, etc.).
+  const openEdit = useCallback((emp) => {
+    setEditing(emp);
+    setForm({ name: emp.name, email: emp.email || '', phone: emp.phone || '', color: emp.color || '#4F46E5' });
+    setDialogOpen(true);
+  }, []);
+
+  const openDelete = useCallback((emp) => setDeleteTarget(emp), []);
 
   if (selectedEmployeeId) {
     return <EmployeeProfile employeeId={selectedEmployeeId} onBack={() => setSelectedEmployeeId(null)} />;
@@ -45,12 +164,6 @@ export default function EmployeeManager() {
   const openNew = () => {
     setEditing(null);
     setForm({ name: '', email: '', phone: '', color: COLORS[Math.floor(Math.random() * COLORS.length)] });
-    setDialogOpen(true);
-  };
-
-  const openEdit = (emp) => {
-    setEditing(emp);
-    setForm({ name: emp.name, email: emp.email || '', phone: emp.phone || '', color: emp.color || '#4F46E5' });
     setDialogOpen(true);
   };
 
@@ -100,12 +213,14 @@ export default function EmployeeManager() {
       breadcrumbs={[{ label: 'Manage' }, { label: 'Employees' }]}
       title="Employees"
       subtitle="Manage team members and their scheduling colors"
+      status={loadingState?.employees ? { kind: 'loading', variant: 'list' } : { kind: 'ready' }}
       actions={
         isAdmin ? (
           <Button
             data-testid="add-employee-btn"
             onClick={openNew}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+            disabled={!!loadingState?.employees}
+            className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
           >
             <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
             Add Employee
@@ -116,85 +231,14 @@ export default function EmployeeManager() {
       {/* Employee list */}
       <div className="grid gap-3">
         {(employees || []).map(emp => (
-          <div
+          <EmployeeRow
             key={emp.id}
-            data-testid={`employee-card-${emp.id}`}
-            className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                style={{ backgroundColor: emp.color || '#4F46E5' }}
-              >
-                {emp.name?.charAt(0)?.toUpperCase()}
-              </div>
-              <div>
-                <EntityLink type="employee" id={emp.id} className="font-semibold text-slate-800 dark:text-gray-100">{emp.name}</EntityLink>
-                <div className="flex items-center gap-3 mt-1">
-                  {emp.email && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-slate-500 dark:text-gray-400">{emp.email}</span>
-                    </div>
-                  )}
-                  {emp.phone && (
-                    <div className="flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-slate-500 dark:text-gray-400">{emp.phone}</span>
-                    </div>
-                  )}
-                  {emp.google_calendar_connected && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-teal-500" />
-                      <span className="text-xs text-teal-600">Google Calendar</span>
-                    </div>
-                  )}
-                  {emp.outlook_calendar_connected && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-info" aria-hidden="true" />
-                      <span className="text-xs text-info">Outlook Calendar</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`view-employee-${emp.id}`}
-                onClick={() => { onViewProfile?.(emp.id); }}
-                className="text-muted-foreground hover:text-teal-600"
-                aria-label={`View ${emp.name}`}
-              >
-                <Eye className="w-4 h-4" aria-hidden="true" />
-              </Button>
-              {isAdmin && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`edit-employee-${emp.id}`}
-                    onClick={() => openEdit(emp)}
-                    className="text-muted-foreground hover:text-indigo-600"
-                    aria-label={`Edit ${emp.name}`}
-                  >
-                    <Pencil className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid={`delete-employee-${emp.id}`}
-                    onClick={() => setDeleteTarget(emp)}
-                    className="text-muted-foreground hover:text-danger"
-                    aria-label={`Delete ${emp.name}`}
-                  >
-                    <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+            emp={emp}
+            isAdmin={isAdmin}
+            onView={onViewProfile}
+            onEdit={openEdit}
+            onDelete={openDelete}
+          />
         ))}
 
         {(!employees || employees.length === 0) && (
@@ -208,7 +252,7 @@ export default function EmployeeManager() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-gray-900" data-testid="employee-form-dialog">
+        <DialogContent className="sm:max-w-[440px] bg-white dark:bg-card" data-testid="employee-form-dialog">
           <DialogHeader>
             <DialogTitle>
               {editing ? 'Edit Employee' : 'Add Employee'}
@@ -227,7 +271,7 @@ export default function EmployeeManager() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
-                className="bg-gray-50/50"
+                className="bg-muted/50"
               />
             </div>
             <div className="space-y-2">
@@ -239,7 +283,7 @@ export default function EmployeeManager() {
                 placeholder="john@company.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="bg-gray-50/50"
+                className="bg-muted/50"
               />
             </div>
             <div className="space-y-2">
@@ -250,7 +294,7 @@ export default function EmployeeManager() {
                 placeholder="(515) 555-0123"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="bg-gray-50/50"
+                className="bg-muted/50"
               />
             </div>
             <div
@@ -277,7 +321,7 @@ export default function EmployeeManager() {
                     className={cn(
                       'w-8 h-8 rounded-full transition-all',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-                      form.color === c ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : 'hover:scale-105',
+                      form.color === c ? 'ring-2 ring-offset-2 ring-hub scale-110' : 'hover:scale-105',
                     )}
                     style={{ backgroundColor: c }}
                   />
@@ -289,7 +333,7 @@ export default function EmployeeManager() {
                 type="submit"
                 data-testid="employee-save-btn"
                 disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                className="bg-hub hover:bg-hub-strong text-white w-full"
               >
                 {saveLabel}
               </Button>
@@ -303,12 +347,20 @@ export default function EmployeeManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the employee from the system. This action cannot be easily undone.
+              {(() => {
+                const count = (schedules || []).filter(s =>
+                  Array.isArray(s.employee_ids) ? s.employee_ids.includes(deleteTarget?.id) : s.employee_id === deleteTarget?.id
+                ).length;
+                if (count === 0) {
+                  return `${deleteTarget?.name} has no scheduled classes. Deleting cannot be undone.`;
+                }
+                return `${deleteTarget?.name} is assigned to ${count} scheduled class${count === 1 ? '' : 'es'}. Deleting them may fail on the backend. This action cannot be undone.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+            <AlertDialogAction className="bg-danger hover:bg-danger" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

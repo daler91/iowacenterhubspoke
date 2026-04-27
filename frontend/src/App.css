@@ -36,6 +36,12 @@
   z-index: 20;
 }
 
+.schedule-block:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  z-index: 20;
+}
+
 .class-block {
   background-color: #4F46E5;
   color: white;
@@ -111,14 +117,19 @@
   border-color: #92400e;
 }
 
-/* Animations */
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Animations — only run when the user has not asked the OS for reduced
+   motion. The global reduce-motion block near the bottom of this file
+   additionally neutralises any animations/transitions we (or a library)
+   might forget to wrap. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
-.animate-slide-in {
-  animation: slideIn 0.3s ease-out;
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
 }
 
 /* Print styles — optimized for schedule views */
@@ -313,5 +324,22 @@
   padding: 1px 6px;
   border-radius: 4px;
   white-space: nowrap;
+}
+
+/* Honour `prefers-reduced-motion: reduce` globally. Neutralises every
+   animation and transition — custom keyframes, tailwindcss-animate's
+   data-state transitions on Radix primitives, lucide icon spins, etc.
+   Uses `0.01ms` (not 0) so code that relies on onAnimationEnd /
+   ontransitionend still fires. Keep in sync with the per-feature
+   `@media (prefers-reduced-motion: no-preference)` guards above. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

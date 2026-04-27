@@ -1,6 +1,6 @@
-# Iowa Center Hub & Spoke - Frontend
+# HubSpoke - Frontend
 
-React 19 + TypeScript + Vite frontend for the Hub & Spoke scheduling platform.
+React 19 + TypeScript + Vite frontend for the HubSpoke scheduling platform.
 
 ## Tech Stack
 

@@ -16,9 +16,11 @@ from services.activity import log_activity
 from services.notification_events import (
     notify_task_assigned,
     notify_task_comment,
+    notify_task_comment_mentions,
     notify_task_completed,
     notify_task_deleted,
 )
+from services.notification_prefs import prepare_mentions
 from services.phase_advance import maybe_auto_advance_phase_for_task
 from core.logger import get_logger
 
@@ -39,7 +41,12 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 # schema rename touches one spot.
 _ASSIGNED_TO = "assigned_to"
 
-UPLOAD_DIR = os.path.join(ROOT_DIR, "uploads")
+# Storage location for attachments. Defaults to ``<repo>/uploads`` so local
+# dev just works, but operators can point at a writable mounted volume via
+# the ``UPLOAD_DIR`` env var — essential on container deploys where the
+# image filesystem is read-only for the runtime user (e.g. Railway, where
+# ``/app`` is owned by root but the app runs as appuser).
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
 
@@ -70,18 +77,6 @@ async def _verify_task(project_id: str, task_id: str):
     )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
-    return task
-
-
-async def _enrich_task(task: dict) -> dict:
-    """Add attachment_count and comment_count to a task."""
-    tid = task["id"]
-    task["attachment_count"] = await db.task_attachments.count_documents(
-        {"task_id": tid},
-    )
-    task["comment_count"] = await db.task_comments.count_documents(
-        {"task_id": tid},
-    )
     return task
 
 
@@ -566,6 +561,7 @@ async def delete_task_attachment(
 )
 async def download_task_attachment(
     project_id: str, task_id: str, att_id: str, user: CurrentUser,
+    inline: bool = False,
 ):
     att = await db.task_attachments.find_one(
         {"id": att_id, "task_id": task_id}, {"_id": 0},
@@ -576,7 +572,11 @@ async def download_task_attachment(
     file_path = os.path.join(UPLOAD_DIR, stored)
     if not stored or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
-    return FileResponse(file_path, filename=att.get("filename", "download"))
+    return FileResponse(
+        file_path,
+        filename=att.get("filename", "download"),
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 # ── Comments ──────────────────────────────────────────────────────────
@@ -630,6 +630,16 @@ async def post_task_comment(
                 status_code=400,
                 detail="Parent comment not found for this task",
             )
+    project = await db.projects.find_one(
+        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+    ) or {"id": project_id}
+
+    mentioned, stored_mentions = await prepare_mentions(
+        project_id=project_id,
+        refs_input=data.mentions,
+        partner_org_id=project.get("partner_org_id"),
+    )
+
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -643,17 +653,19 @@ async def post_task_comment(
         "sender_id": user.get("user_id", ""),
         "body": data.body,
         "parent_comment_id": data.parent_comment_id,
+        "mentions": stored_mentions,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
-    # Notify task assignee + prior commenters (excluding the actor)
+    # Notify task assignee + prior commenters (excluding the actor and
+    # anyone already covered by the louder mention notification).
     task = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
-    project = await db.projects.find_one(
-        {"id": project_id}, {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
-    ) or {"id": project_id}
     if task:
-        await notify_task_comment(doc, task, project, user)
+        mention_ids = {p.id for p in mentioned}
+        await notify_task_comment(doc, task, project, user, mention_ids=mention_ids)
+        if mentioned:
+            await notify_task_comment_mentions(doc, task, project, user, mentioned)
     return doc

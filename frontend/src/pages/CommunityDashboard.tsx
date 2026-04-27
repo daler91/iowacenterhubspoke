@@ -25,15 +25,15 @@ function MetricCard({
         <Icon className="w-5 h-5 text-white" aria-hidden="true" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-slate-900 dark:text-white">
+        <p className="text-2xl font-bold text-foreground dark:text-white">
           {value}
           {alert !== undefined && alert > 0 && (
-            <span className="ml-2 text-xs font-medium text-warn bg-warn-soft px-1.5 py-0.5 rounded">
+            <span className="ml-2 text-xs font-medium text-warn-strong bg-warn-soft px-1.5 py-0.5 rounded">
               {alert} overdue
             </span>
           )}
         </p>
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-xs text-foreground/80">{label}</p>
       </div>
     </Card>
   );
@@ -72,8 +72,8 @@ export default function CommunityDashboard() {
       {dashboard.orphan_completed_schedules > 0 && (
         <Card className="p-4 mb-6 border-warn/30 bg-warn-soft">
           <div className="flex items-center gap-3 text-sm">
-            <CalendarDays className="w-5 h-5 text-warn shrink-0" aria-hidden="true" />
-            <p className="text-slate-700 dark:text-muted-foreground">
+            <CalendarDays className="w-5 h-5 text-warn-strong shrink-0" aria-hidden="true" />
+            <p className="text-foreground dark:text-muted-foreground">
               <strong>{dashboard.orphan_completed_schedules}</strong> completed schedule{dashboard.orphan_completed_schedules > 1 ? 's' : ''} {dashboard.orphan_completed_schedules > 1 ? 'have' : 'has'} no linked project — outcomes are not being tracked.
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function CommunityDashboard() {
       {/* Class Breakdown */}
       {dashboard.class_breakdown?.length > 0 && (
         <>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">By Class</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-3">By Class</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
             {dashboard.class_breakdown.map((cb) => (
               <Card key={cb.class_id || 'unlinked'} className="p-3">
@@ -91,9 +91,9 @@ export default function CommunityDashboard() {
                   {cb.class_color && (
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cb.class_color }} />
                   )}
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{cb.class_name || 'Unknown'}</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{cb.class_name || 'Unknown'}</p>
                 </div>
-                <p className="text-lg font-bold text-slate-800 dark:text-white">{cb.delivered}</p>
+                <p className="text-lg font-bold text-foreground dark:text-white">{cb.delivered}</p>
                 <p className="text-[10px] text-muted-foreground">{cb.attendance} attended &middot; {cb.warm_leads} leads</p>
               </Card>
             ))}
@@ -102,7 +102,7 @@ export default function CommunityDashboard() {
       )}
 
       {/* Community Cards */}
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Communities</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-3">Communities</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         {dashboard.communities.map(community => (
           // Card wraps a styled <div>; converting to a real <button>
@@ -123,10 +123,10 @@ export default function CommunityDashboard() {
               }
             }}
           >
-            <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{community.community}</h3>
+            <h3 className="font-semibold text-foreground mb-2">{community.community}</h3>
             <div className="flex gap-4 text-sm mb-3">
               <div>
-                <span className="text-2xl font-bold text-spoke">{community.delivered}</span>
+                <span className="text-2xl font-bold text-spoke-strong">{community.delivered}</span>
                 <p className="text-[10px] text-muted-foreground">Delivered</p>
               </div>
               <div>
@@ -136,7 +136,7 @@ export default function CommunityDashboard() {
             </div>
             {/* Phase bar */}
             {community.phases && Object.keys(community.phases).length > 0 && (
-              <div className="flex h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <div className="flex h-2 rounded-full overflow-hidden bg-muted">
                 {Object.entries(community.phases).map(([phase, count]) => (
                   <div
                     key={phase}
@@ -146,7 +146,7 @@ export default function CommunityDashboard() {
                 ))}
               </div>
             )}
-            <div className="mt-2 text-xs text-slate-500">
+            <div className="mt-2 text-xs text-foreground/80">
               {community.attendance > 0 && <span>{community.attendance} attended</span>}
               {community.warm_leads > 0 && <span> &middot; {community.warm_leads} leads</span>}
             </div>
@@ -160,12 +160,12 @@ export default function CommunityDashboard() {
       </div>
 
       {/* Upcoming Classes Table */}
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Upcoming Classes</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-3">Upcoming Classes</h2>
       <Card className="overflow-hidden mb-8">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50 dark:bg-gray-900/50 text-left text-slate-500">
+              <tr className="border-b bg-muted/50 dark:bg-card/50 text-left text-foreground/80">
                 <th className="px-4 py-3 font-medium">Class</th>
                 <th className="px-4 py-3 font-medium">Community</th>
                 <th className="px-4 py-3 font-medium">Date</th>
@@ -185,7 +185,7 @@ export default function CommunityDashboard() {
                   role="button"
                   tabIndex={0}
                   aria-label={`Open project ${project.title}`}
-                  className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer focus-visible:bg-gray-100 dark:focus-visible:bg-gray-800 focus-visible:outline-none"
+                  className="border-b last:border-0 hover:bg-muted/50 dark:hover:bg-muted cursor-pointer focus-visible:bg-muted dark:focus-visible:bg-muted focus-visible:outline-none"
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -194,15 +194,15 @@ export default function CommunityDashboard() {
                     }
                   }}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{project.title}</td>
-                  <td className="px-4 py-3 text-slate-500">{project.community}</td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(project.event_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{project.title}</td>
+                  <td className="px-4 py-3 text-foreground/80">{project.community}</td>
+                  <td className="px-4 py-3 text-foreground/80">{new Date(project.event_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                       {PHASE_LABELS[project.phase]}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{project.registration_count || 0}</td>
+                  <td className="px-4 py-3 text-foreground/80">{project.registration_count || 0}</td>
                 </tr>
               ))}
               {dashboard.upcoming_projects.length === 0 && (
@@ -220,7 +220,7 @@ export default function CommunityDashboard() {
       {/* Trend Chart */}
       {dashboard.trends && (
         <>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
+          <h2 className="text-lg font-semibold text-foreground mb-3">
             Delivery Trends
           </h2>
           <Card className="p-4 mb-8">
@@ -230,7 +230,7 @@ export default function CommunityDashboard() {
       )}
 
       {/* Partner Health */}
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
+      <h2 className="text-lg font-semibold text-foreground mb-3">
         Partner Health
       </h2>
       <div className="mb-8">

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -9,8 +10,14 @@ from core.pagination import Paginated
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.drive_time import get_drive_time_between_locations, get_drive_time_from_hub
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.queue import get_redis_pool
+from routers.stats_aggregation import (
+    MATCH, GROUP, IF_NULL, MULTIPLY,
+    build_time_expr, build_status_count_field,
+    build_name_breakdown_pipeline, build_class_name_breakdown_pipeline,
+)
 
 logger = get_logger(__name__)
 
@@ -127,6 +134,12 @@ async def update_location(location_id: str, data: LocationUpdate, user: AdminReq
             extra={"entity": {"location_id": location_id}},
         )
 
+    # Location edits change location_name / drive_time_minutes on schedule
+    # rows (either via the background job or the inline fallback above),
+    # both of which feed /workload totals. Drop the cache so the next
+    # read recomputes. The worker task also calls delete on completion,
+    # which covers the window between this flush and the sync finishing.
+    await invalidate_workload_cache()
     return updated
 
 
@@ -176,54 +189,59 @@ async def get_location_stats(
     if not location:
         raise HTTPException(status_code=404, detail=LOCATION_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"location_id": location_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
+    date_match = {}
     if start_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') >= start_date]
+        date_match["$gte"] = start_date
     if end_date:
-        all_schedules = [s for s in all_schedules if s.get('date', '') <= end_date]
-    total_schedules = len(all_schedules)
-    total_drive_minutes = 0
-    total_class_minutes = 0
-    completed = 0
-    upcoming = 0
-    in_progress = 0
-    emp_counts = {}
-    class_counts = {}
+        date_match["$lte"] = end_date
 
-    for s in all_schedules:
-        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
-        try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except (ValueError, KeyError):
-            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
+    match_stage = {"location_id": location_id, "deleted_at": None}
+    if date_match:
+        match_stage["date"] = date_match
 
-        status = s.get('status', 'upcoming')
-        if status == 'completed':
-            completed += 1
-        elif status == 'upcoming':
-            upcoming += 1
-        elif status == 'in_progress':
-            in_progress += 1
+    time_expr = build_time_expr()
 
-        emp_name = s.get('employee_name', 'Unknown')
-        emp_counts[emp_name] = emp_counts.get(emp_name, 0) + 1
+    # Four independent queries → fan out in parallel.
+    summary, employee_breakdown, class_breakdown, recent_schedules = await asyncio.gather(
+        db.schedules.aggregate([
+            {MATCH: match_stage},
+            {GROUP: {
+                "_id": None,
+                "total_schedules": {"$sum": 1},
+                "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
+                "total_class_minutes": {"$sum": time_expr},
+                "completed": {"$sum": build_status_count_field("completed")},
+                "upcoming": {"$sum": build_status_count_field("upcoming")},
+                "in_progress": {"$sum": build_status_count_field("in_progress")},
+            }},
+        ]).to_list(1),
+        db.schedules.aggregate(
+            build_name_breakdown_pipeline(match_stage, "$employee_name", "Unknown")
+        ).to_list(500),
+        db.schedules.aggregate(
+            build_class_name_breakdown_pipeline(match_stage)
+        ).to_list(500),
+        db.schedules.find(
+            match_stage, {"_id": 0},
+        ).sort("date", -1).limit(10).to_list(10),
+    )
 
-        class_name = s.get('class_name') or 'Unassigned'
-        class_counts[class_name] = class_counts.get(class_name, 0) + 1
+    totals = summary[0] if summary else {
+        "total_schedules": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
+        "completed": 0, "upcoming": 0, "in_progress": 0,
+    }
 
     return {
         "location": location,
-        "total_schedules": total_schedules,
-        "total_drive_minutes": total_drive_minutes,
-        "total_class_minutes": total_class_minutes,
-        "completed": completed,
-        "upcoming": upcoming,
-        "in_progress": in_progress,
-        "employee_breakdown": [{"name": k, "count": v} for k, v in emp_counts.items()],
-        "class_breakdown": [{"name": k, "count": v} for k, v in class_counts.items()],
-        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+        "total_schedules": totals["total_schedules"],
+        "total_drive_minutes": totals["total_drive_minutes"],
+        "total_class_minutes": totals["total_class_minutes"],
+        "completed": totals["completed"],
+        "upcoming": totals["upcoming"],
+        "in_progress": totals["in_progress"],
+        "employee_breakdown": employee_breakdown,
+        "class_breakdown": class_breakdown,
+        "recent_schedules": recent_schedules,
     }
 
 

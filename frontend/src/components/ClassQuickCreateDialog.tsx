@@ -46,7 +46,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[460px] bg-white dark:bg-gray-900" data-testid="class-quick-create-dialog">
+      <DialogContent className="sm:max-w-[460px] bg-white dark:bg-card" data-testid="class-quick-create-dialog">
         <DialogHeader>
           <DialogTitle>Add New Class</DialogTitle>
           <DialogDescription>
@@ -63,7 +63,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
               placeholder="Entrepreneurship 101"
               value={form.name}
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-              className="bg-gray-50/50 dark:bg-gray-800/50"
+              className="bg-muted/50 dark:bg-muted/50"
               required
             />
           </div>
@@ -76,7 +76,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
               placeholder="Optional details for this class type"
               value={form.description}
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-              className="min-h-[96px] bg-gray-50/50 dark:bg-gray-800/50 resize-none"
+              className="min-h-[96px] bg-muted/50 dark:bg-muted/50 resize-none"
             />
           </div>
 
@@ -106,7 +106,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
                   className={cn(
                     'h-8 w-8 rounded-full transition-transform',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-                    form.color === color ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-105',
+                    form.color === color ? 'ring-2 ring-offset-2 ring-foreground scale-110' : 'hover:scale-105',
                   )}
                   style={{ backgroundColor: color }}
                   aria-label={`Select ${color} for class`}
@@ -120,7 +120,7 @@ export default function ClassQuickCreateDialog({ open, onOpenChange, onCreated }
               type="submit"
               data-testid="class-quick-save-button"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="w-full bg-hub hover:bg-hub-strong text-white"
             >
               {loading ? 'Saving...' : 'Create Class'}
             </Button>

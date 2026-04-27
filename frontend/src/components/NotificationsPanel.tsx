@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as SettingsIcon, WifiOff, RefreshCw, BellOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { notificationsAPI } from '../lib/api';
@@ -65,24 +65,50 @@ function asString(value: unknown): string {
   return '';
 }
 
+function isAbortLike(err: unknown): boolean {
+  const code = (err as { code?: string })?.code;
+  const name = (err as { name?: string })?.name;
+  return code === 'ERR_CANCELED' || name === 'AbortError' || name === 'CanceledError';
+}
+
 const SEVERITY_CONFIG = {
-  warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-  info: { icon: CalendarDays, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  warning: { icon: AlertTriangle, color: 'text-warn-strong', bg: 'bg-warn-soft', border: 'border-warn-soft' },
+  info: { icon: CalendarDays, color: 'text-hub', bg: 'bg-hub-soft', border: 'border-hub-soft' },
 };
 
 export default function NotificationsPanel() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [liveItems, setLiveItems] = useState<LiveNotification[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxNotification[]>([]);
   const [dismissedLive, setDismissedLive] = useState<Set<string>>(new Set());
+  const [fetchError, setFetchError] = useState(false);
+  const fetchOnceRef = useRef<(() => Promise<void>) | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // Wait for the user to open the bell for the first time. Before that,
+    // there is nothing to show, so a fetch/poll is pure waste on the
+    // dashboard shell. Once opened, we behave exactly as before: immediate
+    // fetch + 60s polling + visibility-triggered refresh.
+    if (!hasInitialized) return;
+
     let currentController: AbortController | null = null;
+    let lastFetchAt = 0;
+    // Only refetch on visibility change if the tab was hidden long enough to
+    // matter. Quick Alt-Tabs shouldn't trigger a round-trip; the 30s threshold
+    // is well under the polling interval so we never starve the bell.
+    const VISIBILITY_REFETCH_THRESHOLD_MS = 30_000;
+    // Polling interval: was 30s, which meant 4 API calls/min on every tab
+    // that had the app open. 60s halves the background traffic with no
+    // perceptible UX change (notifications surface via inbox sync on user
+    // action anyway).
+    const POLL_INTERVAL_MS = 60_000;
 
     const fetchOnce = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      lastFetchAt = Date.now();
       currentController?.abort();
       const controller = new AbortController();
       currentController = controller;
@@ -106,6 +132,9 @@ export default function NotificationsPanel() {
             source: 'live',
           })));
         }
+        const liveFailed = liveRes.status === 'rejected' && !isAbortLike(liveRes.reason);
+        const inboxFailed = inboxRes.status === 'rejected' && !isAbortLike(inboxRes.reason);
+        setFetchError(liveFailed && inboxFailed);
         if (inboxRes.status === 'fulfilled') {
           const data = inboxRes.value.data as { items?: Record<string, unknown>[] };
           const items = Array.isArray(data?.items) ? data.items : [];
@@ -122,16 +151,21 @@ export default function NotificationsPanel() {
           })));
         }
       } catch (err) {
-        if (controller.signal.aborted || (err as { code?: string })?.code === 'ERR_CANCELED') return;
-        // Network glitch — keep existing state rather than blanking the UI.
+        if (controller.signal.aborted || isAbortLike(err)) return;
+        // Network glitch — keep existing state rather than blanking the UI,
+        // but surface a retry affordance to the user.
+        setFetchError(true);
       }
     };
 
+    fetchOnceRef.current = fetchOnce;
     fetchOnce();
-    const interval = setInterval(fetchOnce, 30000);
+    const interval = setInterval(fetchOnce, POLL_INTERVAL_MS);
 
     const onVisibility = () => {
-      if (!document.hidden) fetchOnce();
+      if (document.hidden) return;
+      if (Date.now() - lastFetchAt < VISIBILITY_REFETCH_THRESHOLD_MS) return;
+      fetchOnce();
     };
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -139,8 +173,15 @@ export default function NotificationsPanel() {
       currentController?.abort();
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
+      fetchOnceRef.current = null;
     };
-  }, []);
+  }, [hasInitialized]);
+
+  const handleBellClick = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !hasInitialized) setHasInitialized(true);
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -161,12 +202,19 @@ export default function NotificationsPanel() {
   }, [liveItems, inboxItems, dismissedLive]);
 
   let bellLabel = 'Notifications';
-  if (activeNotifications.length > 0) {
+  if (fetchError) {
+    bellLabel = 'Notifications — failed to load';
+  } else if (activeNotifications.length > 0) {
     bellLabel = `Notifications, ${activeNotifications.length} active`;
     if (warningCount > 0) {
       bellLabel += `, ${warningCount} alerts`;
     }
   }
+
+  const handleRetryFetch = () => {
+    setFetchError(false);
+    fetchOnceRef.current?.();
+  };
 
   const handleDismiss = async (n: AnyNotification) => {
     if (n.source === 'live') {
@@ -183,18 +231,15 @@ export default function NotificationsPanel() {
   };
 
   const handleDismissAll = async () => {
-    // Mirror per-row dismissal: hide live alerts client-side and actually
-    // remove each inbox row server-side. "Dismiss all" should empty the
-    // panel — just marking read still left items visible, which defeats
-    // the point of the button.
+    // Hide live alerts client-side, then collapse all inbox dismissals
+    // into a single backend round-trip via the bulk endpoint instead of
+    // fanning out N DELETEs.
     setDismissedLive(new Set(liveItems.map(n => n.id)));
-    const toDismiss = inboxItems;
-    // Optimistic clear so the panel empties immediately.
     setInboxItems([]);
     try {
-      await Promise.all(toDismiss.map(n => notificationsAPI.dismiss(n.id)));
+      await notificationsAPI.dismissAll();
     } catch {
-      // Any failed dismissals will reappear on the next 30s poll.
+      // Any failed dismissals will reappear on the next poll.
     }
   };
 
@@ -238,33 +283,40 @@ export default function NotificationsPanel() {
       <button
         type="button"
         data-testid="notifications-bell"
-        onClick={() => setOpen(!open)}
+        onClick={handleBellClick}
         aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-500 dark:text-gray-400" aria-hidden="true" />
-        {activeNotifications.length > 0 && (
+        <Bell className="w-5 h-5 text-foreground/80 dark:text-muted-foreground" aria-hidden="true" />
+        {activeNotifications.length > 0 && !fetchError && (
           <span
             aria-hidden="true"
             className={cn(
               "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1",
-              warningCount > 0 ? "bg-amber-500" : "bg-indigo-600"
+              warningCount > 0 ? "bg-warn" : "bg-hub"
             )}
           >
             {activeNotifications.length}
           </span>
         )}
+        {fetchError && (
+          <span
+            aria-hidden="true"
+            data-testid="notifications-error-dot"
+            className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-danger border-2 border-white dark:border-border"
+          />
+        )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-[380px] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 animate-slide-in" data-testid="notifications-dropdown">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <div className="absolute right-0 top-12 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-card rounded-lg shadow-xl border border-border z-50 animate-slide-in" data-testid="notifications-dropdown">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">Notifications</h3>
+              <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
               {warningCount > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px]">
+                <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">
                   {warningCount} alerts
                 </Badge>
               )}
@@ -275,7 +327,7 @@ export default function NotificationsPanel() {
                   <button
                     type="button"
                     onClick={handleMarkAllRead}
-                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    className="text-xs text-hub hover:text-hub-strong font-medium flex items-center gap-1"
                     data-testid="mark-all-read"
                     aria-label="Mark all as read"
                   >
@@ -285,7 +337,7 @@ export default function NotificationsPanel() {
                 )}
                 <button
                   onClick={handleDismissAll}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  className="text-xs text-hub hover:text-hub-strong font-medium"
                   data-testid="dismiss-all-notifications"
                 >
                   Dismiss all
@@ -294,14 +346,36 @@ export default function NotificationsPanel() {
             )}
           </div>
 
+          {fetchError && (
+            <div
+              role="alert"
+              data-testid="notifications-fetch-error"
+              className="px-4 py-3 border-b border-danger-soft dark:border-danger-soft/40 bg-danger-soft/10 flex items-center gap-3"
+            >
+              <WifiOff className="w-4 h-4 text-danger-strong shrink-0" aria-hidden="true" />
+              <p className="text-xs text-danger-strong flex-1">
+                Couldn't load notifications. Showing cached items.
+              </p>
+              <button
+                type="button"
+                onClick={handleRetryFetch}
+                className="text-xs font-medium text-danger-strong hover:text-danger-strong dark:hover:text-danger-strong-soft inline-flex items-center gap-1"
+                data-testid="notifications-retry"
+              >
+                <RefreshCw className="w-3 h-3" aria-hidden="true" />
+                Retry
+              </button>
+            </div>
+          )}
+
           <ScrollArea className="max-h-[400px]">
             {activeNotifications.length === 0 ? (
               <div className="p-8 text-center">
-                <Bell className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
+                <BellOff className="w-8 h-8 text-muted-foreground dark:text-foreground mx-auto mb-2" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 dark:divide-gray-800">
+              <div className="divide-y divide-border">
                 {activeNotifications.map(notification => {
                   const config = SEVERITY_CONFIG[notification.severity] || SEVERITY_CONFIG.info;
                   const Icon = config.icon;
@@ -329,17 +403,17 @@ export default function NotificationsPanel() {
                           {isUnread && (
                             <span
                               aria-label="Unread"
-                              className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"
+                              className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
                             />
                           )}
-                          <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {notification.title}
                           </p>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                        <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
                           {description}
                         </p>
-                        {hasLink && <p className="text-[10px] text-indigo-500 mt-1">Click to view</p>}
+                        {hasLink && <p className="text-[10px] text-hub mt-1">Click to view</p>}
                       </div>
                     </>
                   );
@@ -348,7 +422,7 @@ export default function NotificationsPanel() {
                       {hasLink ? (
                         <button
                           type="button"
-                          className="flex-1 p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
+                          className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 cursor-pointer appearance-none bg-transparent border-0 text-left"
                           onClick={() => handleClick(notification)}
                         >
                           {content}
@@ -361,7 +435,7 @@ export default function NotificationsPanel() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDismiss(notification); }}
-                        className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
+                        className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >
                         <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -375,11 +449,11 @@ export default function NotificationsPanel() {
 
           {/* Settings link — surfaces the preferences UI so users don't have
               to hunt through Settings for notification controls. */}
-          <div className="p-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="p-2 border-t border-border">
             <button
               type="button"
               onClick={() => { navigate('/settings#notifications'); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/80 dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted rounded-md transition-colors"
             >
               <SettingsIcon className="w-3.5 h-3.5" />
               Notification settings

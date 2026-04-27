@@ -6,7 +6,11 @@ from database import db
 from models.coordination_schemas import MessageCreate
 from core.auth import CurrentUser, EditorRequired
 from core.pagination import Paginated, paginated_response
-from services.notification_events import notify_project_message
+from services.notification_events import (
+    notify_project_message,
+    notify_project_message_mentions,
+)
+from services.notification_prefs import prepare_mentions
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -64,6 +68,12 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
+    mentioned, stored_mentions = await prepare_mentions(
+        project_id=project_id,
+        refs_input=data.mentions,
+        partner_org_id=project.get("partner_org_id"),
+    )
+
     msg_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     # JWT payload exposes the user id under ``user_id`` — there is
@@ -81,11 +91,15 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
         "sender_id": sender_uid,
         "body": data.body,
         "visibility": data.visibility,
+        "mentions": stored_mentions,
         "created_at": now,
         "read_by": [sender_uid] if sender_uid else [],
         "deleted_at": None,
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
-    await notify_project_message(doc, project, user)
+    mention_ids = {p.id for p in mentioned}
+    await notify_project_message(doc, project, user, mention_ids=mention_ids)
+    if mentioned:
+        await notify_project_message_mentions(doc, project, user, mentioned)
     return doc

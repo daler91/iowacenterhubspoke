@@ -8,6 +8,8 @@ from core.queue import get_redis_pool
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["system"])
+_NOTIFICATION_MAX_DOCS = 10_000
+_NOTIFICATION_BATCH_SIZE = 500
 
 
 @router.get("/system/config", summary="Get system configuration")
@@ -85,11 +87,12 @@ def _build_t2t_alerts(schedules: list[dict], today: str) -> list[dict]:
 async def _build_idle_alerts(today_schedules: list[dict], today: str) -> list[dict]:
     # We need employee_ids for the idle comparison; if the caller gated off
     # upcoming_class we still have to fetch a projection for the idle check.
-    schedules_for_ids = today_schedules or await db.schedules.find(
+    schedules_for_ids = today_schedules or await _fetch_all_with_guard(
+        db.schedules,
         {"date": today, "deleted_at": None},
         {"_id": 0, "employee_ids": 1},
-    ).to_list(100)
-    employees = await db.employees.find({"deleted_at": None}, {"_id": 0}).to_list(100)
+    )
+    employees = await _fetch_all_with_guard(db.employees, {"deleted_at": None}, {"_id": 0})
     scheduled_emp_ids = {eid for s in schedules_for_ids for eid in s.get('employee_ids', [])}
     return [{
         "id": f"idle-{emp['id']}",
@@ -102,8 +105,39 @@ async def _build_idle_alerts(today_schedules: list[dict], today: str) -> list[di
     } for emp in employees if emp['id'] not in scheduled_emp_ids]
 
 
+async def _fetch_all_with_guard(
+    collection,
+    query: dict,
+    projection: dict,
+    *,
+    batch_size: int = _NOTIFICATION_BATCH_SIZE,
+    max_docs: int = _NOTIFICATION_MAX_DOCS,
+) -> list[dict]:
+    """Read all rows matching ``query`` in bounded batches.
+
+    This avoids hard truncation (e.g. ``to_list(100)``) while keeping an upper
+    bound to protect the endpoint from unbounded memory growth.
+    """
+    docs: list[dict] = []
+    skip = 0
+    while skip < max_docs:
+        rows = await collection.find(query, projection).skip(skip).limit(batch_size).to_list(batch_size)
+        if not rows:
+            break
+        docs.extend(rows)
+        skip += len(rows)
+        if len(rows) < batch_size:
+            break
+    return docs[:max_docs]
+
+
 @router.get("/notifications", summary="Get system notifications")
-async def get_notifications(user: CurrentUser):
+async def get_notifications(
+    user: CurrentUser,
+    paginated: bool = False,
+    skip: int = 0,
+    limit: int = 200,
+):
     """Return upcoming classes, town-to-town warnings, and idle employee alerts.
 
     This endpoint returns *live-computed* system state — not persisted
@@ -119,28 +153,73 @@ async def get_notifications(user: CurrentUser):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     notifications: list[dict] = []
+    limit = max(1, min(limit, 500))
+    skip = max(skip, 0)
 
+    # Project only the fields the alert builders read. Schedule documents
+    # carry a lot of denormalized data (full ICS payloads, audit trails,
+    # etc.) that we don't need for the bell UI; fetching the whole doc
+    # wasted both Mongo→app bandwidth and CPU on BSON decode.
+    #
+    # Upcoming alerts read: status, class_name, location_name, id,
+    # start_time, end_time, created_at, and the employees[].name field.
+    # The same rows also feed the idle check, which additionally needs
+    # employee_ids.
     today_schedules: list[dict] = []
     if _in_app_enabled(principal, "upcoming_class"):
-        today_schedules = await db.schedules.find(
-            {"date": today, "deleted_at": None}, {"_id": 0},
-        ).to_list(100)
+        today_schedules = await _fetch_all_with_guard(
+            db.schedules,
+            {"date": today, "deleted_at": None},
+            {
+                "_id": 0,
+                "id": 1,
+                "status": 1,
+                "class_name": 1,
+                "location_name": 1,
+                "start_time": 1,
+                "end_time": 1,
+                "created_at": 1,
+                "employees": 1,
+                "employee_ids": 1,
+            },
+        )
         notifications.extend(_build_upcoming_alerts(today_schedules, today))
 
     if _in_app_enabled(principal, "town_to_town"):
-        t2t_schedules = await db.schedules.find(
-            {"town_to_town": True, "deleted_at": None}, {"_id": 0},
-        ).to_list(100)
+        t2t_schedules = await _fetch_all_with_guard(
+            db.schedules,
+            {"town_to_town": True, "deleted_at": None},
+            {
+                "_id": 0,
+                "id": 1,
+                "town_to_town_warning": 1,
+                "created_at": 1,
+            },
+        )
         notifications.extend(_build_t2t_alerts(t2t_schedules, today))
 
     if _in_app_enabled(principal, "idle_employee"):
         notifications.extend(await _build_idle_alerts(today_schedules, today))
 
-    return sorted(
+    ordered = sorted(
         notifications,
         key=lambda x: x.get('severity') == 'warning',
         reverse=True,
     )
+    if not paginated:
+        # Backward-compatible response shape for existing clients.
+        return ordered
+
+    returned = ordered[skip: skip + limit]
+    total = len(ordered)
+    return {
+        "items": returned,
+        "total": total,
+        "returned": len(returned),
+        "has_more": (skip + len(returned)) < total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 @router.post("/system/sync-denormalized", summary="Trigger denormalization sync")

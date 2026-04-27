@@ -124,7 +124,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
   return (
     <div className="space-y-6 animate-slide-in" data-testid="workload-dashboard">
       <div className="flex items-end justify-between gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-100 font-display">
+        <h2 className="text-2xl font-bold text-foreground font-display">
           Workload Overview
         </h2>
         <div className="min-w-[240px] space-y-2">
@@ -132,7 +132,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             Filter by Class
           </Label>
           <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-            <SelectTrigger id="workload-class-filter" className="bg-white dark:bg-gray-900" data-testid="workload-class-filter">
+            <SelectTrigger id="workload-class-filter" className="bg-white dark:bg-card" data-testid="workload-class-filter">
               <SelectValue placeholder="All classes" />
             </SelectTrigger>
             <SelectContent>
@@ -145,7 +145,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </SelectContent>
           </Select>
         </div>
-        <p className="w-full text-sm text-slate-500 dark:text-gray-400 mt-1" data-testid="workload-subtitle">
+        <p className="w-full text-sm text-foreground/80 dark:text-muted-foreground mt-1" data-testid="workload-subtitle">
           Team resource allocation and time distribution by class series.
         </p>
       </div>
@@ -165,55 +165,55 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5">
+        <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-indigo-600" />
+            <div className="w-9 h-9 bg-hub-soft rounded-lg flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-hub" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Total Classes</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-gray-100 font-display" data-testid="workload-total-classes">
+          <p className="text-3xl font-bold text-foreground font-display" data-testid="workload-total-classes">
             {totals.classes}
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5">
+        <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-teal-600" />
+            <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-spoke-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Class Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-gray-100 font-display">
+          <p className="text-3xl font-bold text-foreground font-display">
             {totals.classHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5">
+        <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center">
-              <Car className="w-5 h-5 text-amber-600" />
+            <div className="w-9 h-9 bg-warn-soft rounded-lg flex items-center justify-center">
+              <Car className="w-5 h-5 text-warn-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Drive Hours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-gray-100 font-display">
+          <p className="text-3xl font-bold text-foreground font-display">
             {totals.driveHours.toFixed(1)}h
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5">
+        <div className="bg-white dark:bg-card rounded-lg border border-border p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-spoke-soft rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-spoke" />
+              <TrendingUp className="w-5 h-5 text-spoke-strong" />
             </div>
             <span className="text-xs text-muted-foreground uppercase font-medium tracking-wider">Completed</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-gray-100 font-display">
+          <p className="text-3xl font-bold text-foreground font-display">
             {totals.completed}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
+        <div className="lg:col-span-2 bg-white dark:bg-card rounded-lg border border-border p-6">
+          <h3 className="text-sm font-semibold text-foreground mb-4 font-display">
             Hours by Employee
           </h3>
           {chartData.length > 0 ? (
@@ -238,8 +238,8 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100 mb-4 font-display">
+        <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
+          <h3 className="text-sm font-semibold text-foreground mb-4 font-display">
             Class Distribution
           </h3>
           {pieData.length > 0 ? (
@@ -263,9 +263,9 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
               <div key={pieItem.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieItem.color }} />
-                  <EntityLink type="employee" id={pieItem.employee_id} className="text-slate-600 dark:text-gray-300 truncate max-w-[120px]">{pieItem.name}</EntityLink>
+                  <EntityLink type="employee" id={pieItem.employee_id} className="text-foreground/80 dark:text-muted-foreground truncate max-w-[120px]">{pieItem.name}</EntityLink>
                 </div>
-                <span className="font-semibold text-slate-800 dark:text-gray-100">{pieItem.value}</span>
+                <span className="font-semibold text-foreground">{pieItem.value}</span>
               </div>
             ))}
           </div>
@@ -274,7 +274,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {scopedWorkload.map((employeeWorkload) => (
-          <div key={employeeWorkload.employee_id} className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
+          <div key={employeeWorkload.employee_id} className="bg-white dark:bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow" data-testid={`workload-card-${employeeWorkload.employee_id}`}>
             <div className="flex items-center gap-3 mb-4">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
@@ -283,7 +283,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
                 {employeeWorkload.employee_name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <EntityLink type="employee" id={employeeWorkload.employee_id} className="font-semibold text-slate-800 dark:text-gray-100 text-sm">{employeeWorkload.employee_name}</EntityLink>
+                <EntityLink type="employee" id={employeeWorkload.employee_id} className="font-semibold text-foreground text-sm">{employeeWorkload.employee_name}</EntityLink>
                 <p className="text-xs text-muted-foreground" data-testid={`workload-card-summary-${employeeWorkload.employee_id}`}>
                   {employeeWorkload.display_classes} class{employeeWorkload.display_classes === 1 ? '' : 'es'} in scope
                 </p>
@@ -291,22 +291,22 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-slate-500 dark:text-gray-400">Class Time</span>
-                <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_class_hours}h</span>
+                <span className="text-foreground/80 dark:text-muted-foreground">Class Time</span>
+                <span className="font-semibold text-foreground">{employeeWorkload.display_class_hours}h</span>
               </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
+              <div className="w-full bg-muted rounded-full h-2">
                 <div className="h-2 rounded-full" style={{ width: `${Math.min((employeeWorkload.display_class_hours / maxClassHours) * 100, 100)}%`, backgroundColor: employeeWorkload.employee_color }} />
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-slate-500 dark:text-gray-400">Drive Time</span>
-                <span className="font-semibold text-slate-700 dark:text-gray-200">{employeeWorkload.display_drive_hours}h</span>
+                <span className="text-foreground/80 dark:text-muted-foreground">Drive Time</span>
+                <span className="font-semibold text-foreground">{employeeWorkload.display_drive_hours}h</span>
               </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
-                <div className="h-2 rounded-full bg-gray-300" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / maxDriveHours) * 100, 100)}%` }} />
+              <div className="w-full bg-muted rounded-full h-2">
+                <div className="h-2 rounded-full bg-muted" style={{ width: `${Math.min((employeeWorkload.display_drive_hours / maxDriveHours) * 100, 100)}%` }} />
               </div>
               <div className="flex gap-2 mt-3">
-                <Badge className="bg-spoke-soft text-spoke border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
-                <Badge className="bg-indigo-50 text-indigo-700 border-0 text-[10px]">{employeeWorkload.upcoming} upcoming</Badge>
+                <Badge className="bg-spoke-soft text-spoke-strong border-0 text-[10px]">{employeeWorkload.completed} done</Badge>
+                <Badge className="bg-hub-soft text-hub-strong border-0 text-[10px]">{employeeWorkload.upcoming} upcoming</Badge>
               </div>
             </div>
           </div>

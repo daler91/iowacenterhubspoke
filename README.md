@@ -1,6 +1,6 @@
-# Iowa Center Hub & Spoke — Scheduling Platform
+# HubSpoke — Scheduling Platform
 
-A full-stack scheduling platform built for the Iowa Center to manage employee class assignments across multiple satellite locations. The "hub and spoke" model uses Des Moines as the central hub, with employees traveling to surrounding Iowa cities.
+A full-stack scheduling platform for managing employee class assignments across multiple satellite locations. The "hub and spoke" model uses Des Moines as the central hub, with employees traveling to surrounding Iowa cities.
 
 ## Features
 
@@ -231,6 +231,12 @@ docker run -p 8080:8080 \
   -e JWT_SECRET=... \
   iowa-center
 ```
+
+The repo also keeps a `Procfile` for Heroku-style buildpack platforms
+(legacy / fallback). Railway uses `Dockerfile` per `railway.json`; the
+Procfile mirrors the same uvicorn flags so a buildpack deploy preserves
+the graceful-shutdown behaviour. If you only ever deploy via Docker,
+the Procfile is harmless and can be ignored.
 
 ## Documentation
 

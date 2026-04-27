@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import os
 import uuid
+import asyncio
 
 # Set required environment variables before importing anything
 os.environ['MONGO_URL'] = 'mongodb://localhost:27017'
@@ -26,48 +27,42 @@ def mock_db_fixture():
             'schedules': mock_schedules
         }
 
-@pytest.mark.asyncio
-async def test_employee_stats_with_invalid_schedule_times(mock_db_fixture):
+def test_employee_stats_with_invalid_schedule_times(mock_db_fixture):
     """Test getting stats for an employee when a schedule has invalid start/end time format"""
     employee_id = f"test_emp_{uuid.uuid4().hex[:6]}"
 
     # Mock employee exists
     mock_db_fixture['employees'].find_one = AsyncMock(return_value={"id": employee_id, "name": "Test User"})
 
-    # Setup mock schedules
-    valid_schedule = {
-        "employee_id": employee_id,
-        "status": "completed",
-        "start_time": "10:00",
-        "end_time": "11:00",
-        "drive_time_minutes": 15,
-        "date": "2024-03-21"
-    }
+    # New implementation uses multiple aggregate pipelines + targeted recent query.
+    aggregate_cursors = []
+    for result in (
+        [{
+            "total_classes": 3,
+            "total_drive_minutes": 70,
+            "total_class_minutes": 60,
+            "completed": 2,
+            "upcoming": 1,
+            "in_progress": 0,
+        }],
+        [{"name": "Unknown", "count": 3}],
+        [{"month": "2024-03", "count": 3}],
+    ):
+        cursor_mock = MagicMock()
+        cursor_mock.to_list = AsyncMock(return_value=result)
+        aggregate_cursors.append(cursor_mock)
+    mock_db_fixture['schedules'].aggregate.side_effect = aggregate_cursors
 
-    invalid_schedule = {
-        "employee_id": employee_id,
-        "status": "upcoming",
-        "start_time": "invalid",
-        "end_time": "invalid",
-        "drive_time_minutes": 20,
-        "date": "2024-03-21"
-    }
-
-    missing_keys_schedule = {
-        "employee_id": employee_id,
-        "status": "completed",
-        "date": "2024-03-21"
-        # start_time and end_time missing
-    }
-
-    # Mock the find().to_list() chain
-    cursor_mock = MagicMock()
-    cursor_mock.to_list = AsyncMock(return_value=[valid_schedule, invalid_schedule, missing_keys_schedule])
-    mock_db_fixture['schedules'].find.return_value = cursor_mock
+    recent_cursor = MagicMock()
+    recent_cursor.limit.return_value = recent_cursor
+    recent_cursor.to_list = AsyncMock(return_value=[{"id": "s1"}, {"id": "s2"}])
+    sort_cursor = MagicMock()
+    sort_cursor.sort.return_value = recent_cursor
+    mock_db_fixture['schedules'].find.return_value = sort_cursor
 
     # Call the function
     mock_user = MagicMock()
-    stats = await get_employee_stats(employee_id, mock_user)
+    stats = asyncio.run(get_employee_stats(employee_id, mock_user))
 
     # Assertions
     assert stats["total_classes"] == 3
@@ -77,3 +72,4 @@ async def test_employee_stats_with_invalid_schedule_times(mock_db_fixture):
     assert stats["total_drive_minutes"] == 70
     assert stats["completed"] == 2
     assert stats["upcoming"] == 1
+    assert len(stats["recent_schedules"]) == 2

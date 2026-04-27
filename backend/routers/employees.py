@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
@@ -6,8 +7,13 @@ from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
 from core.pagination import Paginated, paginated_response
 from services.activity import log_activity
+from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
 from core.queue import get_redis_pool
+from routers.stats_aggregation import (
+    MATCH, GROUP, IF_NULL, MULTIPLY,
+    build_time_expr, build_status_count_field, build_name_breakdown_pipeline,
+)
 
 logger = get_logger(__name__)
 
@@ -65,6 +71,7 @@ async def create_employee(data: EmployeeCreate, user: AdminRequired):
         "employee_created", f"Employee '{data.name}' added to team",
         "employee", emp_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return doc
 
 
@@ -107,6 +114,7 @@ async def update_employee(employee_id: str, data: EmployeeUpdate, user: AdminReq
             extra={"entity": {"employee_id": employee_id}},
         )
 
+    await invalidate_workload_cache()
     return updated
 
 
@@ -146,6 +154,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
         "employee_deleted", f"Employee with ID '{employee_id}' marked as deleted",
         "employee", employee_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Employee deleted"}
 
 
@@ -169,6 +178,7 @@ async def restore_employee(employee_id: str, user: AdminRequired):
         "employee_restored", f"Employee with ID '{employee_id}' restored",
         "employee", employee_id, user.get('name', 'System'),
     )
+    await invalidate_workload_cache()
     return {"message": "Employee restored"}
 
 
@@ -183,48 +193,65 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
-    all_schedules = await db.schedules.find({"employee_ids": employee_id, "deleted_at": None}, {"_id": 0}).to_list(1000)
-    total_classes = len(all_schedules)
-    total_drive_minutes = 0
-    total_class_minutes = 0
-    completed = 0
-    upcoming = 0
-    in_progress = 0
-    loc_counts = {}
-    weekly = {}
+    match_stage = {"employee_ids": employee_id, "deleted_at": None}
+    time_expr = build_time_expr()
 
-    for s in all_schedules:
-        total_drive_minutes += s.get('drive_time_minutes', 0) * 2
-        try:
-            sh, sm = s['start_time'].split(':')
-            eh, em = s['end_time'].split(':')
-            total_class_minutes += (int(eh) * 60 + int(em)) - (int(sh) * 60 + int(sm))
-        except (ValueError, KeyError):
-            logger.warning("Skipping schedule %s: invalid start/end time", s.get("id", "?"))
+    # Fan the four independent aggregations out in parallel instead of
+    # awaiting them sequentially. On a warm Mongo connection this cuts
+    # endpoint latency by roughly N× (one RTT instead of four).
+    summary_task = db.schedules.aggregate([
+        {MATCH: match_stage},
+        {GROUP: {
+            "_id": None,
+            "total_classes": {"$sum": 1},
+            "total_drive_minutes": {"$sum": {MULTIPLY: [{IF_NULL: ["$drive_time_minutes", 0]}, 2]}},
+            "total_class_minutes": {"$sum": time_expr},
+            "completed": {"$sum": build_status_count_field("completed")},
+            "upcoming": {"$sum": build_status_count_field("upcoming")},
+            "in_progress": {"$sum": build_status_count_field("in_progress")},
+        }},
+    ]).to_list(1)
 
-        status = s.get('status', 'upcoming')
-        if status == 'completed':
-            completed += 1
-        elif status == 'upcoming':
-            upcoming += 1
-        elif status == 'in_progress':
-            in_progress += 1
+    location_task = db.schedules.aggregate(
+        build_name_breakdown_pipeline(match_stage, "$location_name", "Unknown")
+    ).to_list(500)
 
-        name = s.get('location_name', 'Unknown')
-        loc_counts[name] = loc_counts.get(name, 0) + 1
+    # Month buckets are YYYY-MM strings. Take the newest 60 (five years)
+    # via a descending sort + $limit, then re-sort ascending for the
+    # chart consumers that expect oldest-first. A trailing to_list(60)
+    # alone after an ascending sort would drop current-year activity
+    # for long-tenure employees (>5 yrs), which Codex flagged on PR #259.
+    monthly_task = db.schedules.aggregate([
+        {MATCH: match_stage},
+        {GROUP: {"_id": {"$substr": [{IF_NULL: ["$date", ""]}, 0, 7]}, "count": {"$sum": 1}}},
+        {"$project": {"_id": 0, "month": "$_id", "count": 1}},
+        {"$sort": {"month": -1}},
+        {"$limit": 60},
+        {"$sort": {"month": 1}},
+    ]).to_list(60)
 
-        week_key = s['date'][:7]
-        weekly[week_key] = weekly.get(week_key, 0) + 1
+    recent_task = db.schedules.find(
+        match_stage, {"_id": 0},
+    ).sort("date", -1).limit(10).to_list(10)
+
+    summary, location_breakdown, monthly_breakdown, recent_schedules = await asyncio.gather(
+        summary_task, location_task, monthly_task, recent_task,
+    )
+
+    totals = summary[0] if summary else {
+        "total_classes": 0, "total_drive_minutes": 0, "total_class_minutes": 0,
+        "completed": 0, "upcoming": 0, "in_progress": 0,
+    }
 
     return {
         "employee": employee,
-        "total_classes": total_classes,
-        "total_drive_minutes": total_drive_minutes,
-        "total_class_minutes": total_class_minutes,
-        "completed": completed,
-        "upcoming": upcoming,
-        "in_progress": in_progress,
-        "location_breakdown": [{"name": k, "count": v} for k, v in loc_counts.items()],
-        "monthly_breakdown": [{"month": k, "count": v} for k, v in sorted(weekly.items())],
-        "recent_schedules": sorted(all_schedules, key=lambda x: x.get('date', ''), reverse=True)[:10]
+        "total_classes": totals["total_classes"],
+        "total_drive_minutes": totals["total_drive_minutes"],
+        "total_class_minutes": totals["total_class_minutes"],
+        "completed": totals["completed"],
+        "upcoming": totals["upcoming"],
+        "in_progress": totals["in_progress"],
+        "location_breakdown": location_breakdown,
+        "monthly_breakdown": monthly_breakdown,
+        "recent_schedules": recent_schedules,
     }

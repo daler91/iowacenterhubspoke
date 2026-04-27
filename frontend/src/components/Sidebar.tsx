@@ -2,6 +2,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
+import { Logo } from './ui/logo';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import {
   CalendarDays, MapPin, Users, Shield,
   Map, LogOut, ChevronLeft, ChevronRight, Plus,
@@ -56,14 +58,13 @@ const NAV_SECTIONS = [
  */
 function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
   const Icon = item.icon;
-  return (
+  const button = (
     <Button
       type="button"
       variant="ghost"
       data-testid={`nav-${item.id}`}
       aria-label={collapsed ? item.label : undefined}
       aria-current={isActive ? 'page' : undefined}
-      title={collapsed ? item.tooltip || item.label : item.tooltip}
       onClick={onNavigate}
       className={cn(
         // Reset the Button primitive's default horizontal layout so the
@@ -71,13 +72,24 @@ function SidebarNavItem({ item, collapsed, isActive, onNavigate }) {
         'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
         isActive
           ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft shadow-sm'
-          : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+          : 'text-foreground/80 hover:bg-muted hover:text-foreground',
         collapsed && 'justify-center px-0',
       )}
     >
       <Icon aria-hidden="true" className={cn('w-5 h-5 shrink-0', isActive ? 'text-hub' : 'text-muted-foreground')} />
       {!collapsed && <span>{item.label}</span>}
     </Button>
+  );
+  // Only wire a Radix Tooltip in the collapsed state — the expanded
+  // sidebar already shows the label, and Radix tooltips (unlike the
+  // native `title` attribute) surface on keyboard focus, which is the
+  // whole reason we're swapping here.
+  if (!collapsed) return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{item.tooltip || item.label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -92,17 +104,17 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
   const isSettingsActive = location.pathname === '/settings';
   const isDark = theme === 'dark';
   return (
-    <div className="border-t border-gray-100 dark:border-gray-800 p-3">
+    <div className="border-t border-border p-3">
       {!collapsed && user && (
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-sm">
+          <div className="w-8 h-8 rounded-full bg-hub-soft flex items-center justify-center text-hub-strong font-semibold text-sm">
             {user.name?.charAt(0)?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
+            <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
             <div className="flex items-center gap-2">
               <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-muted-foreground font-bold uppercase tracking-wider">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold uppercase tracking-wider">
                 {user.role}
               </span>
             </div>
@@ -120,7 +132,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
           'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
           isSettingsActive
             ? 'bg-hub-soft text-hub-strong hover:bg-hub-soft'
-            : 'text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200',
+            : 'text-foreground/80 hover:bg-muted hover:text-foreground',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -135,7 +147,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-pressed={isDark}
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -149,7 +161,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
         aria-label={collapsed ? 'Sign out' : undefined}
         onClick={logout}
         className={cn(
-          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-muted-foreground hover:bg-danger-soft hover:text-danger transition-all',
+          'h-auto w-full justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-danger-soft hover:text-danger-strong transition-all',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -159,7 +171,7 @@ function SidebarUserFooter({ collapsed, user, location, navigate, theme, setThem
       {!collapsed && (
         <a
           href="/privacy"
-          className="mt-1 block text-center text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:underline"
+          className="mt-1 block text-center text-[11px] text-muted-foreground hover:text-foreground focus-visible:underline"
         >
           Privacy policy
         </a>
@@ -193,20 +205,19 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
   );
 
   return (
+    <TooltipProvider delayDuration={300} skipDelayDuration={100}>
     <div
       data-testid="sidebar"
       className={cn(
-        "h-screen bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-gray-800 flex flex-col transition-all duration-300 shadow-sm",
+        "h-screen bg-card border-r border-border flex flex-col transition-all duration-300 shadow-sm",
         collapsed ? "w-[68px]" : "w-[260px]"
       )}
     >
       {/* Logo */}
-      <div className="p-4 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800">
-        <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-          <MapPin className="w-5 h-5 text-white" />
-        </div>
+      <div className="p-4 flex items-center gap-3 border-b border-border">
+        <Logo aria-hidden="true" className="size-9 text-hub shrink-0" />
         {!collapsed && (
-          <span className="font-bold text-lg text-slate-900 dark:text-white font-display">
+          <span className="font-bold text-lg text-foreground font-display">
             HubSpoke
           </span>
         )}
@@ -219,7 +230,7 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
             data-testid="new-schedule-btn"
             onClick={onNewSchedule}
             className={cn(
-              "bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
+              "bg-hub hover:bg-hub-strong text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md",
               collapsed ? "w-full px-0 justify-center" : "w-full"
             )}
           >
@@ -272,11 +283,12 @@ export default function Sidebar({ collapsed, onToggle, onNewSchedule }) {
         aria-expanded={!collapsed}
         aria-controls="app-sidebar"
         onClick={onToggle}
-        className="absolute top-1/2 -right-3 h-6 w-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all z-40 p-0"
+        className="absolute top-1/2 -right-3 h-6 w-6 bg-card border border-border rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all z-40 p-0"
       >
         {collapsed ? <ChevronRight aria-hidden="true" className="w-3 h-3" /> : <ChevronLeft aria-hidden="true" className="w-3 h-3" />}
       </Button>
     </div>
+    </TooltipProvider>
   );
 }
 

@@ -1,4 +1,13 @@
 import api from './api';
+import type { Mention } from './coordination-types';
+
+// The backend only needs the id+kind pair to resolve a mention; strip the
+// display name (which is already part of the body text) so the payload stays
+// minimal and can't drift between what the user sees and what we notify.
+function serializeMentions(mentions?: Mention[]): Array<{ id: string; kind: 'internal' | 'partner' }> | undefined {
+  if (!mentions || mentions.length === 0) return undefined;
+  return mentions.map(m => ({ id: m.id, kind: m.kind }));
+}
 
 // ── Projects ─────────────────────────────────────────────────────────
 
@@ -43,22 +52,38 @@ export const projectTasksAPI = {
   uploadAttachment: (projectId: string, taskId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // ``postForm`` is the axios v1 entry point for multipart bodies: it sets
+    // ``Content-Type: multipart/form-data`` so the default transformRequest
+    // passes the FormData through (with ``application/json``, axios silently
+    // JSON-stringifies the FormData and drops the file — FastAPI then 422s
+    // on the missing ``file`` field), and the browser XHR fills in the
+    // boundary at send time.
+    return api.postForm(`/projects/${projectId}/tasks/${taskId}/attachments`, formData);
   },
   deleteAttachment: (projectId: string, taskId: string, attId: string) =>
     api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attId}`),
   downloadAttachmentUrl: (projectId: string, taskId: string, attId: string) =>
     `/api/v1/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download`,
+  previewAttachmentUrl: (projectId: string, taskId: string, attId: string) =>
+    `/api/v1/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download?inline=true`,
   // Comments
   listComments: (projectId: string, taskId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/tasks/${taskId}/comments`, { params }),
-  postComment: (projectId: string, taskId: string, body: string, parentCommentId?: string | null) =>
+  postComment: (
+    projectId: string,
+    taskId: string,
+    body: string,
+    parentCommentId?: string | null,
+    mentions?: Mention[],
+  ) =>
     api.post(`/projects/${projectId}/tasks/${taskId}/comments`, {
       body,
       parent_comment_id: parentCommentId ?? null,
+      mentions: serializeMentions(mentions),
     }),
+  // Members — source for @-mention autocomplete (internal + partner primaries).
+  getMembers: (projectId: string) =>
+    api.get(`/projects/${projectId}/members`),
 };
 
 // ── Partner Organizations ────────────────────────────────────────────
@@ -70,6 +95,8 @@ export const partnerOrgsAPI = {
   update: (id: string, data: Record<string, unknown>) => api.put(`/partner-orgs/${id}`, data),
   delete: (id: string) => api.delete(`/partner-orgs/${id}`),
   getContacts: (id: string) => api.get(`/partner-orgs/${id}/contacts`),
+  getProjects: (id: string, limit: number = 20) =>
+    api.get(`/partner-orgs/${id}/projects`, { params: { limit } }),
   createContact: (id: string, data: Record<string, unknown>) => api.post(`/partner-orgs/${id}/contacts`, data),
   updateContact: (orgId: string, contactId: string, data: Record<string, unknown>) =>
     api.put(`/partner-orgs/${orgId}/contacts/${contactId}`, data),
@@ -87,9 +114,8 @@ export const projectDocsAPI = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('visibility', visibility);
-    return api.post(`/projects/${projectId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // ``postForm`` — see projectTasksAPI.uploadAttachment for the full rationale.
+    return api.postForm(`/projects/${projectId}/documents`, formData);
   },
   updateVisibility: (projectId: string, docId: string, visibility: string) =>
     api.patch(`/projects/${projectId}/documents/${docId}/visibility`, { visibility }),
@@ -97,6 +123,8 @@ export const projectDocsAPI = {
     api.delete(`/projects/${projectId}/documents/${docId}`),
   downloadUrl: (projectId: string, docId: string) =>
     `/api/v1/projects/${projectId}/documents/${docId}/download`,
+  previewUrl: (projectId: string, docId: string) =>
+    `/api/v1/projects/${projectId}/documents/${docId}/download?inline=true`,
 };
 
 // ── Project Messages ─────────────────────────────────────────────────
@@ -104,8 +132,14 @@ export const projectDocsAPI = {
 export const projectMessagesAPI = {
   getAll: (projectId: string, params?: Record<string, unknown>) =>
     api.get(`/projects/${projectId}/messages`, { params }),
-  send: (projectId: string, data: { channel: string; body: string; visibility?: string }) =>
-    api.post(`/projects/${projectId}/messages`, data),
+  send: (
+    projectId: string,
+    data: { channel: string; body: string; visibility?: string; mentions?: Mention[] },
+  ) =>
+    api.post(`/projects/${projectId}/messages`, {
+      ...data,
+      mentions: serializeMentions(data.mentions),
+    }),
   getChannels: (projectId: string) =>
     api.get(`/projects/${projectId}/messages/channels`),
 };
@@ -131,6 +165,8 @@ export const portalAPI = {
   projects: (token: string) => api.get('/portal/projects', portalHeaders(token)),
   projectTasks: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/tasks`, portalHeaders(token)),
+  bulkProjectTasks: (projectIds: string[], token: string) =>
+    api.post('/portal/projects/tasks/bulk', { project_ids: projectIds }, portalHeaders(token)),
   completeTask: (projectId: string, taskId: string, token: string) =>
     api.patch(`/portal/projects/${projectId}/tasks/${taskId}/complete`, null, portalHeaders(token)),
   taskDetail: (projectId: string, taskId: string, token: string) =>
@@ -140,14 +176,29 @@ export const portalAPI = {
   uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
+    // ``postForm`` (see projectTasksAPI.uploadAttachment) plus the portal
+    // Bearer token. Don't hand-set Content-Type — postForm already sets
+    // ``multipart/form-data`` and the browser appends the boundary.
+    return api.postForm(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
   taskComments: (projectId: string, taskId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/tasks/${taskId}/comments`, portalHeaders(token)),
-  postTaskComment: (projectId: string, taskId: string, token: string, body: string) =>
-    api.post(`/portal/projects/${projectId}/tasks/${taskId}/comments`, { body }, portalHeaders(token)),
+  postTaskComment: (
+    projectId: string,
+    taskId: string,
+    token: string,
+    body: string,
+    mentions?: Mention[],
+  ) =>
+    api.post(
+      `/portal/projects/${projectId}/tasks/${taskId}/comments`,
+      { body, mentions: serializeMentions(mentions) },
+      portalHeaders(token),
+    ),
+  projectMembers: (projectId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/members`, portalHeaders(token)),
   projectDocuments: (projectId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/documents`, portalHeaders(token)),
   downloadDocument: (projectId: string, docId: string, token: string) =>
@@ -155,17 +206,35 @@ export const portalAPI = {
       ...portalHeaders(token),
       responseType: 'blob',
     }),
+  // Same endpoint but with ``inline=true`` so the server returns
+  // ``Content-Disposition: inline``. The portal fetches as a blob (bearer
+  // token can't be passed by an <iframe>), so the caller turns the result
+  // into an object URL and feeds that to the preview dialog.
+  previewDocument: (projectId: string, docId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/documents/${docId}/download`, {
+      ...portalHeaders(token),
+      params: { inline: true },
+      responseType: 'blob',
+    }),
   uploadDocument: (projectId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/portal/projects/${projectId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
+    return api.postForm(`/portal/projects/${projectId}/documents`, formData, {
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
   projectMessages: (projectId: string, token: string, params?: Record<string, unknown>) =>
     api.get(`/portal/projects/${projectId}/messages`, { ...portalHeaders(token), params }),
-  sendMessage: (projectId: string, token: string, data: { channel: string; body: string }) =>
-    api.post(`/portal/projects/${projectId}/messages`, data, portalHeaders(token)),
+  sendMessage: (
+    projectId: string,
+    token: string,
+    data: { channel: string; body: string; mentions?: Mention[] },
+  ) =>
+    api.post(
+      `/portal/projects/${projectId}/messages`,
+      { ...data, mentions: serializeMentions(data.mentions) },
+      portalHeaders(token),
+    ),
   orgDocuments: (token: string) => api.get('/portal/org-documents', portalHeaders(token)),
 
   // Notification preferences — same response shape as the internal endpoint,

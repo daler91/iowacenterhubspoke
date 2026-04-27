@@ -34,6 +34,7 @@ from services.notification_prefs import (
 from services.notifications import (
     count_unread,
     dismiss as dismiss_notification,
+    dismiss_all as dismiss_all_notifications,
     list_inbox,
     mark_all_read,
     mark_read,
@@ -159,6 +160,15 @@ async def post_dismiss(notification_id: str, user: CurrentUser):
 @router.post("/notifications/inbox/mark-all-read", summary="Mark every notification read")
 async def post_mark_all_read(user: CurrentUser):
     modified = await mark_all_read("internal", user["user_id"])
+    return {"modified": modified}
+
+
+@router.post("/notifications/inbox/dismiss-all", summary="Dismiss every notification")
+async def post_dismiss_all(user: CurrentUser):
+    """Bulk dismiss every undismissed inbox row for the caller in a single
+    update. Replaces the per-row DELETE fan-out the panel previously did.
+    """
+    modified = await dismiss_all_notifications("internal", user["user_id"])
     return {"modified": modified}
 
 

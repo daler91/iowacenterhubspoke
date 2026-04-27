@@ -1,6 +1,9 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
-import { format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths, isValid } from 'date-fns';
+import {
+  format, parseISO, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, isValid,
+} from 'date-fns';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import { MapPin, Users, BookOpen } from 'lucide-react';
@@ -10,7 +13,6 @@ import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
 import { PageHeader } from './ui/page-header';
-import RelocateConflictDialog from './RelocateConflictDialog';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import MobileCalendar from './MobileCalendar';
@@ -18,10 +20,20 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 import CalendarMonth from './CalendarMonth';
 import ErrorBoundary from './ErrorBoundary';
 import BulkActionBar from './BulkActionBar';
-import ExportCsvDialog from './ExportCsvDialog';
-import ImportCsvDialog from './ImportCsvDialog';
 import useSelectionMode from '../hooks/useSelectionMode';
 import type { CalendarOutletContext, Schedule } from '../lib/types';
+
+const RelocateConflictDialog = lazy(() => import('./RelocateConflictDialog'));
+const ExportCsvDialog = lazy(() => import('./ExportCsvDialog'));
+const ImportCsvDialog = lazy(() => import('./ImportCsvDialog'));
+
+// Inclusive [start, end] of the currently-visible range for each view.
+// Extracted so the widen-window effect below doesn't nest ternaries.
+function viewBoundsFor(view: string, anchor: Date): [Date, Date] {
+  if (view === 'month') return [startOfWeek(startOfMonth(anchor)), endOfWeek(endOfMonth(anchor))];
+  if (view === 'week') return [startOfWeek(anchor), endOfWeek(anchor)];
+  return [anchor, anchor];
+}
 
 export default function CalendarView() {
   const isMobile = useIsMobile();
@@ -36,6 +48,8 @@ export default function CalendarView() {
     onEditSchedule,
     onStatClick,
     fetchErrors,
+    scheduleWindow,
+    setScheduleWindow,
   } = useOutletContext<CalendarOutletContext>();
 
   const stats = rawStats ?? {};
@@ -77,6 +91,50 @@ export default function CalendarView() {
   useEffect(() => {
     clearSelection();
   }, [calendarView, dateStr, clearSelection]);
+
+  // `currentDate` is re-parsed from search params every render, so use a
+  // stable ISO string when building effect deps to avoid re-running on
+  // every render.
+  const currentDateIso = format(currentDate, 'yyyy-MM-dd');
+
+  // Widen the schedule fetch window when the user navigates to a date
+  // that falls outside the currently-fetched range. DashboardPage seeds
+  // the window to ±60 days around today on Calendar mount; this effect
+  // extends the range to at least cover the visible view. Shrinking is
+  // deliberately avoided — SWR cache entries for narrower ranges stay
+  // warm, and widening-only keeps nav snappy.
+  const currentFrom = scheduleWindow?.dateFrom;
+  const currentTo = scheduleWindow?.dateTo;
+  useEffect(() => {
+    if (!setScheduleWindow) return;
+    const anchor = parseISO(currentDateIso);
+    const [viewStart, viewEnd] = viewBoundsFor(calendarView, anchor);
+    // Pad by two weeks so nearby nav clicks hit cache.
+    const paddedFrom = format(subDays(viewStart, 14), 'yyyy-MM-dd');
+    const paddedTo = format(addDays(viewEnd, 14), 'yyyy-MM-dd');
+    const nextFrom = !currentFrom || paddedFrom < currentFrom ? paddedFrom : currentFrom;
+    const nextTo = !currentTo || paddedTo > currentTo ? paddedTo : currentTo;
+    if (nextFrom !== currentFrom || nextTo !== currentTo) {
+      setScheduleWindow({ dateFrom: nextFrom, dateTo: nextTo });
+    }
+  }, [calendarView, currentDateIso, currentFrom, currentTo, setScheduleWindow]);
+
+  // Pre-warm the PDF export chunk during an idle slot after the calendar
+  // mounts. html2canvas + jspdf together are ~350KB gzipped; fetching them
+  // on the first Export PDF click otherwise stalls the UI for 300–500ms.
+  // The dynamic imports in exportPDF() below dedupe against this prefetch.
+  useEffect(() => {
+    const prewarm = () => {
+      void import('html2canvas');
+      void import('jspdf');
+    };
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      const id = globalThis.requestIdleCallback(prewarm, { timeout: 5000 });
+      return () => globalThis.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(prewarm, 2000);
+    return () => clearTimeout(id);
+  }, []);
 
   const updateParams = useCallback((newParams: Record<string, string | null>) => {
     setSearchParams(prev => {
@@ -199,49 +257,49 @@ export default function CalendarView() {
           subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
         />
         {(schedules || []).length === 0 && (
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
-            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Get started with scheduling</h3>
-            <p className="text-sm text-slate-500 dark:text-gray-400">Before you can schedule classes, make sure you have the basics set up:</p>
+          <div className="bg-white dark:bg-card border border-border rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
+            <h3 className="text-lg font-semibold text-foreground">Get started with scheduling</h3>
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">Before you can schedule classes, make sure you have the basics set up:</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Link to="/locations" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (locations || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <MapPin className={cn('w-5 h-5 shrink-0', (locations || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Locations</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
+                  <p className="text-sm font-medium text-foreground">Locations</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(locations || []).length > 0 ? `${locations.length} added` : 'Add your hub & spoke cities'}</p>
                 </div>
               </Link>
               <Link to="/employees" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (employees || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <Users className={cn('w-5 h-5 shrink-0', (employees || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Employees</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
+                  <p className="text-sm font-medium text-foreground">Employees</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(employees || []).length > 0 ? `${employees.length} added` : 'Add your instructors'}</p>
                 </div>
               </Link>
               <Link to="/classes" className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-colors',
                 (classes || []).length > 0
                   ? 'border-spoke/30 bg-spoke-soft dark:border-spoke/30'
-                  : 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                  : 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft hover:bg-warn-soft dark:hover:bg-warn-soft/40'
               )}>
-                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke' : 'text-warn')} />
+                <BookOpen className={cn('w-5 h-5 shrink-0', (classes || []).length > 0 ? 'text-spoke-strong' : 'text-warn-strong')} />
                 <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Classes</p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
+                  <p className="text-sm font-medium text-foreground">Classes</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">{(classes || []).length > 0 ? `${classes.length} added` : 'Define your class types'}</p>
                 </div>
               </Link>
             </div>
             {(locations || []).length > 0 && (employees || []).length > 0 && (classes || []).length > 0 && (
-              <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+              <p className="text-sm text-hub-strong font-medium">
                 All set! Click "New Schedule" in the sidebar to create your first class assignment.
               </p>
             )}
@@ -249,8 +307,38 @@ export default function CalendarView() {
         )}
         {(schedules || []).length > 0 && filteredSchedules.length > 0 && (
           <p className="text-xs text-muted-foreground" data-testid="schedule-count">
-            {filteredSchedules.length} schedules loaded — showing {calendarView} view
+            {filteredSchedules.length} of {rawStats?.total_schedules ?? (schedules || []).length} schedules in view — showing {calendarView} view
           </p>
+        )}
+        {(schedules || []).length > 0 && filteredSchedules.length === 0 && (
+          <output
+            data-testid="calendar-filtered-empty"
+            className="bg-white dark:bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-4 w-full"
+          >
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">
+              No schedules match the current filters.
+            </p>
+            {(filterEmployee !== 'all' || filterLocation !== 'all' || filterClass !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Only drop the filter params — `view` and `date` drive
+                  // the visible calendar position, keep them intact.
+                  setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('employee');
+                    next.delete('location');
+                    next.delete('class');
+                    return next;
+                  });
+                }}
+                className="text-sm font-medium text-hub hover:text-hub-strong"
+                data-testid="calendar-clear-filters"
+              >
+                Clear filters
+              </button>
+            )}
+          </output>
         )}
       </div>
 
@@ -286,8 +374,8 @@ export default function CalendarView() {
 
       {fetchErrors?.schedules && (
         <div className="bg-danger-soft border border-danger/30 rounded-lg p-3 flex items-center justify-between" data-testid="schedule-fetch-error" role="alert">
-          <p className="text-sm text-danger">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
-          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger hover:underline">Retry</button>
+          <p className="text-sm text-danger-strong">Failed to load schedules: {fetchErrors.schedules}. Data may be outdated.</p>
+          <button type="button" onClick={() => fetchSchedules()} className="text-sm font-medium text-danger-strong hover:underline">Retry</button>
         </div>
       )}
 
@@ -341,16 +429,16 @@ export default function CalendarView() {
 
       <div className="flex items-center gap-4 px-2">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-indigo-600" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Class Time</span>
+          <div className="w-4 h-4 rounded bg-hub" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Class Time</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-gray-200 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Drive Time</span>
+          <div className="w-4 h-4 rounded bg-muted border border-dashed border-border" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Drive Time</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300" />
-          <span className="text-xs text-slate-500 dark:text-gray-400">Town-to-Town Warning</span>
+          <div className="w-4 h-4 rounded bg-warn-soft border border-warn-soft" />
+          <span className="text-xs text-foreground/80 dark:text-muted-foreground">Town-to-Town Warning</span>
         </div>
       </div>
 
@@ -367,34 +455,40 @@ export default function CalendarView() {
       )}
 
       {exportOpen && (
-        <ExportCsvDialog
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          currentFilters={{
-            start_date: format(currentDate, 'yyyy-MM-dd'),
-            end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
-            location_id: searchParams.get('location') || undefined,
-            employee_id: searchParams.get('employee') || undefined,
-          }}
-        />
+        <Suspense fallback={null}>
+          <ExportCsvDialog
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            currentFilters={{
+              start_date: format(currentDate, 'yyyy-MM-dd'),
+              end_date: format(addDays(currentDate, exportDaysOffset), 'yyyy-MM-dd'),
+              location_id: searchParams.get('location') || undefined,
+              employee_id: searchParams.get('employee') || undefined,
+            }}
+          />
+        </Suspense>
       )}
 
       {importOpen && (
-        <ImportCsvDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          onImportSuccess={() => {
-            fetchSchedules();
-            fetchActivities?.();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ImportCsvDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            onImportSuccess={() => {
+              fetchSchedules();
+              fetchActivities?.();
+            }}
+          />
+        </Suspense>
       )}
 
-      <RelocateConflictDialog
-        data={relocateConflictData}
-        onClose={() => setRelocateConflictData(null)}
-        onForce={handleForceRelocate}
-      />
+      <Suspense fallback={null}>
+        <RelocateConflictDialog
+          data={relocateConflictData}
+          onClose={() => setRelocateConflictData(null)}
+          onForce={handleForceRelocate}
+        />
+      </Suspense>
     </div>
   );
 }

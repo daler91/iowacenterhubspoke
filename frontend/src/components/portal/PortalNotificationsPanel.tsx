@@ -37,8 +37,8 @@ function asString(value: unknown): string {
 }
 
 const SEVERITY_CONFIG = {
-  warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
-  info: { icon: CalendarDays, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+  warning: { icon: AlertTriangle, color: 'text-warn-strong', bg: 'bg-warn-soft' },
+  info: { icon: CalendarDays, color: 'text-hub', bg: 'bg-hub-soft' },
 };
 
 interface Props {
@@ -77,7 +77,20 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
       }
     };
     fetchOnce();
-    const interval = setInterval(fetchOnce, 30000);
+    // Jitter the polling interval (±5s) so concurrent partner sessions
+    // don't synchronise into a thundering herd against the inbox endpoint.
+    // Skip the API call entirely when the tab is hidden — the visibility
+    // listener catches up when the user returns. crypto.getRandomValues
+    // (vs Math.random) sidesteps the Sonar PRNG hotspot and is universally
+    // supported in browsers we target.
+    const jitterBuf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(jitterBuf);
+    // Divide by 2**32 (max Uint32 + 1) to map the random word into [0, 1).
+    const pollMs = 25000 + Math.floor((jitterBuf[0] / 4294967296) * 10000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchOnce();
+    }, pollMs);
     const onVisibility = () => { if (!document.hidden) fetchOnce(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -134,15 +147,15 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
         aria-label={bellLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-500 dark:text-gray-400" aria-hidden="true" />
+        <Bell className="w-5 h-5 text-foreground/80 dark:text-muted-foreground" aria-hidden="true" />
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
             className={cn(
               'absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1',
-              warningCount > 0 ? 'bg-amber-500' : 'bg-indigo-600',
+              warningCount > 0 ? 'bg-warn' : 'bg-hub',
             )}
           >
             {unreadCount}
@@ -152,15 +165,15 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
 
       {open && (
         <div
-          className="absolute right-0 top-12 w-[360px] max-w-[90vw] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50"
+          className="absolute right-0 top-12 w-[360px] max-w-[90vw] bg-white dark:bg-card rounded-lg shadow-xl border border-border z-50"
         >
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
+          <div className="p-4 border-b border-border flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-100">
+              <h3 className="text-sm font-semibold text-foreground">
                 Notifications
               </h3>
               {warningCount > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px]">
+                <Badge className="bg-warn-soft text-warn-strong border-0 text-[10px]">
                   {warningCount} alerts
                 </Badge>
               )}
@@ -177,7 +190,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                     await Promise.all(unread.map(i => portalAPI.markInboxRead(token, i.id)));
                   } catch { /* reconcile on poll */ }
                 }}
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 shrink-0"
+                className="text-xs text-hub hover:text-hub-strong font-medium flex items-center gap-1 shrink-0"
                 aria-label="Mark all as read"
               >
                 <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />
@@ -189,11 +202,11 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
           <ScrollArea className="max-h-[400px]">
             {items.length === 0 ? (
               <div className="p-8 text-center">
-                <Bell className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
+                <Bell className="w-8 h-8 text-muted-foreground dark:text-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">All caught up!</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 dark:divide-gray-800">
+              <div className="divide-y divide-border">
                 {items.map(n => {
                   const config = SEVERITY_CONFIG[n.severity] || SEVERITY_CONFIG.info;
                   const Icon = config.icon;
@@ -204,7 +217,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                       {hasLink ? (
                         <button
                           type="button"
-                          className="flex-1 p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 appearance-none bg-transparent border-0 text-left"
+                          className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 appearance-none bg-transparent border-0 text-left"
                           onClick={() => handleClickItem(n)}
                         >
                           <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', config.bg)}>
@@ -215,14 +228,14 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                               {isUnread && (
                                 <span
                                   aria-label="Unread"
-                                  className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"
+                                  className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
                                 />
                               )}
-                              <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">
+                              <p className="text-sm font-medium text-foreground truncate">
                                 {n.title}
                               </p>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                            <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
                               {n.body}
                             </p>
                           </div>
@@ -237,14 +250,14 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                               {isUnread && (
                                 <span
                                   aria-label="Unread"
-                                  className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"
+                                  className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
                                 />
                               )}
-                              <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">
+                              <p className="text-sm font-medium text-foreground truncate">
                                 {n.title}
                               </p>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                            <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
                               {n.body}
                             </p>
                           </div>
@@ -253,7 +266,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDismiss(n.id); }}
-                        className="text-muted-foreground hover:text-slate-500 shrink-0 p-4 pl-0"
+                        className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -266,11 +279,11 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
           </ScrollArea>
 
           {onOpenSettings && (
-            <div className="p-2 border-t border-gray-100 dark:border-gray-800">
+            <div className="p-2 border-t border-border">
               <button
                 type="button"
                 onClick={() => { onOpenSettings(); setOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/80 dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted rounded-md transition-colors"
               >
                 Notification settings
               </button>

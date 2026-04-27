@@ -67,8 +67,8 @@ function DriveTimePill({ leg, onOverrideChange }) {
             "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors cursor-pointer",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1",
             leg.is_overridden
-              ? "bg-info-soft text-info border-info/30 hover:bg-info-soft/70"
-              : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:bg-slate-200 dark:hover:bg-gray-700"
+              ? "bg-info-soft text-info-strong border-info/30 hover:bg-info-soft/70"
+              : "bg-muted text-foreground/80 dark:text-muted-foreground border-border hover:bg-muted"
           )}
         >
           {leg.minutes} min
@@ -85,7 +85,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
         }}
       >
         <div className="space-y-1.5">
-          <label htmlFor="override-drive-time" className="text-xs font-medium text-slate-700 dark:text-gray-200">
+          <label htmlFor="override-drive-time" className="text-xs font-medium text-foreground">
             Override drive time
           </label>
           <Input
@@ -116,7 +116,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
               variant="ghost"
               size="sm"
               onClick={handleReset}
-              className="text-slate-500 dark:text-gray-400"
+              className="text-foreground/80 dark:text-muted-foreground"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
               Reset
@@ -135,14 +135,14 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
   const { legs, total_drive_minutes } = travelChain;
 
   return (
-    <div className="p-3 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg space-y-3">
+    <div className="p-3 bg-muted/50 dark:bg-muted border border-border rounded-lg space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-slate-600 dark:text-gray-300" />
-          <span className="text-xs font-semibold text-slate-700 dark:text-gray-200">Day Travel Plan</span>
+          <Car className="w-4 h-4 text-foreground/80 dark:text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground">Day Travel Plan</span>
         </div>
-        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-slate-200 dark:bg-gray-700 text-slate-700 dark:text-gray-200">
+        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-muted text-foreground">
           {formatDuration(total_drive_minutes)} total drive
         </Badge>
       </div>
@@ -161,12 +161,12 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 {/* Vertical line + node */}
                 <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                   {isHub && (
-                    <div className="w-3 h-3 rounded-full bg-indigo-500 border-2 border-indigo-300 z-10 shrink-0" />
+                    <div className="w-3 h-3 rounded-full bg-hub-strong border-2 border-hub-soft z-10 shrink-0" />
                   )}
                   {!isLast && (
                     <div className={cn(
                       "w-0 border-l-2 border-dashed flex-1",
-                      isSameCity ? "border-slate-200 min-h-[16px]" : "border-slate-300 min-h-[28px]"
+                      isSameCity ? "border-border min-h-[16px]" : "border-border min-h-[28px]"
                     )} />
                   )}
                 </div>
@@ -175,7 +175,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 <div className={cn("pb-1 flex items-center gap-2 flex-wrap", isHub ? "pt-0" : "pt-1")}>
                   {isHub && (
                     <>
-                      <span className="text-[11px] font-medium text-indigo-600">
+                      <span className="text-[11px] font-medium text-hub">
                         {isFirst ? leg.from_label : leg.to_label}
                         {isFirst && leg.start_time && (
                           <span className="text-[10px] text-muted-foreground font-normal ml-1">
@@ -215,27 +215,27 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
                 <div className={cn(
                   "w-3 h-3 rounded-full border-2 z-10 shrink-0",
                   leg.is_current
-                    ? "bg-teal-500 border-teal-300"
-                    : "bg-slate-400 border-slate-300"
+                    ? "bg-spoke border-spoke-soft"
+                    : "bg-muted-foreground border-border"
                 )} />
                 {i < legs.length - 1 && (
-                  <div className="w-0 border-l-2 border-dashed border-slate-300 flex-1 min-h-[8px]" />
+                  <div className="w-0 border-l-2 border-dashed border-border flex-1 min-h-[8px]" />
                 )}
               </div>
 
               <div className={cn(
                 "pb-2 -mt-0.5 rounded px-2 py-1",
-                leg.is_current && "bg-teal-50 border border-teal-200"
+                leg.is_current && "bg-spoke-soft border border-spoke-soft"
               )}>
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-xs font-medium",
-                    leg.is_current ? "text-teal-700" : "text-slate-700 dark:text-gray-200"
+                    leg.is_current ? "text-spoke-strong" : "text-foreground"
                   )}>
                     {leg.location_name}
                   </span>
                   {leg.is_current && (
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-100 text-teal-600">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-spoke-soft text-spoke-strong">
                       current
                     </Badge>
                   )}

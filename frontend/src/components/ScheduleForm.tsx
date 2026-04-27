@@ -1,6 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Trash2, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -21,6 +31,12 @@ const STEPS = [
   { label: 'Recurrence' },
 ];
 
+function useEntityMaps(locations: { id: string }[] | undefined, classes: { id: string }[] | undefined) {
+  const locationMap = useMemo(() => new Map((locations || []).map(l => [l.id, l])), [locations]);
+  const classMap = useMemo(() => new Map((classes || []).map(c => [c.id, c])), [classes]);
+  return { locationMap, classMap };
+}
+
 function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverride: boolean, editSchedule: unknown, employeeCount: number): string {
   if (loading) return 'Saving...';
   if (outlookOverride || googleOverride) return 'Schedule Anyway';
@@ -31,8 +47,8 @@ function getSubmitLabel(loading: boolean, outlookOverride: boolean, googleOverri
 
 function stepStyle(i: number, current: number): string {
   if (i === current) return 'bg-hub-soft text-hub-strong';
-  if (i < current) return 'bg-spoke-soft text-spoke';
-  return 'bg-gray-100 dark:bg-gray-800 text-muted-foreground';
+  if (i < current) return 'bg-spoke-soft text-spoke-strong';
+  return 'bg-muted text-muted-foreground';
 }
 
 function WizardSteps({ step, onStep }: Readonly<{ step: number; onStep: (i: number) => void }>) {
@@ -84,37 +100,47 @@ function firstInvalidFieldId(
   return null;
 }
 
-function WizardNextButton({ step, form, onNext, onInvalid }: Readonly<{
+function stepInvalidHint(step: number): string {
+  if (step === 0) return 'Select at least one employee to continue';
+  if (step === 1) return 'Fill location, date, and time to continue';
+  return '';
+}
+
+const WIZARD_NEXT_HINT_ID = 'wizard-next-invalid-hint';
+
+function WizardNextButton({ step, form, onNext }: Readonly<{
   step: number;
   form: { employee_ids: string[]; location_id: string; date: string; start_time: string; end_time: string };
   onNext: () => void;
-  onInvalid: (fieldId: string) => void;
 }>) {
-  const handleClick = () => {
-    const invalidId = firstInvalidFieldId(step, form);
-    if (invalidId) {
-      if (step === 0) toast.error('Select at least one employee');
-      else toast.error('Fill in location, date, and time');
-      onInvalid(invalidId);
-      // Move focus after the error toast mounts so the announcement order
-      // is "error toast, then focus" rather than the reverse.
-      setTimeout(() => {
-        document.getElementById(invalidId)?.focus();
-      }, 0);
-      return;
-    }
-    onNext();
-  };
-
+  // The Next button is disabled until the current step is complete, so
+  // users get immediate inline feedback instead of a fire-and-forget
+  // toast. The accompanying hint tells them which fields are missing
+  // and links to the button via aria-describedby for screen readers.
+  const invalidId = firstInvalidFieldId(step, form);
+  const disabled = invalidId !== null;
   return (
-    <Button
-      type="button"
-      data-testid="wizard-next-btn"
-      onClick={handleClick}
-      className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
-    >
-      Next <ChevronRight className="w-4 h-4 ml-1" />
-    </Button>
+    <div className="flex-1 flex flex-col items-stretch gap-1">
+      <Button
+        type="button"
+        data-testid="wizard-next-btn"
+        onClick={onNext}
+        disabled={disabled}
+        aria-describedby={disabled ? WIZARD_NEXT_HINT_ID : undefined}
+        className="bg-hub hover:bg-hub-strong text-white"
+      >
+        Next <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
+      </Button>
+      {disabled && (
+        <p
+          id={WIZARD_NEXT_HINT_ID}
+          data-testid="wizard-next-hint"
+          className="text-xs text-muted-foreground"
+        >
+          {stepInvalidHint(step)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -127,13 +153,13 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const [showSeriesDeleteConfirm, setShowSeriesDeleteConfirm] = useState(false);
   const hasSeries = !!editSchedule?.series_id;
   const [step, setStep] = useState(0);
-  const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null);
   const [seriesDeleteSubmitting, setSeriesDeleteSubmitting] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const isWizard = !editSchedule;
   const totalSteps = isWizard ? STEPS.length : 1;
 
   // Reset step when dialog opens/closes
-  useEffect(() => { if (open) { setStep(0); setInvalidFieldId(null); } }, [open]);
+  useEffect(() => { if (open) { setStep(0); setDiscardConfirmOpen(false); } }, [open]);
 
   const {
     form, setForm,
@@ -141,13 +167,18 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
     quickClassOpen, setQuickClassOpen,
     customRecurrenceOpen, setCustomRecurrenceOpen,
     customRecurrence, setCustomRecurrence,
-    previewConflicts, travelChain, outlookOverride, googleOverride,
+    previewConflicts, conflictPreviewError, retryConflictPreview,
+    travelChain, outlookOverride, googleOverride,
     handleSubmit, handleDelete,
     handleDateChange, handleRecurrenceChange, handleOverrideChange
   } = useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onProjectPrompt: () => navigate('/coordination/board?create=true') });
 
-  const selectedLocation = locations?.find(l => l.id === form.location_id);
-  const selectedClass = classes?.find(c => c.id === form.class_id);
+  // Map lookups so per-keystroke reads of the selected location/class are
+  // O(1) — the .find() variant scaled with the size of the option lists.
+  // `Map.get(undefined)` returns undefined, so no extra null guard needed.
+  const { locationMap, classMap } = useEntityMaps(locations, classes);
+  const selectedLocation = locationMap.get(form.location_id);
+  const selectedClass = classMap.get(form.class_id);
 
   const handleQuickClassCreated = (classDoc) => {
     onClassCreated?.(classDoc);
@@ -157,10 +188,54 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
   const submitLabel = getSubmitLabel(loading, outlookOverride, googleOverride, editSchedule, form.employee_ids?.length || 0);
   const showStep = (s: number) => !isWizard || step === s;
   const showSubmit = !isWizard || step >= totalSteps - 1;
+  // Derived from the current form state — no longer driven by "user
+  // attempted Next with missing data". Selectors use this to toggle
+  // `aria-invalid` so the empty required field is announced and
+  // visually flagged as the user works.
+  const invalidFieldId = firstInvalidFieldId(step, form);
+
+  // Detecting "dirty" by enumerating specific fields misses edits to
+  // date/time/notes/recurrence — users can jump straight to step 2 via
+  // the tab strip and change those without touching employee/location/
+  // class. Instead snapshot the form JSON shortly after open (one tick,
+  // so useScheduleForm's own "reset on open" effect has seeded its
+  // defaults) and compare the current form against that baseline on
+  // close.
+  const [initialFormJson, setInitialFormJson] = useState<string | null>(null);
+  // Keep the latest `form` reachable from the snapshot-on-open effect
+  // without widening its dep array (we snapshot exactly once per open).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+  useEffect(() => {
+    if (!open) {
+      setInitialFormJson(null);
+      return;
+    }
+    const id = globalThis.setTimeout(
+      () => setInitialFormJson(JSON.stringify(formRef.current)),
+      0,
+    );
+    return () => globalThis.clearTimeout(id);
+  }, [open]);
+
+  const isFormDirty = (): boolean =>
+    isWizard
+    && initialFormJson !== null
+    && JSON.stringify(form) !== initialFormJson;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isFormDirty()) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] bg-white dark:bg-gray-900 overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[520px] bg-white dark:bg-card overflow-y-auto max-h-[90vh]" data-testid="schedule-form-dialog">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
             {editSchedule ? 'Edit Schedule' : 'Schedule a Class'}
@@ -174,7 +249,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           {isWizard && <WizardSteps step={step} onStep={setStep} />}
 
           {editSchedule && hasSeries && (
-            <fieldset className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+            <fieldset className="flex items-center gap-4 p-3 bg-muted/50 dark:bg-card rounded-lg border">
               <legend className="sr-only">Series edit scope</legend>
               <Repeat className="w-4 h-4 text-hub shrink-0" aria-hidden="true" />
               <div className="flex gap-4 text-sm">
@@ -225,6 +300,8 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 selectedLocation={selectedLocation}
                 onDateChange={handleDateChange}
                 previewConflicts={previewConflicts}
+                conflictPreviewError={conflictPreviewError}
+                onRetryConflictPreview={retryConflictPreview}
                 travelChain={travelChain}
                 onOverrideChange={handleOverrideChange}
                 invalidFieldId={invalidFieldId}
@@ -257,7 +334,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 data-testid="schedule-delete-btn"
                 onClick={() => hasSeries && seriesAction === 'future' ? setShowSeriesDeleteConfirm(true) : handleDelete()}
                 disabled={loading}
-                className="text-danger border-danger/30 hover:bg-danger-soft"
+                className="text-danger-strong border-danger/30 hover:bg-danger-soft"
               >
                 <Trash2 className="w-4 h-4 mr-1" aria-hidden="true" />
                 {hasSeries && seriesAction === 'future' ? 'Delete Series' : 'Delete'}
@@ -275,7 +352,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
                 disabled={loading}
                 className={cn(
                   'text-white flex-1',
-                  outlookOverride || googleOverride ? 'bg-warn hover:bg-warn/90' : 'bg-indigo-600 hover:bg-indigo-700',
+                  outlookOverride || googleOverride ? 'bg-warn hover:bg-warn/90' : 'bg-hub hover:bg-hub-strong',
                 )}
               >
                 {submitLabel}
@@ -284,8 +361,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
               <WizardNextButton
                 step={step}
                 form={form}
-                onNext={() => { setInvalidFieldId(null); setStep(step + 1); }}
-                onInvalid={setInvalidFieldId}
+                onNext={() => setStep(step + 1)}
               />
             )}
           </DialogFooter>
@@ -311,7 +387,7 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           <DialogHeader>
             <DialogTitle>Delete All Future Schedules?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600 dark:text-muted-foreground">
+          <p className="text-sm text-foreground/80 dark:text-muted-foreground">
             This will delete all future schedules in this recurring series. Past schedules will be preserved.
           </p>
           <DialogFooter className="gap-2">
@@ -346,6 +422,31 @@ export default function ScheduleForm({ open, onOpenChange, locations, employees,
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this schedule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've started filling out a new schedule. Closing the dialog will discard your entries.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="schedule-keep-editing">Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="schedule-discard-confirm"
+              className="bg-danger hover:bg-danger"
+              onClick={(e) => {
+                e.preventDefault();
+                setDiscardConfirmOpen(false);
+                onOpenChange(false);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

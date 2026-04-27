@@ -29,6 +29,7 @@ from core.constants import (
     STATUS_COMPLETED,
 )
 from services.schedule_utils import check_conflicts
+from services.workload_cache import invalidate as invalidate_workload_cache
 from routers.schedule_helpers import (
     logger,
     _build_employees_snapshot,
@@ -70,6 +71,7 @@ async def bulk_delete_schedules(
         )
         for s in affected:
             await notify_schedule_changed(s, "cancelled", user)
+        await invalidate_workload_cache()
     return {"deleted_count": deleted_count}
 
 
@@ -118,6 +120,7 @@ async def bulk_update_status(
         )
         for s in affected:
             await notify_schedule_bulk_status_changed(s, data.status, user)
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
@@ -254,36 +257,43 @@ async def bulk_reassign_schedules(
             await notify_schedule_assigned(
                 {**s, "employee_ids": employee_ids}, new_for_this, user,
             )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
 async def _preflight_location_conflicts(
     schedules: list[dict], new_drive_time: int,
 ) -> list[dict]:
-    """Check every schedule's primary employee for conflicts at the new
-    location's drive time. Returns a list of conflict preview dicts
-    (empty when there are none). Extracted from ``bulk_update_location``
-    to keep the parent function's cognitive complexity below Sonar's 15
-    threshold (the nested loops + if-branch account for ~6 of those
-    points on their own).
+    """Check each schedule assignee for conflicts at the new location's
+    drive time.
+
+    Returns a list of conflict preview dicts (empty when there are none).
+    Response shape remains backward compatible (``schedule_id``, ``date``,
+    ``conflicts``), and when a schedule has multiple assignees an
+    ``employee_id`` is included so clients can attribute which assignee
+    produced the preflight hit.
+
+    Extracted from ``bulk_update_location`` to keep the parent function's
+    cognitive complexity below Sonar's 15 threshold.
     """
     preview: list[dict] = []
     for sched in schedules:
-        # Only the primary employee is checked — matches the pre-refactor
-        # behaviour (slicing ``[:1]``) and keeps the N²-ish preflight
-        # cheap. Non-primary conflicts surface at save time via the
-        # persisted per-employee town-to-town field.
-        for emp_id in sched.get("employee_ids", [])[:1]:
+        employee_ids = sched.get("employee_ids", [])
+        include_employee_id = len(employee_ids) > 1
+        for emp_id in employee_ids:
             conflicts = await check_conflicts(
                 emp_id, sched["date"], sched["start_time"], sched["end_time"],
                 new_drive_time, exclude_id=sched["id"],
             )
             if conflicts:
-                preview.append({
+                conflict_item = {
                     "schedule_id": sched["id"],
                     "date": sched["date"],
                     "conflicts": conflicts,
-                })
+                }
+                if include_employee_id:
+                    conflict_item["employee_id"] = emp_id
+                preview.append(conflict_item)
     return preview
 
 
@@ -380,6 +390,7 @@ async def bulk_update_location(
         await _notify_location_changes(
             schedules, data.location_id, location["city_name"], user,
         )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}
 
 
@@ -428,4 +439,5 @@ async def bulk_update_class(
             entity_id=str(uuid.uuid4()),
             user_name=user.get("name", "System"),
         )
+        await invalidate_workload_cache()
     return {"updated_count": updated_count}

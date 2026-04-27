@@ -36,7 +36,7 @@ export const PHASE_COLORS: Record<string, string> = {
   promotion: 'bg-warn',
   delivery: 'bg-spoke',
   follow_up: 'bg-ownership-partner',
-  complete: 'bg-slate-400',
+  complete: 'bg-muted-foreground',
 };
 
 export const PHASE_DOT_COLORS: Record<string, string> = {
@@ -44,7 +44,7 @@ export const PHASE_DOT_COLORS: Record<string, string> = {
   promotion: 'bg-warn',
   delivery: 'bg-spoke',
   follow_up: 'bg-ownership-partner',
-  complete: 'bg-slate-300',
+  complete: 'bg-muted-foreground',
 };
 
 export const EVENT_FORMAT_LABELS: Record<string, string> = {
@@ -55,9 +55,9 @@ export const EVENT_FORMAT_LABELS: Record<string, string> = {
 };
 
 export const OWNER_COLORS: Record<string, string> = {
-  internal: 'bg-ownership-internal-soft text-ownership-internal',
-  partner: 'bg-ownership-partner-soft text-ownership-partner',
-  both: 'bg-warn-soft text-warn',
+  internal: 'bg-ownership-internal-soft text-ownership-internal-strong',
+  partner: 'bg-ownership-partner-soft text-ownership-partner-strong',
+  both: 'bg-warn-soft text-warn-strong',
 };
 
 export const OWNER_LABELS: Record<string, string> = {
@@ -67,10 +67,10 @@ export const OWNER_LABELS: Record<string, string> = {
 };
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
-  prospect: 'bg-slate-100 text-slate-600',
-  onboarding: 'bg-warn-soft text-warn',
-  active: 'bg-spoke-soft text-spoke',
-  inactive: 'bg-danger-soft text-danger',
+  prospect: 'bg-muted text-foreground/80',
+  onboarding: 'bg-warn-soft text-warn-strong',
+  active: 'bg-spoke-soft text-spoke-strong',
+  inactive: 'bg-danger-soft text-danger-strong',
 };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
@@ -81,14 +81,14 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
-  to_do: 'bg-slate-400',
+  to_do: 'bg-muted-foreground',
   in_progress: 'bg-info',
   completed: 'bg-spoke',
   on_hold: 'bg-warn',
 };
 
 export const TASK_STATUS_RING_COLORS: Record<string, string> = {
-  to_do: 'ring-slate-400',
+  to_do: 'ring-muted-foreground',
   in_progress: 'ring-info',
   completed: 'ring-spoke',
   on_hold: 'ring-warn',
@@ -165,6 +165,19 @@ export interface TaskAttachment {
   version: number;
 }
 
+export interface Mention {
+  id: string;
+  kind: 'internal' | 'partner';
+  name: string;
+}
+
+export interface ProjectMember {
+  id: string;
+  name: string;
+  kind: 'internal' | 'partner';
+  email?: string | null;
+}
+
 export interface TaskComment {
   id: string;
   task_id: string;
@@ -174,6 +187,7 @@ export interface TaskComment {
   sender_id: string;
   body: string;
   parent_comment_id?: string | null;
+  mentions?: Mention[];
   created_at: string;
 }
 
@@ -197,8 +211,9 @@ export interface PartnerOrg {
   notes: string;
   created_at: string;
   updated_at: string;
-  contacts?: PartnerContact[];
-  projects?: Project[];
+  // Contacts and recent projects are fetched via their own endpoints
+  // (see usePartnerContacts / usePartnerProjects) so the main profile
+  // render isn't blocked on the two list queries.
 }
 
 export interface PartnerContact {
@@ -234,6 +249,7 @@ export interface Message {
   sender_id: string;
   body: string;
   visibility?: 'internal' | 'shared';
+  mentions?: Mention[];
   created_at: string;
   read_by: string[];
 }
@@ -301,4 +317,24 @@ export interface DashboardMetrics {
 
 export interface BoardData {
   columns: Record<string, Project[]>;
+  /**
+   * Per-phase flag indicating whether the backend truncated that
+   * column's result set at `phase_limit`. When true, the UI renders a
+   * "showing N" hint so users know to narrow the filter toolbar.
+   * Older backends (pre-pagination) omit this field.
+   */
+  phase_truncated?: Record<string, boolean>;
+  /** The effective per-column cap applied by the backend. */
+  phase_limit?: number;
+  /**
+   * Distinct filter values across the full active-project set, not
+   * just the paged columns. Used to build the filter dropdowns so
+   * they stay complete when a phase is truncated; otherwise a
+   * community that only lives in the clipped tail would be
+   * unreachable. Older backends omit this field and the UI falls
+   * back to deriving communities from the visible columns.
+   */
+  facets?: {
+    communities?: string[];
+  };
 }

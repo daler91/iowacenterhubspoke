@@ -92,7 +92,7 @@ export default function PromotionChecklist({ projectId }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+        <h3 className="font-semibold text-foreground flex items-center gap-2">
           <Megaphone className="w-4 h-4" /> Promotion Checklist
         </h3>
         <Button
@@ -109,7 +109,7 @@ export default function PromotionChecklist({ projectId }: Props) {
           <span>{done}/{total} completed</span>
           <span>{pct}%</span>
         </div>
-        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
           <div
             className="h-full bg-progress rounded-full transition-all"
             style={{ width: `${pct}%` }}
@@ -188,7 +188,7 @@ export default function PromotionChecklist({ projectId }: Props) {
           <Button
             size="sm"
             onClick={handleAdd}
-            className="bg-indigo-600 text-white"
+            className="bg-hub text-white"
           >
             Add
           </Button>

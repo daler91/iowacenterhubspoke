@@ -8,6 +8,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timezone
 from fastapi import HTTPException, Depends, Header, Request
+from fastapi.concurrency import run_in_threadpool
 from typing import Annotated, Optional, List
 from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_EDITOR
 
@@ -40,11 +41,24 @@ if not JWT_SECRET:
             " It must be explicitly set in production or any multi-worker deployment"
             " (Railway, UVICORN_WORKERS>1, WEB_CONCURRENCY>1)."
         )
+    # The per-process random fallback is convenient in dev but a footgun
+    # if a developer later switches to multi-worker without realising
+    # JWT_SECRET is unset (tokens issued by worker A 401 on worker B).
+    # Require explicit opt-in so the silent footgun becomes a loud error.
+    if os.environ.get('ALLOW_DEV_JWT_FALLBACK') != '1':
+        raise ValueError(
+            "CRITICAL: JWT_SECRET environment variable is missing."
+            " Set JWT_SECRET in your env, or — only for single-process dev —"
+            " set ALLOW_DEV_JWT_FALLBACK=1 to opt into a per-process random"
+            " secret (tokens won't survive restart and won't validate"
+            " across workers)."
+        )
     JWT_SECRET = secrets.token_urlsafe(32)
     logging.warning(
-        "JWT_SECRET is missing — using a per-process random secret."
-        " This is single-process dev only: tokens will not survive a restart"
-        " and requests balanced to sibling workers will 401."
+        "JWT_SECRET is missing — using a per-process random secret"
+        " (ALLOW_DEV_JWT_FALLBACK=1). Single-process dev only: tokens will"
+        " not survive a restart and requests balanced to sibling workers"
+        " will 401."
     )
 JWT_ALGORITHM = 'HS256'
 
@@ -71,12 +85,24 @@ def validate_csrf_token(token: str) -> bool:
 _BCRYPT_ROUNDS = int(os.environ.get('BCRYPT_ROUNDS', '14'))
 
 
-def hash_password(password: str) -> str:
+def _hash_password_sync(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode('utf-8')
 
 
-def verify_password(password: str, hashed: str) -> bool:
+def _verify_password_sync(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+
+# bcrypt at rounds=14 is ~100ms per call and CPU-bound — running it
+# directly in the async handler stalls the event loop and serialises
+# concurrent logins. Threadpool offload lets other requests progress
+# while the worker spins on bcrypt.
+async def hash_password(password: str) -> str:
+    return await run_in_threadpool(_hash_password_sync, password)
+
+
+async def verify_password(password: str, hashed: str) -> bool:
+    return await run_in_threadpool(_verify_password_sync, password, hashed)
 
 
 TOKEN_LIFETIME_SECONDS = int(os.environ.get('JWT_LIFETIME_SECONDS', '14400'))  # 4 hours default
@@ -253,7 +279,10 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
     user_doc = await db.users.find_one(
         {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
     )
-    is_deleted = bool(user_doc and user_doc.get('deleted_at'))
+    # Missing user row means the account was hard-deleted; treat as revoked
+    # so existing access tokens fail closed instead of lingering as "active"
+    # in cache until token expiry.
+    is_deleted = user_doc is None or bool(user_doc.get('deleted_at'))
     changed_ts: float | None = redis_changed
     if user_doc and user_doc.get('password_changed_at'):
         mongo_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()

@@ -5,7 +5,7 @@
  * indigo/amber/teal mapping in one place.
  */
 export function getScheduleStatusStyle(status?: string): string {
-  if (status === 'completed') return 'bg-spoke-soft text-spoke';
-  if (status === 'in_progress') return 'bg-warn-soft text-warn';
+  if (status === 'completed') return 'bg-spoke-soft text-spoke-strong';
+  if (status === 'in_progress') return 'bg-warn-soft text-warn-strong';
   return 'bg-hub-soft text-hub-strong';
 }

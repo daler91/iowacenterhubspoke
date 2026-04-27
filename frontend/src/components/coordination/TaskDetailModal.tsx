@@ -5,17 +5,23 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Switch } from '../ui/switch';
 import {
-  Paperclip, Download, FileText, Send, X, Trash2, CalendarDays,
+  Paperclip, Download, Eye, FileText, Send, X, Trash2, CalendarDays,
   AlertTriangle, Lock, Star, User as UserIcon, MessageSquare, Reply,
 } from 'lucide-react';
 import { projectTasksAPI } from '../../lib/coordination-api';
+import { validateUpload } from '../../lib/upload-constraints';
+import { describeUploadError } from '../../lib/error-messages';
+import { canPreview, previewKind } from '../../lib/attachment-preview';
 import DeleteTaskDialog from './DeleteTaskDialog';
+import AttachmentPreviewDialog from './AttachmentPreviewDialog';
 import { TaskDescriptionEditor } from './TaskDescriptionEditor';
+import MentionTextarea, { renderMentionBody } from './MentionTextarea';
 import {
   PHASE_LABELS, PHASE_COLORS,
   TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
   TASK_OWNERS, OWNER_LABELS,
-  type Task, type TaskOwner, type TaskStatus, type TaskComment,
+  type Task, type TaskAttachment, type TaskOwner, type TaskStatus,
+  type TaskComment, type Mention, type ProjectMember,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -121,14 +127,14 @@ function CommentNode({
       <div className={cn(
         'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5',
         comment.sender_type === 'partner'
-          ? 'bg-ownership-partner-soft text-ownership-partner'
-          : 'bg-ownership-internal-soft text-ownership-internal',
+          ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+          : 'bg-ownership-internal-soft text-ownership-internal-strong',
       )}>
         {(comment.sender_name || '?').charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-1.5">
-          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{comment.sender_name}</span>
+          <span className="text-xs font-semibold text-foreground">{comment.sender_name}</span>
           <span className="text-[10px] text-muted-foreground">
             {crossesDayBoundary ? `${ownDate} · ${time}` : time}
           </span>
@@ -136,14 +142,16 @@ function CommentNode({
             <button
               type="button"
               onClick={() => onReply(comment)}
-              className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+              className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-hub hover:text-hub-strong dark:text-hub-soft dark:hover:text-hub-soft px-1.5 py-0.5 rounded hover:bg-hub-soft dark:hover:bg-hub-soft/30 transition-colors"
               aria-label={`Reply to ${comment.sender_name}`}
             >
               <Reply className="w-3 h-3" /> Reply
             </button>
           )}
         </div>
-        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+        <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 leading-relaxed whitespace-pre-wrap">
+          {renderMentionBody(comment.body, comment.mentions)}
+        </p>
       </div>
     </div>
   );
@@ -174,17 +182,17 @@ function ThreadSummary({
     <button
       type="button"
       onClick={onExpand}
-      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+      className="group ml-9 mb-3 -mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-hub-strong hover:bg-hub-soft dark:hover:bg-hub-soft/30 transition-colors"
     >
       <div className="flex -space-x-1.5">
         {avatars.map(a => (
           <span
             key={a.id}
             className={cn(
-              'w-5 h-5 rounded-md border border-white dark:border-slate-900 flex items-center justify-center text-[9px] font-semibold',
+              'w-5 h-5 rounded-md border border-white dark:border-card flex items-center justify-center text-[9px] font-semibold',
               a.sender_type === 'partner'
-                ? 'bg-ownership-partner-soft text-ownership-partner'
-                : 'bg-ownership-internal-soft text-ownership-internal',
+                ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                : 'bg-ownership-internal-soft text-ownership-internal-strong',
             )}
           >
             {(a.sender_name || '?').charAt(0).toUpperCase()}
@@ -209,10 +217,10 @@ function FieldCard({
   label, icon, children,
 }: Readonly<{ label: string; icon?: React.ReactNode; children: React.ReactNode }>) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-colors hover:border-slate-300 dark:hover:border-slate-600">
+    <div className="rounded-xl border border-border bg-white dark:bg-card px-3 py-2 shadow-sm transition-colors hover:border-border dark:hover:border-border">
       <div className="flex items-center gap-1.5 mb-1">
         {icon}
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80 dark:text-muted-foreground">{label}</span>
       </div>
       {children}
     </div>
@@ -232,10 +240,10 @@ function FlagPillSwitch({
   tint: 'amber' | 'danger';
 }>) {
   const activeClasses = tint === 'amber'
-    ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/50'
+    ? 'border-warn-soft bg-warn-soft/20 dark:border-warn-soft/50'
     : 'border-danger/40 bg-danger-soft';
   const switchCls = tint === 'amber'
-    ? 'data-[state=checked]:bg-amber-500'
+    ? 'data-[state=checked]:bg-warn'
     : 'data-[state=checked]:bg-danger';
   return (
     <label
@@ -244,15 +252,15 @@ function FlagPillSwitch({
         'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors cursor-pointer select-none',
         checked
           ? activeClasses
-          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300',
+          : 'border-border bg-white dark:bg-card hover:border-border',
       )}
     >
       {icon}
       <span className={cn(
         'text-xs font-semibold',
-        checked && tint === 'amber' && 'text-amber-700 dark:text-amber-400',
-        checked && tint === 'danger' && 'text-danger',
-        !checked && 'text-slate-600 dark:text-slate-300',
+        checked && tint === 'amber' && 'text-warn-strong',
+        checked && tint === 'danger' && 'text-danger-strong',
+        !checked && 'text-foreground/80 dark:text-muted-foreground',
       )}>
         {label}
       </span>
@@ -267,11 +275,17 @@ function FlagPillSwitch({
 }
 
 // ── Conversations Panel ──────────────────────────────────────────────
-function ConversationsPanel({ comments, onPostComment }: Readonly<{
+function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   comments: TaskComment[];
-  onPostComment: (body: string, parentCommentId?: string | null) => Promise<string | null | void>;
+  members: readonly ProjectMember[];
+  onPostComment: (
+    body: string,
+    parentCommentId?: string | null,
+    mentions?: Mention[],
+  ) => Promise<string | null | void>;
 }>) {
   const [body, setBody] = useState('');
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TaskComment | null>(null);
   const [lastPostedId, setLastPostedId] = useState<string | null>(null);
@@ -323,8 +337,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
       // post completes — otherwise the scroll-to-new-comment effect runs
       // against a collapsed thread and can't find the element.
       const target = replyingTo;
-      const newId = await onPostComment(body.trim(), target?.id ?? null);
+      const newId = await onPostComment(body.trim(), target?.id ?? null, mentions);
       setBody('');
+      setMentions([]);
       setReplyingTo(null);
       if (target) openThread(target.id);
       if (typeof newId === 'string') setLastPostedId(newId);
@@ -334,15 +349,15 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
   };
 
   return (
-    <div className="w-[360px] shrink-0 border-l-4 border-indigo-300 dark:border-indigo-800/70 bg-gradient-to-b from-indigo-50/80 via-white to-slate-50 dark:from-indigo-950/30 dark:via-slate-900/60 dark:to-slate-900/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col">
-      <div className="px-5 py-4 border-b border-indigo-200/70 dark:border-indigo-900/50 bg-white/60 dark:bg-slate-900/40 flex items-center justify-between">
+    <div className="w-[360px] shrink-0 border-l-4 border-hub-soft dark:border-hub-soft/70 bg-gradient-to-b from-hub-soft/80 via-white to-muted/50 dark:from-hub-soft/30 dark:via-card/60 dark:to-card/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col">
+      <div className="px-5 py-4 border-b border-hub-soft/70 dark:border-hub-soft/50 bg-white/60 dark:bg-card/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
-            <MessageSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+          <div className="w-7 h-7 rounded-lg bg-hub-soft/50 flex items-center justify-center">
+            <MessageSquare className="w-3.5 h-3.5 text-hub-strong" />
           </div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 font-display">Conversations</h2>
+          <h2 className="text-base font-semibold text-foreground font-display">Conversations</h2>
           {comments.length > 0 && (
-            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold text-hub-strong dark:text-hub-soft bg-hub-soft/50 px-1.5 py-0.5 rounded-full">
               {comments.length}
             </span>
           )}
@@ -359,9 +374,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
           groups.map(group => (
             <div key={group.date}>
               <div className="flex items-center gap-2 my-3">
-                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                <div className="flex-1 h-px bg-muted" />
                 <span className="text-[10px] text-muted-foreground font-medium">{group.date}</span>
-                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                <div className="flex-1 h-px bg-muted" />
               </div>
               {group.items.map(root => {
                 const descendants = collectDescendants(root.id, childrenMap);
@@ -373,7 +388,7 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                     key={root.id}
                     className={cn(
                       'rounded-lg mb-2 transition-colors',
-                      hasReplies && 'bg-white/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 p-2',
+                      hasReplies && 'bg-white/60 dark:bg-card/40 border border-border p-2',
                     )}
                   >
                     <CommentNode
@@ -389,7 +404,7 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                       />
                     )}
                     {hasReplies && isExpanded && (
-                      <div className="ml-4 border-l border-indigo-100 dark:border-indigo-900/50 pl-3 mt-1">
+                      <div className="ml-4 border-l border-hub-soft dark:border-hub-soft/50 pl-3 mt-1">
                         {descendants.map(d => (
                           <CommentNode
                             key={d.id}
@@ -401,7 +416,7 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
                         <button
                           type="button"
                           onClick={() => toggleThread(root.id)}
-                          className="text-[10px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 hover:underline mb-1"
+                          className="text-[10px] font-medium text-hub hover:text-hub-strong dark:text-hub-soft dark:hover:text-hub-soft hover:underline mb-1"
                         >
                           Hide replies
                         </button>
@@ -416,9 +431,9 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
         <div ref={endRef} />
       </div>
 
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+      <div className="p-3 border-t border-border">
         {replyingTo && (
-          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800/60 text-[11px] text-indigo-700 dark:text-indigo-300 w-fit max-w-full">
+          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-hub-soft/30 border border-hub-soft dark:border-hub-soft/60 text-[11px] text-hub-strong dark:text-hub-soft w-fit max-w-full">
             <Reply className="w-3 h-3 shrink-0" />
             <span className="truncate">
               Replying to <span className="font-semibold">{replyingTo.sender_name}</span>
@@ -426,27 +441,27 @@ function ConversationsPanel({ comments, onPostComment }: Readonly<{
             <button
               type="button"
               onClick={() => setReplyingTo(null)}
-              className="ml-0.5 p-0.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800/60 transition-colors shrink-0"
+              className="ml-0.5 p-0.5 rounded hover:bg-hub-soft dark:hover:bg-hub-soft/60 transition-colors shrink-0"
               aria-label="Cancel reply"
             >
               <X className="w-3 h-3" />
             </button>
           </div>
         )}
-        <div className="flex items-center gap-2 rounded-full border-2 border-indigo-200 dark:border-indigo-900/60 focus-within:border-indigo-400 dark:focus-within:border-indigo-600 bg-white dark:bg-slate-900 pl-4 pr-1.5 py-1 transition-colors">
-          <textarea
+        <div className="flex items-center gap-2 rounded-full border-2 border-hub-soft dark:border-hub-soft/60 focus-within:border-hub-soft dark:focus-within:border-hub bg-white dark:bg-card pl-4 pr-1.5 py-1 transition-colors">
+          <MentionTextarea
             value={body}
-            onChange={e => setBody(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message...'}
-            rows={1}
-            className="flex-1 text-sm bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-slate-400"
+            mentions={mentions}
+            members={members}
+            onChange={(b, m) => { setBody(b); setMentions(m); }}
+            onSubmit={handleSend}
+            placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message — @ to mention...'}
           />
           <Button
             size="icon"
             onClick={handleSend}
             disabled={sending || !body.trim()}
-            className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white h-8 w-8 shrink-0"
+            className="rounded-full bg-hub hover:bg-hub-strong text-white h-8 w-8 shrink-0"
             aria-label="Send message"
           >
             <Send className="w-3.5 h-3.5" aria-hidden="true" />
@@ -473,6 +488,7 @@ export default function TaskDetailModal({
 }: Props) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -482,6 +498,7 @@ export default function TaskDetailModal({
   const [assignedTo, setAssignedTo] = useState('');
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [previewing, setPreviewing] = useState<TaskAttachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Keep a ref to the latest onClose so loadTask doesn't need it in its deps.
@@ -521,7 +538,20 @@ export default function TaskDetailModal({
     }
   }, [open, taskId, projectId]);
 
-  const saveField = async (field: string, value: string | boolean) => {
+  // Load the mentionable member list once per open(project). Failures are
+  // silent: an empty list just hides the @ popover.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    projectTasksAPI.getMembers(projectId).then(res => {
+      if (!cancelled) setMembers(res.data?.items ?? []);
+    }).catch(() => {
+      if (!cancelled) setMembers([]);
+    });
+    return () => { cancelled = true; };
+  }, [open, projectId]);
+
+  const saveField = async (field: string, value: string | boolean | null) => {
     try {
       await projectTasksAPI.update(projectId, taskId, { [field]: value });
       onUpdated();
@@ -586,6 +616,15 @@ export default function TaskDetailModal({
     await saveField('owner', next);
   };
 
+  const handleDueDateChange = async (nextDueDate: string) => {
+    setDueDate(nextDueDate);
+    if (!nextDueDate) {
+      await saveField('due_date', null);
+      return;
+    }
+    await saveField('due_date', new Date(nextDueDate).toISOString());
+  };
+
   const handleToggleFlag = async (field: 'spotlight' | 'at_risk', value: boolean) => {
     if (!task) return;
     const originalId = task.id;
@@ -608,16 +647,29 @@ export default function TaskDetailModal({
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    // Always reset the input so selecting the same file again re-fires change.
+    const resetInput = () => {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    if (!file) {
+      resetInput();
+      return;
+    }
+    const reason = validateUpload(file);
+    if (reason) {
+      toast.error(reason);
+      resetInput();
+      return;
+    }
     try {
       await projectTasksAPI.uploadAttachment(projectId, taskId, file);
       await loadTask();
       onUpdated();
       toast.success('Attachment uploaded');
-    } catch {
-      toast.error('Upload failed');
+    } catch (err) {
+      toast.error(describeUploadError(err, 'Upload failed'));
     }
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    resetInput();
   };
 
   const handleDeleteAttachment = async (attId: string) => {
@@ -646,7 +698,7 @@ export default function TaskDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-slate-200 dark:border-slate-800">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl shadow-2xl border-border">
         <DialogTitle className="sr-only">{title || 'Task Detail'}</DialogTitle>
 
         {loading || !task ? (
@@ -662,7 +714,7 @@ export default function TaskDetailModal({
             <div className="flex-1 overflow-y-auto px-7 pt-7 pb-3">
               {/* Project name */}
               {projectTitle && (
-                <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
+                <p className="text-[11px] text-hub-strong font-semibold uppercase tracking-wide mb-2">{projectTitle}</p>
               )}
 
               {/* Title + Flag switches + Phase badge */}
@@ -682,7 +734,7 @@ export default function TaskDetailModal({
                 <FlagPillSwitch
                   id="task-spotlight-toggle"
                   label="Spotlight"
-                  icon={<Star className={cn('w-3.5 h-3.5', task.spotlight ? 'text-amber-500 fill-amber-400' : 'text-slate-400')} />}
+                  icon={<Star className={cn('w-3.5 h-3.5', task.spotlight ? 'text-warn-strong fill-warn' : 'text-muted-foreground')} />}
                   checked={!!task.spotlight}
                   onCheckedChange={(v) => handleToggleFlag('spotlight', v)}
                   tint="amber"
@@ -690,7 +742,7 @@ export default function TaskDetailModal({
                 <FlagPillSwitch
                   id="task-at-risk-toggle"
                   label="At Risk"
-                  icon={<AlertTriangle className={cn('w-3.5 h-3.5', task.at_risk ? 'text-danger' : 'text-slate-400')} />}
+                  icon={<AlertTriangle className={cn('w-3.5 h-3.5', task.at_risk ? 'text-danger-strong' : 'text-muted-foreground')} />}
                   checked={!!task.at_risk}
                   onCheckedChange={(v) => handleToggleFlag('at_risk', v)}
                   tint="danger"
@@ -703,7 +755,7 @@ export default function TaskDetailModal({
 
               {/* Metadata grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <FieldCard label="Assign To" icon={<UserIcon className="w-3 h-3 text-slate-400" />}>
+                <FieldCard label="Assign To" icon={<UserIcon className="w-3 h-3 text-muted-foreground" />}>
                   {employees.length > 0 ? (
                     <SearchableSelect
                       options={[
@@ -734,13 +786,12 @@ export default function TaskDetailModal({
                   )}
                 </FieldCard>
 
-                <FieldCard label="Due Date" icon={<CalendarDays className="w-3 h-3 text-slate-400" />}>
+                <FieldCard label="Due Date" icon={<CalendarDays className="w-3 h-3 text-muted-foreground" />}>
                   <Input
                     type="date"
                     value={dueDate}
-                    onChange={e => setDueDate(e.target.value)}
-                    onBlur={() => {
-                      if (dueDate) saveField('due_date', new Date(dueDate).toISOString());
+                    onChange={e => {
+                      void handleDueDateChange(e.target.value);
                     }}
                     className="text-sm border-0 p-0 h-7 shadow-none focus-visible:ring-0 bg-transparent"
                   />
@@ -772,8 +823,8 @@ export default function TaskDetailModal({
               {/* Description (rich text) */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <FileText className="w-3.5 h-3.5 text-info" aria-hidden="true" />
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Description</span>
+                  <FileText className="w-3.5 h-3.5 text-info-strong" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Description</span>
                 </div>
                 <TaskDescriptionEditor
                   value={description}
@@ -790,9 +841,9 @@ export default function TaskDetailModal({
               {/* Internal Notes */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Lock className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Internal Notes</span>
-                  <span className="text-[9px] font-semibold text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Private</span>
+                  <Lock className="w-3.5 h-3.5 text-warn-strong" />
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Internal Notes</span>
+                  <span className="text-[9px] font-semibold text-warn-strong bg-warn-soft dark:text-warn-strong dark:bg-warn-soft/40 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Private</span>
                 </div>
                 <textarea
                   value={details}
@@ -803,7 +854,7 @@ export default function TaskDetailModal({
                     }
                   }}
                   rows={3}
-                  className="w-full text-sm rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 focus-visible:outline-none focus-visible:border-amber-300 resize-y leading-relaxed text-slate-800 dark:text-amber-100 placeholder:text-amber-600/50"
+                  className="w-full text-sm rounded-xl px-3 py-2.5 bg-warn-soft/20 border border-warn-soft dark:border-warn-soft/40 focus-visible:outline-none focus-visible:border-warn-soft resize-y leading-relaxed text-foreground dark:text-warn-strong placeholder:text-warn-strong/50"
                   placeholder="Private notes (not shared with partners)..."
                 />
               </div>
@@ -811,9 +862,9 @@ export default function TaskDetailModal({
               {/* Attachments */}
               <div className="mb-5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
-                    Attachments <span className="text-slate-400 normal-case">({task.attachments?.length ?? 0})</span>
+                  <Paperclip className="w-3.5 h-3.5 text-foreground/80" />
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wide">
+                    Attachments <span className="text-muted-foreground normal-case">({task.attachments?.length ?? 0})</span>
                   </span>
                 </div>
 
@@ -822,11 +873,11 @@ export default function TaskDetailModal({
                     {(task.attachments ?? []).map(att => (
                       <div
                         key={att.id}
-                        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                        className="flex items-center gap-2 rounded-lg border border-border bg-white dark:bg-card px-3 py-2 hover:bg-muted/50 dark:hover:bg-muted/60 transition-colors"
                       >
-                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{att.filename}</p>
+                          <p className="text-xs font-medium text-foreground truncate">{att.filename}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {att.uploaded_by} &middot; {new Date(att.uploaded_at).toLocaleDateString()}
                           </p>
@@ -834,16 +885,26 @@ export default function TaskDetailModal({
                         <Badge variant="secondary" className="text-[9px] shrink-0">
                           {att.file_type.toUpperCase()}
                         </Badge>
+                        {canPreview(att.file_type) && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewing(att)}
+                            className="text-muted-foreground hover:text-hub p-1 rounded transition-colors"
+                            aria-label={`Preview ${att.filename}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        )}
                         <a
                           href={projectTasksAPI.downloadAttachmentUrl(projectId, taskId, att.id)}
-                          className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
+                          className="text-muted-foreground hover:text-hub p-1 rounded transition-colors"
                           aria-label={`Download ${att.filename}`}
                         >
                           <Download className="w-3.5 h-3.5" aria-hidden="true" />
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="text-slate-400 hover:text-danger p-1 rounded transition-colors"
+                          className="text-muted-foreground hover:text-danger-strong p-1 rounded transition-colors"
                           aria-label={`Delete ${att.filename}`}
                         >
                           <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -858,7 +919,7 @@ export default function TaskDetailModal({
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-8 text-xs font-medium border-slate-200 dark:border-slate-700"
+                  className="h-8 text-xs font-medium border-border"
                 >
                   <Paperclip className="w-3.5 h-3.5 mr-1.5" /> Add File
                 </Button>
@@ -871,7 +932,7 @@ export default function TaskDetailModal({
               </div>
 
               {/* Timestamps */}
-              <div className="text-[10px] text-muted-foreground pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="text-[10px] text-muted-foreground pt-3 border-t border-border">
                 Created {new Date(task.created_at).toLocaleString()}
                 {task.completed_at && (
                   <> &middot; Completed {new Date(task.completed_at).toLocaleString()}
@@ -881,12 +942,12 @@ export default function TaskDetailModal({
               </div>
 
               {/* Delete */}
-              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="mt-3 pt-3 border-t border-border">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="border-danger/40 text-danger hover:bg-danger-soft hover:text-danger h-9"
+                  className="border-danger/40 text-danger-strong hover:bg-danger-soft hover:text-danger-strong h-9"
                 >
                   <Trash2 className="w-4 h-4 mr-2" /> Delete Task
                 </Button>
@@ -899,13 +960,26 @@ export default function TaskDetailModal({
                 taskTitle={task.title}
                 detailed
               />
+
+              {previewing && previewKind(previewing.file_type) && (
+                <AttachmentPreviewDialog
+                  open={true}
+                  onOpenChange={(open) => { if (!open) setPreviewing(null); }}
+                  filename={previewing.filename}
+                  kind={previewKind(previewing.file_type)!}
+                  url={projectTasksAPI.previewAttachmentUrl(projectId, taskId, previewing.id)}
+                />
+              )}
             </div>
 
             {/* ── Right: Conversations ──────────────────────────── */}
             <ConversationsPanel
               comments={task.comments ?? []}
-              onPostComment={async (body, parentCommentId) => {
-                const res = await projectTasksAPI.postComment(projectId, taskId, body, parentCommentId);
+              members={members}
+              onPostComment={async (body, parentCommentId, mentions) => {
+                const res = await projectTasksAPI.postComment(
+                  projectId, taskId, body, parentCommentId, mentions,
+                );
                 await loadTask();
                 return res.data?.id ?? null;
               }}

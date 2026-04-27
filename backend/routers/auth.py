@@ -291,7 +291,7 @@ async def register(request: Request, data: UserRegister, response: Response):
         "id": user_id,
         "name": data.name,
         "email": data.email,
-        "password_hash": hash_password(data.password),
+        "password_hash": await hash_password(data.password),
         "role": role,
         "status": status,
         "created_at": now_iso,
@@ -355,7 +355,7 @@ async def login(request: Request, data: UserLogin, response: Response):
         )
 
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
-    if not user or not verify_password(data.password, user['password_hash']):
+    if not user or not await verify_password(data.password, user['password_hash']):
         await _record_login_failure(data.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -619,7 +619,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     await db.users.update_one(
         {"id": row["user_id"]},
         {"$set": {
-            "password_hash": hash_password(data.new_password),
+            "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
         }},
     )
@@ -638,6 +638,81 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     return {"message": "Password reset successful"}
 
 
+def _parse_iso_ts(raw: object) -> Optional[datetime]:
+    """Parse an ISO timestamp string/datetime into timezone-aware UTC datetime."""
+    if isinstance(raw, datetime):
+        dt = raw
+    elif isinstance(raw, str):
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+    else:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+async def _get_same_name_users(name: str) -> list[dict]:
+    """Load every user record that shares a display name."""
+    rows: list[dict] = []
+    async for row in db.users.find(
+        {"name": name},
+        {"_id": 0, "id": 1, "created_at": 1},
+    ):
+        rows.append(row)
+    return rows
+
+
+def _classify_legacy_rows(
+    *,
+    legacy_rows: list[dict],
+    user_id: str,
+    same_name_users: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Classify legacy rows into confident vs ambiguous attribution."""
+    confident_legacy: list[dict] = []
+    ambiguous_legacy: list[dict] = []
+
+    created_by_id: dict[str, datetime] = {}
+    invalid_created = False
+    for row in same_name_users:
+        parsed = _parse_iso_ts(row.get("created_at"))
+        uid = row.get("id")
+        if not uid or parsed is None:
+            invalid_created = True
+            continue
+        created_by_id[uid] = parsed
+
+    target_created = created_by_id.get(user_id)
+    sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
+    target_idx = next((i for i, (uid, _dt) in enumerate(sorted_created) if uid == user_id), None)
+    has_single_candidate = len(sorted_created) == 1
+    boundary_second_created = None
+    if target_idx == 0 and len(sorted_created) > 1:
+        boundary_second_created = sorted_created[1][1]
+
+    for row in legacy_rows:
+        ts = _parse_iso_ts(row.get("timestamp"))
+        if invalid_created or target_created is None or ts is None:
+            ambiguous_legacy.append(row)
+            continue
+        if ts < target_created:
+            # Can't belong to this user before account creation.
+            ambiguous_legacy.append(row)
+            continue
+        if has_single_candidate:
+            confident_legacy.append(row)
+            continue
+        if target_idx == 0 and boundary_second_created and ts < boundary_second_created:
+            confident_legacy.append(row)
+            continue
+        ambiguous_legacy.append(row)
+
+    return confident_legacy, ambiguous_legacy
+
+
 @router.get(
     "/me/export",
     summary="Export all personal data stored about the current user (GDPR Art. 20)",
@@ -648,7 +723,8 @@ async def export_my_data(user: CurrentUser):
     Satisfies the right to data portability. The response contains:
     - the user record (minus password hash)
     - the employee record linked by email, if any (minus OAuth tokens)
-    - activity log entries attributed to this user
+    - activity log entries attributed to this user, split into confident
+      attribution and ambiguous legacy rows
     - password-reset audit rows (timestamps only — not the tokens)
     """
     user_id = user["user_id"]
@@ -671,20 +747,36 @@ async def export_my_data(user: CurrentUser):
             "outlook_refresh_token": 0,
         },
     )
-    # Filter by user_id when possible. Legacy rows (before user_id was
-    # captured on write) fall back to name-match only for the current
-    # user — not strictly correct if two users share a display name,
-    # but it's the best we can do for pre-migration data and at least
-    # bounds the ambiguity to the caller's own account.
-    activity = await db.activity_logs.find(
+
+    # Always trust explicit user_id attribution.
+    attributed_activity = await db.activity_logs.find(
+        {"user_id": user_id},
+        {"_id": 0, "expires_at": 0},
+    ).sort("timestamp", -1).to_list(10_000)
+
+    # Legacy rows without user_id are only confidently attributed when
+    # this account was the *only* known user with this display name in
+    # the relevant creation window. Everything else is surfaced under an
+    # explicit ambiguity bucket for callers to review manually.
+    legacy_name = user.get("name", "")
+    legacy_rows = await db.activity_logs.find(
         {
-            "$or": [
-                {"user_id": user_id},
-                {"user_id": {"$in": [None, ""]}, "user_name": user.get("name", "")},
-            ]
+            "user_id": {"$in": [None, ""]},
+            "user_name": legacy_name,
         },
         {"_id": 0, "expires_at": 0},
     ).sort("timestamp", -1).to_list(10_000)
+
+    confident_legacy: list[dict] = []
+    ambiguous_legacy: list[dict] = []
+    if legacy_rows and legacy_name:
+        same_name_users = await _get_same_name_users(legacy_name)
+        confident_legacy, ambiguous_legacy = _classify_legacy_rows(
+            legacy_rows=legacy_rows,
+            user_id=user_id,
+            same_name_users=same_name_users,
+        )
+
     password_resets = await db.password_resets.find(
         {"user_id": user_id},
         {"_id": 0, "token": 0},
@@ -694,7 +786,10 @@ async def export_my_data(user: CurrentUser):
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "user": user_doc,
         "employee": employee_doc,
-        "activity_log": activity,
+        "activity_log": {
+            "confident": [*attributed_activity, *confident_legacy],
+            "ambiguous": ambiguous_legacy,
+        },
         "password_reset_history": password_resets,
     }
 
@@ -727,7 +822,10 @@ async def delete_my_account(user: CurrentUser, response: Response):
     """
     from core.constants import ROLE_ADMIN as _ADMIN
 
-    user_doc = await db.users.find_one({"id": user["user_id"]}, {"_id": 0})
+    user_doc = await db.users.find_one(
+        {"id": user["user_id"], "deleted_at": None},
+        {"_id": 0},
+    )
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -740,14 +838,16 @@ async def delete_my_account(user: CurrentUser, response: Response):
         # this BEFORE any destructive writes means a losing racer
         # hasn't anonymized any records — failure is clean.
         claimed = await db.users.find_one_and_update(
-            {"id": user["user_id"], "role": _ADMIN},
+            {"id": user["user_id"], "role": _ADMIN, "deleted_at": None},
             {"$set": {"role": ROLE_VIEWER}},
         )
         if claimed is not None:
-            remaining = await db.users.count_documents({"role": _ADMIN})
+            remaining = await db.users.count_documents(
+                {"role": _ADMIN, "deleted_at": None},
+            )
             if remaining == 0:
                 await db.users.update_one(
-                    {"id": user["user_id"]},
+                    {"id": user["user_id"], "deleted_at": None},
                     {"$set": {"role": _ADMIN}},
                 )
                 raise HTTPException(
@@ -875,7 +975,16 @@ async def delete_my_account(user: CurrentUser, response: Response):
     # invariant was already enforced atomically at the top of this
     # handler via the role-demote CAS, before any destructive writes.
     await db.users.delete_one({"id": user["user_id"]})
-    invalidate_pwd_cache(user["user_id"])
+    await invalidate_pwd_cache(user["user_id"], is_deleted=True)
+
+    # Self-delete soft-deletes the matching employee row and renames the
+    # denormalized employee snapshot on every historical schedule, both
+    # of which feed _compute_workload_stats. Bust the workload cache so
+    # the next /workload read recomputes instead of returning pre-delete
+    # totals for up to the TTL window.
+    if employee_ids_to_anonymize:
+        from services.workload_cache import invalidate as _invalidate_workload_cache
+        await _invalidate_workload_cache()
 
     response.delete_cookie(
         key="auth_token", httponly=True, samesite="lax", secure=True,
@@ -924,14 +1033,14 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not verify_password(data.current_password, user_doc['password_hash']):
+    if not await verify_password(data.current_password, user_doc['password_hash']):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     now = datetime.now(timezone.utc)
     await db.users.update_one(
         {"id": user['user_id']},
         {"$set": {
-            "password_hash": hash_password(data.new_password),
+            "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
         }}
     )

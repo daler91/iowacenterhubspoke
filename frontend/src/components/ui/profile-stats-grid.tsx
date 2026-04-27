@@ -28,12 +28,12 @@ export function ProfileStatsGrid({ stats, className }: ProfileStatsGridProps) {
         <Card key={stat.label} className="p-4 text-center">
           <div className="w-5 h-5 mx-auto mb-2">{stat.icon}</div>
           <p
-            className="text-2xl font-bold text-slate-800 font-display"
+            className="text-2xl font-bold text-foreground font-display"
             data-testid={stat.testId}
           >
             {stat.value}
           </p>
-          <p className="text-xs text-slate-500">{stat.label}</p>
+          <p className="text-xs text-foreground/80">{stat.label}</p>
         </Card>
       ))}
     </div>

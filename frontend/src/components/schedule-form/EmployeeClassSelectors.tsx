@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { PlusCircle, BookOpen } from 'lucide-react';
 import { COLORS } from '../../lib/constants';
 import { EmployeeMultiSelect } from '../ui/employee-multi-select';
+import { RequiredMark } from './RequiredMark';
 
 const CREATE_CLASS_VALUE = '__add_new_class__';
 
@@ -24,7 +25,9 @@ export function EmployeeClassSelectors({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">Employees</Label>
+        <Label htmlFor="schedule-employee-select" className="text-sm font-medium text-foreground">
+          Employees <RequiredMark />
+        </Label>
         <EmployeeMultiSelect
           id="schedule-employee-select"
           employees={employees || []}
@@ -36,7 +39,7 @@ export function EmployeeClassSelectors({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="schedule-class-select" className="text-sm font-medium text-slate-700 dark:text-gray-200">Class Type</Label>
+          <Label htmlFor="schedule-class-select" className="text-sm font-medium text-foreground">Class Type</Label>
           {onAddClass && (
             <button
               type="button"
@@ -53,7 +56,7 @@ export function EmployeeClassSelectors({
           <SelectTrigger
             id="schedule-class-select"
             data-testid="schedule-class-select"
-            className="h-10 bg-gray-50/50 dark:bg-gray-800/50"
+            className="h-10 bg-muted/50 dark:bg-muted/50"
             aria-describedby={selectedClass ? 'schedule-selected-class-preview' : undefined}
           >
             <SelectValue placeholder="Select a class type" />
@@ -85,7 +88,7 @@ export function EmployeeClassSelectors({
         {selectedClass && (
           <div
             id="schedule-selected-class-preview"
-            className="flex items-start gap-3 rounded-lg border border-gray-100 dark:border-gray-800 bg-spoke-soft px-3 py-2"
+            className="flex items-start gap-3 rounded-lg border border-border bg-spoke-soft px-3 py-2"
             data-testid="schedule-selected-class-preview"
           >
             <div
@@ -96,8 +99,8 @@ export function EmployeeClassSelectors({
               <BookOpen className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-gray-100" data-testid="schedule-selected-class-name">{selectedClass.name}</p>
-              <p className="text-xs text-slate-500 dark:text-gray-400 break-words" data-testid="schedule-selected-class-description">
+              <p className="text-sm font-semibold text-foreground" data-testid="schedule-selected-class-name">{selectedClass.name}</p>
+              <p className="text-xs text-foreground/80 dark:text-muted-foreground break-words" data-testid="schedule-selected-class-description">
                 {selectedClass.description || 'No class description added.'}
               </p>
             </div>

@@ -57,7 +57,7 @@ export function EmployeeMultiSelect({
           aria-expanded={open}
           aria-controls={listboxId}
           aria-describedby={ariaInvalid ? errorMessageId : undefined}
-          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-gray-50/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2"
+          className="flex min-h-[40px] w-full items-center justify-between rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[invalid=true]:border-danger data-[invalid=true]:ring-danger data-[invalid=true]:ring-2"
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selectedEmployees.length === 0 && (
@@ -66,7 +66,7 @@ export function EmployeeMultiSelect({
             {selectedEmployees.map(emp => (
               <span
                 key={emp.id}
-                className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700"
+                className="inline-flex items-center gap-1 rounded-full bg-hub-soft border border-hub-soft px-2 py-0.5 text-xs font-medium text-hub-strong"
               >
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: emp.color }} />
                 {emp.name}
@@ -74,7 +74,7 @@ export function EmployeeMultiSelect({
                   type="button"
                   onClick={(e) => removeEmployee(emp.id, e)}
                   aria-label={`Remove ${emp.name}`}
-                  className="ml-0.5 hover:text-indigo-900"
+                  className="ml-0.5 hover:text-hub-strong"
                 >
                   <X className="w-3 h-3" aria-hidden="true" />
                 </button>

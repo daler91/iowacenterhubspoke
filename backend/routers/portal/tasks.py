@@ -13,6 +13,12 @@ from core.portal_auth import PortalContext
 from core.upload import stream_upload_to_disk
 from database import db
 from models.coordination_schemas import TaskCommentCreate
+from services.notification_events import notify_task_comment_mentions
+from services.notification_prefs import (
+    prepare_mentions,
+    principal_to_member_dict,
+    principals_for_project,
+)
 from services.phase_advance import maybe_auto_advance_phase_for_task
 
 from ._shared import (
@@ -26,6 +32,11 @@ from ._shared import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
+
+# Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
+# bulk endpoint applies this PER PROJECT via $slice so partner orgs with
+# many projects don't get globally truncated.
+_PORTAL_BULK_TASKS_PER_PROJECT = 500
 
 
 async def _require_partner_project(project_id: str, ctx: dict) -> dict:
@@ -68,6 +79,65 @@ async def portal_project_tasks(project_id: str, ctx: PortalContext):
         {"_id": 0},
     ).sort("sort_order", 1).to_list(500)
     return {"items": tasks, "total": len(tasks)}
+
+
+@router.post(
+    "/projects/tasks/bulk",
+    summary="Partner's tasks for multiple projects in one round-trip",
+    responses={401: {"description": INVALID_TOKEN}},
+)
+async def portal_project_tasks_bulk(
+    payload: dict, ctx: PortalContext,
+):
+    """Return ``{ project_id: [tasks...] }`` for every project the caller
+    actually owns.
+
+    The dashboard previously fanned out one /projects/{id}/tasks request
+    per project, which scaled with the partner's project count. Here we
+    do a single ``$in`` query and bucket the results in Python.
+    """
+    requested = payload.get("project_ids") or []
+    if not isinstance(requested, list) or not requested:
+        return {"items": {}}
+    # Authz: clamp the requested set to the caller's own projects so a
+    # malicious id list can't reach into another partner's data.
+    owned_cursor = db.projects.find(
+        {
+            "id": {"$in": requested},
+            "partner_org_id": ctx["partner_org_id"],
+            "deleted_at": None,
+        },
+        {"_id": 0, "id": 1},
+    )
+    owned_ids = [p["id"] async for p in owned_cursor]
+    if not owned_ids:
+        return {"items": {}}
+    # Cap PER PROJECT (matching the single-project endpoint at 500) instead
+    # of globally — a flat to_list cap silently dropped tasks for partners
+    # with many projects (Codex P1 r3106089947). $group + $slice gives each
+    # project the same headroom regardless of how many projects share the
+    # batch.
+    pipeline = [
+        {"$match": {
+            "project_id": {"$in": owned_ids},
+            "owner": {"$in": ["partner", "both"]},
+            "deleted_at": None,
+        }},
+        {"$sort": {"sort_order": 1}},
+        {"$project": {"_id": 0}},
+        {"$group": {"_id": "$project_id", "tasks": {"$push": "$$ROOT"}}},
+        {"$project": {
+            "_id": 0,
+            "project_id": "$_id",
+            "tasks": {"$slice": ["$tasks", _PORTAL_BULK_TASKS_PER_PROJECT]},
+        }},
+    ]
+    bucketed: dict[str, list] = {pid: [] for pid in owned_ids}
+    async for row in db.tasks.aggregate(pipeline):
+        pid = row.get("project_id")
+        if pid in bucketed:
+            bucketed[pid] = row.get("tasks", [])
+    return {"items": bucketed}
 
 
 @router.patch(
@@ -210,8 +280,8 @@ async def portal_post_task_comment(
     project_id: str, task_id: str, ctx: PortalContext,
     data: TaskCommentCreate,
 ):
-    await _require_partner_project(project_id, ctx)
-    await _require_partner_task(task_id, project_id)
+    project = await _require_partner_project(project_id, ctx)
+    task = await _require_partner_task(task_id, project_id)
 
     if data.parent_comment_id:
         parent = await db.task_comments.find_one(
@@ -224,6 +294,12 @@ async def portal_post_task_comment(
                 detail="Parent comment not found for this task",
             )
 
+    mentioned, stored_mentions = await prepare_mentions(
+        project_id=project_id,
+        refs_input=data.mentions,
+        partner_org_id=project.get("partner_org_id"),
+    )
+
     comment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -235,8 +311,34 @@ async def portal_post_task_comment(
         "sender_id": ctx["contact"]["id"],
         "body": data.body,
         "parent_comment_id": data.parent_comment_id,
+        "mentions": stored_mentions,
         "created_at": now,
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
+    if mentioned:
+        actor = {
+            "id": ctx["contact"]["id"],
+            "user_id": ctx["contact"]["id"],
+            "name": ctx["contact"]["name"],
+        }
+        await notify_task_comment_mentions(doc, task, project, actor, mentioned)
     return doc
+
+
+@router.get(
+    "/projects/{project_id}/members",
+    summary="List members mentionable on this project (portal)",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
+)
+async def portal_project_members(project_id: str, ctx: PortalContext):
+    project = await _require_partner_project(project_id, ctx)
+    principals = await principals_for_project(
+        project_id=project_id,
+        partner_org_id=project.get("partner_org_id"),
+    )
+    items = [
+        principal_to_member_dict(p, include_email=False)
+        for p in principals if p.id
+    ]
+    return {"items": items, "total": len(items)}

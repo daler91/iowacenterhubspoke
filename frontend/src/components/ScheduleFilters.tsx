@@ -18,7 +18,7 @@ export default function ScheduleFilters({
     <div className="flex items-center gap-3 flex-wrap">
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter:</span>
       <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-        <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-gray-900" data-testid="filter-employee" aria-label="Filter by employee">
+        <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-card" data-testid="filter-employee" aria-label="Filter by employee">
           <SelectValue placeholder="All employees" />
         </SelectTrigger>
         <SelectContent>
@@ -34,7 +34,7 @@ export default function ScheduleFilters({
         </SelectContent>
       </Select>
       <Select value={filterLocation} onValueChange={setFilterLocation}>
-        <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-gray-900" data-testid="filter-location" aria-label="Filter by location">
+        <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-card" data-testid="filter-location" aria-label="Filter by location">
           <SelectValue placeholder="All locations" />
         </SelectTrigger>
         <SelectContent>
@@ -46,7 +46,7 @@ export default function ScheduleFilters({
       </Select>
       {classes && (
         <Select value={filterClass} onValueChange={setFilterClass}>
-          <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-gray-900" data-testid="filter-class" aria-label="Filter by class">
+          <SelectTrigger className="w-[180px] h-9 text-xs bg-white dark:bg-card" data-testid="filter-class" aria-label="Filter by class">
             <SelectValue placeholder="All classes" />
           </SelectTrigger>
           <SelectContent>

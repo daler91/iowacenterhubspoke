@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, useOutletContext } from 'react-router-dom';
+import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import {
   DndContext, closestCenter, type DragEndEvent,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -19,9 +19,12 @@ import {
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import { PageBreadcrumb } from '../ui/page-breadcrumb';
+import { mutate as globalMutate } from 'swr';
 import DeleteTaskDialog from './DeleteTaskDialog';
+import DeleteProjectDialog from './DeleteProjectDialog';
+import { useAuth } from '../../lib/auth';
 import { useProject, useProjectTasks } from '../../hooks/useCoordinationData';
-import { projectTasksAPI } from '../../lib/coordination-api';
+import { projectTasksAPI, projectsAPI } from '../../lib/coordination-api';
 import { schedulesAPI } from '../../lib/api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS, PHASE_COLORS,
@@ -46,7 +49,7 @@ function PhaseDroppable({ phase, children }: Readonly<{ phase: string; children:
       ref={setNodeRef}
       className={cn(
         'flex-1 min-w-[260px] rounded-lg p-3 transition-colors',
-        isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-gray-50 dark:bg-gray-900/50',
+        isOver ? 'bg-hub-soft/30' : 'bg-muted/50 dark:bg-card/50',
       )}
     >
       {children}
@@ -112,14 +115,14 @@ function TaskCard({
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
           isDragging && 'opacity-50',
           task.completed && 'opacity-45',
-          task.spotlight && 'border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-950/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
+          task.spotlight && 'border-l-4 border-l-warn bg-warn-soft/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]',
           task.at_risk && !task.spotlight && 'border-l-4 border-l-danger bg-danger-soft border-danger/30 shadow-[0_0_8px_rgba(239,68,68,0.25)]',
         )}
         onClick={onOpen}
       >
         {/* At-risk banner */}
         {task.at_risk && (
-          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-semibold">
+          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-danger-soft text-danger-strong text-[10px] font-semibold">
             <AlertTriangle className="w-3.5 h-3.5" />
             AT RISK
           </div>
@@ -131,24 +134,24 @@ function TaskCard({
               <button
                 onClick={e => e.stopPropagation()}
                 aria-label="Task options"
-                className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted"
               >
                 <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => handleToggleFlag('spotlight')}>
-                <Star className={cn('w-3.5 h-3.5 mr-2', task.spotlight && 'text-amber-500 fill-amber-500')} />
+                <Star className={cn('w-3.5 h-3.5 mr-2', task.spotlight && 'text-warn-strong fill-warn')} />
                 {task.spotlight ? 'Remove Spotlight' : 'Spotlight Task'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleToggleFlag('at_risk')}>
-                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-danger')} />
+                <AlertTriangle className={cn('w-3.5 h-3.5 mr-2', task.at_risk && 'text-danger-strong')} />
                 {task.at_risk ? 'Remove At Risk' : 'Mark at Risk'}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setShowDeleteConfirm(true)}
-                className="text-danger focus:text-danger"
+                className="text-danger-strong focus:text-danger-strong"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-2" />
                 Delete Task
@@ -180,7 +183,7 @@ function TaskCard({
                 >
                   <span className={cn('w-2.5 h-2.5 rounded-full mr-2 shrink-0', TASK_STATUS_COLORS[s])} />
                   {TASK_STATUS_LABELS[s]}
-                  {status === s && <Check className="w-3 h-3 ml-auto text-spoke" />}
+                  {status === s && <Check className="w-3 h-3 ml-auto text-spoke-strong" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -190,11 +193,11 @@ function TaskCard({
             {/* Spotlight icon */}
             {task.spotlight && (
               <div className="mb-1.5">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <Star className="w-4 h-4 text-warn-strong fill-warn" />
               </div>
             )}
             <p className={cn(
-              'text-sm font-medium text-slate-800 dark:text-slate-100',
+              'text-sm font-medium text-foreground',
               task.completed && 'line-through text-muted-foreground',
             )}>
               {task.title}
@@ -205,7 +208,7 @@ function TaskCard({
               </Badge>
               <span className={cn(
                 'text-[10px]',
-                isOverdue ? 'text-danger font-semibold' : 'text-muted-foreground',
+                isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground',
               )}>
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
@@ -282,7 +285,7 @@ function AddTaskInline({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full text-xs text-muted-foreground hover:text-indigo-500 py-2 flex items-center justify-center gap-1 transition-colors"
+        className="w-full text-xs text-muted-foreground hover:text-hub py-2 flex items-center justify-center gap-1 transition-colors"
       >
         <Plus className="w-3 h-3" /> Add task
       </button>
@@ -300,7 +303,7 @@ function AddTaskInline({
           className="text-sm h-8"
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
         />
-        <Button size="sm" onClick={handleAdd} disabled={loading} aria-label="Add task" className="h-8 px-2 bg-indigo-600 text-white">
+        <Button size="sm" onClick={handleAdd} disabled={loading} aria-label="Add task" className="h-8 px-2 bg-hub text-white">
           <Check className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)} aria-label="Cancel" className="h-8 px-2">
@@ -312,11 +315,11 @@ function AddTaskInline({
         <div className="flex gap-0.5">
           {(['internal', 'partner', 'both'] as const).map(o => {
             const ACTIVE_STYLES: Record<string, string> = {
-              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal',
-              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner',
-              both: 'bg-warn-soft border-warn/40 text-warn',
+              internal: 'bg-ownership-internal-soft border-ownership-internal/40 text-ownership-internal-strong',
+              partner: 'bg-ownership-partner-soft border-ownership-partner/40 text-ownership-partner-strong',
+              both: 'bg-warn-soft border-warn/40 text-warn-strong',
             };
-            const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-slate-200 text-muted-foreground hover:border-slate-300';
+            const activeStyle = owner === o ? ACTIVE_STYLES[o] : 'border-border text-muted-foreground hover:border-border';
             return (
             <button
               key={o}
@@ -339,6 +342,9 @@ function AddTaskInline({
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
   const { project, mutateProject, isLoading: projectLoading } = useProject(id);
@@ -346,6 +352,7 @@ export default function ProjectDetail() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [linkedSchedule, setLinkedSchedule] = useState<Record<string, unknown> | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (project?.schedule_id) {
@@ -403,10 +410,42 @@ export default function ProjectDetail() {
   }
 
   if (!project || !id) {
-    return <div className="p-6 text-slate-500">Project not found</div>;
+    return <div className="p-6 text-foreground/80">Project not found</div>;
   }
 
   const projectId = id;
+
+  const handleDelete = async () => {
+    try {
+      await projectsAPI.delete(projectId);
+      // Invalidate every cached view that might still reference this
+      // project before navigating back to the board. App-level SWR uses
+      // dedupingInterval:15000 + revalidateOnFocus:false, so without this
+      // the board would re-render from cache and still show the just-
+      // deleted project. The 1-arg predicate form revalidates without
+      // replacing cached data, so the board stays visible while the fresh
+      // payload lands (pattern from useDashboardData.ts).
+      await globalMutate((key) => {
+        if (typeof key === 'string') {
+          return (
+            key === 'project-board'
+            || key === 'projects'
+            || key === 'community-dashboard'
+            || key === `project-${projectId}`
+            || key === `tasks-${projectId}`
+          );
+        }
+        if (Array.isArray(key)) {
+          return key[0] === 'project-board' || key[0] === 'projects';
+        }
+        return false;
+      });
+      toast.success('Project deleted');
+      navigate('/coordination/board');
+    } catch {
+      toast.error('Failed to delete project');
+    }
+  };
 
   return (
     <div className="p-6">
@@ -418,7 +457,7 @@ export default function ProjectDetail() {
           { label: project.title },
         ]} />
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground dark:text-white">
             {project.title}
           </h1>
           <Badge className={cn('text-xs', PHASE_COLORS[project.phase], 'text-white')}>
@@ -429,12 +468,23 @@ export default function ProjectDetail() {
             size="sm"
             onClick={() => setShowEditDialog(true)}
             aria-label="Edit project"
-            className="h-7 px-2 text-muted-foreground hover:text-indigo-600"
+            className="h-7 px-2 text-muted-foreground hover:text-hub"
           >
             <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
           </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              aria-label="Delete project"
+              className="h-7 px-2 text-muted-foreground hover:text-danger-strong"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            </Button>
+          )}
         </div>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-foreground/80 mt-1">
           {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
           {project.location_name && <> &middot; <MapPin className="w-3 h-3 inline" /> {project.location_name}</>}
           {!project.location_name && project.community && <> &middot; {project.community}</>}
@@ -447,7 +497,7 @@ export default function ProjectDetail() {
         </p>
         {/* Venue details from partner org */}
         {project.partner_org_venue_details && Object.values(project.partner_org_venue_details).some(Boolean) && (
-          <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-3 mt-2 text-xs text-foreground/80">
             {project.partner_org_venue_details.capacity && (
               <span>Capacity: {project.partner_org_venue_details.capacity}</span>
             )}
@@ -466,12 +516,12 @@ export default function ProjectDetail() {
 
       {/* Linked Schedule */}
       {linkedSchedule && (
-        <Card className="p-4 mb-6 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20">
+        <Card className="p-4 mb-6 border-hub-soft dark:border-hub-soft bg-hub-soft/50 dark:bg-hub-soft/20">
           <div className="flex items-center gap-3">
-            <CalendarDays className="w-5 h-5 text-indigo-500 shrink-0" />
+            <CalendarDays className="w-5 h-5 text-hub shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Linked Schedule</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-foreground">Linked Schedule</p>
+              <p className="text-xs text-foreground/80">
                 {linkedSchedule.date as string} &middot; {(linkedSchedule.start_time as string) || ''} – {(linkedSchedule.end_time as string) || ''}
                 {linkedSchedule.class_name && <> &middot; {linkedSchedule.class_name as string}</>}
                 {linkedSchedule.location_name && <> &middot; {linkedSchedule.location_name as string}</>}
@@ -497,7 +547,7 @@ export default function ProjectDetail() {
               <PhaseDroppable key={phase} phase={phase}>
                 <div className="flex items-center gap-2 mb-3 px-1">
                   <div className={cn('w-2.5 h-2.5 rounded-full', PHASE_DOT_COLORS[phase])} />
-                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {PHASE_LABELS[phase]}
                   </h3>
                   <span className="text-xs text-muted-foreground ml-auto">
@@ -525,7 +575,7 @@ export default function ProjectDetail() {
             <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
               <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
               <Megaphone className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold text-slate-500 text-sm">Promotion Checklist</span>
+              <span className="font-semibold text-foreground/80 text-sm">Promotion Checklist</span>
               <Badge variant="secondary" className="text-[10px] ml-1">Active during Promotion</Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
@@ -544,7 +594,7 @@ export default function ProjectDetail() {
             <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
               <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
               <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold text-slate-500 text-sm">Outcomes</span>
+              <span className="font-semibold text-foreground/80 text-sm">Outcomes</span>
               <Badge variant="secondary" className="text-[10px] ml-1">Active during Follow-Up</Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
@@ -565,7 +615,7 @@ export default function ProjectDetail() {
 
       {/* Legend */}
       <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-        <span className="font-medium text-slate-500 mr-1">Owner:</span>
+        <span className="font-medium text-foreground/80 mr-1">Owner:</span>
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-ownership-internal-soft" aria-hidden="true" /> You (Internal)
         </span>
@@ -575,8 +625,8 @@ export default function ProjectDetail() {
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded bg-warn-soft" aria-hidden="true" /> Both
         </span>
-        <span className="mx-2 text-slate-200">|</span>
-        <span className="font-medium text-slate-500 mr-1">Status:</span>
+        <span className="mx-2 text-muted-foreground">|</span>
+        <span className="font-medium text-foreground/80 mr-1">Status:</span>
         {TASK_STATUSES.map(s => (
           <span key={s} className="flex items-center gap-1">
             <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[s])} /> {TASK_STATUS_LABELS[s]}
@@ -606,6 +656,14 @@ export default function ProjectDetail() {
           classes={(context.classes || []) as Array<{ id: string; name: string }>}
         />
       )}
+
+      {/* Delete Project Dialog (admin-only) */}
+      <DeleteProjectDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDelete}
+        projectTitle={project.title}
+      />
     </div>
   );
 }

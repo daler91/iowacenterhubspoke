@@ -183,13 +183,13 @@ export default function PersonalSettings() {
 
     if (!employee) {
       return (
-        <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex items-start gap-3 p-4 bg-muted/50 dark:bg-muted rounded-lg">
           <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm text-slate-600 dark:text-muted-foreground">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">
               No employee record found matching your email (<span className="font-medium">{user?.email}</span>).
             </p>
-            <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">
               To connect a calendar, ask an admin to create an employee with this email address.
             </p>
           </div>
@@ -200,17 +200,17 @@ export default function PersonalSettings() {
     return (
       <div className="space-y-4">
         {googleEnabled && (
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/50 dark:bg-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-teal-500" />
+              <Calendar className="w-5 h-5 text-spoke-strong" />
               <div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Google Calendar</p>
+                <p className="text-sm font-medium text-foreground">Google Calendar</p>
                 {employee.google_calendar_connected ? (
-                  <p className="text-xs text-teal-600 dark:text-teal-400">
+                  <p className="text-xs text-spoke-strong">
                     Connected{employee.google_calendar_email ? ` — ${employee.google_calendar_email}` : ''}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-muted-foreground">Not connected</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">Not connected</p>
                 )}
               </div>
             </div>
@@ -219,7 +219,7 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleGoogleDisconnect}
-                className="text-danger hover:text-danger hover:bg-danger-soft"
+                className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
               >
                 <Unlink className="w-4 h-4 mr-2" />
                 Disconnect
@@ -228,7 +228,7 @@ export default function PersonalSettings() {
               <Button
                 size="sm"
                 onClick={handleGoogleConnect}
-                className="bg-teal-600 hover:bg-teal-700 text-white"
+                className="bg-spoke hover:bg-spoke text-white"
               >
                 Connect
               </Button>
@@ -237,17 +237,17 @@ export default function PersonalSettings() {
         )}
 
         {outlookEnabled && (
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-muted/50 dark:bg-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-info" aria-hidden="true" />
+              <Mail className="w-5 h-5 text-info-strong" aria-hidden="true" />
               <div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Outlook Calendar</p>
+                <p className="text-sm font-medium text-foreground">Outlook Calendar</p>
                 {employee.outlook_calendar_connected ? (
-                  <p className="text-xs text-info">
+                  <p className="text-xs text-info-strong">
                     Connected{employee.outlook_calendar_email ? ` — ${employee.outlook_calendar_email}` : ''}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-muted-foreground">Not connected</p>
+                  <p className="text-xs text-foreground/80 dark:text-muted-foreground">Not connected</p>
                 )}
               </div>
             </div>
@@ -256,7 +256,7 @@ export default function PersonalSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={handleOutlookDisconnect}
-                className="text-danger hover:text-danger hover:bg-danger-soft"
+                className="text-danger-strong hover:text-danger-strong hover:bg-danger-soft"
               >
                 <Unlink className="w-4 h-4 mr-2" aria-hidden="true" />
                 Disconnect
@@ -274,9 +274,9 @@ export default function PersonalSettings() {
         )}
 
         {!googleEnabled && !outlookEnabled && (
-          <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-start gap-3 p-4 bg-muted/50 dark:bg-muted rounded-lg">
             <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-            <p className="text-sm text-slate-500 dark:text-muted-foreground">
+            <p className="text-sm text-foreground/80 dark:text-muted-foreground">
               No calendar integrations are configured. Contact your administrator to enable Google or Outlook calendar connections.
             </p>
           </div>
@@ -289,28 +289,28 @@ export default function PersonalSettings() {
     <div className="space-y-6 animate-slide-in max-w-2xl">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white font-display">Settings</h2>
-        <p className="text-sm text-slate-500 dark:text-muted-foreground mt-1">Manage your account and calendar connections</p>
+        <h2 className="text-2xl font-bold text-foreground dark:text-white font-display">Settings</h2>
+        <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">Manage your account and calendar connections</p>
       </div>
 
       {/* Profile Info */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <User className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Profile</h3>
+          <User className="w-5 h-5 text-hub" />
+          <h3 className="text-lg font-semibold text-foreground dark:text-white font-display">Profile</h3>
         </div>
         <div className="grid gap-3">
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-lg"
+              className="w-12 h-12 rounded-full bg-hub-soft/50 flex items-center justify-center text-hub-strong dark:text-hub-soft font-bold text-lg"
             >
               {user?.name?.charAt(0)?.toUpperCase()}
             </div>
             <div>
-              <p className="font-medium text-slate-800 dark:text-slate-100">{user?.name}</p>
-              <p className="text-sm text-slate-500 dark:text-muted-foreground">{user?.email}</p>
+              <p className="font-medium text-foreground">{user?.name}</p>
+              <p className="text-sm text-foreground/80 dark:text-muted-foreground">{user?.email}</p>
             </div>
-            <span className="ml-auto text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-muted-foreground font-bold uppercase tracking-wider">
+            <span className="ml-auto text-xs px-2 py-1 rounded-full bg-muted text-foreground/80 dark:text-muted-foreground font-bold uppercase tracking-wider">
               {user?.role}
             </span>
           </div>
@@ -318,10 +318,10 @@ export default function PersonalSettings() {
       </div>
 
       {/* Change Password */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <Lock className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Change Password</h3>
+          <Lock className="w-5 h-5 text-hub" />
+          <h3 className="text-lg font-semibold text-foreground dark:text-white font-display">Change Password</h3>
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
@@ -332,7 +332,7 @@ export default function PersonalSettings() {
               value={passwordForm.current_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
               required
-              className="bg-gray-50/50 dark:bg-gray-800 max-w-sm"
+              className="bg-muted/50 dark:bg-muted max-w-sm"
             />
           </div>
           <div className="space-y-2">
@@ -343,7 +343,7 @@ export default function PersonalSettings() {
               value={passwordForm.new_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
               required
-              className="bg-gray-50/50 dark:bg-gray-800 max-w-sm"
+              className="bg-muted/50 dark:bg-muted max-w-sm"
             />
           </div>
           <div className="space-y-2">
@@ -354,13 +354,13 @@ export default function PersonalSettings() {
               value={passwordForm.confirm_password}
               onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
               required
-              className="bg-gray-50/50 dark:bg-gray-800 max-w-sm"
+              className="bg-muted/50 dark:bg-muted max-w-sm"
             />
           </div>
           <Button
             type="submit"
             disabled={passwordLoading}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="bg-hub hover:bg-hub-strong text-white"
           >
             {passwordLoading ? 'Changing...' : 'Change Password'}
           </Button>
@@ -368,22 +368,22 @@ export default function PersonalSettings() {
       </div>
 
       {/* Calendar Connections */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-card rounded-lg border border-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <Calendar className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Calendar Connections</h3>
+          <Calendar className="w-5 h-5 text-hub" />
+          <h3 className="text-lg font-semibold text-foreground dark:text-white font-display">Calendar Connections</h3>
         </div>
 
         {renderCalendarContent()}
       </div>
 
       {/* Notification Preferences */}
-      <div id="notifications" className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 p-6">
+      <div id="notifications" className="bg-white dark:bg-card rounded-lg border border-border p-6">
         <div className="flex items-center gap-3 mb-1">
-          <Bell className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white font-display">Notifications</h3>
+          <Bell className="w-5 h-5 text-hub" />
+          <h3 className="text-lg font-semibold text-foreground dark:text-white font-display">Notifications</h3>
         </div>
-        <p className="text-sm text-slate-500 dark:text-muted-foreground mb-4">
+        <p className="text-sm text-foreground/80 dark:text-muted-foreground mb-4">
           Choose which notifications you receive and how.
         </p>
         <NotificationPreferences mode="internal" />

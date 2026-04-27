@@ -176,7 +176,7 @@ async def test_webhook(request: Request, webhook_id: str, user: AdminRequired):
         raise HTTPException(status_code=404, detail=WEBHOOK_NOT_FOUND)
     await deliver_webhook(
         None, webhook_id, "test.ping",
-        {"message": "Test webhook from Iowa Center Hub & Spoke"},
+        {"message": "Test webhook from HubSpoke"},
     )
     return {"message": "Test webhook sent"}
 

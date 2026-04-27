@@ -169,9 +169,9 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
 
   if (!data) {
     return (
-      <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+      <div className="flex items-start gap-3 p-4 bg-muted/50 dark:bg-muted rounded-lg">
         <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-        <p className="text-sm text-slate-500 dark:text-muted-foreground">
+        <p className="text-sm text-foreground/80 dark:text-muted-foreground">
           Notification preferences are unavailable right now.
         </p>
       </div>
@@ -181,11 +181,11 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
   return (
     <div className="space-y-6">
       {/* Digest delivery time */}
-      <div className="rounded-lg border border-gray-100 dark:border-gray-800 p-4 bg-slate-50/40 dark:bg-gray-800/30">
-        <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+      <div className="rounded-lg border border-border p-4 bg-muted/50/40 dark:bg-muted/30">
+        <p className="text-sm font-medium text-foreground mb-1">
           Digest delivery
         </p>
-        <p className="text-xs text-slate-500 dark:text-muted-foreground mb-3">
+        <p className="text-xs text-foreground/80 dark:text-muted-foreground mb-3">
           When daily and weekly digests are sent. Times are in the hub's timezone.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -231,8 +231,8 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
       {/* Categories + types */}
       {categories.map(cat => (
         <div key={cat.key}>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
-            <Bell className="w-4 h-4 text-indigo-500" />
+          <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Bell className="w-4 h-4 text-hub" />
             {cat.label}
           </h4>
           <div className="space-y-2">
@@ -250,9 +250,9 @@ export default function NotificationPreferences({ mode, portalToken }: Props) {
       ))}
 
       {categories.length === 0 && (
-        <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex items-start gap-3 p-4 bg-muted/50 dark:bg-muted rounded-lg">
           <Info className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-          <p className="text-sm text-slate-500 dark:text-muted-foreground">
+          <p className="text-sm text-foreground/80 dark:text-muted-foreground">
             No notification types are available for your account yet.
           </p>
         </div>
@@ -271,22 +271,22 @@ interface RowProps {
 function NotificationRow({ type, values, onChange, disabled }: RowProps) {
   const allows = new Set(type.allowed_channels);
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-border bg-white dark:bg-card">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          <p className="text-sm font-medium text-foreground">
             {type.label}
           </p>
           {!type.implemented && (
             <span
-              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200"
+              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warn-soft text-warn-strong border border-warn-soft"
               title="This notification isn't wired up yet — your preference will take effect once it's implemented."
             >
               Planned
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5">
+        <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5">
           {type.description}
         </p>
       </div>
@@ -325,7 +325,7 @@ interface ChannelSelectProps {
 function ChannelSelect({ label, value, options, disabled, onChange }: ChannelSelectProps) {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
         {label}
       </span>
       <Select

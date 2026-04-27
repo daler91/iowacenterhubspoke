@@ -3,16 +3,22 @@ import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download,
+  FileText, Send, Download, Eye,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
   PHASE_LABELS, PHASE_COLORS, OWNER_COLORS, OWNER_LABELS,
 } from '../../lib/coordination-types';
-import type { PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message } from '../../lib/coordination-types';
+import type {
+  PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
+  Mention, ProjectMember,
+} from '../../lib/coordination-types';
+import { canPreview, previewKind } from '../../lib/attachment-preview';
+import { describeApiError } from '../../lib/error-messages';
+import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
+import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
@@ -43,7 +49,38 @@ export default function PortalDashboard() {
   const [documents, setDocuments] = useState<Record<string, ProjectDocument[]>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgBody, setMsgBody] = useState('');
+  const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
+  const [previewingDoc, setPreviewingDoc] = useState<
+    { doc: ProjectDocument; url: string } | null
+  >(null);
+
+  // Portal auth is bearer-token only, so an <iframe> can't load the server
+  // URL directly — fetch the bytes as a blob and hand the dialog an object
+  // URL instead. We revoke on close (or unmount) to free the blob.
+  async function openDocPreview(projectId: string, doc: ProjectDocument) {
+    try {
+      const res = await portalAPI.previewDocument(projectId, doc.id, token);
+      const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
+      const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
+      const url = URL.createObjectURL(blob);
+      setPreviewingDoc({ doc, url });
+    } catch (err) {
+      toast.error(describeApiError(err, "Couldn't load that preview."));
+    }
+  }
+
+  function closeDocPreview() {
+    if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+    setPreviewingDoc(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+    };
+  }, [previewingDoc]);
 
   useEffect(() => {
     if (!token) { setError('No portal token provided'); setLoading(false); return; }
@@ -68,17 +105,22 @@ export default function PortalDashboard() {
 
   const loadTasks = async () => {
     if (!token || !dashboardData?.projects) return;
-    const results = await Promise.all(
-      dashboardData.projects.map(async (p) => {
-        try {
-          const res = await portalAPI.projectTasks(p.id, token);
-          return [p.id, res.data.items || []] as const;
-        } catch {
-          return [p.id, []] as const;
-        }
-      })
-    );
-    setAllTasks(Object.fromEntries(results));
+    // Single bulk request instead of N parallel /tasks calls. Backend
+    // groups tasks by project_id and authz-clamps to projects this token
+    // actually owns.
+    const projectIds = dashboardData.projects.map(p => p.id);
+    try {
+      const res = await portalAPI.bulkProjectTasks(projectIds, token);
+      const items = (res.data?.items || {}) as Record<string, unknown[]>;
+      // Make sure every project has an entry, even if it has no tasks.
+      const filled: Record<string, unknown[]> = {};
+      projectIds.forEach(id => { filled[id] = items[id] || []; });
+      setAllTasks(filled);
+    } catch {
+      const empty: Record<string, unknown[]> = {};
+      projectIds.forEach(id => { empty[id] = []; });
+      setAllTasks(empty);
+    }
   };
 
   const loadDocuments = async () => {
@@ -102,6 +144,14 @@ export default function PortalDashboard() {
       const res = await portalAPI.projectMessages(projectId, token);
       setMessages(res.data.items || []);
       setActiveProject(projectId);
+      // Refresh the mentionable roster alongside messages so switching
+      // project tabs always updates the @ popover to the correct set.
+      try {
+        const mem = await portalAPI.projectMembers(projectId, token);
+        setMembers(mem.data?.items ?? []);
+      } catch {
+        setMembers([]);
+      }
     } catch {
       toast.error('Failed to load messages');
     }
@@ -147,8 +197,10 @@ export default function PortalDashboard() {
       await portalAPI.sendMessage(activeProject, token, {
         channel: project?.title || 'general',
         body: msgBody.trim(),
+        mentions: msgMentions,
       });
       setMsgBody('');
+      setMsgMentions([]);
       loadMessages(activeProject);
     } catch {
       toast.error('Failed to send message');
@@ -157,7 +209,7 @@ export default function PortalDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
         <output aria-label="Loading portal">
           <span className="block w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin" />
         </output>
@@ -167,11 +219,11 @@ export default function PortalDashboard() {
 
   if (error || !org || !contact) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
         <Card className="p-6 sm:p-8 w-full max-w-sm text-center" role="alert">
-          <AlertTriangle className="w-12 h-12 text-warn mx-auto mb-4" aria-hidden="true" />
+          <AlertTriangle className="w-12 h-12 text-warn-strong mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-          <p className="text-sm text-slate-500">{error || 'Invalid portal link'}</p>
+          <p className="text-sm text-foreground/80">{error || 'Invalid portal link'}</p>
         </Card>
       </div>
     );
@@ -187,29 +239,29 @@ export default function PortalDashboard() {
               <CalendarDays className="w-8 h-8 text-hub shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.upcoming_classes}</p>
-                <p className="text-xs text-slate-500">Upcoming Classes</p>
+                <p className="text-xs text-foreground/80">Upcoming Classes</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
               <CheckSquare
-                className={cn('w-8 h-8 shrink-0', dashboardData.overdue_tasks > 0 ? 'text-warn' : 'text-spoke')}
+                className={cn('w-8 h-8 shrink-0', dashboardData.overdue_tasks > 0 ? 'text-warn-strong' : 'text-spoke-strong')}
                 aria-hidden="true"
               />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">
                   {dashboardData.open_tasks}
                   {dashboardData.overdue_tasks > 0 && (
-                    <span className="text-xs text-warn ml-1">({dashboardData.overdue_tasks} overdue)</span>
+                    <span className="text-xs text-warn-strong ml-1">({dashboardData.overdue_tasks} overdue)</span>
                   )}
                 </p>
-                <p className="text-xs text-slate-500">Open Tasks</p>
+                <p className="text-xs text-foreground/80">Open Tasks</p>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3 sm:col-span-2 lg:col-span-1">
-              <GraduationCap className="w-8 h-8 text-spoke shrink-0" aria-hidden="true" />
+              <GraduationCap className="w-8 h-8 text-spoke-strong shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-2xl font-bold">{dashboardData.classes_hosted}</p>
-                <p className="text-xs text-slate-500">Classes Hosted</p>
+                <p className="text-xs text-foreground/80">Classes Hosted</p>
               </div>
             </Card>
           </div>
@@ -219,14 +271,14 @@ export default function PortalDashboard() {
             {dashboardData.projects.map(project => (
               <Card key={project.id} className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-1 flex-wrap">
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 min-w-0">
+                  <h3 className="font-semibold text-foreground min-w-0">
                     {project.title}
                   </h3>
                   <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[project.phase], 'text-white')}>
                     {PHASE_LABELS[project.phase]}
                   </Badge>
                 </div>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-foreground/80">
                   {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
                 </p>
               </Card>
@@ -246,7 +298,7 @@ export default function PortalDashboard() {
             if (tasks.length === 0) return null;
             return (
               <div key={project.id}>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{project.title}</h3>
+                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
                 <div className="space-y-2">
                   {tasks.map(task => {
                     const isOverdue = !task.completed && task.due_date < new Date().toISOString();
@@ -263,7 +315,7 @@ export default function PortalDashboard() {
                               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                               task.completed
                                 ? 'bg-spoke border-spoke text-white'
-                                : 'border-slate-300 hover:border-hub',
+                                : 'border-border hover:border-hub',
                             )}
                           >
                             {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
@@ -273,7 +325,7 @@ export default function PortalDashboard() {
                               {task.title}
                             </p>
                           </div>
-                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger font-semibold' : 'text-muted-foreground')}>
+                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
                             {new Date(task.due_date).toLocaleDateString()}
                           </span>
                           <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
@@ -301,7 +353,7 @@ export default function PortalDashboard() {
             if (docs.length === 0) return null;
             return (
               <div key={project.id}>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{project.title}</h3>
+                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
                 <div className="space-y-2">
                   {docs.map(doc => (
                     <Card key={doc.id} className="p-3 flex items-center gap-3">
@@ -313,6 +365,17 @@ export default function PortalDashboard() {
                         </p>
                       </div>
                       <Badge variant="secondary" className="text-[10px]">{doc.file_type.toUpperCase()}</Badge>
+                      {canPreview(doc.file_type) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDocPreview(project.id, doc)}
+                          className="shrink-0"
+                          aria-label={`Preview ${doc.filename}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -326,11 +389,12 @@ export default function PortalDashboard() {
                             a.download = doc.filename;
                             a.click();
                             URL.revokeObjectURL(url);
-                          } catch {
-                            // silent fail — toast not available in portal
+                          } catch (err) {
+                            toast.error(describeApiError(err, 'Download failed'));
                           }
                         }}
                         className="shrink-0"
+                        aria-label={`Download ${doc.filename}`}
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -363,7 +427,7 @@ export default function PortalDashboard() {
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                   activeProject === project.id
                     ? 'bg-hub-soft text-hub-strong'
-                    : 'bg-gray-100 text-slate-500 hover:bg-gray-200',
+                    : 'bg-muted text-foreground/80 hover:bg-muted',
                 )}
               >
                 {project.title}
@@ -381,8 +445,8 @@ export default function PortalDashboard() {
                       className={cn(
                         'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0',
                         msg.sender_type === 'partner'
-                          ? 'bg-ownership-partner-soft text-ownership-partner'
-                          : 'bg-ownership-internal-soft text-ownership-internal',
+                          ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                          : 'bg-ownership-internal-soft text-ownership-internal-strong',
                       )}
                       aria-hidden="true"
                     >
@@ -395,7 +459,9 @@ export default function PortalDashboard() {
                           {new Date(msg.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-muted-foreground mt-0.5 break-words">{msg.body}</p>
+                      <p className="text-sm text-foreground dark:text-muted-foreground mt-0.5 break-words">
+                        {renderMentionBody(msg.body, msg.mentions)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -406,14 +472,15 @@ export default function PortalDashboard() {
           </Card>
 
           {/* Input */}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-white dark:bg-card px-3 py-1">
             <label htmlFor="portal-message-input" className="sr-only">Message</label>
-            <Input
-              id="portal-message-input"
+            <MentionTextarea
               value={msgBody}
-              onChange={e => setMsgBody(e.target.value)}
-              placeholder="Type a message..."
-              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+              mentions={msgMentions}
+              members={members}
+              onChange={(b, m) => { setMsgBody(b); setMsgMentions(m); }}
+              onSubmit={handleSendMessage}
+              placeholder="Type a message — @ to mention..."
             />
             <Button
               type="button"
@@ -434,12 +501,21 @@ export default function PortalDashboard() {
         <div className="max-w-2xl">
           <Card className="p-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-1">Notifications</h2>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-foreground/80 mb-4">
               Choose which emails and in-portal alerts you receive.
             </p>
             <NotificationPreferences mode="portal" portalToken={token} />
           </Card>
         </div>
+      )}
+      {previewingDoc && previewKind(previewingDoc.doc.file_type) && (
+        <AttachmentPreviewDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) closeDocPreview(); }}
+          filename={previewingDoc.doc.filename}
+          kind={previewKind(previewingDoc.doc.file_type)!}
+          url={previewingDoc.url}
+        />
       )}
     </PortalLayout>
   );

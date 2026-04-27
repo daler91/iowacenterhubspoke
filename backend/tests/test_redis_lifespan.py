@@ -89,8 +89,6 @@ def server_helpers(monkeypatch):
     pulls in ``core.auth`` → ``cryptography`` which is broken in the local
     sandbox. CI uses the real import path via ``pytest tests/``.
     """
-    import importlib
-    import importlib.util
     import pathlib
 
     server_path = pathlib.Path(__file__).parent.parent / "server.py"
