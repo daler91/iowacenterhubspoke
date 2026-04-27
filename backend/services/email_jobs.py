@@ -45,6 +45,15 @@ async def send_password_reset_email(email: str) -> None:
         )
         return
 
+    try:
+        app_url = resolve_app_url()
+    except Exception as e:
+        logger.warning(
+            "Failed to create password reset email for %s: %s",
+            user["email"], e,
+        )
+        return
+
     token = secrets.token_urlsafe(48)
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=PASSWORD_RESET_EXPIRY_HOURS)
@@ -64,7 +73,7 @@ async def send_password_reset_email(email: str) -> None:
     )
 
     try:
-        reset_url = f"{resolve_app_url()}/reset-password/{token}"
+        reset_url = f"{app_url}/reset-password/{token}"
         await send_password_reset(
             to=user["email"],
             name=user.get("name", ""),
@@ -92,6 +101,19 @@ async def send_partner_magic_link_email(email: str) -> None:
         )
         return
 
+    try:
+        org = await db.partner_orgs.find_one(
+            {"id": contact["partner_org_id"], "deleted_at": None},
+            {"_id": 0, "name": 1},
+        )
+        app_url = resolve_app_url()
+    except Exception as e:
+        logger.warning(
+            "Failed to create portal magic-link email for %s: %s",
+            contact["email"], e,
+        )
+        return
+
     token = secrets.token_urlsafe(48)
     now = datetime.now(timezone.utc)
     expires = now + timedelta(days=PORTAL_TOKEN_EXPIRY_DAYS)
@@ -106,11 +128,7 @@ async def send_partner_magic_link_email(email: str) -> None:
     logger.info("Portal token created for contact %s", contact["id"])
 
     try:
-        org = await db.partner_orgs.find_one(
-            {"id": contact["partner_org_id"], "deleted_at": None},
-            {"_id": 0, "name": 1},
-        )
-        portal_url = f"{resolve_app_url()}/portal/{token}"
+        portal_url = f"{app_url}/portal/{token}"
         await send_portal_invite(
             to=contact["email"],
             contact_name=contact.get("name", "there"),

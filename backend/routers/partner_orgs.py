@@ -279,7 +279,10 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
 )
 async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequired):
     """Generate a magic link token and email it to the partner contact."""
-    from services.email import send_portal_invite as send_invite_email
+    from services.email import (
+        resolve_app_url,
+        send_portal_invite as send_invite_email,
+    )
 
     org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
     if not org:
@@ -290,6 +293,11 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
     )
     if not contact:
         raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
+
+    # Validate email-link configuration before persisting a live token. If
+    # production APP_URL is missing or malformed, retries must not accumulate
+    # orphaned portal credentials.
+    app_url = resolve_app_url()
 
     # Generate magic link token
     token = secrets.token_urlsafe(48)
@@ -306,8 +314,7 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
     })
 
     # Build portal URL
-    from services.email import resolve_app_url
-    portal_url = f"{resolve_app_url()}/portal/{token}"
+    portal_url = f"{app_url}/portal/{token}"
 
     # Send email
     sent = await send_invite_email(
