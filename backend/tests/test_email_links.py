@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from services.email import resolve_app_url
@@ -53,3 +55,66 @@ def test_resolve_app_url_rejects_path_values(monkeypatch):
 
     with pytest.raises(RuntimeError, match="without a path"):
         resolve_app_url()
+
+
+@pytest.mark.asyncio
+async def test_direct_partner_invite_does_not_insert_token_without_app_url(
+    monkeypatch,
+):
+    from routers import partner_orgs as partner_orgs_mod
+
+    _clear_url_env(monkeypatch)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    fake_db = MagicMock()
+    fake_db.partner_orgs.find_one = AsyncMock(
+        return_value={"id": "org-1", "name": "Auzmor"}
+    )
+    fake_db.partner_contacts.find_one = AsyncMock(
+        return_value={
+            "id": "contact-1",
+            "partner_org_id": "org-1",
+            "name": "Russ D",
+            "email": "russ@example.com",
+        }
+    )
+    fake_db.portal_tokens.insert_one = AsyncMock()
+    monkeypatch.setattr(partner_orgs_mod, "db", fake_db)
+
+    with pytest.raises(RuntimeError, match="APP_URL must be set in production"):
+        await partner_orgs_mod.send_portal_invite(
+            "org-1",
+            "contact-1",
+            {"name": "Scheduler"},
+        )
+
+    fake_db.portal_tokens.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_partner_magic_link_job_does_not_insert_token_without_app_url(
+    monkeypatch,
+):
+    from services import email_jobs
+
+    _clear_url_env(monkeypatch)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    fake_db = MagicMock()
+    fake_db.partner_contacts.find_one = AsyncMock(
+        return_value={
+            "id": "contact-1",
+            "partner_org_id": "org-1",
+            "name": "Russ D",
+            "email": "russ@example.com",
+        }
+    )
+    fake_db.partner_orgs.find_one = AsyncMock(
+        return_value={"id": "org-1", "name": "Auzmor"}
+    )
+    fake_db.portal_tokens.insert_one = AsyncMock()
+    monkeypatch.setattr(email_jobs, "db", fake_db)
+
+    await email_jobs.send_partner_magic_link_email("russ@example.com")
+
+    fake_db.portal_tokens.insert_one.assert_not_awaited()
