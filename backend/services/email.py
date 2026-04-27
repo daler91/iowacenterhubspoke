@@ -1,6 +1,7 @@
 import os
 from html import escape
 from html import escape as _esc
+from urllib.parse import urlparse
 
 from core.logger import get_logger
 
@@ -34,19 +35,53 @@ _BUTTON_STYLE = (
     "background-color:#4F46E5;color:#ffffff;text-decoration:none;"
     "border-radius:8px;font-weight:600;"
 )
+_APP_URL_PRODUCTION_HINT = "https://theiowacenter-hub.org"
+
+
+def _is_production_env() -> bool:
+    return (
+        os.getenv("ENVIRONMENT", "development") == "production"
+        or bool(os.getenv("RAILWAY_ENVIRONMENT"))
+    )
+
+
+def _normalize_public_origin(value: str, name: str) -> str:
+    origin = value.strip().rstrip("/")
+    parsed = urlparse(origin)
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.netloc
+        or (parsed.path and parsed.path != "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError(
+            f"{name} must be an http(s) origin without a path, query, or fragment."
+        )
+    return origin
 
 
 def resolve_app_url() -> str:
     """Return the public base URL for magic links.
 
-    Prefers APP_URL, falls back to the first entry in CORS_ORIGINS, and
-    finally to the local dev server. Kept in one place so every router that
-    builds a user-facing link uses the same resolution.
+    APP_URL is required in production because CORS_ORIGINS may intentionally
+    be empty for same-origin deployments, and falling back to localhost would
+    generate broken password-reset and partner-portal links.
     """
-    return (
-        os.getenv("APP_URL")
-        or os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")[0].strip()
-    )
+    app_url = os.getenv("APP_URL", "").strip()
+    if app_url:
+        return _normalize_public_origin(app_url, "APP_URL")
+
+    if _is_production_env():
+        raise RuntimeError(
+            "APP_URL must be set in production before generating email links "
+            f"(expected {_APP_URL_PRODUCTION_HINT})."
+        )
+
+    cors_origin = os.getenv("CORS_ORIGINS", "").split(",")[0].strip()
+    if cors_origin:
+        return _normalize_public_origin(cors_origin, "CORS_ORIGINS")
+    return "http://localhost:5173"
 
 
 async def send_email(

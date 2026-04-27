@@ -69,7 +69,20 @@
       "Bash(python -m pytest tests/test_dst_validation.py::test_malformed_date_is_not_rejected_here --tb=short -q)",
       "Bash(grep -n 'pattern=r\"\\\\^\\\\\\\\\\\\\\\\d' models/schemas.py)",
       "Bash(python -m flake8 routers/schedule_crud.py routers/schedule_import.py routers/users.py routers/auth.py models/schemas.py)",
-      "Bash(python -m flake8 --select=E,W,F --ignore=E501,W503,W504 routers/schedule_crud.py routers/schedule_import.py routers/users.py routers/auth.py models/schemas.py)"
+      "Bash(python -m flake8 --select=E,W,F --ignore=E501,W503,W504 routers/schedule_crud.py routers/schedule_import.py routers/users.py routers/auth.py models/schemas.py)",
+      "Bash(python -m pytest tests/ -x -q)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(python -c \"import sys,json; alerts=json.load\\(sys.stdin\\); [print\\(f\\\\\"{a['rule']['id']}: {a['most_recent_instance']['location']['path']}:{a['most_recent_instance']['location']['start_line']} - {a['rule']['description']}\\\\\"\\) for a in alerts[:5]]\")",
+      "Bash(python -c \"import sys,json; alerts=json.load\\(sys.stdin\\); [print\\(f\\\\\"{a['number']:>4} {a['rule']['id']}: {a['most_recent_instance']['location']['path']}:{a['most_recent_instance']['location']['start_line']}\\\\\"\\) for a in alerts]\")",
+      "Bash(python -c \"import sys,json,collections; alerts=json.load\\(sys.stdin\\); c=collections.Counter\\(\\); [c.update\\([a['rule']['id']]\\) for a in alerts]; [print\\(f'{n} {r}'\\) for r,n in c.most_common\\(\\)]\")",
+      "Bash(curl -sL \"https://sonarcloud.io/api/issues/search?componentKeys=daler91_iowacenterhubspoke&pullRequest=247&statuses=OPEN,CONFIRMED&s=CREATION_DATE&asc=false&ps=5\")",
+      "Bash(grep *)",
+      "Bash(python -m py_compile server.py)",
+      "Bash(python -m py_compile routers/auth.py routers/schedule_create.py)",
+      "Bash(python -m py_compile server.py routers/auth.py)",
+      "Bash(python -m pytest tests/test_brute_force_unit.py::test_past_expiry_window_is_not_locked -x)",
+      "Bash(python -m py_compile server.py routers/auth.py routers/schedule_import.py core/auth.py)"
     ]
   }
 }

@@ -50,6 +50,8 @@ services:
       DB_NAME: iowa_center_hub
       REDIS_URL: redis://redis:6379
       ENVIRONMENT: production
+      APP_URL: https://theiowacenter-hub.org
+      CORS_ORIGINS: https://theiowacenter-hub.org
       # *_FILE values are read by docker-entrypoint-secrets.sh and
       # exported as JWT_SECRET / CSRF_SECRET / etc. before uvicorn starts.
       JWT_SECRET_FILE: /run/secrets/jwt_secret
@@ -94,6 +96,8 @@ services:
       DB_NAME: iowa_center_hub
       REDIS_URL: redis://redis:6379
       ENVIRONMENT: production
+      APP_URL: https://theiowacenter-hub.org
+      CORS_ORIGINS: https://theiowacenter-hub.org
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       CSRF_SECRET_FILE: /run/secrets/csrf_secret
       TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
