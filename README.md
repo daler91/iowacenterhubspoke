@@ -135,7 +135,7 @@ yarn start
 | `CSRF_SECRET` | No | `JWT_SECRET` | CSRF token HMAC secret |
 | `GOOGLE_MAPS_API_KEY` | No | — | Enables Google Distance Matrix for accurate drive times |
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis for job queue and rate limiting |
-| `CORS_ORIGINS` | No | Local dev origins | Comma-separated allowed origins. Use `https://theiowacenter-hub.org` in production. |
+| `CORS_ORIGINS` | No | Local dev origins | Comma-separated allowed origins. Use `https://www.theiowacenter-hub.org` in production. |
 | `SENTRY_DSN` | No | — | Sentry error tracking |
 | `ENVIRONMENT` | No | `development` | `production` or `development` |
 | `VITE_GOOGLE_MAPS_API_KEY` | No | — | Frontend Google Maps key |
@@ -144,7 +144,7 @@ yarn start
 | `SMTP_PORT` | No | `587` | SMTP port (STARTTLS) |
 | `SMTP_USER` | No | — | SMTP username (`resend` for Resend) |
 | `SMTP_PASSWORD` | No | — | SMTP password (Resend API key) |
-| `APP_URL` | **Production** | Dev server URL | Public base URL used in emailed magic links. Use `https://theiowacenter-hub.org` in production. |
+| `APP_URL` | **Production** | Dev server URL | Public base URL used in emailed magic links. Use `https://www.theiowacenter-hub.org` in production. |
 
 ## Email configuration (Resend)
 
@@ -165,8 +165,8 @@ SMTP_HOST=smtp.resend.com
 SMTP_PORT=587
 SMTP_USER=resend                      # literal string "resend"
 SMTP_PASSWORD=re_xxxxxxxxxxxxxxxxxxxx # the API key you copied
-CORS_ORIGINS=https://theiowacenter-hub.org
-APP_URL=https://theiowacenter-hub.org # public base URL for magic links
+CORS_ORIGINS=https://www.theiowacenter-hub.org
+APP_URL=https://www.theiowacenter-hub.org # public base URL for magic links
 ```
 
 Restart the backend and worker after changing these. On Railway, set
@@ -177,10 +177,10 @@ links, including both the web and worker services:
 docker-compose restart backend worker
 ```
 
-For Railway custom domains, attach `theiowacenter-hub.org` to the web
-service, update DNS to the value Railway provides, and wait until Railway
-shows the domain as active with a valid certificate. If the domain still
-returns Railway's fallback response, partner portal links will fail before
+For Railway custom domains, `www.theiowacenter-hub.org` must stay attached
+to the web service because that is the working public app domain. If the
+apex domain `theiowacenter-hub.org` still returns Railway's fallback
+response, do not use it in `APP_URL`; partner portal links will fail before
 the app can serve `/portal/:token`.
 
 ### 3. Verify it works

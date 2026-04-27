@@ -35,7 +35,8 @@ _BUTTON_STYLE = (
     "background-color:#4F46E5;color:#ffffff;text-decoration:none;"
     "border-radius:8px;font-weight:600;"
 )
-_APP_URL_PRODUCTION_HINT = "https://theiowacenter-hub.org"
+_APP_URL_APEX = "https://theiowacenter-hub.org"
+_APP_URL_PRODUCTION_HINT = "https://www.theiowacenter-hub.org"
 
 
 def _is_production_env() -> bool:
@@ -61,6 +62,16 @@ def _normalize_public_origin(value: str, name: str) -> str:
     return origin
 
 
+def _canonicalize_app_url(origin: str) -> str:
+    if origin == _APP_URL_APEX:
+        logger.warning(
+            "APP_URL points at the unprovisioned apex domain; using %s for email links.",
+            _APP_URL_PRODUCTION_HINT,
+        )
+        return _APP_URL_PRODUCTION_HINT
+    return origin
+
+
 def resolve_app_url() -> str:
     """Return the public base URL for magic links.
 
@@ -70,7 +81,7 @@ def resolve_app_url() -> str:
     """
     app_url = os.getenv("APP_URL", "").strip()
     if app_url:
-        return _normalize_public_origin(app_url, "APP_URL")
+        return _canonicalize_app_url(_normalize_public_origin(app_url, "APP_URL"))
 
     if _is_production_env():
         raise RuntimeError(

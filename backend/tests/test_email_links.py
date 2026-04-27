@@ -13,16 +13,24 @@ def _clear_url_env(monkeypatch):
 def test_resolve_app_url_uses_canonical_app_url(monkeypatch):
     _clear_url_env(monkeypatch)
     monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.setenv("APP_URL", "https://theiowacenter-hub.org/")
+    monkeypatch.setenv("APP_URL", "https://www.theiowacenter-hub.org/")
     monkeypatch.setenv("CORS_ORIGINS", "https://wrong.example")
 
-    assert resolve_app_url() == "https://theiowacenter-hub.org"
+    assert resolve_app_url() == "https://www.theiowacenter-hub.org"
+
+
+def test_resolve_app_url_maps_unprovisioned_apex_to_www(monkeypatch):
+    _clear_url_env(monkeypatch)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("APP_URL", "https://theiowacenter-hub.org/")
+
+    assert resolve_app_url() == "https://www.theiowacenter-hub.org"
 
 
 def test_resolve_app_url_requires_explicit_app_url_in_production(monkeypatch):
     _clear_url_env(monkeypatch)
     monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.setenv("CORS_ORIGINS", "https://theiowacenter-hub.org")
+    monkeypatch.setenv("CORS_ORIGINS", "https://www.theiowacenter-hub.org")
 
     with pytest.raises(RuntimeError, match="APP_URL must be set in production"):
         resolve_app_url()
@@ -51,7 +59,7 @@ def test_resolve_app_url_allows_cors_fallback_in_dev(monkeypatch):
 def test_resolve_app_url_rejects_path_values(monkeypatch):
     _clear_url_env(monkeypatch)
     monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.setenv("APP_URL", "https://theiowacenter-hub.org/portal")
+    monkeypatch.setenv("APP_URL", "https://www.theiowacenter-hub.org/portal")
 
     with pytest.raises(RuntimeError, match="without a path"):
         resolve_app_url()
