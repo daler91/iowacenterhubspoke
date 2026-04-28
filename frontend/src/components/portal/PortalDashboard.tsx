@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download, Eye,
+  FileText, Send, Download, Eye, Mail,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
@@ -25,6 +26,8 @@ import PortalLayout from './PortalLayout';
 import NotificationPreferences from '../NotificationPreferences';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
+const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
+const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 
 export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
@@ -33,6 +36,10 @@ export default function PortalDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [requestingLink, setRequestingLink] = useState(false);
+  const [requestLinkMessage, setRequestLinkMessage] = useState('');
+  const [requestLinkError, setRequestLinkError] = useState('');
 
   const [org, setOrg] = useState<PartnerOrg | null>(null);
   const [contact, setContact] = useState<PartnerContact | null>(null);
@@ -83,7 +90,7 @@ export default function PortalDashboard() {
   }, [previewingDoc]);
 
   useEffect(() => {
-    if (!token) { setError('No portal token provided'); setLoading(false); return; }
+    if (!token) { setError(INVALID_PORTAL_LINK_MESSAGE); setLoading(false); return; }
     (async () => {
       try {
         const verifyRes = await portalAPI.verify(token);
@@ -96,7 +103,7 @@ export default function PortalDashboard() {
         setDashboardData(dashRes.data);
       } catch {
         sessionStorage.removeItem(PORTAL_TOKEN_KEY);
-        setError('Invalid or expired portal link');
+        setError(INVALID_PORTAL_LINK_MESSAGE);
       } finally {
         setLoading(false);
       }
@@ -207,6 +214,24 @@ export default function PortalDashboard() {
     }
   };
 
+  const handleRequestLink = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = recoveryEmail.trim();
+    if (!email) return;
+
+    setRequestingLink(true);
+    setRequestLinkError('');
+    setRequestLinkMessage('');
+    try {
+      await portalAPI.requestLink(email);
+      setRequestLinkMessage(REQUEST_LINK_SUCCESS_MESSAGE);
+    } catch (err) {
+      setRequestLinkError(describeApiError(err, "We couldn't send a new link. Please try again."));
+    } finally {
+      setRequestingLink(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
@@ -220,10 +245,56 @@ export default function PortalDashboard() {
   if (error || !org || !contact) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
-        <Card className="p-6 sm:p-8 w-full max-w-sm text-center" role="alert">
-          <AlertTriangle className="w-12 h-12 text-warn-strong mx-auto mb-4" aria-hidden="true" />
-          <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-          <p className="text-sm text-foreground/80">{error || 'Invalid portal link'}</p>
+        <Card className="p-6 sm:p-8 w-full max-w-md" role="alert">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-warn-soft flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6 text-warn-strong" aria-hidden="true" />
+            </div>
+            <p className="text-xs uppercase text-foreground/60 font-semibold mb-1">
+              HubSpoke Partner Portal
+            </p>
+            <h2 className="text-xl font-semibold mb-2">Request a new portal link</h2>
+            <p className="text-sm text-foreground/80">{error || INVALID_PORTAL_LINK_MESSAGE}</p>
+          </div>
+
+          <form className="mt-6 space-y-3" onSubmit={handleRequestLink}>
+            <label htmlFor="portal-recovery-email" className="text-sm font-medium text-foreground">
+              Email address
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                id="portal-recovery-email"
+                type="email"
+                autoComplete="email"
+                value={recoveryEmail}
+                onChange={(event) => {
+                  setRecoveryEmail(event.target.value);
+                  setRequestLinkError('');
+                  setRequestLinkMessage('');
+                }}
+                placeholder="name@example.com"
+                className="min-w-0"
+              />
+              <Button
+                type="submit"
+                disabled={requestingLink || !recoveryEmail.trim()}
+                className="shrink-0"
+              >
+                <Mail className="w-4 h-4 mr-2" aria-hidden="true" />
+                {requestingLink ? 'Sending...' : 'Send new link'}
+              </Button>
+            </div>
+            {requestLinkMessage && (
+              <p className="text-sm text-spoke-strong" role="status">
+                {requestLinkMessage}
+              </p>
+            )}
+            {requestLinkError && (
+              <p className="text-sm text-warn-strong" role="alert">
+                {requestLinkError}
+              </p>
+            )}
+          </form>
         </Card>
       </div>
     );

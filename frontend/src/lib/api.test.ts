@@ -12,7 +12,13 @@
  * the axios interceptor end-to-end.
  */
 
-import { REDIRECT_DEBOUNCE_MS, isPublicAuthPath, shouldRedirectOn401 } from './api';
+import {
+  REDIRECT_DEBOUNCE_MS,
+  isPortalApiPath,
+  isPublicAuthPath,
+  shouldAttemptRefreshOn401,
+  shouldRedirectOn401,
+} from './api';
 
 describe('isPublicAuthPath', () => {
   it.each([
@@ -20,6 +26,8 @@ describe('isPublicAuthPath', () => {
     ['/forgot-password', true],
     ['/reset-password', true],
     ['/reset-password/abc123', true],
+    ['/portal', true],
+    ['/portal/abc123', true],
     ['/dashboard', false],
     ['/schedules', false],
     ['/', false],
@@ -40,6 +48,7 @@ describe('shouldRedirectOn401', () => {
     expect(shouldRedirectOn401('/login', 1_000_000, 0)).toBe(false);
     expect(shouldRedirectOn401('/forgot-password', 1_000_000, 0)).toBe(false);
     expect(shouldRedirectOn401('/reset-password/tok', 1_000_000, 0)).toBe(false);
+    expect(shouldRedirectOn401('/portal/bad-token', 1_000_000, 0)).toBe(false);
   });
 
   it('suppresses repeat redirects within the debounce window', () => {
@@ -69,5 +78,24 @@ describe('shouldRedirectOn401', () => {
 
   it('does not redirect on a public auth route even after the debounce window', () => {
     expect(shouldRedirectOn401('/login', 1_000_000 + 10 * DEBOUNCE, 0)).toBe(false);
+  });
+});
+
+describe('portal 401 handling', () => {
+  it.each([
+    ['/portal/auth/verify/bad-token', true],
+    ['/api/v1/portal/dashboard', true],
+    ['https://www.theiowacenter-hub.org/api/v1/portal/dashboard', true],
+    ['/projects/portal-migration', false],
+    ['/auth/me', false],
+  ])('detects portal API path: %s -> %s', (url, expected) => {
+    expect(isPortalApiPath(url)).toBe(expected);
+  });
+
+  it('does not attempt cookie refresh for portal bearer-token endpoints', () => {
+    expect(shouldAttemptRefreshOn401('/portal/auth/verify/bad-token')).toBe(false);
+    expect(shouldAttemptRefreshOn401('/portal/dashboard')).toBe(false);
+    expect(shouldAttemptRefreshOn401('/auth/me')).toBe(false);
+    expect(shouldAttemptRefreshOn401('/schedules')).toBe(true);
   });
 });
