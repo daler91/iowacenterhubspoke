@@ -50,10 +50,36 @@ api.interceptors.request.use((config) => {
 // Public auth routes that should NOT trigger a 401 → /login redirect.
 // A user who lands on one of these pages is already signed out by design
 // (e.g. following a password-reset link from an email).
-export const PUBLIC_AUTH_PATHS = ['/login', '/forgot-password', '/reset-password'];
+export const PUBLIC_AUTH_PATHS = ['/login', '/forgot-password', '/reset-password', '/portal'];
 
 export function isPublicAuthPath(pathname: string): boolean {
   return PUBLIC_AUTH_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function pathnameFromRequestUrl(url: string): string {
+  try {
+    return new URL(url, globalThis.location?.origin || 'http://localhost').pathname;
+  } catch {
+    return url;
+  }
+}
+
+export function isPortalApiPath(url: string): boolean {
+  const pathname = pathnameFromRequestUrl(url);
+  return pathname === '/portal'
+    || pathname.startsWith('/portal/')
+    || pathname === '/api/v1/portal'
+    || pathname.startsWith('/api/v1/portal/');
+}
+
+export function shouldAttemptRefreshOn401(url: string): boolean {
+  if (isPortalApiPath(url)) return false;
+  return !(
+    url.includes('/auth/login')
+    || url.includes('/auth/register')
+    || url.includes('/auth/refresh')
+    || url.includes('/auth/me')
+  );
 }
 
 // Debounce the login redirect so concurrent 401s don't thrash the history,
@@ -134,13 +160,13 @@ api.interceptors.response.use(
     const url: string = typeof config?.url === 'string' ? config.url : '';
 
     if (status === 401 && config && !config._retriedAfterRefresh) {
-      // Don't try to refresh on auth endpoints themselves — that's what
-      // caused the 401 in the first place.
-      const isAuthEndpoint = url.includes('/auth/login')
-        || url.includes('/auth/register')
-        || url.includes('/auth/refresh')
-        || url.includes('/auth/me');
-      if (!isAuthEndpoint) {
+      // Portal auth is bearer-token based, so let portal pages render their
+      // own invalid/expired-link recovery instead of entering the app login flow.
+      if (isPortalApiPath(url)) {
+        throw error;
+      }
+
+      if (shouldAttemptRefreshOn401(url)) {
         const refreshed = await attemptRefresh();
         if (refreshed) {
           config._retriedAfterRefresh = true;
