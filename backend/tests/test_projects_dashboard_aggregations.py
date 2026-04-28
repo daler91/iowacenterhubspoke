@@ -3,7 +3,6 @@ import sys
 import asyncio
 from unittest.mock import MagicMock
 
-import pytest
 
 # Keep imports lightweight in unit tests.
 sys.modules.setdefault("motor", MagicMock())
