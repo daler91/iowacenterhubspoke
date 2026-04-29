@@ -14,6 +14,9 @@ jest.mock('../../lib/coordination-api', () => ({
     verify: jest.fn(),
     dashboard: jest.fn(),
     requestLink: jest.fn(),
+    projectMessages: jest.fn(),
+    projectMembers: jest.fn(),
+    sendMessage: jest.fn(),
   },
 }));
 
@@ -49,5 +52,66 @@ describe('PortalDashboard link recovery', () => {
     expect(
       screen.getByText('If that email is registered, a new link has been sent.'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('PortalDashboard message delivery summary', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    sessionStorage.clear();
+
+    mockedPortalAPI.verify.mockResolvedValue({
+      data: {
+        org: { id: 'org-1', name: 'Story City Library', city: 'Story City' },
+        contact: { id: 'contact-1', name: 'Pat Partner' },
+      },
+    } as Awaited<ReturnType<typeof portalAPI.verify>>);
+
+    mockedPortalAPI.dashboard.mockResolvedValue({
+      data: {
+        upcoming_classes: 1,
+        open_tasks: 1,
+        overdue_tasks: 0,
+        classes_hosted: 1,
+        projects: [
+          {
+            id: 'project-1',
+            title: 'Spring Workshop',
+            phase: 'planning',
+            event_date: new Date().toISOString(),
+            venue_name: 'Main Hall',
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof portalAPI.dashboard>>);
+
+    mockedPortalAPI.projectMessages.mockResolvedValue({
+      data: { items: [] },
+    } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
+
+    mockedPortalAPI.projectMembers.mockResolvedValue({
+      data: { items: [] },
+    } as Awaited<ReturnType<typeof portalAPI.projectMembers>>);
+  });
+
+  it('shows fallback delivery summary when API omits notification_summary', async () => {
+    mockedPortalAPI.sendMessage.mockResolvedValue({
+      data: {
+        id: 'msg-1',
+        body: 'hello @pat',
+        mentions: [{ id: 'contact-1', kind: 'partner' }],
+      },
+    } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Messages' }));
+
+    const input = await screen.findByPlaceholderText('Type a message — @ to mention...');
+    fireEvent.change(input, { target: { value: 'hello @pat' } });
+    fireEvent.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(await screen.findByText('Last delivery')).toBeInTheDocument();
+    expect(screen.getByText('Mentions resolved/notified: 1 / 0')).toBeInTheDocument();
   });
 });
