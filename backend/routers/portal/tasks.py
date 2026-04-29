@@ -40,6 +40,8 @@ router = APIRouter(prefix="/portal", tags=["portal"])
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
 # many projects don't get globally truncated.
 _PORTAL_BULK_TASKS_PER_PROJECT = 500
+_PARTNER_TASK_EDITABLE_FIELDS = {"status", "completed", "due_date"}
+_PARTNER_TASK_INTERNAL_ONLY_FIELDS = {"spotlight", "at_risk", "private_notes"}
 
 
 async def _require_partner_project(project_id: str, ctx: dict) -> dict:
@@ -174,6 +176,73 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
             actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
         )
     return task
+
+
+@router.patch(
+    "/projects/{project_id}/tasks/{task_id}",
+    summary="Partner updates allowed task fields",
+    responses={
+        400: {"description": "No editable fields were provided."},
+        401: {"description": INVALID_TOKEN},
+        404: {"description": TASK_NOT_FOUND},
+    },
+)
+async def portal_update_task(project_id: str, task_id: str, payload: dict, ctx: PortalContext):
+    await _require_partner_project(project_id, ctx)
+    task = await _require_partner_task(task_id, project_id)
+
+    payload = payload or {}
+    provided_keys = set(payload.keys())
+    blocked = sorted(provided_keys.intersection(_PARTNER_TASK_INTERNAL_ONLY_FIELDS))
+    if blocked:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Internal-only field(s) are not editable in portal: {', '.join(blocked)}",
+        )
+
+    disallowed = sorted(provided_keys - _PARTNER_TASK_EDITABLE_FIELDS)
+    if disallowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported field(s) for portal task update: {', '.join(disallowed)}",
+        )
+
+    update_data = {k: payload[k] for k in _PARTNER_TASK_EDITABLE_FIELDS if k in payload}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No editable fields were provided.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    contact = ctx.get("contact") or {}
+    actor_name = contact.get("name", "Partner")
+
+    if "status" in update_data:
+        if update_data["status"] == "completed":
+            update_data["completed"] = True
+            update_data["completed_at"] = now
+            update_data["completed_by"] = actor_name
+        else:
+            update_data["completed"] = False
+            update_data["completed_at"] = None
+            update_data["completed_by"] = None
+    elif "completed" in update_data:
+        if bool(update_data["completed"]):
+            update_data["status"] = "completed"
+            update_data["completed_at"] = now
+            update_data["completed_by"] = actor_name
+        else:
+            if task.get("status") == "completed":
+                update_data["status"] = "to_do"
+            update_data["completed_at"] = None
+            update_data["completed_by"] = None
+
+    update_data["updated_at"] = now
+    update_data["updated_by"] = actor_name
+    await db.tasks.update_one({"id": task_id}, {"$set": update_data})
+
+    updated = await db.tasks.find_one({"id": task_id, "project_id": project_id}, {"_id": 0})
+    if not updated:
+        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+    return updated
 
 
 @router.get(
