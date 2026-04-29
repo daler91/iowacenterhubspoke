@@ -227,17 +227,17 @@ export default function PortalDashboard() {
     }
   }, [activeTab, dashboardData]);
 
-  const handleToggleTask = async (projectId: string, taskId: string) => {
+  const handleToggleTask = async (projectId: string, taskId: string, completed: boolean) => {
     if (!token) return;
     try {
-      await portalAPI.completeTask(projectId, taskId, token);
+      await portalAPI.updateTask(projectId, taskId, token, { completed: !completed });
       await loadTasks();
       toast.success('Task updated', {
         action: {
           label: 'Undo',
           onClick: async () => {
             try {
-              await portalAPI.completeTask(projectId, taskId, token);
+              await portalAPI.updateTask(projectId, taskId, token, { completed });
               await loadTasks();
               toast.success('Task reverted');
             } catch {
@@ -315,7 +315,7 @@ export default function PortalDashboard() {
                 return (
                   <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
                     <div className="flex items-start gap-2">
-                      <button type="button" onClick={() => handleToggleTask(project.id, task.id)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+                      <button type="button" onClick={() => handleToggleTask(project.id, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
                         {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
                       </button>
                       <div className="min-w-0 flex-1">
