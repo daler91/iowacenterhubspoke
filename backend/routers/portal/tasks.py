@@ -63,8 +63,6 @@ async def _require_partner_task(task_id: str, project_id: str) -> dict:
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
     return task
-
-
 @router.get(
     "/projects/{project_id}/tasks",
     summary="Partner's tasks for a project",
