@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -62,6 +62,7 @@ export default function PortalDashboard() {
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
+  const taskDetailRequestKeyRef = useRef<string | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
     { doc: ProjectDocument; url: string } | null
   >(null);
@@ -210,17 +211,22 @@ export default function PortalDashboard() {
 
   const openTaskDetail = async (projectId: string, taskId: string) => {
     if (!token) return;
+    const requestKey = `${projectId}:${taskId}:${Date.now()}`;
+    taskDetailRequestKeyRef.current = requestKey;
     setSelectedTask({ projectId, taskId });
     setSelectedTaskDetail(null);
     try {
       const res = await portalAPI.taskDetail(projectId, taskId, token);
+      if (taskDetailRequestKeyRef.current !== requestKey) return;
       setSelectedTaskDetail(res.data as Task);
     } catch {
+      if (taskDetailRequestKeyRef.current !== requestKey) return;
       toast.error('Failed to load task details');
     }
   };
 
   const closeTaskDetail = () => {
+    taskDetailRequestKeyRef.current = null;
     setSelectedTask(null);
     setSelectedTaskDetail(null);
   };
@@ -455,7 +461,7 @@ export default function PortalDashboard() {
               </div>
             );
           })}
-          {Object.values(allTasks).flat().length === 0 && (
+          {visibleProjects.every((project) => (allTasks[project.id] || []).length === 0) && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
@@ -541,7 +547,7 @@ export default function PortalDashboard() {
               </div>
             );
           })}
-          {Object.values(documents).flat().length === 0 && (
+          {visibleProjects.every((project) => (documents[project.id] || []).length === 0) && (
             <p className="text-sm text-muted-foreground text-center py-8">No shared documents</p>
           )}
         </div>
