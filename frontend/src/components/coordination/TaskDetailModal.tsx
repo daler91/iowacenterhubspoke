@@ -343,6 +343,8 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
       setReplyingTo(null);
       if (target) openThread(target.id);
       if (typeof newId === 'string') setLastPostedId(newId);
+    } catch {
+      toast.error('Failed to send message');
     } finally {
       setSending(false);
     }
@@ -568,7 +570,10 @@ export default function TaskDetailModal({
     const prevCompleted = task.completed;
     setTask(prev => prev ? { ...prev, status: next, completed: next === 'completed' } : prev);
     try {
-      await projectTasksAPI.update(projectId, taskId, { status: newStatus });
+      await projectTasksAPI.update(projectId, taskId, {
+        status: newStatus,
+        completed: newStatus === 'completed',
+      });
       onUpdated();
       // Pull the server-computed completion metadata (completed_at /
       // completed_by) for the footer. We deliberately avoid loadTask()

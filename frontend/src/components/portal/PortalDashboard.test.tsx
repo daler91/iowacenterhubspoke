@@ -163,17 +163,6 @@ describe('PortalDashboard task board and message confirmations', () => {
     } as Awaited<ReturnType<typeof portalAPI.bulkProjectTasks>>);
     mockedPortalAPI.projectMessages.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
     mockedPortalAPI.projectMembers.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMembers>>);
-    mockedPortalAPI.sendMessage.mockResolvedValue({
-      data: {
-        id: 'message-1',
-        notification_summary: {
-          mentions_requested: 0,
-          mentions_resolved: 0,
-          message_recipients_notified: 2,
-          mention_recipients_notified: 0,
-        },
-      },
-    } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
   });
 
   it('lets partners switch their filtered task list into a Kanban board', async () => {
@@ -192,7 +181,44 @@ describe('PortalDashboard task board and message confirmations', () => {
     expect(screen.getByText('Share flyer')).toBeInTheDocument();
   });
 
-  it('confirms how many recipients were notified after sending a portal message', async () => {
+  it('shows fallback delivery summary when API omits notification_summary', async () => {
+    mockedPortalAPI.sendMessage.mockResolvedValue({
+      data: {
+        id: 'msg-1',
+        body: 'hello @pat',
+        mentions: [{ id: 'contact-1', kind: 'partner' }],
+      },
+    } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Messages' }));
+    await waitFor(() => {
+      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledWith('project-1', 'good-token');
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/type a message/i), {
+      target: { value: 'hello @pat' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(await screen.findByText('Last delivery')).toBeInTheDocument();
+    expect(screen.getByText('Mentions resolved/notified: 1 / 0')).toBeInTheDocument();
+  });
+
+  it('confirms how many recipients were notified when API returns notification_summary', async () => {
+    mockedPortalAPI.sendMessage.mockResolvedValue({
+      data: {
+        id: 'message-1',
+        notification_summary: {
+          mentions_requested: 0,
+          mentions_resolved: 0,
+          message_recipients_notified: 2,
+          mention_recipients_notified: 0,
+        },
+      },
+    } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
+
     render(<PortalDashboard />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Messages' }));
