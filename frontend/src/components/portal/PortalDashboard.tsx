@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -59,6 +59,9 @@ export default function PortalDashboard() {
   const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
+  const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
     { doc: ProjectDocument; url: string } | null
   >(null);
@@ -197,6 +200,30 @@ export default function PortalDashboard() {
     }
   };
 
+
+  const visibleProjects = useMemo(() => {
+    if (!dashboardData?.projects) return [];
+    return selectedProjectId === 'all'
+      ? dashboardData.projects
+      : dashboardData.projects.filter((p) => p.id === selectedProjectId);
+  }, [dashboardData, selectedProjectId]);
+
+  const openTaskDetail = async (projectId: string, taskId: string) => {
+    if (!token) return;
+    setSelectedTask({ projectId, taskId });
+    setSelectedTaskDetail(null);
+    try {
+      const res = await portalAPI.taskDetail(projectId, taskId, token);
+      setSelectedTaskDetail(res.data as Task);
+    } catch {
+      toast.error('Failed to load task details');
+    }
+  };
+
+  const closeTaskDetail = () => {
+    setSelectedTask(null);
+    setSelectedTaskDetail(null);
+  };
   const handleSendMessage = async () => {
     if (!token || !activeProject || !msgBody.trim()) return;
     try {
@@ -364,7 +391,21 @@ export default function PortalDashboard() {
       {/* Tasks Tab */}
       {activeTab === 'tasks' && dashboardData && (
         <div className="space-y-6">
-          {dashboardData.projects.map(project => {
+          <div className="flex items-center gap-2">
+            <label htmlFor="portal-task-project-filter" className="text-sm text-foreground/80">Project</label>
+            <select
+              id="portal-task-project-filter"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value as 'all' | string)}
+              className="border border-border rounded-md px-2 py-1 text-sm bg-background"
+            >
+              <option value="all">All projects</option>
+              {dashboardData.projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
+          {visibleProjects.map(project => {
             const tasks = allTasks[project.id] || [];
             if (tasks.length === 0) return null;
             return (
@@ -392,9 +433,13 @@ export default function PortalDashboard() {
                             {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <p className={cn('text-sm', task.completed && 'line-through text-muted-foreground')}>
+                            <button
+                              type="button"
+                              onClick={() => openTaskDetail(project.id, task.id)}
+                              className={cn('text-sm text-left hover:underline', task.completed && 'line-through text-muted-foreground')}
+                            >
                               {task.title}
-                            </p>
+                            </button>
                           </div>
                           <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
                             {new Date(task.due_date).toLocaleDateString()}
@@ -416,10 +461,31 @@ export default function PortalDashboard() {
         </div>
       )}
 
+
+      {selectedTask && (
+        <Card className="p-4 border-hub/30 bg-hub-soft/20">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold">Task details</h3>
+            <Button type="button" variant="ghost" size="sm" onClick={closeTaskDetail}>Close</Button>
+          </div>
+          {!selectedTaskDetail ? (
+            <p className="text-sm text-muted-foreground mt-2">Loading details…</p>
+          ) : (
+            <div className="mt-2 space-y-2 text-sm">
+              <p><span className="font-medium">Title:</span> {selectedTaskDetail.title}</p>
+              <p><span className="font-medium">Due:</span> {new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
+              <p><span className="font-medium">Owner:</span> {OWNER_LABELS[selectedTaskDetail.owner]}</p>
+              <p><span className="font-medium">Details:</span> {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}</p>
+              <p><span className="font-medium">Attachments:</span> {selectedTaskDetail.attachment_count ?? 0} · <span className="font-medium">Comments:</span> {selectedTaskDetail.comment_count ?? 0}</p>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (
         <div className="space-y-6">
-          {dashboardData.projects.map(project => {
+          {visibleProjects.map(project => {
             const docs = documents[project.id] || [];
             if (docs.length === 0) return null;
             return (
