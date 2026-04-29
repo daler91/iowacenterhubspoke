@@ -31,6 +31,34 @@ const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 type TaskViewMode = 'list' | 'kanban';
 
+interface NotificationSummary {
+  mentions_requested?: number;
+  mentions_resolved?: number;
+  message_recipients_notified?: number;
+  mention_recipients_notified?: number;
+}
+
+function pluralizeRecipients(count: number): string {
+  return `${count} recipient${count === 1 ? '' : 's'}`;
+}
+
+function messageDeliveryText(summary: NotificationSummary | undefined, mentionsSent: number): string {
+  if (!summary) return 'Message sent';
+  if (mentionsSent > 0) {
+    const mentionDeliveries = summary.mention_recipients_notified ?? 0;
+    if (mentionDeliveries > 0) {
+      return `Message sent. Mention notifications sent to ${pluralizeRecipients(mentionDeliveries)}.`;
+    }
+    if ((summary.mentions_resolved ?? 0) === 0) {
+      return 'Message sent, but no matching mention recipients were found.';
+    }
+    return 'Message sent. Mention recipients had notifications off or already received the alert.';
+  }
+  const messageDeliveries = summary.message_recipients_notified ?? 0;
+  if (messageDeliveries > 0) return `Message sent. Notifications sent to ${pluralizeRecipients(messageDeliveries)}.`;
+  return 'Message sent';
+}
+
 export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
   // Prefer URL token, fall back to sessionStorage for in-session persistence
@@ -292,11 +320,13 @@ export default function PortalDashboard() {
     if (!token || !activeProject || !msgBody.trim()) return;
     try {
       const project = dashboardData?.projects.find(p => p.id === activeProject);
-      await portalAPI.sendMessage(activeProject, token, {
+      const res = await portalAPI.sendMessage(activeProject, token, {
         channel: project?.title || 'general',
         body: msgBody.trim(),
         mentions: msgMentions,
       });
+      const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
+      toast.success(messageDeliveryText(notificationSummary, msgMentions.length));
       setMsgBody('');
       setMsgMentions([]);
       loadMessages(activeProject);
