@@ -4,7 +4,6 @@ import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
   FileText, Send, Download, Eye, Mail, Columns3, List,
@@ -12,7 +11,6 @@ import {
 import { portalAPI } from '../../lib/coordination-api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
-  TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
 } from '../../lib/coordination-types';
 import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
@@ -25,7 +23,9 @@ import MentionTextarea, { renderMentionBody } from '../coordination/MentionTexta
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
+import PortalTaskBoard from './PortalTaskBoard';
 import NotificationPreferences from '../NotificationPreferences';
+import PortalTaskDetailModal from './PortalTaskDetailModal';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
@@ -39,10 +39,6 @@ interface NotificationSummary {
   mention_recipients_notified?: number;
 }
 
-
-function taskStatus(task: Task): TaskStatus {
-  return task.completed ? 'completed' : (task.status || 'to_do');
-}
 
 function pluralizeRecipients(count: number): string {
   return `${count} recipient${count === 1 ? '' : 's'}`;
@@ -113,8 +109,6 @@ export default function PortalDashboard() {
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
-  const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
-  const taskDetailRequestKeyRef = useRef<string | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
     { doc: ProjectDocument; url: string } | null
   >(null);
@@ -228,17 +222,17 @@ export default function PortalDashboard() {
     }
   }, [activeTab, dashboardData]);
 
-  const handleToggleTask = async (projectId: string, taskId: string) => {
+  const handleToggleTask = async (projectId: string, taskId: string, completed: boolean) => {
     if (!token) return;
     try {
-      await portalAPI.completeTask(projectId, taskId, token);
+      await portalAPI.updateTask(projectId, taskId, token, { completed: !completed });
       await loadTasks();
       toast.success('Task updated', {
         action: {
           label: 'Undo',
           onClick: async () => {
             try {
-              await portalAPI.completeTask(projectId, taskId, token);
+              await portalAPI.updateTask(projectId, taskId, token, { completed });
               await loadTasks();
               toast.success('Task reverted');
             } catch {
@@ -254,6 +248,25 @@ export default function PortalDashboard() {
   };
 
 
+  const handleMoveTask = async (projectId: string, task: Task, status: TaskStatus) => {
+    if (!token) return { ok: false, message: 'Missing portal session.' };
+    // Keep partner permissions conservative: if backend rejects a phase/status
+    // update, preserve source-of-truth and explain inline.
+    try {
+      await portalAPI.updateTask(projectId, task.id, token, {
+        status,
+        completed: status === 'completed',
+      });
+      await loadTasks();
+      return { ok: true };
+    } catch (err) {
+      const message = describeApiError(err, 'You do not have permission to move that task to this status.');
+      toast.error(message);
+      return { ok: false, message };
+    }
+  };
+
+
   const visibleProjects = useMemo(() => {
     if (!dashboardData?.projects) return [];
     return selectedProjectId === 'all'
@@ -261,26 +274,12 @@ export default function PortalDashboard() {
       : dashboardData.projects.filter((p) => p.id === selectedProjectId);
   }, [dashboardData, selectedProjectId]);
 
-  const openTaskDetail = async (projectId: string, taskId: string) => {
-    if (!token) return;
-    const requestKey = `${projectId}:${taskId}:${Date.now()}`;
-    taskDetailRequestKeyRef.current = requestKey;
+  const openTaskDetail = (projectId: string, taskId: string) => {
     setSelectedTask({ projectId, taskId });
-    setSelectedTaskDetail(null);
-    try {
-      const res = await portalAPI.taskDetail(projectId, taskId, token);
-      if (taskDetailRequestKeyRef.current !== requestKey) return;
-      setSelectedTaskDetail(res.data as Task);
-    } catch {
-      if (taskDetailRequestKeyRef.current !== requestKey) return;
-      toast.error('Failed to load task details');
-    }
   };
 
   const closeTaskDetail = () => {
-    taskDetailRequestKeyRef.current = null;
     setSelectedTask(null);
-    setSelectedTaskDetail(null);
   };
 
   const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
@@ -316,7 +315,7 @@ export default function PortalDashboard() {
                 return (
                   <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
                     <div className="flex items-start gap-2">
-                      <button type="button" onClick={() => handleToggleTask(project.id, task.id)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+                      <button type="button" onClick={() => handleToggleTask(project.id, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
                         {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
                       </button>
                       <div className="min-w-0 flex-1">
@@ -538,64 +537,12 @@ export default function PortalDashboard() {
           </div>
 
           {taskViewMode === 'list' ? renderTaskList() : (
-            <div className="space-y-4">
-              {visibleProjects.map(project => {
-                const tasks = allTasks[project.id] || [];
-                if (tasks.length === 0) return null;
-                return (
-                  <section key={project.id} aria-labelledby={`portal-kanban-${project.id}`}>
-                    <h3 id={`portal-kanban-${project.id}`} className="font-semibold text-foreground mb-2">
-                      {project.title}
-                    </h3>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      {TASK_STATUSES.map((status) => {
-                        const columnTasks = tasks.filter((task) => taskStatus(task) === status);
-                        return (
-                          <div key={status} className="rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem]">
-                            <div className="flex items-center gap-2 mb-3">
-                              <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
-                              <h4 className="text-sm font-semibold text-foreground">{TASK_STATUS_LABELS[status]}</h4>
-                              <span className="text-xs text-muted-foreground ml-auto">{columnTasks.length}</span>
-                            </div>
-                            <div className="space-y-2">
-                              {columnTasks.length > 0 ? columnTasks.map((task) => {
-                                const isOverdue = !task.completed && task.due_date < new Date().toISOString();
-                                return (
-                                  <Card key={task.id} className={cn('p-2.5 border', task.completed && 'opacity-60')}>
-                                    <div className="flex items-start gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleTask(project.id, task.id)}
-                                        aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
-                                        aria-pressed={task.completed}
-                                        className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
-                                      >
-                                        {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-                                      </button>
-                                      <div className="min-w-0 flex-1">
-                                        <button type="button" onClick={() => openTaskDetail(project.id, task.id)} className={cn('text-sm text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>
-                                          {task.title}
-                                        </button>
-                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                          <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
-                                            {new Date(task.due_date).toLocaleDateString()}
-                                          </span>
-                                          <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </Card>
-                                );
-                              }) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
+            <PortalTaskBoard
+              projects={visibleProjects}
+              allTasks={allTasks as Record<string, Task[]>}
+              onOpenTask={openTaskDetail}
+              onMoveTask={handleMoveTask}
+            />
           )}
           {visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
@@ -603,52 +550,16 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) closeTaskDetail(); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Task details</DialogTitle>
-          </DialogHeader>
-          {!selectedTaskDetail ? (
-            <p className="text-sm text-muted-foreground">Loading details…</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h3 className="text-lg font-semibold text-foreground">{selectedTaskDetail.title}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[selectedTaskDetail.owner])}>
-                    {OWNER_LABELS[selectedTaskDetail.owner]}
-                  </Badge>
-                  <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[selectedTaskDetail.phase], 'text-white')}>
-                    {PHASE_LABELS[selectedTaskDetail.phase]}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Due date</p>
-                  <p className="text-sm font-medium">{new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Attachments</p>
-                  <p className="text-sm font-medium">{selectedTaskDetail.attachment_count ?? 0}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Comments</p>
-                  <p className="text-sm font-medium">{selectedTaskDetail.comment_count ?? 0}</p>
-                </Card>
-              </div>
-
-              <Card className="p-4">
-                <p className="text-xs text-muted-foreground mb-1">Details</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">
-                  {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}
-                </p>
-              </Card>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedTask && (
+        <PortalTaskDetailModal
+          open={!!selectedTask}
+          onOpenChange={(open) => { if (!open) closeTaskDetail(); }}
+          projectId={selectedTask.projectId}
+          taskId={selectedTask.taskId}
+          token={token}
+          onRefresh={loadTasks}
+        />
+      )}
 
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (
