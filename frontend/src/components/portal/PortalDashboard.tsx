@@ -7,7 +7,7 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download, Eye, Mail,
+  FileText, Send, Download, Eye, Mail, Columns3, List,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
@@ -29,6 +29,7 @@ import NotificationPreferences from '../NotificationPreferences';
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
+type TaskViewMode = 'list' | 'kanban';
 
 export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
@@ -61,6 +62,7 @@ export default function PortalDashboard() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
+  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('kanban');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
   const taskDetailRequestKeyRef = useRef<string | null>(null);
@@ -231,6 +233,61 @@ export default function PortalDashboard() {
     setSelectedTask(null);
     setSelectedTaskDetail(null);
   };
+
+  const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
+
+  const renderProjectFilter = (selectId: string) => (
+    <div className="flex items-center gap-2">
+      <label htmlFor={selectId} className="text-sm text-foreground/80">Project</label>
+      <select
+        id={selectId}
+        value={selectedProjectId}
+        onChange={(e) => setSelectedProjectId(e.target.value as 'all' | string)}
+        className="border border-border rounded-md px-2 py-1 text-sm bg-background"
+      >
+        <option value="all">All projects</option>
+        {dashboardData?.projects.map((project) => (
+          <option key={project.id} value={project.id}>{project.title}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderTaskList = () => (
+    <div className="space-y-4">
+      {visibleProjects.map((project) => {
+        const tasks = allTasks[project.id] || [];
+        if (tasks.length === 0) return null;
+        return (
+          <section key={project.id}>
+            <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
+            <div className="space-y-2">
+              {tasks.map((task) => {
+                const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+                return (
+                  <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
+                    <div className="flex items-start gap-2">
+                      <button type="button" onClick={() => handleToggleTask(project.id, task.id)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+                        {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <button type="button" onClick={() => openTaskDetail(project.id, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+                          <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+
   const handleSendMessage = async () => {
     if (!token || !activeProject || !msgBody.trim()) return;
     try {
@@ -406,36 +463,16 @@ export default function PortalDashboard() {
       {/* Tasks Tab */}
       {activeTab === 'tasks' && dashboardData && (
         <div className="space-y-4">
-          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Project filter">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedProjectId === 'all'}
-              onClick={() => setSelectedProjectId('all')}
-              className={cn(
-                'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
-                selectedProjectId === 'all' ? 'bg-hub-soft text-hub-strong' : 'bg-muted text-foreground/80 hover:bg-muted',
-              )}
-            >
-              All projects
-            </button>
-            {dashboardData.projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                role="tab"
-                aria-selected={selectedProjectId === project.id}
-                onClick={() => setSelectedProjectId(project.id)}
-                className={cn(
-                  'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
-                  selectedProjectId === project.id ? 'bg-hub-soft text-hub-strong' : 'bg-muted text-foreground/80 hover:bg-muted',
-                )}
-              >
-                {project.title}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {renderProjectFilter('portal-task-project-filter')}
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5" aria-label="Task view">
+              <button type="button" onClick={() => setTaskViewMode('list')} aria-pressed={taskViewMode === 'list'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'list' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><List className="w-4 h-4" aria-hidden="true" />List</button>
+              <button type="button" onClick={() => setTaskViewMode('kanban')} aria-pressed={taskViewMode === 'kanban'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'kanban' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><Columns3 className="w-4 h-4" aria-hidden="true" />Board</button>
+            </div>
           </div>
 
+          {taskViewMode === 'list' ? renderTaskList() : (
+          <>
           {visibleProjects.map(project => {
             const tasks = allTasks[project.id] || [];
             const tasksByPhase = Object.fromEntries(PROJECT_PHASES.map((phase) => [phase, tasks.filter((t) => t.phase === phase)]));
@@ -506,7 +543,9 @@ export default function PortalDashboard() {
               </div>
             );
           })}
-          {visibleProjects.every((project) => (allTasks[project.id] || []).length === 0) && (
+          </>
+          )}
+          {visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
@@ -562,35 +601,7 @@ export default function PortalDashboard() {
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (
         <div className="space-y-6">
-          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Project filter">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedProjectId === 'all'}
-              onClick={() => setSelectedProjectId('all')}
-              className={cn(
-                'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
-                selectedProjectId === 'all' ? 'bg-hub-soft text-hub-strong' : 'bg-muted text-foreground/80 hover:bg-muted',
-              )}
-            >
-              All projects
-            </button>
-            {dashboardData.projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                role="tab"
-                aria-selected={selectedProjectId === project.id}
-                onClick={() => setSelectedProjectId(project.id)}
-                className={cn(
-                  'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
-                  selectedProjectId === project.id ? 'bg-hub-soft text-hub-strong' : 'bg-muted text-foreground/80 hover:bg-muted',
-                )}
-              >
-                {project.title}
-              </button>
-            ))}
-          </div>
+          {renderProjectFilter('portal-document-project-filter')}
           {visibleProjects.map(project => {
             const docs = documents[project.id] || [];
             if (docs.length === 0) return null;
