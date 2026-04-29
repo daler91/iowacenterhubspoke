@@ -65,6 +65,7 @@ async def _require_partner_task(task_id: str, project_id: str) -> dict:
     return task
 
 
+
 @router.get(
     "/projects/{project_id}/tasks",
     summary="Partner's tasks for a project",
