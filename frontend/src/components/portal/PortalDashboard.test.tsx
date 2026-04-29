@@ -11,6 +11,7 @@ const mockToastError = jest.fn();
 
 jest.mock('react-router-dom', () => ({
   useParams: () => ({ token: mockRouteToken }),
+  useNavigate: () => jest.fn(),
 }));
 
 jest.mock('../../lib/coordination-api', () => ({
