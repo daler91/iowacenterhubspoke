@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
   FileText, Send, Download, Eye, Mail, Columns3, List,
@@ -26,6 +25,7 @@ import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
 import PortalTaskBoard from './PortalTaskBoard';
 import NotificationPreferences from '../NotificationPreferences';
+import PortalTaskDetailModal from './PortalTaskDetailModal';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
@@ -108,8 +108,6 @@ export default function PortalDashboard() {
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
-  const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
-  const taskDetailRequestKeyRef = useRef<string | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
     { doc: ProjectDocument; url: string } | null
   >(null);
@@ -223,17 +221,17 @@ export default function PortalDashboard() {
     }
   }, [activeTab, dashboardData]);
 
-  const handleToggleTask = async (projectId: string, taskId: string) => {
+  const handleToggleTask = async (projectId: string, taskId: string, completed: boolean) => {
     if (!token) return;
     try {
-      await portalAPI.completeTask(projectId, taskId, token);
+      await portalAPI.updateTask(projectId, taskId, token, { completed: !completed });
       await loadTasks();
       toast.success('Task updated', {
         action: {
           label: 'Undo',
           onClick: async () => {
             try {
-              await portalAPI.completeTask(projectId, taskId, token);
+              await portalAPI.updateTask(projectId, taskId, token, { completed });
               await loadTasks();
               toast.success('Task reverted');
             } catch {
@@ -275,26 +273,12 @@ export default function PortalDashboard() {
       : dashboardData.projects.filter((p) => p.id === selectedProjectId);
   }, [dashboardData, selectedProjectId]);
 
-  const openTaskDetail = async (projectId: string, taskId: string) => {
-    if (!token) return;
-    const requestKey = `${projectId}:${taskId}:${Date.now()}`;
-    taskDetailRequestKeyRef.current = requestKey;
+  const openTaskDetail = (projectId: string, taskId: string) => {
     setSelectedTask({ projectId, taskId });
-    setSelectedTaskDetail(null);
-    try {
-      const res = await portalAPI.taskDetail(projectId, taskId, token);
-      if (taskDetailRequestKeyRef.current !== requestKey) return;
-      setSelectedTaskDetail(res.data as Task);
-    } catch {
-      if (taskDetailRequestKeyRef.current !== requestKey) return;
-      toast.error('Failed to load task details');
-    }
   };
 
   const closeTaskDetail = () => {
-    taskDetailRequestKeyRef.current = null;
     setSelectedTask(null);
-    setSelectedTaskDetail(null);
   };
 
   const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
@@ -330,7 +314,7 @@ export default function PortalDashboard() {
                 return (
                   <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
                     <div className="flex items-start gap-2">
-                      <button type="button" onClick={() => handleToggleTask(project.id, task.id)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+                      <button type="button" onClick={() => handleToggleTask(project.id, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
                         {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
                       </button>
                       <div className="min-w-0 flex-1">
@@ -565,52 +549,16 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) closeTaskDetail(); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Task details</DialogTitle>
-          </DialogHeader>
-          {!selectedTaskDetail ? (
-            <p className="text-sm text-muted-foreground">Loading details…</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h3 className="text-lg font-semibold text-foreground">{selectedTaskDetail.title}</h3>
-                <div className="flex items-center gap-2">
-                  <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[selectedTaskDetail.owner])}>
-                    {OWNER_LABELS[selectedTaskDetail.owner]}
-                  </Badge>
-                  <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[selectedTaskDetail.phase], 'text-white')}>
-                    {PHASE_LABELS[selectedTaskDetail.phase]}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Due date</p>
-                  <p className="text-sm font-medium">{new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Attachments</p>
-                  <p className="text-sm font-medium">{selectedTaskDetail.attachment_count ?? 0}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Comments</p>
-                  <p className="text-sm font-medium">{selectedTaskDetail.comment_count ?? 0}</p>
-                </Card>
-              </div>
-
-              <Card className="p-4">
-                <p className="text-xs text-muted-foreground mb-1">Details</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">
-                  {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}
-                </p>
-              </Card>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedTask && (
+        <PortalTaskDetailModal
+          open={!!selectedTask}
+          onOpenChange={(open) => { if (!open) closeTaskDetail(); }}
+          projectId={selectedTask.projectId}
+          taskId={selectedTask.taskId}
+          token={token}
+          onRefresh={loadTasks}
+        />
+      )}
 
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (

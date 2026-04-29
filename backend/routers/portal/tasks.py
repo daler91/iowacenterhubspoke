@@ -49,6 +49,8 @@ class PortalTaskUpdate(BaseModel):
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
 # many projects don't get globally truncated.
 _PORTAL_BULK_TASKS_PER_PROJECT = 500
+_PARTNER_TASK_EDITABLE_FIELDS = {"status", "completed", "due_date"}
+_PARTNER_TASK_INTERNAL_ONLY_FIELDS = {"spotlight", "at_risk", "private_notes"}
 
 
 async def _require_partner_project(project_id: str, ctx: dict) -> dict:
