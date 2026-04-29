@@ -48,6 +48,19 @@ function pluralizeRecipients(count: number): string {
   return `${count} recipient${count === 1 ? '' : 's'}`;
 }
 
+
+function buildDeliverySummaryFromMessageDoc(messageDoc: unknown, mentionsSent: number): NotificationSummary {
+  const doc = (messageDoc && typeof messageDoc == 'object') ? (messageDoc as { mentions?: unknown[] }) : null;
+  const resolvedMentions = Array.isArray(doc?.mentions) ? doc.mentions.length : 0;
+  return {
+    mentions_requested: mentionsSent,
+    mentions_resolved: resolvedMentions,
+    mention_recipients_notified: resolvedMentions,
+    // Backend currently returns message doc without delivery fanout counts.
+    message_recipients_notified: 0,
+  };
+}
+
 function messageDeliveryText(summary: NotificationSummary | undefined, mentionsSent: number): string {
   if (!summary) return 'Message sent';
   if (mentionsSent > 0) {
@@ -333,8 +346,10 @@ export default function PortalDashboard() {
         mentions: msgMentions,
       });
       const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
-      setLastDeliverySummary(notificationSummary || null);
-      toast.success(messageDeliveryText(notificationSummary, msgMentions.length));
+      const fallbackSummary = buildDeliverySummaryFromMessageDoc(res.data, msgMentions.length);
+      const resolvedSummary = notificationSummary || fallbackSummary;
+      setLastDeliverySummary(resolvedSummary);
+      toast.success(messageDeliveryText(resolvedSummary, msgMentions.length));
       setMsgBody('');
       setMsgMentions([]);
       loadMessages(activeProject);
@@ -500,10 +515,10 @@ export default function PortalDashboard() {
             <Card className="mt-3 p-3 bg-muted/40">
               <p className="text-xs text-muted-foreground">Last delivery</p>
               <p className="text-sm text-foreground">
-                Message notifications: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
+                Message notifications delivered: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
               </p>
               <p className="text-sm text-foreground">
-                Mention notifications: {lastDeliverySummary.mention_recipients_notified ?? 0} recipient(s)
+                Mentions resolved/notified: {(lastDeliverySummary.mentions_resolved ?? 0)} / {(lastDeliverySummary.mentions_requested ?? 0)}
               </p>
             </Card>
           )}
@@ -785,10 +800,10 @@ export default function PortalDashboard() {
             <Card className="mt-3 p-3 bg-muted/40">
               <p className="text-xs text-muted-foreground">Last delivery</p>
               <p className="text-sm text-foreground">
-                Message notifications: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
+                Message notifications delivered: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
               </p>
               <p className="text-sm text-foreground">
-                Mention notifications: {lastDeliverySummary.mention_recipients_notified ?? 0} recipient(s)
+                Mentions resolved/notified: {(lastDeliverySummary.mentions_resolved ?? 0)} / {(lastDeliverySummary.mentions_requested ?? 0)}
               </p>
             </Card>
           )}
