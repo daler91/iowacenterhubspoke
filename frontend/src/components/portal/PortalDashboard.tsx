@@ -94,6 +94,7 @@ export default function PortalDashboard() {
   const [msgBody, setMsgBody] = useState('');
   const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
   const [activeProject, setActiveProject] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
@@ -332,11 +333,13 @@ export default function PortalDashboard() {
         mentions: msgMentions,
       });
       const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
+      setLastDeliverySummary(notificationSummary || null);
       toast.success(messageDeliveryText(notificationSummary, msgMentions.length));
       setMsgBody('');
       setMsgMentions([]);
       loadMessages(activeProject);
     } catch {
+      setLastDeliverySummary(null);
       toast.error('Failed to send message');
     }
   };
@@ -493,6 +496,17 @@ export default function PortalDashboard() {
               <p className="text-sm text-muted-foreground text-center py-4">No upcoming classes</p>
             )}
           </div>
+          {lastDeliverySummary && (
+            <Card className="mt-3 p-3 bg-muted/40">
+              <p className="text-xs text-muted-foreground">Last delivery</p>
+              <p className="text-sm text-foreground">
+                Message notifications: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
+              </p>
+              <p className="text-sm text-foreground">
+                Mention notifications: {lastDeliverySummary.mention_recipients_notified ?? 0} recipient(s)
+              </p>
+            </Card>
+          )}
         </div>
       )}
 
@@ -767,6 +781,17 @@ export default function PortalDashboard() {
               <Send className="w-4 h-4" aria-hidden="true" />
             </Button>
           </div>
+          {lastDeliverySummary && (
+            <Card className="mt-3 p-3 bg-muted/40">
+              <p className="text-xs text-muted-foreground">Last delivery</p>
+              <p className="text-sm text-foreground">
+                Message notifications: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
+              </p>
+              <p className="text-sm text-foreground">
+                Mention notifications: {lastDeliverySummary.mention_recipients_notified ?? 0} recipient(s)
+              </p>
+            </Card>
+          )}
         </div>
       )}
 
