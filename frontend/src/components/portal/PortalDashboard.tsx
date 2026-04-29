@@ -15,7 +15,7 @@ import {
 } from '../../lib/coordination-types';
 import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
-  Mention, ProjectMember,
+  Mention, ProjectMember, TaskStatus,
 } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import { describeApiError } from '../../lib/error-messages';

@@ -269,18 +269,45 @@ async def _fan_out(
     errors must never break the CRUD write that triggered this call.
     """
     sent = 0
+    failed = 0
+    in_app_sent = 0
+    email_sent = 0
+    email_queued = 0
+    skipped = 0
+    deduped = 0
     for p in principals:
         try:
             result = await dispatch(p, event)
+            logger.debug(
+                "notify[%s]: recipient=%s/%s in_app=%s email=%s",
+                log_key, p.kind, p.id, result.in_app, result.email,
+            )
+            if result.in_app == "sent":
+                in_app_sent += 1
+            if result.email == "sent":
+                email_sent += 1
+            if result.email == "queued":
+                email_queued += 1
+            if result.in_app == "skipped" or result.email == "skipped":
+                skipped += 1
+            if result.in_app == "deduped" or result.email == "deduped":
+                deduped += 1
             if (result.in_app == "sent"
                     or result.email == "sent"
                     or result.email == "queued"):
                 sent += 1
         except Exception as e:
+            failed += 1
             logger.warning(
                 "notify[%s]: dispatch failed for %s/%s: %s",
                 log_key, p.kind, p.id, e,
             )
+    logger.info(
+        "notify[%s]: fanout recipients=%d delivered=%d in_app_sent=%d "
+        "email_sent=%d email_queued=%d skipped=%d deduped=%d failed=%d",
+        log_key, len(principals), sent, in_app_sent, email_sent,
+        email_queued, skipped, deduped, failed,
+    )
     return sent
 
 
@@ -612,7 +639,7 @@ async def _load_commenter_principals(
 async def notify_task_comment(
     comment: dict, task: dict, project: dict, actor: dict,
     mention_ids: Optional[set[str]] = None,
-) -> None:
+) -> int:
     """Fire ``task.comment_added`` for task assignee + prior commenters.
 
     Principals passed in ``mention_ids`` are skipped — the caller is
@@ -636,7 +663,7 @@ async def notify_task_comment(
     recipients.extend(await _gather_prior_commenters(task.get("id", ""), seen_ids))
 
     if not recipients:
-        return
+        return 0
 
     title = task.get("title", DEFAULT_TASK_LABEL)
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
@@ -659,18 +686,18 @@ async def notify_task_comment(
         entity_id=task.get("id"),
         dedup_key=f"{comment.get('id', '')}",
     )
-    await _fan_out(recipients, event, log_key="task.comment_added")
+    return await _fan_out(recipients, event, log_key="task.comment_added")
 
 
 async def notify_task_comment_mentions(
     comment: dict, task: dict, project: dict, actor: dict,
     mentioned: list[Principal],
-) -> None:
+) -> int:
     """Fire ``task.comment_mentioned`` for each resolved mention."""
     actor_id = actor.get("id") or actor.get("user_id") or ""
     recipients = [p for p in mentioned if p.id and p.id != actor_id]
     if not recipients:
-        return
+        return 0
 
     title = task.get("title", DEFAULT_TASK_LABEL)
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
@@ -693,7 +720,7 @@ async def notify_task_comment_mentions(
         entity_id=task.get("id"),
         dedup_key=f"{comment.get('id', '')}:mention",
     )
-    await _fan_out(recipients, event, log_key=_TASK_COMMENT_MENTIONED)
+    return await _fan_out(recipients, event, log_key=_TASK_COMMENT_MENTIONED)
 
 
 # ── Project events ────────────────────────────────────────────────────
@@ -771,7 +798,7 @@ async def notify_project_deleted(project: dict, actor: dict) -> None:
 async def notify_project_message(
     message: dict, project: dict, actor: dict,
     mention_ids: Optional[set[str]] = None,
-) -> None:
+) -> int:
     """Fire ``project.message_posted`` for stakeholders.
 
     Respects ``visibility``: ``internal`` messages skip partner contacts.
@@ -787,7 +814,7 @@ async def notify_project_message(
     if message.get("visibility") == "internal":
         recipients = [p for p in recipients if p.kind == "internal"]
     if not recipients:
-        return
+        return 0
 
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
@@ -811,13 +838,13 @@ async def notify_project_message(
         entity_id=message.get("id"),
         dedup_key=f"{message.get('id', '')}",
     )
-    await _fan_out(recipients, event, log_key="project.message_posted")
+    return await _fan_out(recipients, event, log_key="project.message_posted")
 
 
 async def notify_project_message_mentions(
     message: dict, project: dict, actor: dict,
     mentioned: list[Principal],
-) -> None:
+) -> int:
     """Fire ``project.message_mentioned`` for each resolved mention."""
     actor_id = actor.get("id") or actor.get("user_id") or ""
     recipients = [p for p in mentioned if p.id and p.id != actor_id]
@@ -825,7 +852,7 @@ async def notify_project_message_mentions(
     if message.get("visibility") == "internal":
         recipients = [p for p in recipients if p.kind == "internal"]
     if not recipients:
-        return
+        return 0
 
     project_title = project.get("title", DEFAULT_PROJECT_LABEL)
     actor_name = _actor_name(actor)
@@ -849,7 +876,7 @@ async def notify_project_message_mentions(
         entity_id=message.get("id"),
         dedup_key=f"{message.get('id', '')}:mention",
     )
-    await _fan_out(recipients, event, log_key=_PROJECT_MESSAGE_MENTIONED)
+    return await _fan_out(recipients, event, log_key=_PROJECT_MESSAGE_MENTIONED)
 
 
 async def notify_project_document_shared(
