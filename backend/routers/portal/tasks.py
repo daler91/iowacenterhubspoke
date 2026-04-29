@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from core.logger import get_logger
 from core.pagination import Paginated, paginated_response
@@ -35,6 +36,14 @@ from ._shared import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
+_TASK_STATUSES = {"to_do", "in_progress", "completed", "on_hold"}
+_TASK_PHASES = {"planning", "promotion", "delivery", "follow_up"}
+
+
+class PortalTaskUpdate(BaseModel):
+    status: str | None = None
+    phase: str | None = None
+    completed: bool | None = None
 
 # Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
@@ -173,6 +182,35 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
             completed_task_phase=task.get("phase"),
             actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
         )
+    return task
+
+
+@router.patch(
+    "/projects/{project_id}/tasks/{task_id}",
+    summary="Partner updates status/phase for a task",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
+)
+async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskUpdate, ctx: PortalContext):
+    await _require_partner_project(project_id, ctx)
+    task = await _require_partner_task(task_id, project_id)
+    update: dict = {}
+    if payload.status is not None:
+        if payload.status not in _TASK_STATUSES:
+            raise HTTPException(status_code=400, detail="Invalid task status")
+        update["status"] = payload.status
+    if payload.phase is not None:
+        if payload.phase not in _TASK_PHASES:
+            raise HTTPException(status_code=400, detail="Invalid task phase")
+        update["phase"] = payload.phase
+    if payload.completed is not None:
+        update["completed"] = payload.completed
+        now = datetime.now(timezone.utc).isoformat()
+        update["completed_at"] = now if payload.completed else None
+        update["completed_by"] = (ctx.get("contact") or {}).get("name") if payload.completed else None
+    if not update:
+        return task
+    await db.tasks.update_one({"id": task_id}, {"$set": update})
+    task.update(update)
     return task
 
 

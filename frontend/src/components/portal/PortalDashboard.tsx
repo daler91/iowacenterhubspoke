@@ -12,7 +12,6 @@ import {
 import { portalAPI } from '../../lib/coordination-api';
 import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
-  TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
 } from '../../lib/coordination-types';
 import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
@@ -25,6 +24,7 @@ import MentionTextarea, { renderMentionBody } from '../coordination/MentionTexta
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import PortalLayout from './PortalLayout';
+import PortalTaskBoard from './PortalTaskBoard';
 import NotificationPreferences from '../NotificationPreferences';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
@@ -39,10 +39,6 @@ interface NotificationSummary {
   mention_recipients_notified?: number;
 }
 
-
-function taskStatus(task: Task): TaskStatus {
-  return task.completed ? 'completed' : (task.status || 'to_do');
-}
 
 function pluralizeRecipients(count: number): string {
   return `${count} recipient${count === 1 ? '' : 's'}`;
@@ -249,6 +245,25 @@ export default function PortalDashboard() {
       });
     } catch {
       toast.error('Failed to update task');
+    }
+  };
+
+
+  const handleMoveTask = async (projectId: string, task: Task, status: TaskStatus) => {
+    if (!token) return { ok: false, message: 'Missing portal session.' };
+    // Keep partner permissions conservative: if backend rejects a phase/status
+    // update, preserve source-of-truth and explain inline.
+    try {
+      await portalAPI.updateTask(projectId, task.id, token, {
+        status,
+        completed: status === 'completed',
+      });
+      await loadTasks();
+      return { ok: true };
+    } catch (err) {
+      const message = describeApiError(err, 'You do not have permission to move that task to this status.');
+      toast.error(message);
+      return { ok: false, message };
     }
   };
 
@@ -537,64 +552,12 @@ export default function PortalDashboard() {
           </div>
 
           {taskViewMode === 'list' ? renderTaskList() : (
-            <div className="space-y-4">
-              {visibleProjects.map(project => {
-                const tasks = allTasks[project.id] || [];
-                if (tasks.length === 0) return null;
-                return (
-                  <section key={project.id} aria-labelledby={`portal-kanban-${project.id}`}>
-                    <h3 id={`portal-kanban-${project.id}`} className="font-semibold text-foreground mb-2">
-                      {project.title}
-                    </h3>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      {TASK_STATUSES.map((status) => {
-                        const columnTasks = tasks.filter((task) => taskStatus(task) === status);
-                        return (
-                          <div key={status} className="rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem]">
-                            <div className="flex items-center gap-2 mb-3">
-                              <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
-                              <h4 className="text-sm font-semibold text-foreground">{TASK_STATUS_LABELS[status]}</h4>
-                              <span className="text-xs text-muted-foreground ml-auto">{columnTasks.length}</span>
-                            </div>
-                            <div className="space-y-2">
-                              {columnTasks.length > 0 ? columnTasks.map((task) => {
-                                const isOverdue = !task.completed && task.due_date < new Date().toISOString();
-                                return (
-                                  <Card key={task.id} className={cn('p-2.5 border', task.completed && 'opacity-60')}>
-                                    <div className="flex items-start gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleTask(project.id, task.id)}
-                                        aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
-                                        aria-pressed={task.completed}
-                                        className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
-                                      >
-                                        {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-                                      </button>
-                                      <div className="min-w-0 flex-1">
-                                        <button type="button" onClick={() => openTaskDetail(project.id, task.id)} className={cn('text-sm text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>
-                                          {task.title}
-                                        </button>
-                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                          <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
-                                            {new Date(task.due_date).toLocaleDateString()}
-                                          </span>
-                                          <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </Card>
-                                );
-                              }) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
+            <PortalTaskBoard
+              projects={visibleProjects}
+              allTasks={allTasks as Record<string, Task[]>}
+              onOpenTask={openTaskDetail}
+              onMoveTask={handleMoveTask}
+            />
           )}
           {visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
