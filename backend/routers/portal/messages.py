@@ -11,7 +11,10 @@ from core.pagination import Paginated, paginated_response
 from core.portal_auth import PortalContext
 from database import db
 from models.coordination_schemas import MessageCreate
-from services.notification_events import notify_project_message_mentions
+from services.notification_events import (
+    notify_project_message,
+    notify_project_message_mentions,
+)
 from services.notification_prefs import prepare_mentions
 
 from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND
@@ -94,11 +97,38 @@ async def portal_send_message(
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
+    actor = {
+        "id": ctx["contact"]["id"],
+        "user_id": ctx["contact"]["id"],
+        "name": ctx["contact"]["name"],
+    }
+    mention_ids = {p.id for p in mentioned}
+    notification_summary = {
+        "mentions_requested": len(data.mentions or []),
+        "mentions_resolved": len(mentioned),
+        "message_recipients_notified": 0,
+        "mention_recipients_notified": 0,
+    }
+    logger.info(
+        "portal_message.created id=%s project_id=%s sender=partner/%s "
+        "mentions_requested=%d mentions_resolved=%d",
+        msg_id, project_id, ctx["contact"]["id"],
+        notification_summary["mentions_requested"],
+        notification_summary["mentions_resolved"],
+    )
+    notification_summary["message_recipients_notified"] = await notify_project_message(
+        doc, project, actor, mention_ids=mention_ids,
+    )
     if mentioned:
-        actor = {
-            "id": ctx["contact"]["id"],
-            "user_id": ctx["contact"]["id"],
-            "name": ctx["contact"]["name"],
-        }
-        await notify_project_message_mentions(doc, project, actor, mentioned)
+        notification_summary["mention_recipients_notified"] = await notify_project_message_mentions(
+            doc, project, actor, mentioned,
+        )
+    logger.info(
+        "portal_message.notifications id=%s message_recipients_notified=%d "
+        "mention_recipients_notified=%d",
+        msg_id,
+        notification_summary["message_recipients_notified"],
+        notification_summary["mention_recipients_notified"],
+    )
+    doc["notification_summary"] = notification_summary
     return doc

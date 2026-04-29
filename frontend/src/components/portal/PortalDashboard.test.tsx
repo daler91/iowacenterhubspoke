@@ -37,6 +37,8 @@ jest.mock('sonner', () => ({
   },
 }));
 
+jest.mock('./PortalNotificationsPanel', () => () => null);
+
 const mockedPortalAPI = portalAPI as jest.Mocked<typeof portalAPI>;
 
 describe('PortalDashboard link recovery', () => {
