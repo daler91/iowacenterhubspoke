@@ -35,6 +35,7 @@ from services.notification_events import (  # noqa: E402
     notify_project_deleted,
     notify_project_document_shared,
     notify_project_message,
+    notify_project_message_mentions,
     notify_project_phase_advanced,
     notify_role_changed,
     notify_schedule_assigned,
@@ -43,6 +44,7 @@ from services.notification_events import (  # noqa: E402
     notify_schedule_changed,
     notify_task_assigned,
     notify_task_comment,
+    notify_task_comment_mentions,
     notify_task_completed,
     notify_task_deleted,
 )
@@ -581,6 +583,25 @@ async def test_task_comment_truncates_long_body_in_preview(
     assert len(ev.body) < len(long_body) + 50  # roughly bounded
 
 
+@pytest.mark.asyncio
+async def test_task_comment_mentions_return_delivery_count(
+    capture_dispatch, stub_app_url,
+):
+    delivered = await notify_task_comment_mentions(
+        {"id": "c-1", "body": "Please check this"},
+        {"id": "t-1", "title": "Draft"},
+        {"id": "p-1", "title": "Kickoff"},
+        {"id": "u-actor", "name": "Actor"},
+        [_internal("u-jane"), _partner("c-liz")],
+    )
+
+    assert delivered == 2
+    assert len(capture_dispatch) == 2
+    _, ev = capture_dispatch[0]
+    assert ev.type_key == "task.comment_mentioned"
+    assert ev.dedup_key == "c-1:mention"
+
+
 # ── notify_project_phase_advanced ────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -643,6 +664,29 @@ async def test_project_message_shared_visibility_includes_partners(
 
     kinds = {p.kind for p, _ in capture_dispatch}
     assert kinds == {"internal", "partner"}
+
+
+@pytest.mark.asyncio
+async def test_project_message_mentions_return_delivery_count(
+    capture_dispatch, stub_app_url,
+):
+    delivered = await notify_project_message_mentions(
+        {
+            "id": "m-1",
+            "body": "Hi @[Jane](user:u-jane:internal)",
+            "channel": "general",
+            "visibility": "shared",
+        },
+        {"id": "p-1", "title": "Proj"},
+        {"id": "u-actor", "name": "Actor"},
+        [_internal("u-jane"), _partner("c-liz")],
+    )
+
+    assert delivered == 2
+    assert len(capture_dispatch) == 2
+    _, ev = capture_dispatch[0]
+    assert ev.type_key == "project.message_mentioned"
+    assert ev.dedup_key == "m-1:mention"
 
 
 # ── notify_project_document_shared ───────────────────────────────────
