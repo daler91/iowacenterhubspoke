@@ -90,7 +90,7 @@ export default function PortalDashboard() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
-  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('kanban');
+  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
   const taskDetailRequestKeyRef = useRef<string | null>(null);
