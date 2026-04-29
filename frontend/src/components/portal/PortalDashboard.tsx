@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -78,6 +78,7 @@ export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
   // Prefer URL token, fall back to sessionStorage for in-session persistence
   const token = urlToken || sessionStorage.getItem(PORTAL_TOKEN_KEY) || '';
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -484,7 +485,7 @@ export default function PortalDashboard() {
           <h2 className="text-lg font-semibold mb-3">Upcoming Classes</h2>
           <div className="space-y-3">
             {dashboardData.projects.map(project => (
-              <Card key={project.id} className="p-4">
+              <Card key={project.id} className="p-4 cursor-pointer hover:shadow-sm" onClick={() => navigate(`/portal/${token}/projects/${project.id}`)}>
                 <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">

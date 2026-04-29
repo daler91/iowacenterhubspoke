@@ -76,6 +76,7 @@ async def _require_partner_task(task_id: str, project_id: str) -> dict:
     return task
 
 
+# Keep two blank lines before module-level route decorators (flake8 E305/E302).
 @router.get(
     "/projects/{project_id}/tasks",
     summary="Partner's tasks for a project",
