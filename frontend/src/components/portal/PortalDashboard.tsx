@@ -4,14 +4,14 @@ import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
   FileText, Send, Download, Eye, Mail, Columns3, List,
-  Paperclip, MessageSquare,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
-  PHASE_LABELS, PHASE_COLORS, OWNER_COLORS, OWNER_LABELS,
+  PROJECT_PHASES, PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
   TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
 } from '../../lib/coordination-types';
 import type {
@@ -39,6 +39,7 @@ interface NotificationSummary {
   mention_recipients_notified?: number;
 }
 
+
 function taskStatus(task: Task): TaskStatus {
   return task.completed ? 'completed' : (task.status || 'to_do');
 }
@@ -60,9 +61,7 @@ function messageDeliveryText(summary: NotificationSummary | undefined, mentionsS
     return 'Message sent. Mention recipients had notifications off or already received the alert.';
   }
   const messageDeliveries = summary.message_recipients_notified ?? 0;
-  if (messageDeliveries > 0) {
-    return `Message sent. Notifications sent to ${pluralizeRecipients(messageDeliveries)}.`;
-  }
+  if (messageDeliveries > 0) return `Message sent. Notifications sent to ${pluralizeRecipients(messageDeliveries)}.`;
   return 'Message sent';
 }
 
@@ -269,10 +268,7 @@ export default function PortalDashboard() {
     setSelectedTaskDetail(null);
   };
 
-  const visibleTaskCount = visibleProjects.reduce(
-    (count, project) => count + (allTasks[project.id] || []).length,
-    0,
-  );
+  const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
 
   const renderProjectFilter = (selectId: string) => (
     <div className="flex items-center gap-2">
@@ -284,130 +280,39 @@ export default function PortalDashboard() {
         className="border border-border rounded-md px-2 py-1 text-sm bg-background"
       >
         <option value="all">All projects</option>
-        {dashboardData?.projects.map((p) => (
-          <option key={p.id} value={p.id}>{p.title}</option>
+        {dashboardData?.projects.map((project) => (
+          <option key={project.id} value={project.id}>{project.title}</option>
         ))}
       </select>
     </div>
   );
 
-  const renderTaskCard = (project: Project, task: Task, mode: TaskViewMode) => {
-    const isOverdue = !task.completed && task.due_date < new Date().toISOString();
-    const status = taskStatus(task);
-    const compact = mode === 'list';
-
-    return (
-      <Card key={task.id} className={cn('p-3', task.completed && 'opacity-60')}>
-        <div className={cn('flex gap-2 sm:gap-3', compact ? 'items-center flex-wrap' : 'items-start')}>
-          <button
-            type="button"
-            onClick={() => handleToggleTask(project.id, task.id)}
-            aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
-            aria-pressed={task.completed}
-            className={cn(
-              'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-              task.completed
-                ? 'bg-spoke border-spoke text-white'
-                : 'border-border hover:border-hub',
-            )}
-          >
-            {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-          </button>
-          <div className="flex-1 min-w-0">
-            {!compact && selectedProjectId === 'all' && (
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1 truncate">
-                {project.title}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => openTaskDetail(project.id, task.id)}
-              className={cn('text-sm font-medium text-left hover:underline', task.completed && 'line-through text-muted-foreground')}
-            >
-              {task.title}
-            </button>
-            {!compact && task.details && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.details}</p>
-            )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={cn('text-xs', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
-                {new Date(task.due_date).toLocaleDateString()}
-              </span>
-              <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
-                {OWNER_LABELS[task.owner]}
-              </Badge>
-              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
-                {TASK_STATUS_LABELS[status]}
-              </span>
-              {(task.attachment_count ?? 0) > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                  <Paperclip className="w-3 h-3" aria-hidden="true" /> {task.attachment_count}
-                </span>
-              )}
-              {(task.comment_count ?? 0) > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                  <MessageSquare className="w-3 h-3" aria-hidden="true" /> {task.comment_count}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </Card>
-    );
-  };
-
   const renderTaskList = () => (
-    <>
-      {visibleProjects.map(project => {
+    <div className="space-y-4">
+      {visibleProjects.map((project) => {
         const tasks = allTasks[project.id] || [];
         if (tasks.length === 0) return null;
         return (
-          <div key={project.id}>
+          <section key={project.id}>
             <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
             <div className="space-y-2">
-              {tasks.map(task => renderTaskCard(project, task, 'list'))}
-            </div>
-          </div>
-        );
-      })}
-    </>
-  );
-
-  const renderTaskKanban = () => (
-    <div className="space-y-4">
-      {visibleProjects.map(project => {
-        const tasks = allTasks[project.id] || [];
-        if (tasks.length === 0) return null;
-        return (
-          <section key={project.id} aria-labelledby={`portal-kanban-${project.id}`}>
-            <h3 id={`portal-kanban-${project.id}`} className="font-semibold text-foreground mb-2">
-              {project.title}
-            </h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {TASK_STATUSES.map(status => {
-                const columnTasks = tasks.filter(task => taskStatus(task) === status);
+              {tasks.map((task) => {
+                const isOverdue = !task.completed && task.due_date < new Date().toISOString();
                 return (
-                  <div
-                    key={status}
-                    className="rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem]"
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
-                      <h4 className="text-sm font-semibold text-foreground">
-                        {TASK_STATUS_LABELS[status]}
-                      </h4>
-                      <span className="text-xs text-muted-foreground ml-auto">{columnTasks.length}</span>
+                  <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
+                    <div className="flex items-start gap-2">
+                      <button type="button" onClick={() => handleToggleTask(project.id, task.id)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+                        {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <button type="button" onClick={() => openTaskDetail(project.id, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+                          <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      {columnTasks.length > 0 ? (
-                        columnTasks.map(task => renderTaskCard(project, task, 'kanban'))
-                      ) : (
-                        <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>
-                      )}
-                    </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -563,16 +468,24 @@ export default function PortalDashboard() {
           <div className="space-y-3">
             {dashboardData.projects.map(project => (
               <Card key={project.id} className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-1 flex-wrap">
-                  <h3 className="font-semibold text-foreground min-w-0">
-                    {project.title}
-                  </h3>
+                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', PHASE_DOT_COLORS[project.phase])} aria-hidden="true" />
+                      <h3 className="font-semibold text-foreground min-w-0">
+                        {project.title}
+                      </h3>
+                    </div>
+                  </div>
                   <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[project.phase], 'text-white')}>
                     {PHASE_LABELS[project.phase]}
                   </Badge>
                 </div>
                 <p className="text-sm text-foreground/80">
-                  {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
+                  {new Date(project.event_date).toLocaleDateString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.venue_name || 'Venue TBD'}
                 </p>
               </Card>
             ))}
@@ -585,67 +498,127 @@ export default function PortalDashboard() {
 
       {/* Tasks Tab */}
       {activeTab === 'tasks' && dashboardData && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             {renderProjectFilter('portal-task-project-filter')}
             <div className="inline-flex rounded-md border border-border bg-background p-0.5" aria-label="Task view">
-              <button
-                type="button"
-                onClick={() => setTaskViewMode('list')}
-                aria-pressed={taskViewMode === 'list'}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors',
-                  taskViewMode === 'list'
-                    ? 'bg-hub-soft text-hub-strong'
-                    : 'text-foreground/80 hover:bg-muted',
-                )}
-              >
-                <List className="w-4 h-4" aria-hidden="true" />
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => setTaskViewMode('kanban')}
-                aria-pressed={taskViewMode === 'kanban'}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors',
-                  taskViewMode === 'kanban'
-                    ? 'bg-hub-soft text-hub-strong'
-                    : 'text-foreground/80 hover:bg-muted',
-                )}
-              >
-                <Columns3 className="w-4 h-4" aria-hidden="true" />
-                Board
-              </button>
+              <button type="button" onClick={() => setTaskViewMode('list')} aria-pressed={taskViewMode === 'list'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'list' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><List className="w-4 h-4" aria-hidden="true" />List</button>
+              <button type="button" onClick={() => setTaskViewMode('kanban')} aria-pressed={taskViewMode === 'kanban'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'kanban' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><Columns3 className="w-4 h-4" aria-hidden="true" />Board</button>
             </div>
           </div>
-          {taskViewMode === 'kanban' ? renderTaskKanban() : renderTaskList()}
+
+          {taskViewMode === 'list' ? renderTaskList() : (
+            <div className="space-y-4">
+              {visibleProjects.map(project => {
+                const tasks = allTasks[project.id] || [];
+                if (tasks.length === 0) return null;
+                return (
+                  <section key={project.id} aria-labelledby={`portal-kanban-${project.id}`}>
+                    <h3 id={`portal-kanban-${project.id}`} className="font-semibold text-foreground mb-2">
+                      {project.title}
+                    </h3>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {TASK_STATUSES.map((status) => {
+                        const columnTasks = tasks.filter((task) => taskStatus(task) === status);
+                        return (
+                          <div key={status} className="rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem]">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
+                              <h4 className="text-sm font-semibold text-foreground">{TASK_STATUS_LABELS[status]}</h4>
+                              <span className="text-xs text-muted-foreground ml-auto">{columnTasks.length}</span>
+                            </div>
+                            <div className="space-y-2">
+                              {columnTasks.length > 0 ? columnTasks.map((task) => {
+                                const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+                                return (
+                                  <Card key={task.id} className={cn('p-2.5 border', task.completed && 'opacity-60')}>
+                                    <div className="flex items-start gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleTask(project.id, task.id)}
+                                        aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
+                                        aria-pressed={task.completed}
+                                        className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
+                                      >
+                                        {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
+                                      </button>
+                                      <div className="min-w-0 flex-1">
+                                        <button type="button" onClick={() => openTaskDetail(project.id, task.id)} className={cn('text-sm text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>
+                                          {task.title}
+                                        </button>
+                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                          <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
+                                            {new Date(task.due_date).toLocaleDateString()}
+                                          </span>
+                                          <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                );
+                              }) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
           {visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
       )}
 
-
-      {activeTab === 'tasks' && selectedTask && (
-        <Card className="p-4 border-hub/30 bg-hub-soft/20">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold">Task details</h3>
-            <Button type="button" variant="ghost" size="sm" onClick={closeTaskDetail}>Close</Button>
-          </div>
+      <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) closeTaskDetail(); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Task details</DialogTitle>
+          </DialogHeader>
           {!selectedTaskDetail ? (
-            <p className="text-sm text-muted-foreground mt-2">Loading details...</p>
+            <p className="text-sm text-muted-foreground">Loading details…</p>
           ) : (
-            <div className="mt-2 space-y-2 text-sm">
-              <p><span className="font-medium">Title:</span> {selectedTaskDetail.title}</p>
-              <p><span className="font-medium">Due:</span> {new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
-              <p><span className="font-medium">Owner:</span> {OWNER_LABELS[selectedTaskDetail.owner]}</p>
-              <p><span className="font-medium">Details:</span> {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}</p>
-              <p><span className="font-medium">Attachments:</span> {selectedTaskDetail.attachment_count ?? 0} | <span className="font-medium">Comments:</span> {selectedTaskDetail.comment_count ?? 0}</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="text-lg font-semibold text-foreground">{selectedTaskDetail.title}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[selectedTaskDetail.owner])}>
+                    {OWNER_LABELS[selectedTaskDetail.owner]}
+                  </Badge>
+                  <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[selectedTaskDetail.phase], 'text-white')}>
+                    {PHASE_LABELS[selectedTaskDetail.phase]}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Due date</p>
+                  <p className="text-sm font-medium">{new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Attachments</p>
+                  <p className="text-sm font-medium">{selectedTaskDetail.attachment_count ?? 0}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Comments</p>
+                  <p className="text-sm font-medium">{selectedTaskDetail.comment_count ?? 0}</p>
+                </Card>
+              </div>
+
+              <Card className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">Details</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}
+                </p>
+              </Card>
             </div>
           )}
-        </Card>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (
