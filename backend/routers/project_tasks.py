@@ -658,6 +658,19 @@ async def post_task_comment(
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
+    notification_summary = {
+        "mentions_requested": len(data.mentions or []),
+        "mentions_resolved": len(mentioned),
+        "comment_recipients_notified": 0,
+        "mention_recipients_notified": 0,
+    }
+    logger.info(
+        "task_comment.created id=%s task_id=%s project_id=%s sender=internal/%s "
+        "mentions_requested=%d mentions_resolved=%d",
+        comment_id, task_id, project_id, user.get("user_id", ""),
+        notification_summary["mentions_requested"],
+        notification_summary["mentions_resolved"],
+    )
     # Notify task assignee + prior commenters (excluding the actor and
     # anyone already covered by the louder mention notification).
     task = await db.tasks.find_one(
@@ -665,7 +678,19 @@ async def post_task_comment(
     )
     if task:
         mention_ids = {p.id for p in mentioned}
-        await notify_task_comment(doc, task, project, user, mention_ids=mention_ids)
+        notification_summary["comment_recipients_notified"] = await notify_task_comment(
+            doc, task, project, user, mention_ids=mention_ids,
+        )
         if mentioned:
-            await notify_task_comment_mentions(doc, task, project, user, mentioned)
+            notification_summary["mention_recipients_notified"] = await notify_task_comment_mentions(
+                doc, task, project, user, mentioned,
+            )
+    logger.info(
+        "task_comment.notifications id=%s comment_recipients_notified=%d "
+        "mention_recipients_notified=%d",
+        comment_id,
+        notification_summary["comment_recipients_notified"],
+        notification_summary["mention_recipients_notified"],
+    )
+    doc["notification_summary"] = notification_summary
     return doc

@@ -6,15 +6,17 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
   CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download, Eye, Mail,
+  FileText, Send, Download, Eye, Mail, Columns3, List,
+  Paperclip, MessageSquare,
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
   PHASE_LABELS, PHASE_COLORS, OWNER_COLORS, OWNER_LABELS,
+  TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
 } from '../../lib/coordination-types';
 import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
-  Mention, ProjectMember,
+  Mention, ProjectMember, TaskStatus,
 } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import { describeApiError } from '../../lib/error-messages';
@@ -28,6 +30,41 @@ import NotificationPreferences from '../NotificationPreferences';
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
+type TaskViewMode = 'list' | 'kanban';
+
+interface NotificationSummary {
+  mentions_requested?: number;
+  mentions_resolved?: number;
+  message_recipients_notified?: number;
+  mention_recipients_notified?: number;
+}
+
+function taskStatus(task: Task): TaskStatus {
+  return task.completed ? 'completed' : (task.status || 'to_do');
+}
+
+function pluralizeRecipients(count: number): string {
+  return `${count} recipient${count === 1 ? '' : 's'}`;
+}
+
+function messageDeliveryText(summary: NotificationSummary | undefined, mentionsSent: number): string {
+  if (!summary) return 'Message sent';
+  if (mentionsSent > 0) {
+    const mentionDeliveries = summary.mention_recipients_notified ?? 0;
+    if (mentionDeliveries > 0) {
+      return `Message sent. Mention notifications sent to ${pluralizeRecipients(mentionDeliveries)}.`;
+    }
+    if ((summary.mentions_resolved ?? 0) === 0) {
+      return 'Message sent, but no matching mention recipients were found.';
+    }
+    return 'Message sent. Mention recipients had notifications off or already received the alert.';
+  }
+  const messageDeliveries = summary.message_recipients_notified ?? 0;
+  if (messageDeliveries > 0) {
+    return `Message sent. Notifications sent to ${pluralizeRecipients(messageDeliveries)}.`;
+  }
+  return 'Message sent';
+}
 
 export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
@@ -60,6 +97,7 @@ export default function PortalDashboard() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeProject, setActiveProject] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
+  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
   const taskDetailRequestKeyRef = useRef<string | null>(null);
@@ -230,15 +268,166 @@ export default function PortalDashboard() {
     setSelectedTask(null);
     setSelectedTaskDetail(null);
   };
+
+  const visibleTaskCount = visibleProjects.reduce(
+    (count, project) => count + (allTasks[project.id] || []).length,
+    0,
+  );
+
+  const renderProjectFilter = (selectId: string) => (
+    <div className="flex items-center gap-2">
+      <label htmlFor={selectId} className="text-sm text-foreground/80">Project</label>
+      <select
+        id={selectId}
+        value={selectedProjectId}
+        onChange={(e) => setSelectedProjectId(e.target.value as 'all' | string)}
+        className="border border-border rounded-md px-2 py-1 text-sm bg-background"
+      >
+        <option value="all">All projects</option>
+        {dashboardData?.projects.map((p) => (
+          <option key={p.id} value={p.id}>{p.title}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderTaskCard = (project: Project, task: Task, mode: TaskViewMode) => {
+    const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+    const status = taskStatus(task);
+    const compact = mode === 'list';
+
+    return (
+      <Card key={task.id} className={cn('p-3', task.completed && 'opacity-60')}>
+        <div className={cn('flex gap-2 sm:gap-3', compact ? 'items-center flex-wrap' : 'items-start')}>
+          <button
+            type="button"
+            onClick={() => handleToggleTask(project.id, task.id)}
+            aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
+            aria-pressed={task.completed}
+            className={cn(
+              'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
+              task.completed
+                ? 'bg-spoke border-spoke text-white'
+                : 'border-border hover:border-hub',
+            )}
+          >
+            {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
+          </button>
+          <div className="flex-1 min-w-0">
+            {!compact && selectedProjectId === 'all' && (
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1 truncate">
+                {project.title}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => openTaskDetail(project.id, task.id)}
+              className={cn('text-sm font-medium text-left hover:underline', task.completed && 'line-through text-muted-foreground')}
+            >
+              {task.title}
+            </button>
+            {!compact && task.details && (
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.details}</p>
+            )}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={cn('text-xs', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
+                {new Date(task.due_date).toLocaleDateString()}
+              </span>
+              <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
+                {OWNER_LABELS[task.owner]}
+              </Badge>
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
+                {TASK_STATUS_LABELS[status]}
+              </span>
+              {(task.attachment_count ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                  <Paperclip className="w-3 h-3" aria-hidden="true" /> {task.attachment_count}
+                </span>
+              )}
+              {(task.comment_count ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                  <MessageSquare className="w-3 h-3" aria-hidden="true" /> {task.comment_count}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderTaskList = () => (
+    <>
+      {visibleProjects.map(project => {
+        const tasks = allTasks[project.id] || [];
+        if (tasks.length === 0) return null;
+        return (
+          <div key={project.id}>
+            <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
+            <div className="space-y-2">
+              {tasks.map(task => renderTaskCard(project, task, 'list'))}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+
+  const renderTaskKanban = () => (
+    <div className="space-y-4">
+      {visibleProjects.map(project => {
+        const tasks = allTasks[project.id] || [];
+        if (tasks.length === 0) return null;
+        return (
+          <section key={project.id} aria-labelledby={`portal-kanban-${project.id}`}>
+            <h3 id={`portal-kanban-${project.id}`} className="font-semibold text-foreground mb-2">
+              {project.title}
+            </h3>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {TASK_STATUSES.map(status => {
+                const columnTasks = tasks.filter(task => taskStatus(task) === status);
+                return (
+                  <div
+                    key={status}
+                    className="rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem]"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={cn('w-2.5 h-2.5 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {TASK_STATUS_LABELS[status]}
+                      </h4>
+                      <span className="text-xs text-muted-foreground ml-auto">{columnTasks.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {columnTasks.length > 0 ? (
+                        columnTasks.map(task => renderTaskCard(project, task, 'kanban'))
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+
   const handleSendMessage = async () => {
     if (!token || !activeProject || !msgBody.trim()) return;
     try {
       const project = dashboardData?.projects.find(p => p.id === activeProject);
-      await portalAPI.sendMessage(activeProject, token, {
+      const res = await portalAPI.sendMessage(activeProject, token, {
         channel: project?.title || 'general',
         body: msgBody.trim(),
         mentions: msgMentions,
       });
+      const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
+      toast.success(messageDeliveryText(notificationSummary, msgMentions.length));
       setMsgBody('');
       setMsgMentions([]);
       loadMessages(activeProject);
@@ -397,92 +586,62 @@ export default function PortalDashboard() {
       {/* Tasks Tab */}
       {activeTab === 'tasks' && dashboardData && (
         <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <label htmlFor="portal-task-project-filter" className="text-sm text-foreground/80">Project</label>
-            <select
-              id="portal-task-project-filter"
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value as 'all' | string)}
-              className="border border-border rounded-md px-2 py-1 text-sm bg-background"
-            >
-              <option value="all">All projects</option>
-              {dashboardData.projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {renderProjectFilter('portal-task-project-filter')}
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5" aria-label="Task view">
+              <button
+                type="button"
+                onClick={() => setTaskViewMode('list')}
+                aria-pressed={taskViewMode === 'list'}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors',
+                  taskViewMode === 'list'
+                    ? 'bg-hub-soft text-hub-strong'
+                    : 'text-foreground/80 hover:bg-muted',
+                )}
+              >
+                <List className="w-4 h-4" aria-hidden="true" />
+                List
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskViewMode('kanban')}
+                aria-pressed={taskViewMode === 'kanban'}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors',
+                  taskViewMode === 'kanban'
+                    ? 'bg-hub-soft text-hub-strong'
+                    : 'text-foreground/80 hover:bg-muted',
+                )}
+              >
+                <Columns3 className="w-4 h-4" aria-hidden="true" />
+                Board
+              </button>
+            </div>
           </div>
-          {visibleProjects.map(project => {
-            const tasks = allTasks[project.id] || [];
-            if (tasks.length === 0) return null;
-            return (
-              <div key={project.id}>
-                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
-                <div className="space-y-2">
-                  {tasks.map(task => {
-                    const isOverdue = !task.completed && task.due_date < new Date().toISOString();
-                    return (
-                      <Card key={task.id} className={cn('p-3', task.completed && 'opacity-50')}>
-                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleTask(project.id, task.id)}
-                            aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
-                            aria-pressed={task.completed}
-                            className={cn(
-                              'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
-                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-                              task.completed
-                                ? 'bg-spoke border-spoke text-white'
-                                : 'border-border hover:border-hub',
-                            )}
-                          >
-                            {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => openTaskDetail(project.id, task.id)}
-                              className={cn('text-sm text-left hover:underline', task.completed && 'line-through text-muted-foreground')}
-                            >
-                              {task.title}
-                            </button>
-                          </div>
-                          <span className={cn('text-xs shrink-0', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>
-                            {new Date(task.due_date).toLocaleDateString()}
-                          </span>
-                          <Badge className={cn('text-[10px] px-1.5 shrink-0', OWNER_COLORS[task.owner])}>
-                            {OWNER_LABELS[task.owner]}
-                          </Badge>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {visibleProjects.every((project) => (allTasks[project.id] || []).length === 0) && (
+          {taskViewMode === 'kanban' ? renderTaskKanban() : renderTaskList()}
+          {visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
       )}
 
 
-      {selectedTask && (
+      {activeTab === 'tasks' && selectedTask && (
         <Card className="p-4 border-hub/30 bg-hub-soft/20">
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-semibold">Task details</h3>
             <Button type="button" variant="ghost" size="sm" onClick={closeTaskDetail}>Close</Button>
           </div>
           {!selectedTaskDetail ? (
-            <p className="text-sm text-muted-foreground mt-2">Loading details…</p>
+            <p className="text-sm text-muted-foreground mt-2">Loading details...</p>
           ) : (
             <div className="mt-2 space-y-2 text-sm">
               <p><span className="font-medium">Title:</span> {selectedTaskDetail.title}</p>
               <p><span className="font-medium">Due:</span> {new Date(selectedTaskDetail.due_date).toLocaleString()}</p>
               <p><span className="font-medium">Owner:</span> {OWNER_LABELS[selectedTaskDetail.owner]}</p>
               <p><span className="font-medium">Details:</span> {selectedTaskDetail.details || selectedTaskDetail.description || 'No details provided.'}</p>
-              <p><span className="font-medium">Attachments:</span> {selectedTaskDetail.attachment_count ?? 0} · <span className="font-medium">Comments:</span> {selectedTaskDetail.comment_count ?? 0}</p>
+              <p><span className="font-medium">Attachments:</span> {selectedTaskDetail.attachment_count ?? 0} | <span className="font-medium">Comments:</span> {selectedTaskDetail.comment_count ?? 0}</p>
             </div>
           )}
         </Card>
@@ -491,6 +650,7 @@ export default function PortalDashboard() {
       {/* Documents Tab */}
       {activeTab === 'documents' && dashboardData && (
         <div className="space-y-6">
+          {renderProjectFilter('portal-document-project-filter')}
           {visibleProjects.map(project => {
             const docs = documents[project.id] || [];
             if (docs.length === 0) return null;

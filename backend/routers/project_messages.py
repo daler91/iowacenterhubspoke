@@ -99,7 +99,32 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
     mention_ids = {p.id for p in mentioned}
-    await notify_project_message(doc, project, user, mention_ids=mention_ids)
+    notification_summary = {
+        "mentions_requested": len(data.mentions or []),
+        "mentions_resolved": len(mentioned),
+        "message_recipients_notified": 0,
+        "mention_recipients_notified": 0,
+    }
+    logger.info(
+        "project_message.created id=%s project_id=%s sender=internal/%s "
+        "mentions_requested=%d mentions_resolved=%d",
+        msg_id, project_id, sender_uid,
+        notification_summary["mentions_requested"],
+        notification_summary["mentions_resolved"],
+    )
+    notification_summary["message_recipients_notified"] = await notify_project_message(
+        doc, project, user, mention_ids=mention_ids,
+    )
     if mentioned:
-        await notify_project_message_mentions(doc, project, user, mentioned)
+        notification_summary["mention_recipients_notified"] = await notify_project_message_mentions(
+            doc, project, user, mentioned,
+        )
+    logger.info(
+        "project_message.notifications id=%s message_recipients_notified=%d "
+        "mention_recipients_notified=%d",
+        msg_id,
+        notification_summary["message_recipients_notified"],
+        notification_summary["mention_recipients_notified"],
+    )
+    doc["notification_summary"] = notification_summary
     return doc
