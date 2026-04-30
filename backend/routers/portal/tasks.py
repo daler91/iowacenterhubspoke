@@ -198,6 +198,7 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
 async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskUpdate, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
     task = await _require_partner_task(task_id, project_id)
+    was_completed = bool(task.get("completed", False))
     update: dict = {}
     if payload.status is not None:
         if payload.status not in _TASK_STATUSES:
@@ -214,14 +215,25 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
         update["completed_by"] = (ctx.get("contact") or {}).get("name") if payload.completed else None
     if payload.due_date is not None:
         try:
-            datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
+            parsed_due_date = datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid due_date format (expected ISO-8601)") from exc
-        update["due_date"] = payload.due_date
+        if parsed_due_date.tzinfo is None:
+            parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
+        update["due_date"] = parsed_due_date.astimezone(timezone.utc).isoformat()
     if not update:
         return task
     await db.tasks.update_one({"id": task_id}, {"$set": update})
     task.update(update)
+    # Idempotent completion updates should still trigger phase auto-advance
+    # when transitioning from incomplete -> completed.
+    if payload.completed and not was_completed:
+        contact = ctx.get("contact") or {}
+        await maybe_auto_advance_phase_for_task(
+            project_id=project_id,
+            completed_task_phase=task.get("phase"),
+            actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
+        )
     return task
 
 

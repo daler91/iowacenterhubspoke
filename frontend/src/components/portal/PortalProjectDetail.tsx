@@ -91,9 +91,9 @@ export default function PortalProjectDetail() {
       if (task.completed) {
         await portalAPI.updateTask(projectId, task.id, token, { completed: false });
       } else {
-        // Use the completion toggle endpoint so backend completion hooks
-        // (phase auto-advance, audit stamps) stay consistent.
-        await portalAPI.completeTask(projectId, task.id, token);
+        // Use idempotent completion writes so stale UI cannot accidentally
+        // reopen a task via server-side toggle semantics.
+        await portalAPI.updateTask(projectId, task.id, token, { completed: true });
       }
       await loadTasks();
       toast.success('Task updated');
@@ -108,8 +108,7 @@ export default function PortalProjectDetail() {
       const willBeCompleted = status === 'completed';
 
       if (!wasCompleted && willBeCompleted) {
-        // Run completion workflow via dedicated endpoint.
-        await portalAPI.completeTask(projectId, task.id, token);
+        await portalAPI.updateTask(projectId, task.id, token, { completed: true, status });
       } else if (wasCompleted && !willBeCompleted) {
         // Re-open task and set new status.
         await portalAPI.updateTask(projectId, task.id, token, { completed: false, status });
