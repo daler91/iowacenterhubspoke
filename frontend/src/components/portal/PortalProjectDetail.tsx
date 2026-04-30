@@ -255,6 +255,7 @@ export default function PortalProjectDetail() {
 
       {selectedTaskId && (
         <PortalTaskDetailModal
+          key={selectedTaskId}
           open={!!selectedTaskId}
           onOpenChange={(open) => { if (!open) setSelectedTaskId(null); }}
           projectId={projectId}
