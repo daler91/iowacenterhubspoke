@@ -3,10 +3,10 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { CalendarDays, Download, Eye, FileText, MessageSquare, Paperclip, Send } from 'lucide-react';
+import SearchableSelect from '../ui/searchable-select';
 import { portalAPI } from '../../lib/coordination-api';
-import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUS_COLORS, TASK_STATUS_LABELS, type Task, type TaskAttachment, type TaskComment, type Mention, type ProjectMember } from '../../lib/coordination-types';
+import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, type Task, type TaskAttachment, type TaskComment, type Mention, type ProjectMember, type TaskStatus } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
@@ -60,6 +60,25 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
 
   const sortedComments = useMemo(() => [...comments].sort((a, b) => a.created_at.localeCompare(b.created_at)), [comments]);
 
+  const taskStatus: TaskStatus = (task?.completed ? 'completed' : (task?.status || 'to_do')) as TaskStatus;
+  const canEditStatus = task?.owner === 'partner' || task?.owner === 'both';
+
+  const handleStatusChange = async (nextStatus: string) => {
+    if (!task || !canEditStatus) return;
+    const status = nextStatus as TaskStatus;
+    const previous = taskStatus;
+    if (status === previous) return;
+    const completed = status === 'completed';
+    setTask(prev => prev ? { ...prev, status, completed } : prev);
+    try {
+      await portalAPI.updateTask(projectId, taskId, token, { status, completed });
+      await onRefresh();
+    } catch (err) {
+      setTask(prev => prev ? { ...prev, status: previous, completed: previous === 'completed' } : prev);
+      toast.error(describeApiError(err, 'Failed to update task status'));
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,7 +95,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <Card className="p-3"><p className="text-xs text-muted-foreground">Status</p><p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[task.completed ? 'completed' : (task.status || 'to_do')])} />{TASK_STATUS_LABELS[task.completed ? 'completed' : (task.status || 'to_do')]}</p></Card>
+                  <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{new Date(task.due_date).toLocaleString()}</p></Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Attachments</p><p className="text-sm font-medium">{attachments.length}</p></Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Comments</p><p className="text-sm font-medium">{comments.length}</p></Card>
