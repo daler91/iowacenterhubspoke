@@ -82,7 +82,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl">
+        <DialogContent className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl">
           <DialogTitle className="sr-only">Task details</DialogTitle>
           {loading || !task ? <p className="p-6 text-sm text-muted-foreground">Loading details…</p> : (
             <div className="flex flex-col h-full max-h-[85vh]">
@@ -102,16 +102,18 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                 </div>
               </div>
 
-              <div className="p-5 overflow-y-auto space-y-4">
-                <Card className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Description</p>
-                  <p className="text-sm whitespace-pre-wrap">{task.description || 'No description provided.'}</p>
-                </Card>
-                <Card className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Details</p>
-                  <p className="text-sm whitespace-pre-wrap">{task.details || 'No details provided.'}</p>
-                </Card>
-                <Card className="p-4">
+              <div className="p-5 overflow-y-auto">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <div className="flex-1 space-y-4 min-w-0">
+                    <Card className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{task.description || 'No description provided.'}</p>
+                    </Card>
+                    <Card className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Details</p>
+                      <p className="text-sm whitespace-pre-wrap">{task.details || 'No details provided.'}</p>
+                    </Card>
+                    <Card className="p-4">
                   <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Attachments</p>
                     <label className={cn('text-xs', !canUpload && 'opacity-60')}>
                       <input type="file" className="hidden" disabled={!canUpload} onChange={async (e) => {
@@ -126,7 +128,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                       <span className="inline-flex items-center gap-1 cursor-pointer"><Paperclip className="w-3.5 h-3.5" />Upload</span>
                     </label>
                   </div>
-                  <div className="space-y-2">{attachments.length === 0 ? <p className="text-xs text-muted-foreground">No attachments.</p> : attachments.map((a) => (
+                      <div className="space-y-2">{attachments.length === 0 ? <p className="text-xs text-muted-foreground">No attachments.</p> : attachments.map((a) => (
                     <div key={a.id} className="flex items-center gap-2 border rounded-md p-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
                       <div className="flex-1 min-w-0"><p className="text-sm truncate">{a.filename}</p></div>
@@ -150,27 +152,29 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                         }
                       }}><Download className="w-4 h-4" /></Button>
                     </div>
-                  ))}</div>
-                </Card>
-                <Card className="p-4">
-                  <p className="text-sm font-semibold mb-2">Comments</p>
-                  <div className="space-y-3 mb-3 max-h-72 overflow-y-auto pr-1">
+                      ))}</div>
+                    </Card>
+                  </div>
+                  <Card className="p-4 lg:w-[360px] lg:shrink-0 lg:self-start">
+                    <p className="text-sm font-semibold mb-2">Comments</p>
+                    <div className="space-y-3 mb-3 max-h-72 overflow-y-auto pr-1">
                     {sortedComments.length === 0 ? <p className="text-xs text-muted-foreground">No comments yet.</p> : sortedComments.map((c) => (
                       <div key={c.id} className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">{c.sender_name} • {new Date(c.created_at).toLocaleString()}</p><p className="text-sm whitespace-pre-wrap">{renderMentionBody(c.body, c.mentions)}</p></div></div>
                     ))}
-                  </div>
-                  <MentionTextarea value={commentBody} onChange={setCommentBody} mentions={commentMentions} onMentionsChange={setCommentMentions} members={members} placeholder="Add a comment…" className="min-h-[84px]" />
-                  <div className="mt-2 flex justify-end">
-                    <Button size="sm" disabled={!commentBody.trim()} onClick={async () => {
-                      try {
-                        await portalAPI.postTaskComment(projectId, taskId, token, commentBody.trim(), commentMentions);
-                        setCommentBody(''); setCommentMentions([]);
-                        await loadData();
-                        await onRefresh();
-                      } catch { toast.error('Failed to add comment'); }
-                    }}><Send className="w-4 h-4 mr-1" />Comment</Button>
-                  </div>
-                </Card>
+                    </div>
+                    <MentionTextarea value={commentBody} onChange={setCommentBody} mentions={commentMentions} onMentionsChange={setCommentMentions} members={members} placeholder="Add a comment…" className="min-h-[84px]" />
+                    <div className="mt-2 flex justify-end">
+                      <Button size="sm" disabled={!commentBody.trim()} onClick={async () => {
+                        try {
+                          await portalAPI.postTaskComment(projectId, taskId, token, commentBody.trim(), commentMentions);
+                          setCommentBody(''); setCommentMentions([]);
+                          await loadData();
+                          await onRefresh();
+                        } catch { toast.error('Failed to add comment'); }
+                      }}><Send className="w-4 h-4 mr-1" />Comment</Button>
+                    </div>
+                  </Card>
+                </div>
               </div>
             </div>
           )}
