@@ -165,16 +165,16 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                     <MentionTextarea value={commentBody} onChange={setCommentBody} mentions={commentMentions} onMentionsChange={setCommentMentions} members={members} placeholder="Add a comment…" className="min-h-[84px]" />
                     <div className="mt-2 flex justify-end">
                       <Button size="sm" disabled={!commentBody.trim()} onClick={async () => {
-                      try {
-                        await portalAPI.postTaskComment(projectId, taskId, token, commentBody.trim(), commentMentions);
-                        setCommentBody(''); setCommentMentions([]);
-                        await loadData();
-                        await onRefresh();
-                      } catch { toast.error('Failed to add comment'); }
+                        try {
+                          await portalAPI.postTaskComment(projectId, taskId, token, commentBody.trim(), commentMentions);
+                          setCommentBody(''); setCommentMentions([]);
+                          await loadData();
+                          await onRefresh();
+                        } catch { toast.error('Failed to add comment'); }
                       }}><Send className="w-4 h-4 mr-1" />Comment</Button>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                </div>
               </div>
             </div>
           )}
