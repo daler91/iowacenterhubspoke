@@ -175,6 +175,17 @@ export const portalAPI = {
     api.get(`/portal/projects/${projectId}/tasks/${taskId}`, portalHeaders(token)),
   taskAttachments: (projectId: string, taskId: string, token: string) =>
     api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments`, portalHeaders(token)),
+  downloadTaskAttachment: (projectId: string, taskId: string, attId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download`, {
+      ...portalHeaders(token),
+      responseType: 'blob',
+    }),
+  previewTaskAttachment: (projectId: string, taskId: string, attId: string, token: string) =>
+    api.get(`/portal/projects/${projectId}/tasks/${taskId}/attachments/${attId}/download`, {
+      ...portalHeaders(token),
+      params: { inline: true },
+      responseType: 'blob',
+    }),
   uploadTaskAttachment: (projectId: string, taskId: string, token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);

@@ -44,6 +44,7 @@ class PortalTaskUpdate(BaseModel):
     status: str | None = None
     phase: str | None = None
     completed: bool | None = None
+    due_date: str | None = None
 
 # Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
@@ -210,6 +211,12 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
         now = datetime.now(timezone.utc).isoformat()
         update["completed_at"] = now if payload.completed else None
         update["completed_by"] = (ctx.get("contact") or {}).get("name") if payload.completed else None
+    if payload.due_date is not None:
+        try:
+            datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid due_date format (expected ISO-8601)") from exc
+        update["due_date"] = payload.due_date
     if not update:
         return task
     await db.tasks.update_one({"id": task_id}, {"$set": update})
