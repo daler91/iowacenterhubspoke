@@ -46,6 +46,7 @@ class PortalTaskUpdate(BaseModel):
     completed: bool | None = None
     due_date: str | None = None
 
+
 # Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
 # many projects don't get globally truncated.
