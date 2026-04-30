@@ -184,6 +184,59 @@ Historical analyses in [`docs/archive/`](docs/archive/) are useful context but a
 - `backend/docker-entrypoint.py` handles upload directory setup and then execs `uvicorn`.
 - `docker-compose.yml` is the canonical local multi-service runtime.
 
+
+## Contributor Status (April 2026 refactor)
+
+Use this section as the quick status board before starting implementation work.
+
+### Completed phases
+
+The April 2026 remediation shipped in five phases:
+
+- **Phase 1** — CSV upload DoS guardrails, 401 redirect debounce fixes, password-change cache invalidation wiring, Redis lifespan cleanup, test cleanup, archive hygiene.
+- **Phase 2** — shared backend pagination utilities, removal of deprecated `travel_override_minutes`, migration runner, and `/api/*` legacy deprecation/sunset headers.
+- **Phase 3a** — `SoftDeleteRepository` introduced and adopted in `locations`/`classes`; schedule CRUD helper extraction.
+- **Phase 3b** — partner portal router split from a monolith into the `backend/routers/portal/` package.
+- **Phase 4a/4b** — typed API/frontend model layer improvements, Vite env typing, calendar layout helper extraction + tests.
+- **Phase 5** — baseline contributor docs and tooling (`docs/migrations.md`, `docs/repository-pattern.md`, pre-commit, follow-up tracker).
+
+For detailed provenance, see `docs/tech-debt-followups.md`.
+
+### Active deferred areas (still open)
+
+From `docs/tech-debt-followups.md`, these are intentionally deferred and still active:
+
+- Migrate the remaining routers to `SoftDeleteRepository`.
+- Enable `tsc --noEmit` in CI once strict-mode TypeScript debt is reduced.
+- Decompose oversized frontend components (`UserManager`, `LocationManager`).
+- Add list virtualization for large rendered tables/lists.
+- Tighten schedule form payload typing and API signatures.
+- Hard-remove legacy `/api/` mount after production hit count reaches zero.
+- Hard-remove in-process password-change cache approach for multi-worker deployments.
+
+### Where to extend safely
+
+Prefer these extension points to keep implementation consistent:
+
+- **Repository/data-access work**: use `backend/core/repository.py::SoftDeleteRepository` and the migration recipe in `docs/repository-pattern.md` rather than reintroducing inline `{"deleted_at": None}` filters.
+- **Portal features**: follow the `backend/routers/portal/` package split conventions (feature-specific module boundaries, shared helpers) instead of growing a single large router file.
+- **Pagination and list endpoints**: use shared utilities in `backend/core/pagination.py` to keep response shape and validation behavior uniform.
+- **Schema changes**: implement DB changes via the migration runner documented in `docs/migrations.md`.
+
+### Do not reintroduce
+
+- Direct use of deprecated `travel_override_minutes` fields.
+- New code paths that depend on the legacy `/api/*` mount.
+- New raw soft-delete filters when a repository abstraction exists.
+- Re-growth of partner portal into one monolithic router file.
+
+### Consistency cross-links
+
+- Repository pattern guide: [`docs/repository-pattern.md`](docs/repository-pattern.md)
+- Migration runner guide: [`docs/migrations.md`](docs/migrations.md)
+- Tech debt tracker: [`docs/tech-debt-followups.md`](docs/tech-debt-followups.md)
+- Architecture/context reviews: [`docs/archive/UX_ARCHITECTURE_REVIEW.md`](docs/archive/UX_ARCHITECTURE_REVIEW.md), [`docs/archive/PARTNER_PORTAL_CROSS_FUNCTIONAL_ANALYSIS_2026-04-29.md`](docs/archive/PARTNER_PORTAL_CROSS_FUNCTIONAL_ANALYSIS_2026-04-29.md)
+
 ## License
 
 Private — Iowa Center internal use.
