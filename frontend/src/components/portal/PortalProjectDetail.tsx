@@ -89,7 +89,10 @@ export default function PortalProjectDetail() {
   const handleToggleTask = async (task: Task) => {
     try {
       if (task.completed) {
-        await portalAPI.updateTask(projectId, task.id, token, { completed: false });
+        await portalAPI.updateTask(projectId, task.id, token, {
+          completed: false,
+          status: task.status === 'completed' ? 'to_do' : (task.status || 'to_do'),
+        });
       } else {
         // Use idempotent completion writes so stale UI cannot accidentally
         // reopen a task via server-side toggle semantics.
