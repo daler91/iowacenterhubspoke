@@ -20,6 +20,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+      - run: python scripts/check_remediation_matrix.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
