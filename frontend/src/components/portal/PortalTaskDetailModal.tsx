@@ -82,7 +82,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl sm:left-auto sm:right-4 sm:translate-x-0 sm:-translate-y-1/2">
+        <DialogContent className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl">
           <DialogTitle className="sr-only">Task details</DialogTitle>
           {loading || !task ? <p className="p-6 text-sm text-muted-foreground">Loading details…</p> : (
             <div className="flex flex-col h-full max-h-[85vh]">
