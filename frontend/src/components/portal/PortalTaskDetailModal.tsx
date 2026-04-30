@@ -21,17 +21,13 @@ function formatCommentDate(iso: string) {
 }
 
 function groupCommentsByDate(comments: TaskComment[]) {
-  const groups: Array<{ date: string; items: TaskComment[] }> = [];
-  let currentDate = '';
-  for (const c of comments) {
-    const d = formatCommentDate(c.created_at);
-    if (d !== currentDate) {
-      currentDate = d;
-      groups.push({ date: d, items: [] });
-    }
-    groups.at(-1)!.items.push(c);
-  }
-  return groups;
+  return comments.reduce<Array<{ date: string; items: TaskComment[] }>>((acc, item) => {
+    const d = formatCommentDate(item.created_at);
+    const last = acc.at(-1);
+    if (!last || last.date !== d) acc.push({ date: d, items: [item] });
+    else last.items.push(item);
+    return acc;
+  }, []);
 }
 
 function buildChildrenMap(comments: TaskComment[]) {
@@ -50,16 +46,14 @@ function buildChildrenMap(comments: TaskComment[]) {
 }
 
 function collectDescendants(rootId: string, childrenMap: Map<string | null, TaskComment[]>) {
-  const out: TaskComment[] = [];
-  const walk = (id: string) => {
-    for (const child of childrenMap.get(id) ?? []) {
-      out.push(child);
-      walk(child.id);
-    }
-  };
-  walk(rootId);
-  out.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  return out;
+  const queue = [...(childrenMap.get(rootId) ?? [])];
+  const flattened: TaskComment[] = [];
+  while (queue.length) {
+    const current = queue.shift()!;
+    flattened.push(current);
+    queue.push(...(childrenMap.get(current.id) ?? []));
+  }
+  return flattened.sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
 function timeAgo(iso: string) {
@@ -132,7 +126,7 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{ com
   const roots = childrenMap.get(null) ?? [];
   const groups = groupCommentsByDate(roots);
 
-  const openThread = (rootId: string) => setExpanded(prev => (prev.has(rootId) ? prev : new Set(prev).add(rootId)));
+  const openThread = (rootId: string) => setExpanded(prev => prev.has(rootId) ? prev : new Set([...prev, rootId]));
   const toggleThread = (rootId: string) => setExpanded(prev => {
     const next = new Set(prev);
     if (next.has(rootId)) next.delete(rootId); else next.add(rootId);
@@ -171,12 +165,12 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{ com
 
   return (
     <div className="lg:w-[360px] lg:shrink-0 border-l-4 border-hub-soft dark:border-hub-soft/70 bg-gradient-to-b from-hub-soft/80 via-white to-muted/50 dark:from-hub-soft/30 dark:via-card/60 dark:to-card/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col rounded-xl">
-      <div className="px-5 py-4 border-b border-hub-soft/70 dark:border-hub-soft/50 bg-white/60 dark:bg-card/40 flex items-center gap-2">
+      <header className="px-4 py-3 border-b border-hub-soft/70 dark:border-hub-soft/50 bg-white/70 dark:bg-card/50 flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-hub-soft/50 flex items-center justify-center"><MessageSquare className="w-3.5 h-3.5 text-hub-strong" /></div>
         <h2 className="text-base font-semibold text-foreground">Conversations</h2>
         {comments.length > 0 && <span className="text-[10px] font-bold text-hub-strong dark:text-hub-soft bg-hub-soft/50 px-1.5 py-0.5 rounded-full">{comments.length}</span>}
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 max-h-[22rem] lg:max-h-[30rem]">
+      </header>
+      <section className="flex-1 overflow-y-auto px-3 py-3 max-h-[22rem] lg:max-h-[30rem]">
         {groups.length === 0 ? <div className="flex items-center justify-center h-full min-h-[200px]"><p className="text-xs text-muted-foreground">No messages yet</p></div> : groups.map(group => <div key={group.date}><div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-muted" /><span className="text-[10px] text-muted-foreground font-medium">{group.date}</span><div className="flex-1 h-px bg-muted" /></div>{group.items.map(root => {
           const descendants = collectDescendants(root.id, childrenMap);
           const hasReplies = descendants.length > 0;
@@ -188,14 +182,14 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{ com
           </div>;
         })}</div>)}
         <div ref={endRef} />
-      </div>
-      <div className="p-3 border-t border-border">
+      </section>
+      <footer className="p-3 border-t border-border">
         {replyingTo && <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-hub-soft/30 border border-hub-soft dark:border-hub-soft/60 text-[11px] text-hub-strong dark:text-hub-soft w-fit max-w-full"><Reply className="w-3 h-3 shrink-0" /><span className="truncate">Replying to <span className="font-semibold">{replyingTo.sender_name}</span></span><button type="button" onClick={() => setReplyingTo(null)} className="ml-0.5 p-0.5 rounded hover:bg-hub-soft dark:hover:bg-hub-soft/60 transition-colors shrink-0" aria-label="Cancel reply"><X className="w-3 h-3" /></button></div>}
         <div className="flex items-center gap-2 rounded-full border-2 border-hub-soft dark:border-hub-soft/60 focus-within:border-hub-soft dark:focus-within:border-hub bg-white dark:bg-card pl-4 pr-1.5 py-1 transition-colors">
           <MentionTextarea value={body} mentions={mentions} members={members} onChange={(b, m) => { setBody(b); setMentions(m); }} onSubmit={handleSend} placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message — @ to mention...'} />
           <Button size="icon" onClick={handleSend} disabled={sending || !body.trim()} className="rounded-full bg-hub hover:bg-hub-strong text-white h-8 w-8 shrink-0" aria-label="Send message"><Send className="w-3.5 h-3.5" aria-hidden="true" /></Button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
