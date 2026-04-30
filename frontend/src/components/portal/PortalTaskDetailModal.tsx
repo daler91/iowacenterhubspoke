@@ -4,7 +4,7 @@ import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { CalendarDays, Download, Eye, FileText, MessageSquare, Paperclip, Send } from 'lucide-react';
-import SearchableSelect from '../ui/searchable-select';
+import { SearchableSelect } from '../ui/searchable-select';
 import { portalAPI } from '../../lib/coordination-api';
 import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, type Task, type TaskAttachment, type TaskComment, type Mention, type ProjectMember, type TaskStatus } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
@@ -95,7 +95,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
+                  <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onValueChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{new Date(task.due_date).toLocaleString()}</p></Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Attachments</p><p className="text-sm font-medium">{attachments.length}</p></Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Comments</p><p className="text-sm font-medium">{comments.length}</p></Card>
