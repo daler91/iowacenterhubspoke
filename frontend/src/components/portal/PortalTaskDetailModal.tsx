@@ -11,7 +11,7 @@ import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
-import ConversationsPanel from './PortalTaskConversations';
+import { ConversationsPanel } from '../coordination/TaskDetailModal';
 import { describeApiError } from '../../lib/error-messages';
 
 interface Props {

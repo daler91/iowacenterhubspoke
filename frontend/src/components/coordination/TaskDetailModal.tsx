@@ -275,7 +275,7 @@ function FlagPillSwitch({
 }
 
 // ── Conversations Panel ──────────────────────────────────────────────
-function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
+export function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   comments: TaskComment[];
   members: readonly ProjectMember[];
   onPostComment: (
@@ -330,7 +330,7 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   }, [comments.length, lastPostedId]);
 
   const handleSend = async () => {
-    if (!body.trim()) return;
+    if (sending || !body.trim()) return;
     setSending(true);
     try {
       // Capture before clearing so we can expand the target thread after the
