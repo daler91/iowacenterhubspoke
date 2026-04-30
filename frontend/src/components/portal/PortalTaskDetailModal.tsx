@@ -33,7 +33,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   const [commentMentions, setCommentMentions] = useState<Mention[]>([]);
   const [previewing, setPreviewing] = useState<{ attachment: TaskAttachment; url: string } | null>(null);
 
-  const canUpload = task?.owner === 'partner';
+  const canUpload = task?.owner === 'partner' || task?.owner === 'both';
 
   const loadData = async () => {
     if (!open || !token) return;
@@ -112,17 +112,23 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                       <FileText className="w-4 h-4 text-muted-foreground" />
                       <div className="flex-1 min-w-0"><p className="text-sm truncate">{a.filename}</p></div>
                       {canPreview(a.file_type) && <Button size="sm" variant="ghost" onClick={async () => {
-                        const res = await portalAPI.taskAttachments(projectId, taskId, token);
-                        const found = ((res.data?.items || []) as TaskAttachment[]).find(i => i.id === a.id);
-                        if (!found) return;
-                        const d = await fetch(`/api/portal/projects/${projectId}/tasks/${taskId}/attachments/${a.id}/download`, { headers: { Authorization: `Bearer ${token}` } });
-                        const blob = await d.blob();
-                        setPreviewing({ attachment: found, url: URL.createObjectURL(blob) });
+                        try {
+                          const res = await portalAPI.previewTaskAttachment(projectId, taskId, a.id, token);
+                          const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
+                          const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
+                          setPreviewing({ attachment: a, url: URL.createObjectURL(blob) });
+                        } catch (err) {
+                          toast.error(describeApiError(err, "Couldn't load that preview."));
+                        }
                       }}><Eye className="w-4 h-4" /></Button>}
                       <Button size="sm" variant="ghost" onClick={async () => {
-                        const d = await fetch(`/api/portal/projects/${projectId}/tasks/${taskId}/attachments/${a.id}/download`, { headers: { Authorization: `Bearer ${token}` } });
-                        const blob = await d.blob();
-                        const u = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = u; link.download = a.filename; link.click(); URL.revokeObjectURL(u);
+                        try {
+                          const d = await portalAPI.downloadTaskAttachment(projectId, taskId, a.id, token);
+                          const blob = new Blob([d.data]);
+                          const u = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = u; link.download = a.filename; link.click(); URL.revokeObjectURL(u);
+                        } catch (err) {
+                          toast.error(describeApiError(err, 'Download failed'));
+                        }
                       }}><Download className="w-4 h-4" /></Button>
                     </div>
                   ))}</div>
