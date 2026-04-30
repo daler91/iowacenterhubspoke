@@ -275,7 +275,7 @@ function FlagPillSwitch({
 }
 
 // ── Conversations Panel ──────────────────────────────────────────────
-function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
+export function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   comments: TaskComment[];
   members: readonly ProjectMember[];
   onPostComment: (
@@ -330,7 +330,7 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   }, [comments.length, lastPostedId]);
 
   const handleSend = async () => {
-    if (!body.trim()) return;
+    if (sending || !body.trim()) return;
     setSending(true);
     try {
       // Capture before clearing so we can expand the target thread after the
@@ -351,7 +351,7 @@ function ConversationsPanel({ comments, members, onPostComment }: Readonly<{
   };
 
   return (
-    <div className="w-[360px] shrink-0 border-l-4 border-hub-soft dark:border-hub-soft/70 bg-gradient-to-b from-hub-soft/80 via-white to-muted/50 dark:from-hub-soft/30 dark:via-card/60 dark:to-card/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col">
+    <div className="w-full lg:w-[360px] lg:shrink-0 border-l-4 border-hub-soft dark:border-hub-soft/70 bg-gradient-to-b from-hub-soft/80 via-white to-muted/50 dark:from-hub-soft/30 dark:via-card/60 dark:to-card/80 shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.25)] dark:shadow-[inset_6px_0_12px_-6px_rgba(99,102,241,0.35)] flex flex-col">
       <div className="px-5 py-4 border-b border-hub-soft/70 dark:border-hub-soft/50 bg-white/60 dark:bg-card/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-hub-soft/50 flex items-center justify-center">

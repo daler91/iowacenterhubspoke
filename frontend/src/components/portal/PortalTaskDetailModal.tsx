@@ -3,15 +3,15 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { CalendarDays, Download, Eye, FileText, MessageSquare, Paperclip, Send } from 'lucide-react';
+import { CalendarDays, Download, Eye, FileText, Paperclip } from 'lucide-react';
 import { SearchableSelect } from '../ui/searchable-select';
 import { portalAPI } from '../../lib/coordination-api';
-import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, type Task, type TaskAttachment, type TaskComment, type Mention, type ProjectMember, type TaskStatus } from '../../lib/coordination-types';
+import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, type Task, type TaskAttachment, type TaskComment, type ProjectMember, type TaskStatus } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
-import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { ConversationsPanel } from '../coordination/TaskDetailModal';
 import { describeApiError } from '../../lib/error-messages';
 
 interface Props {
@@ -29,8 +29,6 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
-  const [commentBody, setCommentBody] = useState('');
-  const [commentMentions, setCommentMentions] = useState<Mention[]>([]);
   const [previewing, setPreviewing] = useState<{ attachment: TaskAttachment; url: string } | null>(null);
 
   const canUpload = task?.owner === 'partner' || task?.owner === 'both';
@@ -114,66 +112,57 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                       <p className="text-sm whitespace-pre-wrap">{task.details || 'No details provided.'}</p>
                     </Card>
                     <Card className="p-4">
-                  <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Attachments</p>
-                    <label className={cn('text-xs', !canUpload && 'opacity-60')}>
-                      <input type="file" className="hidden" disabled={!canUpload} onChange={async (e) => {
-                        const file = e.target.files?.[0]; if (!file || !canUpload) return;
-                        try {
-                          await portalAPI.uploadTaskAttachment(projectId, taskId, token, file);
-                          toast.success('Attachment uploaded');
-                          await loadData();
-                          await onRefresh();
-                        } catch (err) { toast.error(describeApiError(err, 'Upload failed')); }
-                      }} />
-                      <span className="inline-flex items-center gap-1 cursor-pointer"><Paperclip className="w-3.5 h-3.5" />Upload</span>
-                    </label>
-                  </div>
+                      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Attachments</p>
+                        <label className={cn('text-xs', !canUpload && 'opacity-60')}>
+                          <input type="file" className="hidden" disabled={!canUpload} onChange={async (e) => {
+                            const file = e.target.files?.[0]; if (!file || !canUpload) return;
+                            try {
+                              await portalAPI.uploadTaskAttachment(projectId, taskId, token, file);
+                              toast.success('Attachment uploaded');
+                              await loadData();
+                              await onRefresh();
+                            } catch (err) { toast.error(describeApiError(err, 'Upload failed')); }
+                          }} />
+                          <span className="inline-flex items-center gap-1 cursor-pointer"><Paperclip className="w-3.5 h-3.5" />Upload</span>
+                        </label>
+                      </div>
                       <div className="space-y-2">{attachments.length === 0 ? <p className="text-xs text-muted-foreground">No attachments.</p> : attachments.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 border rounded-md p-2">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      <div className="flex-1 min-w-0"><p className="text-sm truncate">{a.filename}</p></div>
-                      {canPreview(a.file_type) && <Button size="sm" variant="ghost" onClick={async () => {
-                        try {
-                          const res = await portalAPI.previewTaskAttachment(projectId, taskId, a.id, token);
-                          const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
-                          const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
-                          setPreviewing({ attachment: a, url: URL.createObjectURL(blob) });
-                        } catch (err) {
-                          toast.error(describeApiError(err, "Couldn't load that preview."));
-                        }
-                      }}><Eye className="w-4 h-4" /></Button>}
-                      <Button size="sm" variant="ghost" onClick={async () => {
-                        try {
-                          const d = await portalAPI.downloadTaskAttachment(projectId, taskId, a.id, token);
-                          const blob = new Blob([d.data]);
-                          const u = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = u; link.download = a.filename; link.click(); URL.revokeObjectURL(u);
-                        } catch (err) {
-                          toast.error(describeApiError(err, 'Download failed'));
-                        }
-                      }}><Download className="w-4 h-4" /></Button>
-                    </div>
+                        <div key={a.id} className="flex items-center gap-2 border rounded-md p-2">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                          <div className="flex-1 min-w-0"><p className="text-sm truncate">{a.filename}</p></div>
+                          {canPreview(a.file_type) && <Button size="sm" variant="ghost" onClick={async () => {
+                            try {
+                              const res = await portalAPI.previewTaskAttachment(projectId, taskId, a.id, token);
+                              const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
+                              const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
+                              setPreviewing({ attachment: a, url: URL.createObjectURL(blob) });
+                            } catch (err) {
+                              toast.error(describeApiError(err, "Couldn't load that preview."));
+                            }
+                          }}><Eye className="w-4 h-4" /></Button>}
+                          <Button size="sm" variant="ghost" onClick={async () => {
+                            try {
+                              const d = await portalAPI.downloadTaskAttachment(projectId, taskId, a.id, token);
+                              const blob = new Blob([d.data]);
+                              const u = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = u; link.download = a.filename; link.click(); URL.revokeObjectURL(u);
+                            } catch (err) {
+                              toast.error(describeApiError(err, 'Download failed'));
+                            }
+                          }}><Download className="w-4 h-4" /></Button>
+                        </div>
                       ))}</div>
                     </Card>
                   </div>
-                  <Card className="p-4 lg:w-[360px] lg:shrink-0 lg:self-start">
-                    <p className="text-sm font-semibold mb-2">Comments</p>
-                    <div className="space-y-3 mb-3 max-h-72 overflow-y-auto pr-1">
-                    {sortedComments.length === 0 ? <p className="text-xs text-muted-foreground">No comments yet.</p> : sortedComments.map((c) => (
-                      <div key={c.id} className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">{c.sender_name} • {new Date(c.created_at).toLocaleString()}</p><p className="text-sm whitespace-pre-wrap">{renderMentionBody(c.body, c.mentions)}</p></div></div>
-                    ))}
-                    </div>
-                    <MentionTextarea value={commentBody} onChange={setCommentBody} mentions={commentMentions} onMentionsChange={setCommentMentions} members={members} placeholder="Add a comment…" className="min-h-[84px]" />
-                    <div className="mt-2 flex justify-end">
-                      <Button size="sm" disabled={!commentBody.trim()} onClick={async () => {
-                        try {
-                          await portalAPI.postTaskComment(projectId, taskId, token, commentBody.trim(), commentMentions);
-                          setCommentBody(''); setCommentMentions([]);
-                          await loadData();
-                          await onRefresh();
-                        } catch { toast.error('Failed to add comment'); }
-                      }}><Send className="w-4 h-4 mr-1" />Comment</Button>
-                    </div>
-                  </Card>
+                  <ConversationsPanel
+                    comments={sortedComments}
+                    members={members}
+                    onPostComment={async (body, parentCommentId, mentions) => {
+                      const postRes = await portalAPI.postTaskComment(projectId, taskId, token, body, mentions ?? [], parentCommentId ?? undefined);
+                      await loadData();
+                      await onRefresh();
+                      return (postRes.data as { id?: string } | undefined)?.id ?? null;
+                    }}
+                  />
                 </div>
               </div>
             </div>

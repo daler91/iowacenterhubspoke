@@ -204,10 +204,11 @@ export const portalAPI = {
     token: string,
     body: string,
     mentions?: Mention[],
+    parentCommentId?: string,
   ) =>
     api.post(
       `/portal/projects/${projectId}/tasks/${taskId}/comments`,
-      { body, mentions: serializeMentions(mentions) },
+      { body, mentions: serializeMentions(mentions), parent_comment_id: parentCommentId },
       portalHeaders(token),
     ),
   projectMembers: (projectId: string, token: string) =>
