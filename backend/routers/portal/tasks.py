@@ -260,11 +260,21 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
     # when transitioning from incomplete -> completed.
     if payload.completed and not was_completed:
         contact = ctx.get("contact") or {}
-        await maybe_auto_advance_phase_for_task(
-            project_id=project_id,
-            completed_task_phase=task.get("phase"),
-            actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
-        )
+        try:
+            await maybe_auto_advance_phase_for_task(
+                project_id=project_id,
+                completed_task_phase=task.get("phase"),
+                actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
+            )
+        except Exception:
+            logger.exception(
+                "Portal task updated but phase auto-advance failed",
+                extra={
+                    "project_id": project_id,
+                    "task_id": task_id,
+                    "contact_id": contact.get("id"),
+                },
+            )
     return task
 
 
