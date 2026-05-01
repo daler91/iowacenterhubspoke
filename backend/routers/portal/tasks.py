@@ -55,6 +55,16 @@ _PARTNER_TASK_EDITABLE_FIELDS = {"status", "completed", "due_date"}
 _PARTNER_TASK_INTERNAL_ONLY_FIELDS = {"spotlight", "at_risk", "private_notes"}
 
 
+def _normalized_owner(owner: object) -> str:
+    if not isinstance(owner, str):
+        return ""
+    return owner.strip().lower()
+
+
+def _is_partner_task_owner(owner: object) -> bool:
+    return _normalized_owner(owner) in {"partner", "both"}
+
+
 async def _require_partner_project(project_id: str, ctx: dict) -> dict:
     project = await db.projects.find_one(
         {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
@@ -69,13 +79,19 @@ async def _require_partner_task(task_id: str, project_id: str) -> dict:
         {
             "id": task_id,
             "project_id": project_id,
-            "owner": {"$in": ["partner", "both"]},
             "deleted_at": None,
         },
     )
+    if task and _is_partner_task_owner(task.get("owner")):
+        return task
+    if task and not task.get("owner"):
+        logger.warning(
+            "Portal task rejected due to missing owner",
+            extra={"project_id": project_id, "task_id": task_id, "owner": task.get("owner")},
+        )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
-    return task
+    raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
 
 
 # Keep two blank lines before module-level route decorators (flake8 E305/E302).
@@ -223,7 +239,22 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
         update["due_date"] = parsed_due_date.astimezone(timezone.utc).isoformat()
     if not update:
         return task
-    await db.tasks.update_one({"id": task_id}, {"$set": update})
+    try:
+        await db.tasks.update_one({"id": task_id}, {"$set": update})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Portal task update failed",
+            extra={
+                "project_id": project_id,
+                "task_id": task_id,
+                "contact_id": (ctx.get("contact") or {}).get("id"),
+                "incoming_status": payload.status,
+                "incoming_completed": payload.completed,
+            },
+        )
+        raise HTTPException(status_code=500, detail="Failed to update task") from exc
     task.update(update)
     # Idempotent completion updates should still trigger phase auto-advance
     # when transitioning from incomplete -> completed.
