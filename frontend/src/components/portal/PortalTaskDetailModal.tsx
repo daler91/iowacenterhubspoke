@@ -33,19 +33,23 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
 
   const canUpload = task?.owner === 'partner' || task?.owner === 'both';
 
+  const refreshComments = async () => {
+    const commentRes = await portalAPI.taskComments(projectId, taskId, token);
+    setComments((commentRes.data?.items || []) as TaskComment[]);
+  };
+
   const loadData = async () => {
     if (!open || !token) return;
     setLoading(true);
     try {
-      const [detailRes, attachmentRes, commentRes, memberRes] = await Promise.all([
+      const [detailRes, attachmentRes, memberRes] = await Promise.all([
         portalAPI.taskDetail(projectId, taskId, token),
         portalAPI.taskAttachments(projectId, taskId, token),
-        portalAPI.taskComments(projectId, taskId, token),
         portalAPI.projectMembers(projectId, token),
       ]);
       setTask(detailRes.data as Task);
       setAttachments((attachmentRes.data?.items || []) as TaskAttachment[]);
-      setComments((commentRes.data?.items || []) as TaskComment[]);
+      await refreshComments();
       setMembers((memberRes.data?.items || []) as ProjectMember[]);
     } catch {
       toast.error('Failed to load task details');
@@ -158,8 +162,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                     members={members}
                     onPostComment={async (body, parentCommentId, mentions) => {
                       const postRes = await portalAPI.postTaskComment(projectId, taskId, token, body, mentions ?? [], parentCommentId ?? undefined);
-                      await loadData();
-                      await onRefresh();
+                      await refreshComments();
                       return (postRes.data as { id?: string } | undefined)?.id ?? null;
                     }}
                   />
