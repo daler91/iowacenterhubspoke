@@ -88,7 +88,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
           <DialogTitle className="sr-only">Task details</DialogTitle>
           {loading || !task ? <p className="p-6 text-sm text-muted-foreground">Loading details…</p> : (
             <div className="flex flex-col h-full max-h-[85vh]">
-              <div className="p-5 border-b space-y-3">
+              <div className="p-5 pr-14 border-b space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <h3 className="text-lg font-semibold">{task.title}</h3>
                   <div className="flex items-center gap-2">
@@ -96,11 +96,9 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                     <Badge className={cn('text-[10px] px-1.5 text-white', PHASE_COLORS[task.phase])}>{PHASE_LABELS[task.phase]}</Badge>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onValueChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
-                  <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{new Date(task.due_date).toLocaleString()}</p></Card>
-                  <Card className="p-3"><p className="text-xs text-muted-foreground">Attachments</p><p className="text-sm font-medium">{attachments.length}</p></Card>
-                  <Card className="p-3"><p className="text-xs text-muted-foreground">Comments</p><p className="text-sm font-medium">{comments.length}</p></Card>
+                  <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{new Date(task.due_date).toLocaleDateString()}</p></Card>
                 </div>
               </div>
 
