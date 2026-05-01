@@ -100,8 +100,8 @@ export default function PortalProjectDetail() {
       }
       await loadTasks();
       toast.success('Task updated');
-    } catch {
-      toast.error('Failed to update task');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Failed to update task'));
     }
   };
 
