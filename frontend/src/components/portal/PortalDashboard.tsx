@@ -430,7 +430,7 @@ export default function PortalDashboard() {
               </Button>
             </div>
             {requestLinkMessage && (
-              <output className="text-sm text-spoke-strong block">
+              <output className="text-sm text-spoke-strong block" aria-live="polite" aria-atomic="true">
                 {requestLinkMessage}
               </output>
             )}
