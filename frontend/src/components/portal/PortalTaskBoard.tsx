@@ -64,7 +64,9 @@ function ProjectBoardSection({ project, tasks, onOpenTask }: Readonly<{ project:
   }, {} as Record<TaskStatus, Task[]>);
 
   tasks.forEach((task) => {
-    tasksByStatus[statusForTask(task)].push(task);
+    const status = statusForTask(task);
+    if (!Object.prototype.hasOwnProperty.call(tasksByStatus, status)) return;
+    tasksByStatus[status].push(task);
   });
 
   return (
