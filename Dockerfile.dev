@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup appuser
 
-COPY --chown=appuser:appgroup backend/ ./
+COPY --chown=appuser:appgroup --chmod=0555 backend/ ./
 
 USER appuser
 EXPOSE 8080
