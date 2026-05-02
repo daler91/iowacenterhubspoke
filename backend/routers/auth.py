@@ -687,11 +687,12 @@ def _classify_legacy_rows(
 
     target_created = created_by_id.get(user_id)
     sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
-    target_idx = next((i for i, (uid, _dt) in enumerate(sorted_created) if uid == user_id), None)
     has_single_candidate = len(sorted_created) == 1
-    boundary_second_created = None
-    if target_idx == 0 and len(sorted_created) > 1:
-        boundary_second_created = sorted_created[1][1]
+    boundary_second_created = (
+        sorted_created[1][1]
+        if len(sorted_created) > 1 and sorted_created[0][0] == user_id
+        else None
+    )
 
     for row in legacy_rows:
         ts = _parse_iso_ts(row.get("timestamp"))
@@ -702,10 +703,7 @@ def _classify_legacy_rows(
             # Can't belong to this user before account creation.
             ambiguous_legacy.append(row)
             continue
-        if has_single_candidate:
-            confident_legacy.append(row)
-            continue
-        if target_idx == 0 and boundary_second_created and ts < boundary_second_created:
+        if has_single_candidate or (boundary_second_created and ts < boundary_second_created):
             confident_legacy.append(row)
             continue
         ambiguous_legacy.append(row)
