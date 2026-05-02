@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup appuser
 
-COPY --chown=appuser:appgroup backend/ ./
-COPY --chown=appuser:appgroup --from=frontend-build /app/frontend/build ./static
+COPY --chown=appuser:appgroup --chmod=0555 backend/ ./
+COPY --chown=appuser:appgroup --chmod=0555 --from=frontend-build /app/frontend/build ./static
 
 # Pre-create the default uploads directory so the non-root runtime user can
 # write task / project / portal attachments. ``/app`` is owned by root, so
