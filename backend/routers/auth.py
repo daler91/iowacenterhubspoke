@@ -711,7 +711,12 @@ def _classify_legacy_rows(
     return confident_legacy, ambiguous_legacy
 
 
-async def _classify_export_legacy_activity(*, legacy_rows: list[dict], legacy_name: str, user_id: str) -> tuple[list[dict], list[dict]]:
+async def _classify_export_legacy_activity(
+    *,
+    legacy_rows: list[dict],
+    legacy_name: str,
+    user_id: str,
+) -> tuple[list[dict], list[dict]]:
     """Classify legacy activity rows for export payloads."""
     if not legacy_rows or not legacy_name:
         return [], []
@@ -721,6 +726,7 @@ async def _classify_export_legacy_activity(*, legacy_rows: list[dict], legacy_na
         user_id=user_id,
         same_name_users=same_name_users,
     )
+
 
 @router.get(
     "/me/export",
