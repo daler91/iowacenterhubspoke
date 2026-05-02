@@ -31,7 +31,8 @@ const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 type TaskViewMode = 'list' | 'kanban';
-type ProjectFilterId = 'all' | string;
+// 'all' is a UI sentinel value representing the unfiltered project view.
+type ProjectFilterId = string;
 
 interface NotificationSummary {
   mentions_requested?: number;
@@ -291,7 +292,7 @@ export default function PortalDashboard() {
       <select
         id={selectId}
         value={selectedProjectId}
-        onChange={(e) => setSelectedProjectId(e.target.value as ProjectFilterId)}
+        onChange={(e) => setSelectedProjectId(e.target.value)}
         className="border border-border rounded-md px-2 py-1 text-sm bg-background"
       >
         <option value="all">All projects</option>
