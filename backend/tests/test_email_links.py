@@ -50,10 +50,10 @@ def test_resolve_app_url_allows_cors_fallback_in_dev(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "development")
     monkeypatch.setenv(
         "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:5173",
+        "https://localhost:3000,https://localhost:5173",
     )
 
-    assert resolve_app_url() == "http://localhost:3000"
+    assert resolve_app_url() == "https://localhost:3000"
 
 
 def test_resolve_app_url_rejects_path_values(monkeypatch):

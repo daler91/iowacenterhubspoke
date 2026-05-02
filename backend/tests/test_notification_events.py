@@ -47,6 +47,7 @@ from services.notification_events import (  # noqa: E402
     notify_task_comment_mentions,
     notify_task_completed,
     notify_task_deleted,
+    _fan_out,
 )
 from services.notification_prefs import Principal  # noqa: E402
 from services.notifications import NotificationEvent  # noqa: E402, F401
@@ -966,3 +967,52 @@ async def test_dispatch_failure_is_logged_not_raised(
         old_phase="a", new_phase="b",
         actor={"id": "x", "name": "X"},
     )
+
+
+@pytest.mark.asyncio
+async def test_fan_out_aggregates_mixed_delivery_statuses(monkeypatch, caplog):
+    principals = [_internal("u-1"), _internal("u-2"), _internal("u-3"), _internal("u-4")]
+    results = iter([
+        _DispatchResult(in_app="sent", email="skipped"),
+        _DispatchResult(in_app="deduped", email="sent"),
+        _DispatchResult(in_app="skipped", email="queued"),
+        _DispatchResult(in_app="deduped", email="deduped"),
+    ])
+
+    async def fake_dispatch(principal, event):
+        await asyncio.sleep(0)
+        return next(results)
+
+    monkeypatch.setattr(events_mod, "dispatch", fake_dispatch)
+
+    with caplog.at_level("INFO"):
+        sent = await _fan_out(principals, make_event(type_key="task.completed", title="T", body="B"), log_key="mixed")
+
+    assert sent == 3
+    assert "delivered=3" in caplog.text
+    assert "in_app_sent=1" in caplog.text
+    assert "email_sent=1" in caplog.text
+    assert "email_queued=1" in caplog.text
+    assert "skipped=2" in caplog.text
+    assert "deduped=2" in caplog.text
+    assert "failed=0" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_fan_out_increments_failed_and_continues(monkeypatch, caplog):
+    principals = [_internal("u-1"), _internal("u-2"), _internal("u-3")]
+
+    async def flaky_dispatch(principal, event):
+        await asyncio.sleep(0)
+        if principal.id == "u-2":
+            raise RuntimeError("boom")
+        return _DispatchResult(in_app="sent", email="skipped")
+
+    monkeypatch.setattr(events_mod, "dispatch", flaky_dispatch)
+
+    with caplog.at_level("INFO"):
+        sent = await _fan_out(principals, make_event(type_key="task.completed", title="T", body="B"), log_key="flaky")
+
+    assert sent == 2
+    assert "failed=1" in caplog.text
+    assert "delivered=2" in caplog.text
