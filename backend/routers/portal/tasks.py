@@ -206,29 +206,29 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
     return task
 
 
-@router.patch(
-    "/projects/{project_id}/tasks/{task_id}",
-    summary="Partner updates status/phase for a task",
-    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
-)
-async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskUpdate, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
-    task = await _require_partner_task(task_id, project_id)
-    was_completed = bool(task.get("completed", False))
+def _validate_task_value(value: str | None, allowed: set[str], detail: str) -> str | None:
+    if value is None:
+        return None
+    if value not in allowed:
+        raise HTTPException(status_code=400, detail=detail)
+    return value
+
+
+def _build_task_update(payload: PortalTaskUpdate, ctx: PortalContext) -> dict:
     update: dict = {}
-    if payload.status is not None:
-        if payload.status not in _TASK_STATUSES:
-            raise HTTPException(status_code=400, detail="Invalid task status")
-        update["status"] = payload.status
-    if payload.phase is not None:
-        if payload.phase not in _TASK_PHASES:
-            raise HTTPException(status_code=400, detail="Invalid task phase")
-        update["phase"] = payload.phase
+    status = _validate_task_value(payload.status, _TASK_STATUSES, "Invalid task status")
+    phase = _validate_task_value(payload.phase, _TASK_PHASES, "Invalid task phase")
+    if status is not None:
+        update["status"] = status
+    if phase is not None:
+        update["phase"] = phase
+
     if payload.completed is not None:
         update["completed"] = payload.completed
         now = datetime.now(timezone.utc).isoformat()
         update["completed_at"] = now if payload.completed else None
         update["completed_by"] = (ctx.get("contact") or {}).get("name") if payload.completed else None
+
     if payload.due_date is not None:
         try:
             parsed_due_date = datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
@@ -237,6 +237,24 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
         if parsed_due_date.tzinfo is None:
             parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
         update["due_date"] = parsed_due_date.astimezone(timezone.utc).isoformat()
+    return update
+
+
+@router.patch(
+    "/projects/{project_id}/tasks/{task_id}",
+    summary="Partner updates status/phase for a task",
+    responses={
+        400: {"description": "Invalid task status, phase, or due_date format"},
+        401: {"description": INVALID_TOKEN},
+        404: {"description": PROJECT_NOT_FOUND},
+        500: {"description": "Failed to update task"},
+    },
+)
+async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskUpdate, ctx: PortalContext):
+    await _require_partner_project(project_id, ctx)
+    task = await _require_partner_task(task_id, project_id)
+    was_completed = bool(task.get("completed", False))
+    update = _build_task_update(payload, ctx)
     if not update:
         return task
     try:
