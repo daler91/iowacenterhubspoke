@@ -102,6 +102,7 @@ from services.notifications import NotificationEvent, dispatch
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class _FanOutCounters:
     delivered: int = 0
