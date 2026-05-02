@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import asyncio
 
-from routers.auth import export_my_data
+from routers.auth import _classify_legacy_rows, export_my_data
 
 
 class _FakeCursor:
@@ -128,3 +128,40 @@ def test_export_keeps_all_legacy_rows_ambiguous_without_creation_metadata(monkey
 
     assert result["activity_log"]["confident"] == []
     assert [r["id"] for r in result["activity_log"]["ambiguous"]] == ["l10"]
+
+
+def test_classify_legacy_rows_single_candidate_confident_after_created():
+    same_name_users = [{"id": "u1", "created_at": "2024-01-01T00:00:00+00:00"}]
+    legacy_rows = [
+        {"id": "l1", "timestamp": "2024-01-01T00:00:00+00:00"},
+        {"id": "l2", "timestamp": "2024-02-01T00:00:00+00:00"},
+    ]
+
+    confident, ambiguous = _classify_legacy_rows(
+        legacy_rows=legacy_rows,
+        user_id="u1",
+        same_name_users=same_name_users,
+    )
+
+    assert [r["id"] for r in confident] == ["l1", "l2"]
+    assert ambiguous == []
+
+
+def test_classify_legacy_rows_first_created_boundary_equal_timestamp_is_ambiguous():
+    same_name_users = [
+        {"id": "u1", "created_at": "2024-01-01T00:00:00+00:00"},
+        {"id": "u2", "created_at": "2024-06-01T00:00:00+00:00"},
+    ]
+    legacy_rows = [
+        {"id": "before_boundary", "timestamp": "2024-05-31T23:59:59+00:00"},
+        {"id": "at_boundary", "timestamp": "2024-06-01T00:00:00+00:00"},
+    ]
+
+    confident, ambiguous = _classify_legacy_rows(
+        legacy_rows=legacy_rows,
+        user_id="u1",
+        same_name_users=same_name_users,
+    )
+
+    assert [r["id"] for r in confident] == ["before_boundary"]
+    assert [r["id"] for r in ambiguous] == ["at_boundary"]

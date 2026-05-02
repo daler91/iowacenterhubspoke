@@ -675,6 +675,31 @@ def _classify_legacy_rows(
     confident_legacy: list[dict] = []
     ambiguous_legacy: list[dict] = []
 
+    created_by_id, invalid_created = _build_created_by_id(same_name_users)
+    target_created, has_single_candidate, boundary_second_created = _legacy_boundaries(
+        created_by_id=created_by_id,
+        user_id=user_id,
+    )
+
+    for row in legacy_rows:
+        ts = _parse_iso_ts(row.get("timestamp"))
+        is_confident = _is_confident_legacy_row(
+            ts=ts,
+            target_created=target_created,
+            invalid_created=invalid_created,
+            has_single_candidate=has_single_candidate,
+            boundary_second_created=boundary_second_created,
+        )
+        if is_confident:
+            confident_legacy.append(row)
+        else:
+            ambiguous_legacy.append(row)
+
+    return confident_legacy, ambiguous_legacy
+
+
+def _build_created_by_id(same_name_users: list[dict]) -> tuple[dict[str, datetime], bool]:
+    """Build candidate creation timestamps keyed by user id."""
     created_by_id: dict[str, datetime] = {}
     invalid_created = False
     for row in same_name_users:
@@ -684,7 +709,15 @@ def _classify_legacy_rows(
             invalid_created = True
             continue
         created_by_id[uid] = parsed
+    return created_by_id, invalid_created
 
+
+def _legacy_boundaries(
+    *,
+    created_by_id: dict[str, datetime],
+    user_id: str,
+) -> tuple[Optional[datetime], bool, Optional[datetime]]:
+    """Compute creation-time boundaries for legacy-row attribution."""
     target_created = created_by_id.get(user_id)
     sorted_created = sorted(created_by_id.items(), key=lambda kv: kv[1])
     has_single_candidate = len(sorted_created) == 1
@@ -693,22 +726,27 @@ def _classify_legacy_rows(
         if len(sorted_created) > 1 and sorted_created[0][0] == user_id
         else None
     )
+    return target_created, has_single_candidate, boundary_second_created
 
-    for row in legacy_rows:
-        ts = _parse_iso_ts(row.get("timestamp"))
-        if invalid_created or target_created is None or ts is None:
-            ambiguous_legacy.append(row)
-            continue
-        if ts < target_created:
-            # Can't belong to this user before account creation.
-            ambiguous_legacy.append(row)
-            continue
-        if has_single_candidate or (boundary_second_created and ts < boundary_second_created):
-            confident_legacy.append(row)
-            continue
-        ambiguous_legacy.append(row)
 
-    return confident_legacy, ambiguous_legacy
+def _is_confident_legacy_row(
+    *,
+    ts: Optional[datetime],
+    target_created: Optional[datetime],
+    invalid_created: bool,
+    has_single_candidate: bool,
+    boundary_second_created: Optional[datetime],
+) -> Optional[bool]:
+    """Return whether a legacy row can be confidently attributed."""
+    if invalid_created or target_created is None or ts is None:
+        return None
+    if ts < target_created:
+        return None
+    if has_single_candidate:
+        return True
+    if boundary_second_created and ts < boundary_second_created:
+        return True
+    return False
 
 
 async def _classify_export_legacy_activity(
