@@ -81,6 +81,7 @@ Conventions
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from html import escape
 from typing import Optional
 
@@ -100,6 +101,36 @@ from services.notifications import NotificationEvent, dispatch
 
 
 logger = get_logger(__name__)
+
+@dataclass
+class _FanOutCounters:
+    delivered: int = 0
+    failed: int = 0
+    in_app_sent: int = 0
+    email_sent: int = 0
+    email_queued: int = 0
+    skipped: int = 0
+    deduped: int = 0
+
+
+_DELIVERED_STATUSES = {("in_app", "sent"), ("email", "sent"), ("email", "queued")}
+_SKIPPED_STATUSES = {"skipped"}
+_DEDUPED_STATUSES = {"deduped"}
+
+
+def _accumulate_delivery_metrics(result, counters: _FanOutCounters) -> None:
+    if result.in_app == "sent":
+        counters.in_app_sent += 1
+    if result.email == "sent":
+        counters.email_sent += 1
+    if result.email == "queued":
+        counters.email_queued += 1
+    if result.in_app in _SKIPPED_STATUSES or result.email in _SKIPPED_STATUSES:
+        counters.skipped += 1
+    if result.in_app in _DEDUPED_STATUSES or result.email in _DEDUPED_STATUSES:
+        counters.deduped += 1
+    if any(getattr(result, field) == status for field, status in _DELIVERED_STATUSES):
+        counters.delivered += 1
 
 
 # ── Shared constants ─────────────────────────────────────────────────
@@ -268,13 +299,7 @@ async def _fan_out(
     Each per-principal failure is logged and swallowed — notification
     errors must never break the CRUD write that triggered this call.
     """
-    sent = 0
-    failed = 0
-    in_app_sent = 0
-    email_sent = 0
-    email_queued = 0
-    skipped = 0
-    deduped = 0
+    counters = _FanOutCounters()
     for p in principals:
         try:
             result = await dispatch(p, event)
@@ -282,22 +307,9 @@ async def _fan_out(
                 "notify[%s]: recipient=%s/%s in_app=%s email=%s",
                 log_key, p.kind, p.id, result.in_app, result.email,
             )
-            if result.in_app == "sent":
-                in_app_sent += 1
-            if result.email == "sent":
-                email_sent += 1
-            if result.email == "queued":
-                email_queued += 1
-            if result.in_app == "skipped" or result.email == "skipped":
-                skipped += 1
-            if result.in_app == "deduped" or result.email == "deduped":
-                deduped += 1
-            if (result.in_app == "sent"
-                    or result.email == "sent"
-                    or result.email == "queued"):
-                sent += 1
+            _accumulate_delivery_metrics(result, counters)
         except Exception as e:
-            failed += 1
+            counters.failed += 1
             logger.warning(
                 "notify[%s]: dispatch failed for %s/%s: %s",
                 log_key, p.kind, p.id, e,
@@ -305,10 +317,10 @@ async def _fan_out(
     logger.info(
         "notify[%s]: fanout recipients=%d delivered=%d in_app_sent=%d "
         "email_sent=%d email_queued=%d skipped=%d deduped=%d failed=%d",
-        log_key, len(principals), sent, in_app_sent, email_sent,
-        email_queued, skipped, deduped, failed,
+        log_key, len(principals), counters.delivered, counters.in_app_sent, counters.email_sent,
+        counters.email_queued, counters.skipped, counters.deduped, counters.failed,
     )
-    return sent
+    return counters.delivered
 
 
 async def _resolve_task_assignee(
