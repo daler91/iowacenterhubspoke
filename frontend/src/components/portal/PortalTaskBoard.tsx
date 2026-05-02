@@ -12,12 +12,12 @@ import { cn } from '../../lib/utils';
 
 const DND_ID = 'portal-task-board-dnd';
 
-function DroppableColumn({ status, children }: { status: TaskStatus; children: React.ReactNode }) {
+function DroppableColumn({ status, children }: Readonly<{ status: TaskStatus; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return <div ref={setNodeRef} className={cn('rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem] transition-colors', isOver && 'bg-hub-soft/30')}>{children}</div>;
 }
 
-function DraggableTaskCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+function DraggableTaskCard({ task, onOpen }: Readonly<{ task: Task; onOpen: () => void }>) {
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id, data: { task } });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined;
   const isOverdue = !task.completed && task.due_date < new Date().toISOString();
@@ -36,7 +36,7 @@ function DraggableTaskCard({ task, onOpen }: { task: Task; onOpen: () => void })
   );
 }
 
-export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMoveTask }: { projects: Project[]; allTasks: Record<string, Task[]>; onOpenTask: (projectId: string, taskId: string) => void; onMoveTask: (projectId: string, task: Task, status: TaskStatus) => Promise<{ ok: boolean; message?: string }>; }) {
+export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMoveTask }: Readonly<{ projects: Project[]; allTasks: Record<string, Task[]>; onOpenTask: (projectId: string, taskId: string) => void; onMoveTask: (projectId: string, task: Task, status: TaskStatus) => Promise<{ ok: boolean; message?: string }>; }>) {
   const [optimistic, setOptimistic] = useState<Record<string, Task[]>>(allTasks);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor));
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { portalAPI } from '../../lib/coordination-api';
 import {
-  PROJECT_PHASES, PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
+  PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
 } from '../../lib/coordination-types';
 import type {
   PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
@@ -106,7 +106,7 @@ export default function PortalDashboard() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
   const [activeProject, setActiveProject] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<'all' | string>('all');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
