@@ -275,6 +275,7 @@ async def _fan_out(
     email_queued = 0
     skipped = 0
     deduped = 0
+
     for p in principals:
         try:
             result = await dispatch(p, event)
@@ -282,26 +283,28 @@ async def _fan_out(
                 "notify[%s]: recipient=%s/%s in_app=%s email=%s",
                 log_key, p.kind, p.id, result.in_app, result.email,
             )
-            if result.in_app == "sent":
-                in_app_sent += 1
-            if result.email == "sent":
-                email_sent += 1
-            if result.email == "queued":
-                email_queued += 1
-            if result.in_app == "skipped" or result.email == "skipped":
-                skipped += 1
-            if result.in_app == "deduped" or result.email == "deduped":
-                deduped += 1
-            if (result.in_app == "sent"
-                    or result.email == "sent"
-                    or result.email == "queued"):
-                sent += 1
         except Exception as e:
             failed += 1
             logger.warning(
                 "notify[%s]: dispatch failed for %s/%s: %s",
                 log_key, p.kind, p.id, e,
             )
+            continue
+
+        in_app_status = result.in_app
+        email_status = result.email
+        in_app_sent += int(in_app_status == "sent")
+        email_sent += int(email_status == "sent")
+        email_queued += int(email_status == "queued")
+
+        was_skipped = "skipped" in (in_app_status, email_status)
+        was_deduped = "deduped" in (in_app_status, email_status)
+        delivered = bool({in_app_status, email_status} & {"sent", "queued"})
+
+        skipped += int(was_skipped)
+        deduped += int(was_deduped)
+        sent += int(delivered)
+
     logger.info(
         "notify[%s]: fanout recipients=%d delivered=%d in_app_sent=%d "
         "email_sent=%d email_queued=%d skipped=%d deduped=%d failed=%d",

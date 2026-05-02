@@ -36,6 +36,38 @@ function DraggableTaskCard({ task, onOpen }: { task: Task; onOpen: () => void })
   );
 }
 
+function StatusColumn({ status, tasks, projectId, onOpenTask }: { status: TaskStatus; tasks: Task[]; projectId: string; onOpenTask: (projectId: string, taskId: string) => void }) {
+  const columnTasks = tasks.filter((task) => (task.completed ? 'completed' : (task.status || 'to_do')) === status);
+  return (
+    <DroppableColumn key={status} status={status}>
+      <div className="mb-3 flex items-center gap-2">
+        <span className={cn('h-2.5 w-2.5 rounded-full', TASK_STATUS_COLORS[status])} />
+        <h4 className="text-sm font-semibold">{TASK_STATUS_LABELS[status]}</h4>
+        <span className="ml-auto text-xs text-muted-foreground">{columnTasks.length}</span>
+      </div>
+      <div className="space-y-2">
+        {columnTasks.length
+          ? columnTasks.map((task) => <DraggableTaskCard key={task.id} task={task} onOpen={() => onOpenTask(projectId, task.id)} />)
+          : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}
+      </div>
+    </DroppableColumn>
+  );
+}
+
+function ProjectTaskSection({ project, tasks, onOpenTask }: { project: Project; tasks: Task[]; onOpenTask: (projectId: string, taskId: string) => void }) {
+  if (!tasks.length) return null;
+  return (
+    <section key={project.id}>
+      <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {TASK_STATUSES.map((status) => (
+          <StatusColumn key={status} status={status} tasks={tasks} projectId={project.id} onOpenTask={onOpenTask} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMoveTask }: { projects: Project[]; allTasks: Record<string, Task[]>; onOpenTask: (projectId: string, taskId: string) => void; onMoveTask: (projectId: string, task: Task, status: TaskStatus) => Promise<{ ok: boolean; message?: string }>; }) {
   const [optimistic, setOptimistic] = useState<Record<string, Task[]>>(allTasks);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor));
@@ -59,11 +91,9 @@ export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMove
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <p id={DND_ID} className="sr-only">Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.</p>
       <div className="space-y-4">
-        {projects.map(project => {
-          const tasks = optimistic[project.id] || [];
-          if (tasks.length === 0) return null;
-          return <section key={project.id}><h3 className="font-semibold text-foreground mb-2">{project.title}</h3><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{TASK_STATUSES.map(status => { const col = tasks.filter(t => (t.completed ? 'completed' : (t.status || 'to_do')) === status); return <DroppableColumn key={status} status={status}><div className="mb-3 flex items-center gap-2"><span className={cn('h-2.5 w-2.5 rounded-full', TASK_STATUS_COLORS[status])} /><h4 className="text-sm font-semibold">{TASK_STATUS_LABELS[status]}</h4><span className="ml-auto text-xs text-muted-foreground">{col.length}</span></div><div className="space-y-2">{col.length ? col.map(task => <DraggableTaskCard key={task.id} task={task} onOpen={() => onOpenTask(project.id, task.id)} />) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}</div></DroppableColumn>; })}</div></section>;
-        })}
+        {projects.map((project) => (
+          <ProjectTaskSection key={project.id} project={project} tasks={optimistic[project.id] || []} onOpenTask={onOpenTask} />
+        ))}
       </div>
     </DndContext>
   );
