@@ -12,6 +12,10 @@ import { cn } from '../../lib/utils';
 
 const DND_ID = 'portal-task-board-dnd';
 
+function statusForTask(task: Task): TaskStatus {
+  return task.completed ? 'completed' : (task.status || 'to_do');
+}
+
 function DroppableColumn({ status, children }: Readonly<{ status: TaskStatus; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return <div ref={setNodeRef} className={cn('rounded-lg bg-muted/50 dark:bg-card/50 p-3 min-h-[10rem] transition-colors', isOver && 'bg-hub-soft/30')}>{children}</div>;
@@ -47,7 +51,7 @@ export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMove
     if (!over || !active.data.current?.task) return;
     const task = active.data.current.task as Task;
     const newStatus = over.id as TaskStatus;
-    const currentStatus: TaskStatus = task.completed ? 'completed' : (task.status || 'to_do');
+    const currentStatus = statusForTask(task);
     if (currentStatus === newStatus) return;
     const list = optimistic[task.project_id] || [];
     setOptimistic({ ...optimistic, [task.project_id]: list.map(t => t.id === task.id ? { ...t, status: newStatus, completed: newStatus === 'completed' } : t) });
@@ -59,10 +63,34 @@ export default function PortalTaskBoard({ projects, allTasks, onOpenTask, onMove
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <p id={DND_ID} className="sr-only">Press Space to pick up, arrow keys to move, Enter to drop, Escape to cancel.</p>
       <div className="space-y-4">
-        {projects.map(project => {
+        {projects.map((project) => {
           const tasks = optimistic[project.id] || [];
           if (tasks.length === 0) return null;
-          return <section key={project.id}><h3 className="font-semibold text-foreground mb-2">{project.title}</h3><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{TASK_STATUSES.map(status => { const col = tasks.filter(t => (t.completed ? 'completed' : (t.status || 'to_do')) === status); return <DroppableColumn key={status} status={status}><div className="mb-3 flex items-center gap-2"><span className={cn('h-2.5 w-2.5 rounded-full', TASK_STATUS_COLORS[status])} /><h4 className="text-sm font-semibold">{TASK_STATUS_LABELS[status]}</h4><span className="ml-auto text-xs text-muted-foreground">{col.length}</span></div><div className="space-y-2">{col.length ? col.map(task => <DraggableTaskCard key={task.id} task={task} onOpen={() => onOpenTask(project.id, task.id)} />) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}</div></DroppableColumn>; })}</div></section>;
+
+          return (
+            <section key={project.id}>
+              <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {TASK_STATUSES.map((status) => {
+                  const col = tasks.filter((task) => statusForTask(task) === status);
+                  return (
+                    <DroppableColumn key={status} status={status}>
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className={cn('h-2.5 w-2.5 rounded-full', TASK_STATUS_COLORS[status])} />
+                        <h4 className="text-sm font-semibold">{TASK_STATUS_LABELS[status]}</h4>
+                        <span className="ml-auto text-xs text-muted-foreground">{col.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {col.length ? col.map((task) => (
+                          <DraggableTaskCard key={task.id} task={task} onOpen={() => onOpenTask(project.id, task.id)} />
+                        )) : <p className="text-xs text-muted-foreground py-4 text-center">No tasks</p>}
+                      </div>
+                    </DroppableColumn>
+                  );
+                })}
+              </div>
+            </section>
+          );
         })}
       </div>
     </DndContext>

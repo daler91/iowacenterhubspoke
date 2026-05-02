@@ -358,12 +358,13 @@ async def _resolve_task_assignee(
         )
         if contact:
             return _principal_from_contact(contact)
-
     # Internal users — refuse to guess when multiple users share the same
-    # display name. A stray ``find_one({"name": ...})`` would pick an
-    # arbitrary match and send the task context to the wrong recipient
-    # (see Codex P2 review r...251). We fetch up to two rows and only
-    # act on an unambiguous single hit.
+    # display name.
+    return await _resolve_internal_user_by_name(name)
+
+
+async def _resolve_internal_user_by_name(name: str) -> Optional[Principal]:
+    """Resolve exactly one internal user by display name."""
     user_matches = await db.users.find(
         {"name": name}, {"_id": 0, "password_hash": 0},
     ).to_list(2)

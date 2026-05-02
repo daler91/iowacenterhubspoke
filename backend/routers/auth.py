@@ -711,6 +711,17 @@ def _classify_legacy_rows(
     return confident_legacy, ambiguous_legacy
 
 
+async def _classify_export_legacy_activity(*, legacy_rows: list[dict], legacy_name: str, user_id: str) -> tuple[list[dict], list[dict]]:
+    """Classify legacy activity rows for export payloads."""
+    if not legacy_rows or not legacy_name:
+        return [], []
+    same_name_users = await _get_same_name_users(legacy_name)
+    return _classify_legacy_rows(
+        legacy_rows=legacy_rows,
+        user_id=user_id,
+        same_name_users=same_name_users,
+    )
+
 @router.get(
     "/me/export",
     summary="Export all personal data stored about the current user (GDPR Art. 20)",
@@ -765,15 +776,11 @@ async def export_my_data(user: CurrentUser):
         {"_id": 0, "expires_at": 0},
     ).sort("timestamp", -1).to_list(10_000)
 
-    confident_legacy: list[dict] = []
-    ambiguous_legacy: list[dict] = []
-    if legacy_rows and legacy_name:
-        same_name_users = await _get_same_name_users(legacy_name)
-        confident_legacy, ambiguous_legacy = _classify_legacy_rows(
-            legacy_rows=legacy_rows,
-            user_id=user_id,
-            same_name_users=same_name_users,
-        )
+    confident_legacy, ambiguous_legacy = await _classify_export_legacy_activity(
+        legacy_rows=legacy_rows,
+        legacy_name=legacy_name,
+        user_id=user_id,
+    )
 
     password_resets = await db.password_resets.find(
         {"user_id": user_id},
