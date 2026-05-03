@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { extractErrorMessage } from '../lib/types';
+import VirtualizedList from './VirtualizedList';
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },
@@ -383,7 +384,7 @@ export default function UserManager() {
                 <h2 className="text-lg font-semibold text-foreground">Pending Approval ({pendingUsers.length})</h2>
               </div>
               <div className="bg-warn-soft border border-warn-soft rounded-lg p-4 space-y-3">
-                {pendingUsers.map(u => (
+                <VirtualizedList items={pendingUsers} itemHeight={88} height={Math.min(320, Math.max(96, pendingUsers.length * 88))} role="list" ariaLabel="Pending approvals" renderItem={(u) => (
                   <div key={u.id} className="flex items-center justify-between bg-white dark:bg-card rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-warn-soft flex items-center justify-center text-warn-strong font-semibold text-sm">
@@ -414,7 +415,7 @@ export default function UserManager() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                )} />
               </div>
             </div>
           )}
