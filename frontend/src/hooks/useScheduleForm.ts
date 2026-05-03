@@ -63,20 +63,14 @@ export function buildSchedulePayload(
     return singlePayload;
   }
 
-  const recurrenceOccurrences = isCustom && customRecurrence.end_mode === 'after_occurrences'
-    ? Number.parseInt(customRecurrence.occurrences, 10)
-    : form.recurrence_end_mode === 'after_occurrences'
-      ? Number.parseInt(form.recurrence_occurrences, 10)
-      : null;
+  let recurrenceOccurrences: number | null = null;
+  if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
+    recurrenceOccurrences = Number.parseInt(customRecurrence.occurrences, 10);
+  } else if (form.recurrence_end_mode === 'after_occurrences') {
+    recurrenceOccurrences = Number.parseInt(form.recurrence_occurrences, 10);
+  }
 
-  const customRecurrencePayload = isCustom ? {
-    interval: Number.parseInt(customRecurrence.interval, 10),
-    frequency: customRecurrence.frequency,
-    weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
-    end_mode: customRecurrence.end_mode,
-    end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
-    occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
-  } : null;
+  const customRecurrencePayload = buildCustomRecurrencePayload(isCustom, customRecurrence);
 
   const recurringPayload: ScheduleRecurringPayload = {
     ...payloadBase,
@@ -87,6 +81,29 @@ export function buildSchedulePayload(
     custom_recurrence: customRecurrencePayload,
   };
   return recurringPayload;
+}
+
+function buildCustomRecurrencePayload(isCustom: boolean, customRecurrence: CustomRecurrence): ScheduleRecurringPayload['custom_recurrence'] {
+  if (!isCustom) return null;
+  const weekdays = customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [];
+  const endDate = customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null;
+  const occurrences = customRecurrence.end_mode === 'after_occurrences'
+    ? Number.parseInt(customRecurrence.occurrences, 10)
+    : null;
+
+  return {
+    interval: Number.parseInt(customRecurrence.interval, 10),
+    frequency: customRecurrence.frequency,
+    weekdays,
+    end_mode: customRecurrence.end_mode,
+    end_date: endDate,
+    occurrences,
+  };
+}
+
+function getTownWarningMessage(warning: unknown): string | null {
+  if (typeof warning === 'string' && warning.trim()) return warning;
+  return null;
 }
 
 interface ConflictPreview {
@@ -255,7 +272,10 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     if (res.data.background) {
       toast.info(String(res.data.message));
     } else if (res.data.town_to_town_warning) {
-      toast.warning(String(res.data.town_to_town_warning), { duration: 6000 });
+      const townWarningMessage = getTownWarningMessage(res.data.town_to_town_warning);
+      if (townWarningMessage) {
+        toast.warning(townWarningMessage, { duration: 6000 });
+      }
     } else if (res.data.total_created === undefined) {
       toast.success('Class scheduled successfully');
       isSingleCreation = true;
