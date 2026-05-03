@@ -284,7 +284,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         logger.info(
             "schedules.check_conflicts metrics",
             extra={
-                "metrics": {
+                "context": {
                     "duration_ms": round((perf_counter() - start_ts) * 1000, 2),
                     "query_count": 6,
                     "employee_count": 1,
@@ -332,7 +332,7 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     logger.info(
         "schedules.check_conflicts metrics",
         extra={
-            "metrics": {
+            "context": {
                 "duration_ms": round((perf_counter() - start_ts) * 1000, 2),
                 "query_count": (len(employee_ids) * 5) + 4,
                 "employee_count": len(employee_ids),

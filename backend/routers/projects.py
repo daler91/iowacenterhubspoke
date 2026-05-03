@@ -237,7 +237,7 @@ async def get_project_board(
     logger.info(
         "projects.board metrics",
         extra={
-            "metrics": {
+            "context": {
                 "duration_ms": elapsed_ms,
                 "query_count": len(active_phases) + 2,  # phase queries + facets + task stats aggregate
                 "phase_limit": phase_limit,

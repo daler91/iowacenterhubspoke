@@ -109,7 +109,7 @@ async def get_schedules(
     logger.info(
         "schedules.list metrics",
         extra={
-            "metrics": {
+            "context": {
                 "duration_ms": elapsed_ms,
                 "query_count": 3 if schedule_ids else 2,
                 "result_count": len(schedules),
