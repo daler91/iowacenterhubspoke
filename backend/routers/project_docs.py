@@ -9,6 +9,8 @@ from database import db, ROOT_DIR
 from models.coordination_schemas import DocumentVisibilityUpdate
 from core.upload import stream_upload_to_disk
 from core.auth import CurrentUser, EditorRequired, SchedulerRequired
+from core.pagination import Paginated, paginated_response
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.notification_events import notify_project_document_shared
 from core.logger import get_logger
@@ -16,6 +18,8 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["project-docs"])
+documents_repo = SoftDeleteRepository(db, "documents")
+projects_repo = SoftDeleteRepository(db, "projects")
 
 # See project_tasks.py for the rationale on env-var overrides.
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
@@ -38,13 +42,18 @@ def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
 async def list_documents(
     project_id: str,
     user: CurrentUser,
+    pagination: Paginated,
     visibility: Optional[str] = None,
 ):
-    query = {"project_id": project_id, "deleted_at": None}
+    query = {"project_id": project_id}
     if visibility:
         query["visibility"] = visibility
-    docs = await db.documents.find(query, {"_id": 0}).sort("uploaded_at", -1).to_list(500)
-    return {"items": docs, "total": len(docs)}
+    items, total = await documents_repo.paginate(
+        query,
+        pagination,
+        sort=[("uploaded_at", -1)],
+    )
+    return paginated_response(items, total, pagination)
 
 
 @router.post(
@@ -58,7 +67,7 @@ async def upload_document(
     file: Annotated[UploadFile, File(...)],
     visibility: Annotated[str, Form()] = "shared",
 ):
-    project = await db.projects.find_one({"id": project_id, "deleted_at": None})
+    project = await projects_repo.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
@@ -103,13 +112,13 @@ async def update_visibility(
     project_id: str, doc_id: str,
     data: DocumentVisibilityUpdate, user: EditorRequired,
 ):
-    result = await db.documents.update_one(
-        {"id": doc_id, "project_id": project_id, "deleted_at": None},
-        {"$set": {"visibility": data.visibility}},
-    )
-    if result.matched_count == 0:
+    doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
+    if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
-    updated = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    updated_ok = await documents_repo.update_active(doc_id, {"visibility": data.visibility})
+    if not updated_ok:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+    updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     return updated
 
 
@@ -121,20 +130,26 @@ async def update_visibility(
 async def delete_document(project_id: str, doc_id: str, user: SchedulerRequired):
     # Soft-delete keeps the audit record; the file on disk stays until an
     # admin-triggered purge so a mistaken delete can be recovered.
-    doc = await db.documents.find_one(
-        {"id": doc_id, "project_id": project_id, "deleted_at": None}
-    )
+    doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
-    now = datetime.now(timezone.utc).isoformat()
-    await db.documents.update_one(
-        {"id": doc_id}, {"$set": {"deleted_at": now}}
-    )
+    await documents_repo.soft_delete(doc_id, user.get("name", "System"))
     await log_activity(
         "document_deleted", f"Document '{doc.get('filename')}' deleted",
         "document", doc_id, user.get("name", "System"),
     )
     return {"message": "Document deleted"}
+
+
+@router.post("/{doc_id}/restore", summary="Restore a document", responses={404: {"description": DOC_NOT_FOUND}})
+async def restore_document(project_id: str, doc_id: str, user: SchedulerRequired):
+    doc = await documents_repo.collection.find_one({"id": doc_id, "project_id": project_id, "deleted_at": {"$ne": None}})
+    if not doc:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+    restored = await documents_repo.restore(doc_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+    return {"message": "Document restored"}
 
 
 @router.get(
@@ -146,10 +161,7 @@ async def download_document(
     project_id: str, doc_id: str, user: CurrentUser,
     inline: bool = False,
 ):
-    doc = await db.documents.find_one(
-        {"id": doc_id, "project_id": project_id, "deleted_at": None},
-        {"_id": 0},
-    )
+    doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     stored = os.path.basename(doc.get("file_path", ""))
