@@ -351,18 +351,18 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to connect to MongoDB", exc_info=e)
         raise
 
-    await _run_startup_migrations()
+    from startup.migrations import run_startup_migrations
+    await run_startup_migrations(db, logger)
     from migrations.runner import run_pending as run_pending_migrations
     try:
         await run_pending_migrations(db)
     except Exception as e:
         logger.error("Migration runner failed; refusing to start", exc_info=e)
         raise
-    await _ensure_indexes()
-    await _seed_default_locations()
-
-    from services.seed_templates import seed_project_templates
-    await seed_project_templates()
+    from startup.indexes import ensure_indexes
+    await ensure_indexes(db, logger)
+    from startup.seeds import seed_bootstrap_data
+    await seed_bootstrap_data(db, logger)
 
     # Initialize a single Redis client for the health check and other
     # short-lived probes. Reusing one pooled client avoids per-request TLS
