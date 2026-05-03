@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
-import { schedulesAPI } from '../lib/api';
+import { schedulesAPI, type ScheduleConflictCheckPayload, type ScheduleMutationPayload, type ScheduleRequestPayload, type ScheduleRecurringPayload, type ScheduleSinglePayload } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
 import { isSchedulesSwrKey } from './useDashboardData';
 import type { Schedule } from '../lib/types';
 import { extractErrorMessage } from '../lib/types';
+import { normalizeApiError } from '../lib/api-errors';
 
 const getDayValue = (dateStr: string) => new Date(`${dateStr}T00:00:00`).getDay();
 
@@ -32,6 +33,60 @@ interface CustomRecurrence {
   end_mode: string;
   end_date: string;
   occurrences: string;
+}
+
+export function buildSchedulePayload(
+  form: ScheduleFormData,
+  customRecurrence: CustomRecurrence,
+): ScheduleRequestPayload {
+  const isCustom = form.recurrence === 'custom';
+  const isNone = form.recurrence === 'none';
+  const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null;
+  const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
+  const classId = form.class_id || null;
+  const payloadBase = {
+    ...form,
+    class_id: classId,
+    drive_to_override_minutes: driveToOverride,
+    drive_from_override_minutes: driveFromOverride,
+  };
+
+  if (isNone) {
+    const singlePayload: ScheduleSinglePayload = {
+      ...payloadBase,
+      recurrence: null,
+      recurrence_end_mode: null,
+      recurrence_end_date: null,
+      recurrence_occurrences: null,
+      custom_recurrence: null,
+    };
+    return singlePayload;
+  }
+
+  const recurrenceOccurrences = isCustom && customRecurrence.end_mode === 'after_occurrences'
+    ? Number.parseInt(customRecurrence.occurrences, 10)
+    : form.recurrence_end_mode === 'after_occurrences'
+      ? Number.parseInt(form.recurrence_occurrences, 10)
+      : null;
+
+  const customRecurrencePayload = isCustom ? {
+    interval: Number.parseInt(customRecurrence.interval, 10),
+    frequency: customRecurrence.frequency,
+    weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
+    end_mode: customRecurrence.end_mode,
+    end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
+    occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
+  } : null;
+
+  const recurringPayload: ScheduleRecurringPayload = {
+    ...payloadBase,
+    recurrence: form.recurrence,
+    recurrence_end_mode: isCustom ? customRecurrence.end_mode : form.recurrence_end_mode,
+    recurrence_end_date: isCustom ? customRecurrence.end_date : form.recurrence_end_date,
+    recurrence_occurrences: recurrenceOccurrences,
+    custom_recurrence: customRecurrencePayload,
+  };
+  return recurringPayload;
 }
 
 interface ConflictPreview {
@@ -130,7 +185,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       setConflictPreviewError(false);
       return;
     }
-    const payload: Record<string, unknown> = {
+    const payload: ScheduleConflictCheckPayload = {
       employee_ids: form.employee_ids,
       location_id: form.location_id,
       date: form.date,
@@ -193,58 +248,14 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
     return true;
   };
 
-  const resolveRecurrenceOccurrences = (isCustom: boolean): number | null => {
-    if (isCustom && customRecurrence.end_mode === 'after_occurrences') {
-      return Number.parseInt(customRecurrence.occurrences, 10);
-    }
-    if (form.recurrence_end_mode === 'after_occurrences') {
-      return Number.parseInt(form.recurrence_occurrences, 10);
-    }
-    return null;
-  };
-
-  const buildPayload = () => {
-    const isCustom = form.recurrence === 'custom';
-    const isNone = form.recurrence === 'none';
-    const driveToOverride = form.drive_to_override_minutes ? Number.parseInt(String(form.drive_to_override_minutes), 10) : null;
-    const driveFromOverride = form.drive_from_override_minutes ? Number.parseInt(String(form.drive_from_override_minutes), 10) : null;
-    const classId = form.class_id || null;
-    const payload: Record<string, unknown> = {
-      ...form,
-      class_id: classId,
-      drive_to_override_minutes: driveToOverride,
-      drive_from_override_minutes: driveFromOverride,
-    };
-
-    if (isNone) {
-      return { ...payload, recurrence: null, recurrence_end_mode: null, recurrence_end_date: null, recurrence_occurrences: null, custom_recurrence: null };
-    }
-
-    const customRecurrencePayload = isCustom ? {
-      interval: Number.parseInt(customRecurrence.interval, 10),
-      frequency: customRecurrence.frequency,
-      weekdays: customRecurrence.frequency === 'week' ? customRecurrence.weekdays : [],
-      end_mode: customRecurrence.end_mode,
-      end_date: customRecurrence.end_mode === 'on_date' ? customRecurrence.end_date || null : null,
-      occurrences: customRecurrence.end_mode === 'after_occurrences' ? Number.parseInt(customRecurrence.occurrences, 10) : null,
-    } : null;
-
-    return {
-      ...payload,
-      recurrence: form.recurrence,
-      recurrence_end_mode: isCustom ? customRecurrence.end_mode : form.recurrence_end_mode,
-      recurrence_end_date: isCustom ? customRecurrence.end_date : form.recurrence_end_date,
-      recurrence_occurrences: resolveRecurrenceOccurrences(isCustom),
-      custom_recurrence: customRecurrencePayload,
-    };
-  };
+  const buildPayload = () => buildSchedulePayload(form, customRecurrence);
 
   const handleCreateResponse = (res: { data: Record<string, unknown> }) => {
     let isSingleCreation = false;
     if (res.data.background) {
-      toast.info(res.data.message);
+      toast.info(String(res.data.message));
     } else if (res.data.town_to_town_warning) {
-      toast.warning(res.data.town_to_town_warning, { duration: 6000 });
+      toast.warning(String(res.data.town_to_town_warning), { duration: 6000 });
     } else if (res.data.total_created === undefined) {
       toast.success('Class scheduled successfully');
       isSingleCreation = true;
@@ -281,11 +292,11 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
   };
 
   const handleConflictError = (err: unknown) => {
-    const axiosErr = err as { response?: { data?: { detail?: Record<string, unknown> } } };
-    const detail = axiosErr.response?.data?.detail || {};
+    const normalized = normalizeApiError(err, 'Failed to save schedule');
+    const detail = typeof normalized.detail === 'object' && normalized.detail !== null ? normalized.detail as Record<string, unknown> : {};
     const outlookConflicts = (detail.outlook_conflicts as Array<Record<string, unknown>>) || [];
     const googleConflicts = (detail.google_conflicts as Array<Record<string, unknown>>) || [];
-    const internalConflicts = (detail.conflicts as Array<Record<string, unknown>>) || [];
+    const internalConflicts = normalized.conflicts;
     if (internalConflicts.length === 0 && (outlookConflicts.length > 0 || googleConflicts.length > 0)) {
       if (outlookConflicts.length > 0) setOutlookOverride(true);
       if (googleConflicts.length > 0) setGoogleOverride(true);
@@ -314,7 +325,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
 
     setLoading(true);
     try {
-      const payload = buildPayload();
+      const payload: ScheduleMutationPayload = { ...buildPayload() };
       if (outlookOverride) payload.force_outlook = true;
       if (googleOverride) payload.force_google = true;
       if (editSchedule) {
@@ -327,8 +338,8 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       onSaved?.();
       onOpenChange(false);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
-      if (axiosErr.response?.status === 409) {
+      const normalized = normalizeApiError(err, 'Failed to save schedule');
+      if (normalized.status === 409) {
         handleConflictError(err);
       } else {
         toast.error(extractErrorMessage(err, 'Failed to save schedule'));

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { MapPin, Users, BookOpen } from 'lucide-react';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
+import { normalizeApiError } from '../lib/api-errors';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
@@ -221,14 +222,14 @@ export default function CalendarView() {
       setRelocateConflictData(null);
     } catch (err: unknown) {
       fetchSchedules();
-      const axiosErr = err as { response?: { status?: number; data?: { detail?: { conflicts?: Array<Record<string, unknown>> } } } };
-      if (axiosErr.response?.status === 409) {
+      const normalized = normalizeApiError(err, 'Failed to move schedule');
+      if (normalized.status === 409) {
         setRelocateConflictData({
           scheduleId,
           newDate,
           newStart,
           newEnd,
-          conflicts: axiosErr.response?.data?.detail?.conflicts || []
+          conflicts: normalized.conflicts,
         });
       } else {
         toast.error('Failed to move schedule');
