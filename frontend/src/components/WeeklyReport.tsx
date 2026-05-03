@@ -199,7 +199,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   >
                     {classItem.class_name}: {classItem.classes}
                   </Badge>
-                ))} />
+                ))}
               </div>
 
               {/* Responsive layout: below md, each schedule renders as a
@@ -247,7 +247,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                       <Badge className={`border-0 text-[10px] ${STATUS_CLASSES[scheduleDetail.status] || 'bg-hub-soft text-hub-strong'}`}>{scheduleDetail.status.replace('_', ' ')}</Badge>
                     </div>
                   </div>
-                ))} />
+                )} />
               </div>
 
               <div className="flex items-center gap-4 mt-3 text-xs text-foreground/80 dark:text-muted-foreground">

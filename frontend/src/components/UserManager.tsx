@@ -415,7 +415,7 @@ export default function UserManager() {
                       </Button>
                     </div>
                   </div>
-                ))} />
+                )} />
               </div>
             </div>
           )}
@@ -452,7 +452,7 @@ export default function UserManager() {
                       </Button>
                     </div>
                   </div>
-                ))} />
+                ))}
               </div>
             </div>
           )}
@@ -494,7 +494,7 @@ export default function UserManager() {
                       Clear
                     </Button>
                   </div>
-                ))} />
+                ))}
               </div>
             </div>
           )}
