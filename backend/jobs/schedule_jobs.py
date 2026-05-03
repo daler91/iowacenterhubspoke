@@ -73,4 +73,3 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
             {"_id": 0},
         ).to_list(MAX_QUERY_LIMIT)
     return schedules_by_date, {loc["id"]: loc for loc in other_locations}
-
