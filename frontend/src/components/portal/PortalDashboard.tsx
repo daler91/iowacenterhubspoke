@@ -31,8 +31,6 @@ const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 type TaskViewMode = 'list' | 'kanban';
-type ProjectFilterId = 'all' | string;
-
 interface NotificationSummary {
   mentions_requested?: number;
   mentions_resolved?: number;
@@ -161,7 +159,7 @@ export default function PortalDashboard() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
   const [activeProject, setActiveProject] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<ProjectFilterId>('all');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
   const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
   const [previewingDoc, setPreviewingDoc] = useState<
@@ -348,7 +346,7 @@ export default function PortalDashboard() {
       <select
         id={selectId}
         value={selectedProjectId}
-        onChange={(e) => setSelectedProjectId(e.target.value as ProjectFilterId)}
+        onChange={(e) => setSelectedProjectId(e.target.value)}
         className="border border-border rounded-md px-2 py-1 text-sm bg-background"
       >
         <option value="all">All projects</option>
@@ -359,18 +357,41 @@ export default function PortalDashboard() {
     </div>
   );
 
+  const renderTaskCard = (projectId: string, task: Task) => {
+    const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+    return (
+      <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
+        <div className="flex items-start gap-2">
+          <button type="button" onClick={() => handleToggleTask(projectId, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+            {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
+          </button>
+          <div className="min-w-0 flex-1">
+            <button type="button" onClick={() => openTaskDetail(projectId, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
+            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+              <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+              <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderProjectTasks = (project: Project) => {
+    const tasks = allTasks[project.id] || [];
+    if (tasks.length === 0) return null;
+    return (
+      <section key={project.id}>
+        <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
+        <div className="space-y-2">
+          {tasks.map((task) => renderTaskCard(project.id, task))}
+        </div>
+      </section>
+    );
+  };
+
   const renderTaskList = () => (
-    <div className="space-y-4">
-      {projectsWithTasks.map(({ project, tasks }) => (
-        <ProjectTaskSection
-          key={project.id}
-          project={project}
-          tasks={tasks}
-          onToggleTask={handleToggleTask}
-          onOpenTask={openTaskDetail}
-        />
-      ))}
-    </div>
+    <div className="space-y-4">{visibleProjects.map(renderProjectTasks)}</div>
   );
 
   const handleSendMessage = async () => {
