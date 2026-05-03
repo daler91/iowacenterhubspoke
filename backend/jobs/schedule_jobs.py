@@ -74,14 +74,3 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
         ).to_list(MAX_QUERY_LIMIT)
     return schedules_by_date, {loc["id"]: loc for loc in other_locations}
 
-
-async def generate_bulk_schedules(*args, **kwargs):
-    from worker import generate_bulk_schedules as _impl
-
-    return await _impl(*args, **kwargs)
-
-
-async def sync_schedules_denormalized(*args, **kwargs):
-    from worker import sync_schedules_denormalized as _impl
-
-    return await _impl(*args, **kwargs)
