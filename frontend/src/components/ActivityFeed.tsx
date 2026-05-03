@@ -5,7 +5,7 @@ import {
   PlayCircle, Clock, Activity
 } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
+import VirtualizedList from './VirtualizedList';
 
 const ACTION_CONFIG = {
   schedule_created: { icon: CalendarPlus, color: 'text-hub', bg: 'bg-hub-soft', label: 'Scheduled' },
@@ -96,47 +96,42 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
       </div>
 
       <div className="bg-white dark:bg-card rounded-lg border border-border overflow-hidden">
-        <ScrollArea className="max-h-[calc(100vh-220px)]">
-          <div
-            role="log"
-            aria-live="polite"
-            aria-relevant="additions"
-            aria-label="Recent team activity"
-            className="divide-y divide-border"
-          >
-            {grouped.map(([date, items]) => (
-              <div key={date}>
-                <div className="px-5 py-2 bg-muted/50 dark:bg-muted/50 sticky top-0">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{date}</p>
-                </div>
-                {items.map(row => {
-                  const config = ACTION_CONFIG[row.action] || {
-                    icon: Activity, color: 'text-foreground/80', bg: 'bg-muted/50', label: row.action
-                  };
-                  const Icon = config.icon;
-
-                  return (
-                    <div key={row.key} className="px-5 py-4 flex items-start gap-4 hover:bg-muted/50 transition-colors" data-testid={`activity-item-${row.id}`}>
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${config.bg}`}>
-                        <Icon className={`w-4 h-4 ${config.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <Badge className={`${config.bg} ${config.color} border-0 text-[10px] px-1.5`}>
-                            {config.label}
-                          </Badge>
-                          <span className="text-[11px] text-muted-foreground">{row.timeAgo}</span>
-                        </div>
-                        <p className="text-sm text-foreground">{row.description}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">by {row.user_name}</p>
-                      </div>
+        {grouped.map(([date, items]) => (
+          <div key={date}>
+            <div className="px-5 py-2 bg-muted/50 dark:bg-muted/50 sticky top-0 z-10">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{date}</p>
+            </div>
+            <VirtualizedList
+              items={items}
+              itemHeight={88}
+              height={Math.min(480, Math.max(120, items.length * 88))}
+              role="log"
+              ariaLabel="Recent team activity"
+              className="divide-y divide-border"
+              renderItem={(row) => {
+                const config = ACTION_CONFIG[row.action] || {
+                  icon: Activity, color: 'text-foreground/80', bg: 'bg-muted/50', label: row.action,
+                };
+                const Icon = config.icon;
+                return (
+                  <div key={row.key} className="px-5 py-4 flex items-start gap-4 hover:bg-muted/50 transition-colors" data-testid={`activity-item-${row.id}`}>
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${config.bg}`}>
+                      <Icon className={`w-4 h-4 ${config.color}`} />
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <Badge className={`${config.bg} ${config.color} border-0 text-[10px] px-1.5`}>{config.label}</Badge>
+                        <span className="text-[11px] text-muted-foreground">{row.timeAgo}</span>
+                      </div>
+                      <p className="text-sm text-foreground">{row.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">by {row.user_name}</p>
+                    </div>
+                  </div>
+                );
+              }}
+            />
           </div>
-        </ScrollArea>
+        ))}
       </div>
     </div>
   );
