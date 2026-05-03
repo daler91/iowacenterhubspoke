@@ -2,8 +2,10 @@ import re
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 MIGRATED_ROUTERS = [
-    "backend/routers/project_docs.py",
+    REPO_ROOT / "backend/routers/project_docs.py",
 ]
 
 RAW_FILTER_PATTERN = re.compile(
@@ -15,7 +17,7 @@ RAW_FILTER_PATTERN = re.compile(
 def test_no_new_raw_deleted_at_none_filters_in_migrated_routers():
     offenders = []
     for router in MIGRATED_ROUTERS:
-        text = Path(router).read_text(encoding="utf-8")
+        text = router.read_text(encoding="utf-8")
         if RAW_FILTER_PATTERN.search(text):
-            offenders.append(router)
+            offenders.append(str(router.relative_to(REPO_ROOT)))
     assert offenders == [], f"Found raw soft-delete filters in migrated routers: {offenders}"
