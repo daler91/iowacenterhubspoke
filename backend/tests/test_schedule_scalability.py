@@ -1,28 +1,28 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from routers import schedule_crud
 
 
 def test_get_schedules_clamps_limit_and_has_more(monkeypatch):
-    async def fake_count(_query):
-        return 250
-
     class FakeCursor:
         def __init__(self, rows):
             self.rows = rows
+            self.to_list = AsyncMock(return_value=rows)
+
         def sort(self, *_args, **_kwargs):
             return self
+
         def skip(self, *_args, **_kwargs):
             return self
+
         def limit(self, *_args, **_kwargs):
             return self
-        async def to_list(self, _n):
-            return self.rows
 
     fake_db = SimpleNamespace(
         schedules=SimpleNamespace(
-            count_documents=fake_count,
+            count_documents=AsyncMock(return_value=250),
             find=lambda *_a, **_k: FakeCursor([{"id": f"s{i}"} for i in range(200)]),
         ),
         projects=SimpleNamespace(

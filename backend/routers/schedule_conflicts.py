@@ -1,7 +1,8 @@
 """Schedule conflict checking and travel chain building."""
 
-from fastapi import APIRouter, HTTPException
 from time import perf_counter
+
+from fastapi import APIRouter, HTTPException
 
 from database import db
 from models.schemas import ScheduleCreate, ErrorResponse
@@ -21,6 +22,7 @@ router = APIRouter(tags=["schedules"])
 logger = get_logger(__name__)
 
 _CONFLICT_EMPLOYEE_LIMIT_MAX = 50
+
 
 def _build_hub_leg(entry, loc_map, direction):
     """Build a Hub↔location drive leg. direction is 'to' (Hub→loc) or 'from' (loc→Hub)."""
@@ -237,7 +239,11 @@ async def _check_conflicts_for_employee(
             }
 
     return {
-        "has_conflicts": len(conflicts) > 0 or len(outlook_conflicts) > 0 or len(google_conflicts) > 0,
+        "has_conflicts": (
+            len(conflicts) > 0
+            or len(outlook_conflicts) > 0
+            or len(google_conflicts) > 0
+        ),
         "conflicts": conflicts,
         "outlook_conflicts": outlook_conflicts,
         "google_conflicts": google_conflicts,
@@ -275,7 +281,16 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         result = await _check_conflicts_for_employee(
             employee_ids[0], data, drive_time
         )
-        logger.info("schedules.check_conflicts metrics", extra={"metrics": {"duration_ms": round((perf_counter()-start_ts)*1000,2), "query_count": 6, "employee_count": 1}})
+        logger.info(
+            "schedules.check_conflicts metrics",
+            extra={
+                "metrics": {
+                    "duration_ms": round((perf_counter() - start_ts) * 1000, 2),
+                    "query_count": 6,
+                    "employee_count": 1,
+                }
+            },
+        )
         return result
 
     # Multiple employees — per-employee breakdown. Batch-fetch names once
@@ -314,7 +329,17 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         drive_from_override=data.drive_from_override_minutes,
     )
 
-    logger.info("schedules.check_conflicts metrics", extra={"metrics": {"duration_ms": round((perf_counter()-start_ts)*1000,2), "query_count": (len(employee_ids) * 5) + 4, "employee_count": len(employee_ids), "requested_employee_count": len(data.employee_ids)}})
+    logger.info(
+        "schedules.check_conflicts metrics",
+        extra={
+            "metrics": {
+                "duration_ms": round((perf_counter() - start_ts) * 1000, 2),
+                "query_count": (len(employee_ids) * 5) + 4,
+                "employee_count": len(employee_ids),
+                "requested_employee_count": len(data.employee_ids),
+            }
+        },
+    )
 
     return {
         "has_conflicts": any_conflicts,
