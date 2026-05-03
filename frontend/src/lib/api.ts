@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
+import { normalizeApiError } from './api-errors';
 import type {
   ApiListParams,
   ClassCreate,
@@ -127,10 +128,10 @@ async function attemptRefresh(): Promise<boolean> {
       // active session for that user and returns 401 with a specific
       // message. Bubble that up to the UI as a warning toast + a session
       // flag so the subsequent /login redirect can explain what happened.
-      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
-      const detail = axiosErr.response?.data?.detail;
+      const normalized = normalizeApiError(err);
+      const detail = normalized.detail;
       if (
-        axiosErr.response?.status === 401
+        normalized.status === 401
         && typeof detail === 'string'
         && detail.toLowerCase().includes('reused')
       ) {
@@ -242,7 +243,72 @@ export const classesAPI = {
 // ``update`` / ``relocate`` / ``checkConflicts`` / ``updateSeries`` take a
 // loose ``ScheduleRequestPayload`` object. The canonical shape lives in
 // ``ScheduleInput`` in ``types.ts`` — see that type for the field list.
-export type ScheduleRequestPayload = Record<string, unknown>;
+export type ScheduleRelocatePayload = {
+  date: string;
+  start_time: string;
+  end_time: string;
+  force?: boolean;
+  override_reason?: string;
+};
+
+export type ScheduleConflictCheckPayload = {
+  employee_ids: string[];
+  location_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  drive_to_override_minutes: number | null;
+  drive_from_override_minutes: number | null;
+  schedule_id: string | null;
+};
+
+export type ScheduleSinglePayload = {
+  employee_ids: string[];
+  class_id: string | null;
+  location_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  notes: string;
+  drive_to_override_minutes: number | null;
+  drive_from_override_minutes: number | null;
+  recurrence: null;
+  recurrence_end_mode: null;
+  recurrence_end_date: null;
+  recurrence_occurrences: null;
+  custom_recurrence: null;
+};
+
+export type ScheduleRecurringPayload = {
+  employee_ids: string[];
+  class_id: string | null;
+  location_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  notes: string;
+  drive_to_override_minutes: number | null;
+  drive_from_override_minutes: number | null;
+  recurrence: string;
+  recurrence_end_mode: string;
+  recurrence_end_date: string;
+  recurrence_occurrences: number | null;
+  custom_recurrence: {
+    interval: number;
+    frequency: string;
+    weekdays: number[];
+    end_mode: string;
+    end_date: string | null;
+    occurrences: number | null;
+  } | null;
+};
+
+export type ScheduleRequestPayload = ScheduleSinglePayload | ScheduleRecurringPayload;
+export type ScheduleMutationPayload = ScheduleRequestPayload & {
+  force_outlook?: boolean;
+  force_google?: boolean;
+};
+export type SchedulePatchPayload = Partial<ScheduleMutationPayload> & Record<string, unknown>;
 export const schedulesAPI = {
   exportCsv: (params?: ApiListParams) =>
     api.get('/schedules/export', { params, responseType: 'blob' }),
@@ -261,12 +327,12 @@ export const schedulesAPI = {
 
   getAll: (params?: ApiListParams) => api.get('/schedules/', { params }),
   getOne: (id: string) => api.get(`/schedules/${id}`),
-  create: (data: ScheduleRequestPayload) => api.post('/schedules/', data),
-  update: (id: string, data: ScheduleRequestPayload) => api.put(`/schedules/${id}`, data),
+  create: (data: ScheduleMutationPayload) => api.post('/schedules/', data),
+  update: (id: string, data: SchedulePatchPayload) => api.put(`/schedules/${id}`, data),
   delete: (id: string) => api.delete(`/schedules/${id}`),
   updateStatus: (id: string, status: string) => api.put(`/schedules/${id}/status`, { status }),
-  relocate: (id: string, data: ScheduleRequestPayload) => api.put(`/schedules/${id}/relocate`, data),
-  checkConflicts: (data: ScheduleRequestPayload) => api.post('/schedules/check-conflicts', data),
+  relocate: (id: string, data: ScheduleRelocatePayload) => api.put(`/schedules/${id}/relocate`, data),
+  checkConflicts: (data: ScheduleConflictCheckPayload) => api.post('/schedules/check-conflicts', data),
   bulkDelete: (ids: string[]) => api.post('/schedules/bulk-delete', { ids }),
   bulkUpdateStatus: (ids: string[], status: string) => api.put('/schedules/bulk-status', { ids, status }),
   bulkReassign: (ids: string[], employee_ids: string[], force?: boolean) =>
@@ -275,7 +341,7 @@ export const schedulesAPI = {
     api.put('/schedules/bulk-location', { ids, location_id, force: force ?? false }),
   bulkUpdateClass: (ids: string[], class_id: string) => api.put('/schedules/bulk-class', { ids, class_id }),
   deleteSeries: (seriesId: string) => api.delete(`/schedules/series/${seriesId}`),
-  updateSeries: (seriesId: string, data: ScheduleRequestPayload) =>
+  updateSeries: (seriesId: string, data: SchedulePatchPayload) =>
     api.put(`/schedules/series/${seriesId}`, data),
 };
 
