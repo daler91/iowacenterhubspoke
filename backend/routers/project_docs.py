@@ -115,9 +115,8 @@ async def update_visibility(
     doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
-    updated_ok = await documents_repo.update_active(doc_id, {"visibility": data.visibility})
-    if not updated_ok:
-        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+    if doc.get("visibility") != data.visibility:
+        await documents_repo.update_active(doc_id, {"visibility": data.visibility})
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     return updated
 
@@ -141,9 +140,15 @@ async def delete_document(project_id: str, doc_id: str, user: SchedulerRequired)
     return {"message": "Document deleted"}
 
 
-@router.post("/{doc_id}/restore", summary="Restore a document", responses={404: {"description": DOC_NOT_FOUND}})
+@router.post(
+    "/{doc_id}/restore",
+    summary="Restore a document",
+    responses={404: {"description": DOC_NOT_FOUND}},
+)
 async def restore_document(project_id: str, doc_id: str, user: SchedulerRequired):
-    doc = await documents_repo.collection.find_one({"id": doc_id, "project_id": project_id, "deleted_at": {"$ne": None}})
+    doc = await documents_repo.collection.find_one(
+        {"id": doc_id, "project_id": project_id, "deleted_at": {"$ne": None}}
+    )
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     restored = await documents_repo.restore(doc_id)

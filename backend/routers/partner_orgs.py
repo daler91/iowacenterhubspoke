@@ -159,7 +159,11 @@ async def delete_partner_org(org_id: str, user: AdminRequired):
     return {"message": "Partner organization deleted"}
 
 
-@router.post("/{org_id}/restore", summary="Restore partner organization", responses={404: {"description": ORG_NOT_FOUND}})
+@router.post(
+    "/{org_id}/restore",
+    summary="Restore partner organization",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
 async def restore_partner_org(org_id: str, user: AdminRequired):
     restored = await partner_orgs_repo.restore(org_id)
     if not restored:

@@ -76,3 +76,32 @@ def test_project_docs_pagination_totals_and_soft_delete(monkeypatch):
 
     deleted = _run(project_docs.delete_document("p-1", "d1", user={"name": "Scheduler"}))
     assert deleted["message"] == "Document deleted"
+
+
+def test_project_docs_visibility_patch_is_idempotent(monkeypatch):
+    async def fake_find_one_active(query):
+        return {
+            "id": query["id"],
+            "project_id": query["project_id"],
+            "visibility": "shared",
+        }
+
+    calls = {"update": 0}
+
+    async def fake_update_active(doc_id, fields):
+        calls["update"] += 1
+        return False
+
+    monkeypatch.setattr(project_docs.documents_repo, "find_one_active", fake_find_one_active)
+    monkeypatch.setattr(project_docs.documents_repo, "update_active", fake_update_active)
+
+    updated = _run(
+        project_docs.update_visibility(
+            "p-1",
+            "d1",
+            data=type("Visibility", (), {"visibility": "shared"})(),
+            user={"name": "Editor"},
+        )
+    )
+    assert updated["visibility"] == "shared"
+    assert calls["update"] == 0
