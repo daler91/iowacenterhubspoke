@@ -4,12 +4,13 @@ import re
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.params import Depends, Query
 from fastapi.responses import FileResponse
 from database import db, ROOT_DIR
 from models.coordination_schemas import DocumentVisibilityUpdate
 from core.upload import stream_upload_to_disk
 from core.auth import CurrentUser, EditorRequired, SchedulerRequired
-from core.pagination import Paginated, paginated_response
+from core.pagination import PaginationParams, paginated_response
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.notification_events import notify_project_document_shared
@@ -30,6 +31,17 @@ PROJECT_NOT_FOUND = "Project not found"
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
 
+def _project_docs_pagination(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=500),
+) -> PaginationParams:
+    """Preserve legacy default/max page size (500) for this endpoint."""
+    return PaginationParams(skip=skip, limit=limit)
+
+
+ProjectDocsPaginated = Annotated[PaginationParams, Depends(_project_docs_pagination)]
+
+
 def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
     """Build a stored filename from a UUID and sanitized extension only."""
     ext = os.path.splitext(original_filename or "")[1]
@@ -42,7 +54,7 @@ def _safe_stored_name(doc_id: str, original_filename: str | None) -> str:
 async def list_documents(
     project_id: str,
     user: CurrentUser,
-    pagination: Paginated,
+    pagination: ProjectDocsPaginated,
     visibility: Optional[str] = None,
 ):
     query = {"project_id": project_id}
@@ -116,7 +128,12 @@ async def update_visibility(
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     if doc.get("visibility") != data.visibility:
-        await documents_repo.update_active(doc_id, {"visibility": data.visibility})
+        result = await documents_repo.collection.update_one(
+            {"id": doc_id, "project_id": project_id, "deleted_at": None},
+            {"$set": {"visibility": data.visibility}},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     return updated
 

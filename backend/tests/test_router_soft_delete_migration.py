@@ -1,5 +1,6 @@
 import asyncio
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
 
 from core.pagination import PaginationParams
 from routers import partner_orgs, project_docs
@@ -78,3 +79,33 @@ def test_project_docs_visibility_patch_is_idempotent(monkeypatch):
     )
     assert updated["visibility"] == "shared"
     update_mock.assert_not_awaited()
+
+
+def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
+    find_one_mock = AsyncMock(side_effect=[
+        {"id": "d1", "project_id": "p-1", "visibility": "internal"},
+        {"id": "d1", "project_id": "p-1", "visibility": "shared"},
+    ])
+    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1))
+    fake_repo = SimpleNamespace(
+        find_one_active=find_one_mock,
+        collection=SimpleNamespace(update_one=update_one_mock),
+    )
+
+    monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
+
+    updated = _run(
+        project_docs.update_visibility(
+            "p-1",
+            "d1",
+            data=type("Visibility", (), {"visibility": "shared"})(),
+            user={"name": "Editor"},
+        )
+    )
+
+    assert updated["visibility"] == "shared"
+    assert update_one_mock.await_args.args[0] == {
+        "id": "d1",
+        "project_id": "p-1",
+        "deleted_at": None,
+    }
