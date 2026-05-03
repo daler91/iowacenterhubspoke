@@ -1,6 +1,7 @@
 """Schedule CRUD operations: list, get, create, update, delete, restore, status, relocate."""
 
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -42,6 +43,8 @@ from routers.schedule_create import create_schedule as _create_schedule
 
 router = APIRouter(tags=["schedules"])
 
+_SCHEDULE_LIST_LIMIT_MAX = 200
+
 
 # --- List / Get ---
 
@@ -63,6 +66,9 @@ async def get_schedules(
         query["date"] = {"$lte": date_to}
     if employee_id:
         query["employee_ids"] = employee_id
+
+    start_ts = perf_counter()
+    pagination.limit = max(1, min(pagination.limit, _SCHEDULE_LIST_LIMIT_MAX))
 
     total = await db.schedules.count_documents(query)
     schedules = (
@@ -99,11 +105,27 @@ async def get_schedules(
                     "title": proj.get("title", ""),
                     "phase": proj.get("phase", "planning"),
                 }
+    elapsed_ms = round((perf_counter() - start_ts) * 1000, 2)
+    logger.info(
+        "schedules.list metrics",
+        extra={
+            "metrics": {
+                "duration_ms": elapsed_ms,
+                "query_count": 3 if schedule_ids else 2,
+                "result_count": len(schedules),
+                "total": total,
+                "skip": pagination.skip,
+                "limit": pagination.limit,
+                "has_more": pagination.skip + len(schedules) < total,
+            }
+        },
+    )
     return {
         "items": schedules,
         "total": total,
         "skip": pagination.skip,
         "limit": pagination.limit,
+        "has_more": pagination.skip + len(schedules) < total,
     }
 
 

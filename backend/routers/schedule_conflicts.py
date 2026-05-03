@@ -1,10 +1,12 @@
 """Schedule conflict checking and travel chain building."""
 
 from fastapi import APIRouter, HTTPException
+from time import perf_counter
 
 from database import db
 from models.schemas import ScheduleCreate, ErrorResponse
 from core.auth import CurrentUser
+from core.logger import get_logger
 from services.schedule_utils import check_conflicts, check_outlook_conflicts, check_google_conflicts
 from services.drive_time import get_drive_time_between_locations
 from routers.schedule_helpers import (
@@ -16,7 +18,9 @@ from routers.schedule_helpers import (
 )
 
 router = APIRouter(tags=["schedules"])
+logger = get_logger(__name__)
 
+_CONFLICT_EMPLOYEE_LIMIT_MAX = 50
 
 def _build_hub_leg(entry, loc_map, direction):
     """Build a Hub↔location drive leg. direction is 'to' (Hub→loc) or 'from' (loc→Hub)."""
@@ -252,6 +256,7 @@ async def _check_conflicts_for_employee(
 async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
     """Check for time conflicts and Outlook conflicts before creating a schedule.
     Supports multiple employees via employee_ids — returns per_employee breakdown."""
+    start_ts = perf_counter()
     location = await db.locations.find_one(
         {"id": data.location_id}, {"_id": 0}
     )
@@ -263,13 +268,15 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         else location["drive_time_minutes"]
     )
 
-    employee_ids = data.employee_ids  # always a list thanks to the validator
+    employee_ids = data.employee_ids[:_CONFLICT_EMPLOYEE_LIMIT_MAX]  # hard-cap fanout
 
     # Single employee — backward compatible response
     if len(employee_ids) == 1:
-        return await _check_conflicts_for_employee(
+        result = await _check_conflicts_for_employee(
             employee_ids[0], data, drive_time
         )
+        logger.info("schedules.check_conflicts metrics", extra={"metrics": {"duration_ms": round((perf_counter()-start_ts)*1000,2), "query_count": 6, "employee_count": 1}})
+        return result
 
     # Multiple employees — per-employee breakdown. Batch-fetch names once
     # and parallelise conflict checks so the latency scales with the
@@ -306,6 +313,8 @@ async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
         drive_to_override=data.drive_to_override_minutes,
         drive_from_override=data.drive_from_override_minutes,
     )
+
+    logger.info("schedules.check_conflicts metrics", extra={"metrics": {"duration_ms": round((perf_counter()-start_ts)*1000,2), "query_count": (len(employee_ids) * 5) + 4, "employee_count": len(employee_ids), "requested_employee_count": len(data.employee_ids)}})
 
     return {
         "has_conflicts": any_conflicts,

@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
+from time import perf_counter
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from database import db
@@ -118,6 +119,14 @@ _BOARD_PHASE_LIMIT_DEFAULT = 50
 _BOARD_PHASE_LIMIT_MAX = 200
 
 
+_SCHEDULE_LIST_LIMIT_MAX = 200
+
+
+def _clamp_limit(value: int, max_value: int) -> int:
+    """Clamp request-supplied limits to a hard [1, max_value] range."""
+    return max(1, min(value, max_value))
+
+
 def _phase_match(phase: str) -> dict:
     """Build the phase predicate for a single board column.
 
@@ -181,8 +190,9 @@ async def get_project_board(
     # Clamp phase_limit so a caller can't force a full-collection scan
     # by passing e.g. phase_limit=10**9. The previous implementation
     # loaded up to 500 projects total with no per-column bound.
-    phase_limit = max(1, min(phase_limit, _BOARD_PHASE_LIMIT_MAX))
+    phase_limit = _clamp_limit(phase_limit, _BOARD_PHASE_LIMIT_MAX)
 
+    start_ts = perf_counter()
     query: dict = {"deleted_at": None}
     if community:
         query["community"] = community
@@ -222,6 +232,20 @@ async def get_project_board(
             p["task_completed"] = stats["completed"]
             p["partner_overdue"] = stats["partner_overdue"]
         columns[phase] = rows
+
+    elapsed_ms = round((perf_counter() - start_ts) * 1000, 2)
+    logger.info(
+        "projects.board metrics",
+        extra={
+            "metrics": {
+                "duration_ms": elapsed_ms,
+                "query_count": len(active_phases) + 2,  # phase queries + facets + task stats aggregate
+                "phase_limit": phase_limit,
+                "project_count": len(all_ids),
+                "phase_count": len(active_phases),
+            }
+        },
+    )
 
     return {
         "columns": columns,
