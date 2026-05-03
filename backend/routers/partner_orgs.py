@@ -10,12 +10,15 @@ from models.coordination_schemas import (
 )
 from core.auth import CurrentUser, AdminRequired, SchedulerRequired
 from core.pagination import Paginated, paginated_response
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from core.logger import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/partner-orgs", tags=["partner-orgs"])
+partner_orgs_repo = SoftDeleteRepository(db, "partner_orgs")
+partner_contacts_repo = SoftDeleteRepository(db, "partner_contacts")
 
 ORG_NOT_FOUND = "Partner organization not found"
 CONTACT_NOT_FOUND = "Contact not found"
@@ -29,18 +32,12 @@ async def list_partner_orgs(
     community: Optional[str] = None,
     status: Optional[str] = None,
 ):
-    query = {"deleted_at": None}
+    query = {}
     if community:
         query["community"] = community
     if status:
         query["status"] = status
-    total = await db.partner_orgs.count_documents(query)
-    items = (
-        await db.partner_orgs.find(query, {"_id": 0})
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .to_list(pagination.limit)
-    )
+    items, total = await partner_orgs_repo.paginate(query, pagination)
     return paginated_response(items, total, pagination)
 
 
@@ -85,9 +82,7 @@ async def get_partner_org(org_id: str, user: CurrentUser):
     queries, and so mutations to one list don't force a full refetch
     of the others.
     """
-    org = await db.partner_orgs.find_one(
-        {"id": org_id, "deleted_at": None}, {"_id": 0},
-    )
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
     return org
@@ -99,9 +94,7 @@ async def _validate_status_transition(org_id: str, org: dict, new_status: str) -
     if new_status == current_status:
         return
 
-    contacts = await db.partner_contacts.count_documents(
-        {"partner_org_id": org_id, "deleted_at": None}
-    )
+    contacts = await partner_contacts_repo.count_active({"partner_org_id": org_id})
     venue = org.get("venue_details", {})
     has_venue = bool(venue.get("capacity") or venue.get("av_setup"))
 
@@ -137,16 +130,16 @@ async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: Schedule
 
     new_status = update_data.get("status")
     if new_status:
-        org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+        org = await partner_orgs_repo.get_by_id(org_id)
         if not org:
             raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
         await _validate_status_transition(org_id, org, new_status)
 
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = await db.partner_orgs.update_one({"id": org_id, "deleted_at": None}, {"$set": update_data})
-    if result.matched_count == 0:
+    updated_ok = await partner_orgs_repo.update_active(org_id, update_data)
+    if not updated_ok:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-    updated = await db.partner_orgs.find_one({"id": org_id}, {"_id": 0})
+    updated = await partner_orgs_repo.get_by_id(org_id)
     return updated
 
 
@@ -156,17 +149,26 @@ async def update_partner_org(org_id: str, data: PartnerOrgUpdate, user: Schedule
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def delete_partner_org(org_id: str, user: AdminRequired):
-    result = await db.partner_orgs.update_one(
-        {"id": org_id, "deleted_at": None},
-        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    if result.matched_count == 0:
+    deleted = await partner_orgs_repo.soft_delete(org_id, user.get("name", "System"))
+    if not deleted:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
     await log_activity(
         "partner_org_deleted", f"Partner org '{org_id}' deleted",
         "partner_org", org_id, user.get("name", "System"),
     )
     return {"message": "Partner organization deleted"}
+
+
+@router.post(
+    "/{org_id}/restore",
+    summary="Restore partner organization",
+    responses={404: {"description": ORG_NOT_FOUND}},
+)
+async def restore_partner_org(org_id: str, user: AdminRequired):
+    restored = await partner_orgs_repo.restore(org_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
+    return {"message": "Partner organization restored"}
 
 
 # ── Projects ──────────────────────────────────────────────────────────
