@@ -45,6 +45,9 @@ export async function initPostHogIfConsented(): Promise<void> {
   const { default: posthog } = await import("posthog-js");
   // posthog.init is idempotent on the same key; calling twice is safe.
   posthog.init(posthogKey, {
+    autocapture: false,
+    capture_pageview: false,
+    capture_pageleave: false,
     api_host: posthogHost,
     person_profiles: "identified_only",
     session_recording: {

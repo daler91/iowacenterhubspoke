@@ -5,6 +5,7 @@ import App from "@/App";
 import { isChunkLoadError, reloadOnceForStaleChunk } from "@/lib/chunkError";
 import {
   CONSENT_CHANGED_EVENT,
+  hasAnalyticsConsent,
   initPostHogIfConsented,
 } from "@/lib/consent";
 
@@ -36,13 +37,17 @@ if (sentryDsn) {
 // Deferred to idle so PostHog's ~50KB JS doesn't compete with React hydration
 // for main-thread time; falls back to a short setTimeout on browsers without
 // requestIdleCallback (Safari < 17).
+let analyticsConsentListenerAttached = false;
+
 const bootAnalytics = () => {
-  initPostHogIfConsented();
-  if (globalThis.window !== undefined) {
+  if (globalThis.window !== undefined && !analyticsConsentListenerAttached) {
     globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
       initPostHogIfConsented();
     });
+    analyticsConsentListenerAttached = true;
   }
+  if (!hasAnalyticsConsent()) return;
+  initPostHogIfConsented();
 };
 if (typeof globalThis.requestIdleCallback === 'function') {
   // Drop the deadline on fast connections so PostHog initialises sooner

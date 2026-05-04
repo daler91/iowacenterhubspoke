@@ -10,7 +10,11 @@ matches our sensitive-key allowlist (case-insensitive, substring match so
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
-from core.sensitive_keys import MASK as _MASK, is_sensitive_key, scrub as _scrub
+from services.observability_scrubber import (
+    MASK as _MASK,
+    DEFAULT_OBSERVABILITY_SCRUBBER,
+    scrub_observability_payload,
+)
 
 # Query-string parameters get an extra list. These are short enough that
 # substring matching on the general sensitive-key list would produce false
@@ -32,7 +36,7 @@ _SENSITIVE_QUERY_KEYS = {
 
 
 def _is_sensitive_query_key(key: str) -> bool:
-    if is_sensitive_key(key):
+    if DEFAULT_OBSERVABILITY_SCRUBBER.is_sensitive_key(key):
         return True
     return key.lower() in _SENSITIVE_QUERY_KEYS
 
@@ -54,7 +58,7 @@ def _scrub_query_string(value: Any) -> Any:
         )
     if isinstance(value, (list, tuple)):
         return type(value)(_scrub_query_string(v) for v in value)
-    return _scrub(value)
+    return scrub_observability_payload(value)
 
 
 def sentry_before_send(event: dict, _hint: dict) -> dict | None:
@@ -64,12 +68,12 @@ def sentry_before_send(event: dict, _hint: dict) -> dict | None:
         if isinstance(request, dict):
             for section in ("headers", "cookies", "data"):
                 if section in request:
-                    request[section] = _scrub(request[section])
+                    request[section] = scrub_observability_payload(request[section])
             if "query_string" in request:
                 request["query_string"] = _scrub_query_string(request["query_string"])
         for section in ("extra", "contexts", "tags", "user"):
             if section in event and isinstance(event[section], (dict, list)):
-                event[section] = _scrub(event[section])
+                event[section] = scrub_observability_payload(event[section])
     except Exception:
         # Never let scrubbing errors break telemetry — fail open on the event
         # rather than drop it, but log nothing (we're inside Sentry's pipeline).
