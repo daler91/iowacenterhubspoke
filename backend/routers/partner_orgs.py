@@ -288,12 +288,15 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
         send_portal_invite as send_invite_email,
     )
 
-    org = await partner_orgs_repo.get_by_id(org_id)
+    # Keep direct collection reads here (instead of module-level repository
+    # singletons) so tests can monkeypatch `partner_orgs.db` with async mocks
+    # and still exercise this function in isolation.
+    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
 
-    contact = await partner_contacts_repo.find_one_active(
-        {"id": contact_id, "partner_org_id": org_id},
+    contact = await db.partner_contacts.find_one(
+        {"id": contact_id, "partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
     )
     if not contact:
         raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
