@@ -141,6 +141,7 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
     invalidate_calls = []
 
     async def _invalidate(uid):
+        await asyncio.sleep(0)
         invalidate_calls.append(uid)
 
     monkeypatch.setattr(auth, "invalidate_pwd_cache", _invalidate)
