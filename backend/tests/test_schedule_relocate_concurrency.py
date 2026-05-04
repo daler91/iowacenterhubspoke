@@ -32,10 +32,9 @@ class FakeSchedules:
         await asyncio.sleep(0)
         sid = query["id"]
         doc = self.docs[sid]
-        # first write wins target slot
+        # Mirror production semantics: relocate write filter only checks
+        # source identity + optimistic version, not target-slot occupancy.
         target = update["$set"]
-        if self._target_slot_occupied(sid, target):
-            return None
         if doc["version"] != query["version"]:
             return None
         doc.update(target)
@@ -60,18 +59,10 @@ class FakeSchedules:
             and doc["end_time"] > query["end_time"]["$gt"]
         )
 
-    def _target_slot_occupied(self, sid, target):
-        return any(
-            doc["id"] != sid
-            and doc["date"] == target["date"]
-            and doc["start_time"] == target["start_time"]
-            for doc in self.docs.values()
-        )
-
-
 class FakeDB:
     def __init__(self):
         self.schedules = FakeSchedules()
+        self.schedule_slot_claims = _FakeClaims()
         self.client = self
 
     async def start_session(self):
@@ -88,6 +79,19 @@ class _FakeSession:
 
     def start_transaction(self):
         return self
+
+
+class _FakeClaims:
+    def __init__(self):
+        self._ids = set()
+
+    async def insert_one(self, doc, session=None):
+        await asyncio.sleep(0)
+        _id = doc["_id"]
+        if _id in self._ids:
+            from pymongo.errors import DuplicateKeyError
+            raise DuplicateKeyError("duplicate claim")
+        self._ids.add(_id)
 
 
 def test_competing_relocations_only_one_succeeds(monkeypatch):

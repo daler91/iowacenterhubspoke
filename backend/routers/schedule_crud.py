@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from database import db
 from models.schemas import (
@@ -615,6 +616,28 @@ async def relocate_schedule(
                         "blocking_schedule_id": slot_taken.get("id"),
                     },
                 )
+            claim_ids = [
+                f"{emp}:{data.date}:{data.start_time}:{data.end_time}"
+                for emp in schedule.get("employee_ids", [])
+            ]
+            try:
+                for claim_id in claim_ids:
+                    await db.schedule_slot_claims.insert_one(
+                        {
+                            "_id": claim_id,
+                            "schedule_id": schedule_id,
+                            "employee_id": claim_id.split(":")[0],
+                        },
+                        session=session,
+                    )
+            except DuplicateKeyError:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "conflict_type": "slot_taken",
+                        "message": "Requested slot is already occupied.",
+                    },
+                ) from None
 
             updated = await db.schedules.find_one_and_update(
                 {
