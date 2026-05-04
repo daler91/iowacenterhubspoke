@@ -2,7 +2,20 @@ import os
 import aiofiles
 from fastapi import HTTPException, UploadFile
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+_DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _parse_max_upload_bytes(raw_value: str | None) -> int:
+    if raw_value is None:
+        return _DEFAULT_MAX_UPLOAD_BYTES
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_UPLOAD_BYTES
+    return parsed if parsed > 0 else _DEFAULT_MAX_UPLOAD_BYTES
+
+
+MAX_UPLOAD_BYTES = _parse_max_upload_bytes(os.getenv("MAX_UPLOAD_BYTES"))
 _CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 ALLOWED_CONTENT_TYPES = {
@@ -18,15 +31,32 @@ ALLOWED_CONTENT_TYPES = {
     "text/plain",
 }
 
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt",
+}
+
 
 def _validate_content_type(file: UploadFile) -> None:
     if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
 
+def _validate_extension(file: UploadFile) -> None:
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file extension")
+
+
+def _validate_declared_size(file: UploadFile) -> None:
+    if file.size and file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large ({MAX_UPLOAD_BYTES} bytes max)")
+
+
 async def stream_upload_to_disk(file: UploadFile, file_path: str) -> None:
     """Stream an uploaded file to disk in chunks with size and type validation."""
     _validate_content_type(file)
+    _validate_extension(file)
+    _validate_declared_size(file)
 
     size = 0
     try:
@@ -34,7 +64,7 @@ async def stream_upload_to_disk(file: UploadFile, file_path: str) -> None:
             while chunk := await file.read(_CHUNK_SIZE):
                 size += len(chunk)
                 if size > MAX_UPLOAD_BYTES:
-                    raise HTTPException(status_code=413, detail="File too large (10 MB max)")
+                    raise HTTPException(status_code=413, detail=f"File too large ({MAX_UPLOAD_BYTES} bytes max)")
                 await out.write(chunk)
     except HTTPException:
         # Clean up partial file on validation failure
@@ -51,12 +81,14 @@ async def stream_upload_to_bytes(file: UploadFile) -> bytes:
     as ``stream_upload_to_disk`` so there is no unbounded-read DoS surface.
     """
     _validate_content_type(file)
+    _validate_extension(file)
+    _validate_declared_size(file)
 
     size = 0
     chunks: list[bytes] = []
     while chunk := await file.read(_CHUNK_SIZE):
         size += len(chunk)
         if size > MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail="File too large (10 MB max)")
+            raise HTTPException(status_code=413, detail=f"File too large ({MAX_UPLOAD_BYTES} bytes max)")
         chunks.append(chunk)
     return b"".join(chunks)
