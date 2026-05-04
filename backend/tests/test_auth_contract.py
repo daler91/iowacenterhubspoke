@@ -12,15 +12,18 @@ class FakeCollection:
         self.rows = list(rows or [])
 
     async def find_one(self, query, projection=None):
+        await asyncio.sleep(0)
         for row in self.rows:
             if _matches(row, query):
                 return _project(row, projection)
         return None
 
     async def insert_one(self, doc):
+        await asyncio.sleep(0)
         self.rows.append(dict(doc))
 
     async def update_one(self, query, update, upsert=False):
+        await asyncio.sleep(0)
         for row in self.rows:
             if _matches(row, query):
                 _apply_update(row, update)
@@ -31,22 +34,29 @@ class FakeCollection:
             self.rows.append(base)
 
     async def update_many(self, query, update):
+        await asyncio.sleep(0)
         for row in self.rows:
             if _matches(row, query):
                 _apply_update(row, update)
 
     async def delete_one(self, query):
+        await asyncio.sleep(0)
         for idx, row in enumerate(self.rows):
             if _matches(row, query):
                 self.rows.pop(idx)
                 return
 
     async def find_one_and_update(self, query, update, projection=None, return_document=None):
+        await asyncio.sleep(0)
         for row in self.rows:
             if _matches(row, query):
                 before = dict(row)
                 _apply_update(row, update)
-                return _project(before if return_document else row, projection)
+                # Match Mongo/PyMongo semantics: default returns pre-update;
+                # explicit "after" returns post-update.
+                if str(return_document).lower() in {"true", "after", "returndocument.after"}:
+                    return _project(row, projection)
+                return _project(before, projection)
         return None
 
 
@@ -99,9 +109,9 @@ import pytest
 def test_login_refresh_replay_logout_and_response_contracts(monkeypatch):
     db = FakeDB(users=[{"id": "u1", "email": "u@example.com", "name": "User", "password_hash": "h", "role": "viewer", "status": "approved"}])
     monkeypatch.setattr(auth, "db", db)
-    monkeypatch.setattr(auth, "verify_password", lambda p, h: asyncio.sleep(0, result=(p == "ok")))
+    monkeypatch.setattr(auth, "verify_password", lambda p, h: asyncio.sleep(0, result=(p == "ok-passphrase")))  # noqa: S106
 
-    login_res = asyncio.run(auth.login.__wrapped__(Request({"type": "http", "method": "POST", "path": "/api/auth/login", "headers": []}), auth.UserLogin(email="u@example.com", password="ok"), Response()))
+    login_res = asyncio.run(auth.login.__wrapped__(Request({"type": "http", "method": "POST", "path": "/api/auth/login", "headers": []}), auth.UserLogin(email="u@example.com", password="ok-passphrase"), Response()))  # noqa: S106
     assert set(login_res.keys()) == {"user"}
     assert set(login_res["user"].keys()) == {"id", "name", "email", "role"}
 
@@ -138,17 +148,17 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
     validate_res = asyncio.run(auth.validate_reset_token.__wrapped__(Request({"type": "http", "method": "GET", "path": "/api/auth/reset-password/t1", "headers": []}), "t1"))
     assert validate_res == {"valid": True}
 
-    reset_res = asyncio.run(auth.reset_password.__wrapped__(Request({"type": "http", "method": "POST", "path": "/api/auth/reset-password", "headers": []}), auth.ResetPasswordRequest(token="t1", new_password="new-password-123")))
+    reset_res = asyncio.run(auth.reset_password.__wrapped__(Request({"type": "http", "method": "POST", "path": "/api/auth/reset-password", "headers": []}), auth.ResetPasswordRequest(token="t1", new_password="new-passphrase-123")))  # noqa: S106
     assert reset_res == {"message": "Password reset successful"}
-    assert db.users.rows[0]["password_hash"] == "hashed:new-password-123"
+    assert db.users.rows[0]["password_hash"] == "hashed:new-passphrase-123"
     assert invalidate_calls == ["u1"]
 
     # simulate multi-worker cache coherence via explicit invalidation on password_change
     current = {"user_id": "u1", "email": "u@example.com", "name": "User", "role": "viewer"}
-    monkeypatch.setattr(auth, "verify_password", lambda p, h: asyncio.sleep(0, result=(p == "new-password-123")))
+    monkeypatch.setattr(auth, "verify_password", lambda p, h: asyncio.sleep(0, result=(p == "new-passphrase-123")))  # noqa: S106
     change_res = asyncio.run(
         auth.change_password(
-            auth.PasswordChange(current_password="new-password-123", new_password="next-password-123"),
+            auth.PasswordChange(current_password="new-passphrase-123", new_password="next-passphrase-123"),  # noqa: S106
             current,
             Response(),
         )
