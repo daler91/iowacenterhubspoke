@@ -7,11 +7,12 @@ This repository is a mature full-stack scheduling + partner-coordination platfor
 The strongest opportunities now are **incremental architecture hardening** rather than rewrites:
 1. finish the in-progress repository/data-access boundary migration,
 2. split oversized endpoint and UI modules,
-3. standardize repeated notification/calendar orchestration patterns,
-4. reduce request-path query fan-out and unbounded list rendering,
-5. raise refactor safety via targeted contract/integration tests.
+3. secure critical vulnerabilities including URL-leaked portal tokens, PII exposures, memory-bound file uploads, and race conditions,
+4. standardize repeated notification/calendar orchestration patterns,
+5. reduce request-path query fan-out and unbounded list rendering,
+6. raise refactor safety via targeted contract/integration tests.
 
-The codebase appears salvageable and actively improved; recommendations below are intentionally PR-sized and dependency-aware.
+The codebase appears salvageable and actively improved, though recent security audits highlight immediate remediation needs. Recommendations below are intentionally PR-sized and dependency-aware.
 
 ## Current Architecture
 
@@ -89,6 +90,18 @@ The codebase appears salvageable and actively improved; recommendations below ar
 - **Effort**: Medium
 - **Risk**: Low-medium
 
+### 5) Critical Security, Privacy, and Data Integrity Exposures
+- **Priority**: P0
+- **Category**: Security / Privacy / Architecture
+- **Files involved**: `backend/routers/partner_portal.py`, `backend/server.py`, `frontend/src/index.tsx`, `backend/services/webhooks.py`, `backend/routers/schedule_crud.py`.
+- **Problem**: Portal magic link API returns the token in the response and relies on query params; Sentry/PostHog capture PII/credentials without scrubbers/consent; file uploads are buffered entirely in memory; Webhooks lack SSRF protection; and `relocate_schedule` contains an atomic race condition.
+- **Evidence**: Agent and Audit reports confirm token returned directly on `partner_portal.py`; Sentry `init` lacks `before_send` (`server.py:11-18`); `file.read()` used without chunking; `relocate_schedule` fetches and updates without locking.
+- **Why it matters**: Severe compliance (PII leakage), data integrity (double booking), and availability (memory exhaustion DOS) risks. Tokens leaked in URLs undermine authentication.
+- **Recommendation**: Remove token from portal API response, require Bearer tokens, add `before_send` to Sentry, stream file uploads, validate webhook URLs against private IPs, and use `find_one_and_update` for schedule changes.
+- **Impact**: High
+- **Effort**: Medium
+- **Risk**: Medium
+
 ## Deduplication Opportunities
 
 1. **Soft-delete query duplication**
@@ -117,6 +130,13 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Duplicate**: repeated full-map rendering and row UI patterns.
    - **Consolidation**: shared virtualized list/table shell with item renderer.
    - **Impact/Effort/Risk**: Medium / Medium / Low.
+
+5. **Frontend UI Shells and Layouts**
+   - **Files**: `frontend/src/components/*` (15+ pages).
+   - **Symbols**: Hand-rolled page titles, subtitles, breadcrumbs, and actions.
+   - **Duplicate**: Lack of a shared `PageShell` / `PageHeader` primitive.
+   - **Consolidation**: Extract a central `PageShell` to enforce design system coherence and standard loading/error bounds.
+   - **Impact/Effort/Risk**: High / Medium / Low.
 
 ## Refactoring Opportunities
 
@@ -152,6 +172,13 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Tradeoff**: security-sensitive; require high test coverage before/after.
    - **Priority**: P0 for safety scaffolding, P1 for decomposition.
 
+6. **Portal Router Decomposition**
+   - **File**: `backend/routers/partner_portal.py`.
+   - **Problem**: 500+ LOC handling auth, tasks, docs, messages, and dashboard in one module.
+   - **Refactor**: Split into `routers/portal/auth.py`, `tasks.py`, etc., leveraging a central `PortalContext` bearer-token dependency.
+   - **Tradeoff**: Increases file count but resolves mixed responsibilities and URL token leakages.
+   - **Priority**: P1.
+
 ## Scalability Concerns
 
 1. **Project board fan-out and per-request aggregation**
@@ -182,6 +209,13 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Status**: Confirmed risk under horizontal scale.
    - **Priority/Effort**: P1 / Small-medium.
 
+5. **Unbounded File Uploads and Bulk Operations**
+   - **Evidence**: File uploads read fully into memory (`await file.read()`). `schedules.py` bulk endpoints accept unbounded `ids[]`.
+   - **Failure mode**: Memory exhaustion DOS under load; DB performance degradation.
+   - **Recommendation**: Stream uploads in chunks and enforce `MAX_UPLOAD_BYTES`. Cap Pydantic array lengths for bulk ops.
+   - **Status**: Confirmed risk.
+   - **Priority/Effort**: P1 / Medium.
+
 ## Modularity and Boundary Issues
 
 1. **Router layer directly coupled to Mongo DSL**
@@ -211,6 +245,8 @@ The codebase appears salvageable and actively improved; recommendations below ar
   3. Worker job unit tests with fake providers for calendar/email/webhook idempotency behavior.
   4. Frontend hook-level tests for `useScheduleForm` payload typing and error normalization.
   5. Performance regression checks for board/list endpoints (dataset fixtures + response-time budget assertions).
+  6. Security assertion tests for oversized file uploads and SSRF payload blocks on webhooks.
+  7. TypeScript strictness validation (`tsc --noEmit`) as a mandatory CI step.
 - **Refactors to defer until tests exist**:
   - `auth.py` decomposition,
   - `projects.py` query/service extraction,
@@ -218,8 +254,9 @@ The codebase appears salvageable and actively improved; recommendations below ar
 
 ## Suggested Migration Roadmap
 
-### Quick wins (1–2 PRs)
+### Quick wins (1–3 PRs)
 - Standardize frontend API error normalization utility.
+- Close critical security gaps: remove portal token from API response, add Sentry PII scrubber, fix `relocate_schedule` atomic race, add file upload limits.
 - Register/clean async pytest markers to remove warning noise.
 - Add architecture guard checks (e.g., no new raw soft-delete filters in migrated routers).
 
@@ -235,7 +272,17 @@ The codebase appears salvageable and actively improved; recommendations below ar
 
 ## PR-by-PR Refactoring Plan
 
-1. **PR: “Repository migration batch 1: partner/project docs routers”**
+1. **PR: “Security & Privacy Hardening: Portal Auth, Uploads, PII, Data Integrity”**
+   - **Goal**: Close high-severity security vectors.
+   - **Files likely affected**: `partner_portal.py`, `server.py`, `project_docs.py`, `webhooks.py`, `index.tsx`, `schedule_crud.py`.
+   - **Steps**: Remove portal token from API response and switch to Bearer Auth; add Sentry `before_send`; chunk file uploads with size caps; add SSRF validation to webhooks; change `relocate_schedule` to `find_one_and_update`.
+   - **Tests**: Negative tests for oversized uploads, SSRF payloads, API auth responses, and schedule race conditions.
+   - **Validation**: Execute security test suite and `pytest`.
+   - **Risk**: High (touches auth, ingress, and data mutations).
+   - **Rollback**: Revert specific payload limits or auth transport.
+   - **Dependencies**: None.
+
+2. **PR: “Repository migration batch 1: partner/project docs routers”**
    - **Goal**: remove duplicated soft-delete/list boilerplate from low/medium complexity routers.
    - **Files likely affected**: `backend/routers/partner_orgs.py`, `backend/routers/project_docs.py`, `backend/core/repository.py` (if tiny extensions needed), related tests.
    - **Steps**: baseline tests -> migrate read/list/update/delete paths -> parity assertions.
@@ -245,7 +292,7 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Rollback**: revert router-specific commits only.
    - **Dependencies**: none.
 
-2. **PR: “Repository migration batch 2: schedule auxiliary routers”**
+3. **PR: “Repository migration batch 2: schedule auxiliary routers”**
    - **Goal**: apply same patterns to schedule-adjacent routers where safe.
    - **Files**: `backend/routers/schedule_bulk.py`, `schedule_crud.py`, etc.
    - **Steps**: migrate simple CRUD/list paths first; defer complex aggregation branches.
@@ -255,7 +302,7 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Rollback**: router-by-router revert.
    - **Dependencies**: PR 1 patterns.
 
-3. **PR: “Worker modularization: calendar jobs extraction”**
+4. **PR: “Worker modularization: calendar jobs extraction”**
    - **Goal**: isolate provider orchestration from ARQ configuration.
    - **Files**: `backend/worker.py`, new `backend/services/calendar_jobs.py` (or `backend/jobs/`).
    - **Steps**: move logic behind preserved function signatures; keep WorkerSettings stable.
@@ -265,7 +312,7 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Rollback**: restore previous `worker.py` job functions.
    - **Dependencies**: none.
 
-4. **PR: “Frontend: API error normalization + schedule payload typing groundwork”**
+5. **PR: “Frontend: API error normalization + schedule payload typing groundwork”**
    - **Goal**: reduce repeated axios error parsing and improve API contracts.
    - **Files**: `frontend/src/lib/api.ts`, `frontend/src/lib/types.ts`, `frontend/src/hooks/useScheduleForm.ts`, affected components/tests.
    - **Steps**: introduce normalized error helper, migrate two high-use call sites, tighten schedule payload return type incrementally.
@@ -275,7 +322,7 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Rollback**: revert helper adoption at call sites.
    - **Dependencies**: none.
 
-5. **PR: “Frontend: component decomposition + list virtualization phase 1”**
+6. **PR: “Frontend: component decomposition + list virtualization phase 1”**
    - **Goal**: split manager components and improve large-list performance.
    - **Files**: `frontend/src/components/UserManager.tsx`, `LocationManager.tsx`, `ActivityFeed.tsx`, `WeeklyReport.tsx`, new shared virtualization component.
    - **Steps**: extract dialogs/forms, add virtualized list wrapper, apply to one component first then expand.
@@ -285,7 +332,7 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Rollback**: keep wrapper optional behind feature flag/prop.
    - **Dependencies**: PR 4 helpful but not mandatory.
 
-6. **PR: “Deployment-scale auth/session hardening”**
+7. **PR: “Deployment-scale auth/session hardening”**
    - **Goal**: remove per-process password-change cache coherence risk.
    - **Files**: `backend/core/auth.py`, auth router/service integration points, tests.
    - **Steps**: implement Redis invalidation or token version approach; backfill tests.
@@ -296,6 +343,10 @@ The codebase appears salvageable and actively improved; recommendations below ar
    - **Dependencies**: none.
 
 ## Commands Run
+
+- Inspected architectural insights and deep analysis from `AGENT_REVIEW_REPORT.md`, `CODEBASE_RUTHLESS_AUDIT_2026-04-08.md`, `UX_ARCHITECTURE_REVIEW.md`, and `UX_ACCESSIBILITY_REVIEW.md`.
+- Reviewed `tech-debt-followups.md` and `migrations.md` for context on previous architectural migrations.
+- Analyzed `server.py` and `docker-compose.prod.yml` to understand initialization flows, dependencies, and environment constraints.
 
 - `pwd; rg --files -g 'AGENTS.md'` — **failed** (no AGENTS matched; `rg` exit code 1).
 - `find .. -name AGENTS.md -print` — **passed**.
@@ -320,5 +371,6 @@ The codebase appears salvageable and actively improved; recommendations below ar
 ## Limitations
 
 - This review did not execute full backend/frontend test/lint/build suites (only backend test collection) to avoid long-running/mutating setup and because the task scope is architecture analysis.
+- Because command execution is restricted in this cloud agent environment, additional runtime analysis commands could not be run interactively. Findings heavily rely on existing detailed audit reports.
 - Some command outputs were truncated by terminal token limits when printing very large files; additional targeted file reads were used to validate key conclusions.
 - No runtime profiling or production telemetry was available in this environment, so scalability findings are based on code-structure evidence and documented debt notes rather than live performance traces.
