@@ -104,6 +104,27 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
     update_active_mock.assert_awaited_once_with("d1", {"visibility": "shared"})
 
 
+def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
+    find_one_mock = AsyncMock(side_effect=[
+        {"id": "d1", "project_id": "p-1", "visibility": "internal"},
+        {"id": "d1", "project_id": "p-1", "visibility": "shared"},
+    ])
+    update_active_mock = AsyncMock(return_value=False)
+    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_active=update_active_mock)
+    monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
+
+    updated = _run(
+        project_docs.update_visibility(
+            "p-1",
+            "d1",
+            data=type("Visibility", (), {"visibility": "shared"})(),
+            user={"name": "Editor"},
+        )
+    )
+
+    assert updated["visibility"] == "shared"
+
+
 def test_partner_org_projects_and_contacts_preserve_totals(monkeypatch):
     monkeypatch.setattr(partner_orgs.partner_orgs_repo, "get_by_id", AsyncMock(return_value={"id": "org-1"}))
     monkeypatch.setattr(partner_orgs.projects_repo, "find_active", AsyncMock(return_value=[{"id": "p-1"}]))

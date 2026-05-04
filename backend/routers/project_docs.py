@@ -131,12 +131,13 @@ async def update_visibility(
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     if doc.get("visibility") != data.visibility:
-        updated_ok = await documents_repo.update_active(
-            doc_id, {"visibility": data.visibility}
-        )
-        if not updated_ok:
-            raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+        # ``modified_count == 0`` can happen in legitimate races (another
+        # request already wrote the same visibility). We intentionally do not
+        # treat that as not-found; existence is determined by the final read.
+        await documents_repo.update_active(doc_id, {"visibility": data.visibility})
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
+    if not updated:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     return updated
 
 
