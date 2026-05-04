@@ -273,6 +273,8 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
     updated = await partner_contacts_repo.find_one_active(
         {"id": contact_id, "partner_org_id": org_id},
     )
+    if not updated:
+        raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
     return updated
 
 

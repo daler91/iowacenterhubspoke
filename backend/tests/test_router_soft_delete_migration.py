@@ -86,8 +86,11 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
     ])
-    update_active_mock = AsyncMock(return_value=True)
-    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_active=update_active_mock)
+    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1))
+    fake_repo = SimpleNamespace(
+        find_one_active=find_one_mock,
+        collection=SimpleNamespace(update_one=update_one_mock),
+    )
 
     monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
@@ -101,7 +104,11 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
     )
 
     assert updated["visibility"] == "shared"
-    update_active_mock.assert_awaited_once_with("d1", {"visibility": "shared"})
+    assert update_one_mock.await_args.args[0] == {
+        "id": "d1",
+        "project_id": "p-1",
+        "deleted_at": None,
+    }
 
 
 def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
@@ -109,8 +116,11 @@ def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
     ])
-    update_active_mock = AsyncMock(return_value=False)
-    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_active=update_active_mock)
+    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1, modified_count=0))
+    fake_repo = SimpleNamespace(
+        find_one_active=find_one_mock,
+        collection=SimpleNamespace(update_one=update_one_mock),
+    )
     monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
     updated = _run(
@@ -137,6 +147,30 @@ def test_partner_org_projects_and_contacts_preserve_totals(monkeypatch):
 
     assert projects["total"] == 3
     assert contacts["total"] == 4
+
+
+def test_partner_contact_update_returns_404_if_deleted_mid_flight(monkeypatch):
+    monkeypatch.setattr(
+        partner_orgs.partner_contacts_repo,
+        "find_one_active",
+        AsyncMock(side_effect=[{"id": "c-1", "partner_org_id": "org-1"}, None]),
+    )
+    monkeypatch.setattr(partner_orgs.partner_contacts_repo, "update_active", AsyncMock(return_value=True))
+
+    try:
+        _run(
+            partner_orgs.update_contact(
+                "org-1",
+                "c-1",
+                data=type("ContactUpdate", (), {"model_dump": lambda self: {"name": "New"}})(),
+                user={"name": "Scheduler"},
+            )
+        )
+        assert False, "Expected HTTPException"
+    except Exception as exc:
+        from fastapi import HTTPException
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 404
 
 
 def test_schedule_bulk_delete_uses_active_snapshot(monkeypatch):
