@@ -42,220 +42,8 @@ from routers import (  # noqa: E402
     exports, event_outcomes, promotion_checklist, webhooks,
     notification_preferences,
 )
-from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED, DEFAULT_REDIS_URL  # noqa: E402
-
-# MongoDB query operator — extracted so Sonar stops flagging S1192 on
-# repeated literal use within this module's index/migration setup.
-_MONGO_EXISTS = "$exists"
-
-
-async def _run_startup_migrations():
-    """Migrate existing users and promote admin if configured."""
-    try:
-        result = await db.users.update_many(
-            {"status": {_MONGO_EXISTS: False}},
-            {"$set": {"status": USER_STATUS_APPROVED}}
-        )
-        if result.modified_count > 0:
-            logger.info(f"Migrated {result.modified_count} existing users to approved status")
-    except Exception as e:
-        logger.warning(f"Failed to migrate user statuses: {e}")
-
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if not admin_email:
-        return
-    try:
-        existing_admin = await db.users.find_one({"email": admin_email})
-        if existing_admin and existing_admin.get("role") != ROLE_ADMIN:
-            await db.users.update_one(
-                {"email": admin_email},
-                {"$set": {"role": ROLE_ADMIN, "status": USER_STATUS_APPROVED}}
-            )
-            logger.info("Promoted configured admin user")
-    except Exception as e:
-        logger.warning(f"Failed to check/promote admin user: {e}")
-
-
-async def _ensure_indexes():
-    """Create required database indexes."""
-    try:
-        await db.schedules.create_index([("employee_ids", 1), ("deleted_at", 1), ("date", 1)])
-        await db.schedules.create_index([("location_id", 1), ("deleted_at", 1), ("date", 1)])
-        await db.schedules.create_index([("class_id", 1), ("deleted_at", 1), ("date", 1)])
-        await db.schedules.create_index([("date", 1), ("status", 1)])
-        await db.schedules.create_index([("deleted_at", 1)])
-        # Compound partial-unique index on (created_by_user_id,
-        # idempotency_key). Uniqueness is scoped PER-USER to match
-        # schedule-replay logic, which already filters by
-        # created_by_user_id — two different users submitting the
-        # same client-generated key must not collide. Uniqueness is
-        # also limited to LIVE (non-soft-deleted) schedules so a
-        # retry after soft-delete succeeds. Older deploys may carry
-        # the prior single-field variant (idempotency_key_1 or
-        # idempotency_key_live_unique); drop both so Mongo doesn't
-        # refuse the new definition with IndexOptionsConflict.
-        for stale_index in (
-            "idempotency_key_1",
-            "idempotency_key_live_unique",
-        ):
-            try:
-                await db.schedules.drop_index(stale_index)
-            except Exception:
-                pass  # Index didn't exist — fresh DB or already replaced.
-        await db.schedules.create_index(
-            [("created_by_user_id", 1), ("idempotency_key", 1)],
-            unique=True,
-            partialFilterExpression={
-                "idempotency_key": {_MONGO_EXISTS: True, "$type": "string"},
-                "deleted_at": None,
-            },
-            name="idempotency_key_per_user_live_unique",
-        )
-        # Compound (id, deleted_at) indexes so batch $in lookups don't collection-scan.
-        await db.employees.create_index([("id", 1), ("deleted_at", 1)])
-        await db.employees.create_index([("deleted_at", 1)])
-        await db.locations.create_index([("id", 1), ("deleted_at", 1)])
-        await db.locations.create_index([("deleted_at", 1)])
-        await db.classes.create_index([("id", 1), ("deleted_at", 1)])
-        await db.classes.create_index([("deleted_at", 1)])
-        await db.activity_logs.create_index([("timestamp", -1)])
-        await db.activity_logs.create_index([("entity_type", 1), ("entity_id", 1)])
-        # Retention: expire activity log entries after ACTIVITY_LOG_RETENTION_DAYS (default 90).
-        await db.activity_logs.create_index(
-            "expires_at", expireAfterSeconds=0
-        )
-        await db.activity_logs.create_index([("user_id", 1)])
-        await db.users.create_index([("deleted_at", 1)])
-        await db.drive_time_cache.create_index("key", unique=True)
-        await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
-        await db.invitations.create_index("token", unique=True)
-        await db.invitations.create_index("email")
-        # Invitations expire 14 days after creation unless accepted/revoked.
-        await db.invitations.create_index("expires_at", expireAfterSeconds=0)
-        # Password-reset rows: prune used/expired entries automatically.
-        await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
-        await db.password_resets.create_index("token", unique=True)
-        await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
-        await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
-        # Refresh-token store: jti is the primary key, expires_at drives
-        # TTL pruning, user_id supports mass revocation on password change.
-        await db.refresh_tokens.create_index("jti", unique=True)
-        await db.refresh_tokens.create_index("user_id")
-        await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
-        # Per-email login failure tracking (for brute-force lockout).
-        await db.login_failures.create_index("email", unique=True)
-        await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
-        # Coordination module indexes
-        await db.projects.create_index([("partner_org_id", 1)])
-        await db.projects.create_index([("phase", 1)])
-        await db.projects.create_index([("community", 1)])
-        await db.projects.create_index([("deleted_at", 1)])
-        # schedule_id is queried directly every time a schedule update
-        # needs to find its linked project (auto-link, relocate, status
-        # change). Without this the query collection-scans projects.
-        await db.projects.create_index([("schedule_id", 1), ("deleted_at", 1)])
-        await db.tasks.create_index([("project_id", 1)])
-        await db.tasks.create_index([("project_id", 1), ("phase", 1)])
-        await db.tasks.create_index([("project_id", 1), ("completed", 1)])
-        await db.partner_orgs.create_index([("community", 1)])
-        await db.partner_orgs.create_index([("status", 1)])
-        await db.partner_orgs.create_index([("deleted_at", 1)])
-        # Reverse lookup used by schedule auto-link: "does this location
-        # belong to an active/onboarding partner?" runs on every single-
-        # schedule create. Compound key covers the full filter.
-        await db.partner_orgs.create_index(
-            [("location_id", 1), ("status", 1), ("deleted_at", 1)],
-        )
-        await db.partner_contacts.create_index([("partner_org_id", 1)])
-        await db.task_attachments.create_index([("task_id", 1)])
-        await db.task_comments.create_index([("task_id", 1), ("created_at", 1)])
-        await db.task_comments.create_index([("task_id", 1), ("parent_comment_id", 1)])
-        # Phase 2 collections
-        await db.email_reminders.create_index(
-            [("task_id", 1), ("threshold_key", 1)], unique=True)
-        await db.email_reminders.create_index([("sent_at", -1)])
-        await db.event_outcomes.create_index([("project_id", 1)])
-        await db.event_outcomes.create_index([("project_id", 1), ("status", 1)])
-        await db.promotion_checklists.create_index("project_id", unique=True)
-        await db.webhook_subscriptions.create_index([("active", 1), ("events", 1)])
-        await db.webhook_subscriptions.create_index([("deleted_at", 1)])
-        # Series and message visibility indexes
-        await db.schedules.create_index([("series_id", 1), ("date", 1)])
-        await db.messages.create_index([("project_id", 1), ("visibility", 1)])
-        await db.webhook_logs.create_index([("subscription_id", 1), ("sent_at", -1)])
-        await db.documents.create_index([("project_id", 1)])
-        await db.messages.create_index([("project_id", 1), ("created_at", -1)])
-        await db.portal_tokens.create_index("token", unique=True)
-        await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
-        # Notification subsystem
-        await db.notifications.create_index(
-            [("principal_kind", 1), ("principal_id", 1), ("created_at", -1)],
-        )
-        await db.notifications.create_index(
-            [("principal_kind", 1), ("principal_id", 1), ("read_at", 1), ("dismissed_at", 1)],
-        )
-        await db.notification_queue.create_index(
-            [("principal_kind", 1), ("principal_id", 1), ("frequency", 1), ("sent_at", 1)],
-        )
-        await db.notifications_sent.create_index(
-            [("principal_kind", 1), ("principal_id", 1),
-             ("type_key", 1), ("channel", 1), ("dedup_key", 1)],
-            unique=True,
-        )
-        # TTL cleanup for notification subsystem — prevents unbounded growth.
-        # - Inbox items: keep 1 year (plenty for user history, short enough
-        #   that a user can still see old context but we don't hoard forever).
-        # - Dedup ledger: keep 90 days (well past any reasonable re-trigger
-        #   window for cron-driven reminders).
-        # - Queue failures: keep 30 days (digest runs hourly, anything still
-        #   unsent after 30d is lost to ops; leaving it longer just bloats).
-        # Partial filter skips rows without the BSON-Date field (old rows
-        # written before this index existed).
-        ttl_partial_filter = {"created_at_date": {_MONGO_EXISTS: True}}
-        await db.notifications.create_index(
-            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 365,
-            partialFilterExpression=ttl_partial_filter,
-        )
-        await db.notifications_sent.create_index(
-            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 90,
-            partialFilterExpression=ttl_partial_filter,
-        )
-        await db.notification_queue.create_index(
-            "created_at_date", expireAfterSeconds=60 * 60 * 24 * 30,
-            partialFilterExpression=ttl_partial_filter,
-        )
-        logger.info("Ensured indexes on all collections")
-    except Exception as e:
-        logger.warning(f"Failed to create indexes: {e}")
-
-
-async def _seed_default_locations():
-    """Seed default locations if the collection is empty."""
-    try:
-        count = await db.locations.estimated_document_count()
-        if count == 0:
-            default_locations = [
-                {"id": str(uuid.uuid4()), "city_name": "Oskaloosa",
-                 "drive_time_minutes": 75, "latitude": 41.2964,
-                 "longitude": -92.6443, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Grinnell",
-                 "drive_time_minutes": 60, "latitude": 41.7431,
-                 "longitude": -92.7224, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Fort Dodge",
-                 "drive_time_minutes": 105, "latitude": 42.4975,
-                 "longitude": -94.1680, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Carroll",
-                 "drive_time_minutes": 105, "latitude": 42.0664,
-                 "longitude": -94.8669, "created_at": datetime.now(timezone.utc).isoformat()},
-                {"id": str(uuid.uuid4()), "city_name": "Marshalltown",
-                 "drive_time_minutes": 60, "latitude": 42.0492,
-                 "longitude": -92.9080, "created_at": datetime.now(timezone.utc).isoformat()},
-            ]
-            await db.locations.insert_many(default_locations)
-            logger.info("Seeded default locations")
-    except Exception as e:
-        logger.warning(f"Failed to seed data (check MongoDB credentials): {e}")
-
+from core.constants import DEFAULT_REDIS_URL  # noqa: E402
+from app_factory import build_lifespan  # noqa: E402
 
 async def _safe_aclose(redis_client) -> None:
     """Best-effort close of a Redis client. Never raises."""
@@ -341,48 +129,7 @@ async def _probe_redis(app: FastAPI) -> bool:
         return False
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # ---- Startup ----
-    try:
-        await client.admin.command('ping')
-        logger.info("Connected to MongoDB")
-    except Exception as e:
-        logger.error("Failed to connect to MongoDB", exc_info=e)
-        raise
-
-    from startup.migrations import run_startup_migrations
-    await run_startup_migrations(db, logger)
-    from migrations.runner import run_pending as run_pending_migrations
-    try:
-        await run_pending_migrations(db)
-    except Exception as e:
-        logger.error("Migration runner failed; refusing to start", exc_info=e)
-        raise
-    from startup.indexes import ensure_indexes
-    await ensure_indexes(db, logger)
-    from startup.seeds import seed_bootstrap_data
-    await seed_bootstrap_data(db, logger)
-
-    # Initialize a single Redis client for the health check and other
-    # short-lived probes. Reusing one pooled client avoids per-request TLS
-    # handshakes and lazy imports inside the async event loop. If Redis is
-    # down at startup we log a warning and leave ``app.state.redis`` unset;
-    # the health check lazily retries via ``_ensure_redis_client`` on the
-    # next probe so transient boot-time outages heal themselves without a
-    # container restart.
-    app.state.redis = None
-    await _ensure_redis_client(app)
-
-    # Wire the workload cache to pull from app.state.redis on demand, so a
-    # reconnect inside _ensure_redis_client (called from the health probe)
-    # flows through without extra plumbing.
-    from services.workload_cache import set_client_getter as _set_workload_getter
-    _set_workload_getter(lambda: getattr(app.state, "redis", None))
-
-    yield
-
-    # ---- Shutdown ----
+async def _on_shutdown(app: FastAPI):
     from services.calendar_sync import background_tasks as _background_tasks
     if _background_tasks:
         logger.info("Waiting for %d pending calendar tasks to complete...", len(_background_tasks))
@@ -396,6 +143,21 @@ async def lifespan(app: FastAPI):
     _set_workload_getter(None)
     await _safe_aclose(getattr(app.state, "redis", None))
     client.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from services.workload_cache import set_client_getter as _set_workload_getter
+    _set_workload_getter(lambda: getattr(app.state, "redis", None))
+    async with build_lifespan(
+        app=app,
+        client=client,
+        db=db,
+        logger=logger,
+        ensure_redis_client=_ensure_redis_client,
+        on_shutdown=_on_shutdown,
+    ):
+        yield
 
 
 app = FastAPI(
