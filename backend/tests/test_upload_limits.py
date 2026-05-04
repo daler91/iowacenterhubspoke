@@ -31,6 +31,7 @@ from starlette.datastructures import Headers
 
 from core.upload import (
     MAX_UPLOAD_BYTES,
+    _parse_max_upload_bytes,
     stream_upload_to_bytes,
 )
 
@@ -94,3 +95,11 @@ def test_stream_upload_to_bytes_allows_missing_content_type():
     # still allow the upload so long as it stays under the size cap.
     file = _make_upload_file(b"hello", content_type=None)
     assert _run(stream_upload_to_bytes(file)) == b"hello"
+
+
+def test_parse_max_upload_bytes_uses_default_on_invalid_values():
+    default_limit = _parse_max_upload_bytes(None)
+    assert _parse_max_upload_bytes("10MB") == default_limit
+    assert _parse_max_upload_bytes("") == default_limit
+    assert _parse_max_upload_bytes("0") == default_limit
+    assert _parse_max_upload_bytes("-1") == default_limit

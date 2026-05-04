@@ -2,7 +2,20 @@ import os
 import aiofiles
 from fastapi import HTTPException, UploadFile
 
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+_DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _parse_max_upload_bytes(raw_value: str | None) -> int:
+    if raw_value is None:
+        return _DEFAULT_MAX_UPLOAD_BYTES
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_UPLOAD_BYTES
+    return parsed if parsed > 0 else _DEFAULT_MAX_UPLOAD_BYTES
+
+
+MAX_UPLOAD_BYTES = _parse_max_upload_bytes(os.getenv("MAX_UPLOAD_BYTES"))
 _CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 ALLOWED_CONTENT_TYPES = {
