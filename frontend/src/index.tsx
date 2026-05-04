@@ -16,6 +16,14 @@ if (sentryDsn) {
       dsn: sentryDsn,
       environment: import.meta.env.MODE,
       tracesSampleRate: 0.2,
+      beforeSend(event) {
+        if (event.request?.cookies) delete event.request.cookies;
+        if (event.request?.headers) {
+          delete event.request.headers['Authorization'];
+          delete event.request.headers['X-CSRF-Token'];
+        }
+        return event;
+      },
     });
   });
 }

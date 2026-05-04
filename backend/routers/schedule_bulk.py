@@ -83,6 +83,8 @@ async def bulk_delete_schedules(
 async def bulk_update_status(
     request: Request, data: BulkStatusUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     if data.status not in [
         STATUS_UPCOMING,
@@ -174,6 +176,8 @@ async def _check_reassign_conflicts(schedules, employees):
 async def bulk_reassign_schedules(
     request: Request, data: BulkReassignRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     employees_cursor = db.employees.find(
         {"id": {"$in": data.employee_ids}, "deleted_at": None}, {"_id": 0}
@@ -321,6 +325,8 @@ async def _notify_location_changes(
 async def bulk_update_location(
     request: Request, data: BulkLocationUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     location = await db.locations.find_one(
         {"id": data.location_id, "deleted_at": None}, {"_id": 0}
@@ -402,6 +408,8 @@ async def bulk_update_location(
 async def bulk_update_class(
     request: Request, data: BulkClassUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     class_doc = await db.classes.find_one(
         {"id": data.class_id, "deleted_at": None}, {"_id": 0}
