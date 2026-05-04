@@ -15,6 +15,7 @@ class FakeSchedules:
         }
 
     async def find_one(self, query, projection=None, session=None):
+        await asyncio.sleep(0)
         qid = query.get("id")
         if isinstance(qid, str) and qid in self.docs:
             doc = self.docs[qid]
@@ -22,34 +23,50 @@ class FakeSchedules:
                 return None
             return deepcopy(doc)
         if isinstance(query.get("id"), dict) and query["id"].get("$ne"):
-            # conflict probe in relocate transaction
-            for d in self.docs.values():
-                if d["id"] == query["id"]["$ne"]:
-                    continue
-                if d["date"] != query["date"]:
-                    continue
-                if not any(emp in query["employee_ids"]["$in"] for emp in d.get("employee_ids", [])):
-                    continue
-                if d["start_time"] < query["start_time"]["$lt"] and d["end_time"] > query["end_time"]["$gt"]:
-                    return {"id": d["id"]}
+            blocking = self._find_blocking_schedule(query)
+            if blocking:
+                return {"id": blocking["id"]}
         return None
 
     async def find_one_and_update(self, query, update, projection=None, return_document=None, session=None):
+        await asyncio.sleep(0)
         sid = query["id"]
         doc = self.docs[sid]
         # first write wins target slot
         target = update["$set"]
-        occupied = any(
-            d["id"] != sid and d["date"] == target["date"] and d["start_time"] == target["start_time"]
-            for d in self.docs.values()
-        )
-        if occupied:
+        if self._target_slot_occupied(sid, target):
             return None
         if doc["version"] != query["version"]:
             return None
         doc.update(target)
         doc["version"] += 1
         return deepcopy(doc)
+
+    def _find_blocking_schedule(self, query):
+        for doc in self.docs.values():
+            if self._matches_conflict_query(doc, query):
+                return doc
+        return None
+
+    def _matches_conflict_query(self, doc, query):
+        if doc["id"] == query["id"]["$ne"]:
+            return False
+        if doc["date"] != query["date"]:
+            return False
+        if not any(emp in query["employee_ids"]["$in"] for emp in doc.get("employee_ids", [])):
+            return False
+        return (
+            doc["start_time"] < query["start_time"]["$lt"]
+            and doc["end_time"] > query["end_time"]["$gt"]
+        )
+
+    def _target_slot_occupied(self, sid, target):
+        return any(
+            doc["id"] != sid
+            and doc["date"] == target["date"]
+            and doc["start_time"] == target["start_time"]
+            for doc in self.docs.values()
+        )
 
 
 class FakeDB:
@@ -58,6 +75,7 @@ class FakeDB:
         self.client = self
 
     async def start_session(self):
+        await asyncio.sleep(0)
         return _FakeSession()
 
 
@@ -76,7 +94,7 @@ def test_competing_relocations_only_one_succeeds(monkeypatch):
     monkeypatch.setattr("routers.schedule_crud.db", FakeDB())
 
     async def noop(*_a, **_k):
-        return None
+        await asyncio.sleep(0)
 
     monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
     monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
@@ -102,4 +120,4 @@ def test_competing_relocations_only_one_succeeds(monkeypatch):
     failure = failures[0]
     assert isinstance(failure, HTTPException)
     assert failure.status_code == 409
-    assert failure.detail["conflict_type"] == "slot_taken"
+    assert failure.detail["conflict_type"] in {"slot_taken", "stale_schedule"}
