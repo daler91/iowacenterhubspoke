@@ -83,7 +83,7 @@ describe('shouldRedirectOn401', () => {
 
 describe('portal 401 handling', () => {
   it.each([
-    ['/portal/auth/verify/bad-token', true],
+    ['/portal/auth/verify', true],
     ['/api/v1/portal/dashboard', true],
     ['https://www.theiowacenter-hub.org/api/v1/portal/dashboard', true],
     ['/projects/portal-migration', false],
@@ -93,7 +93,7 @@ describe('portal 401 handling', () => {
   });
 
   it('does not attempt cookie refresh for portal bearer-token endpoints', () => {
-    expect(shouldAttemptRefreshOn401('/portal/auth/verify/bad-token')).toBe(false);
+    expect(shouldAttemptRefreshOn401('/portal/auth/verify')).toBe(false);
     expect(shouldAttemptRefreshOn401('/portal/dashboard')).toBe(false);
     expect(shouldAttemptRefreshOn401('/auth/me')).toBe(false);
     expect(shouldAttemptRefreshOn401('/schedules')).toBe(true);

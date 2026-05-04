@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from core.auth import AdminRequired
 from core.logger import get_logger
-from core.portal_auth import validate_portal_token
+from core.portal_auth import PortalContext
 from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
 from database import db
@@ -40,12 +40,11 @@ async def request_magic_link(request: Request, data: PortalAuthRequest):  # NOSO
 
 
 @router.get(
-    "/auth/verify/{token}",
+    "/auth/verify",
     summary="Verify a portal token",
     responses={401: {"description": INVALID_TOKEN}},
 )
-async def verify_token(token: str, request: Request):
-    ctx = await validate_portal_token(token, request=request)
+async def verify_token(ctx: PortalContext):
     return {
         "valid": True,
         "contact": ctx["contact"],
