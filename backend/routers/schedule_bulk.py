@@ -44,10 +44,16 @@ router = APIRouter(tags=["schedules"])
 MAX_BULK_IDS = 500
 
 
-@router.post("/bulk-delete", summary="Bulk delete schedules")
+@router.post(
+    "/bulk-delete",
+    summary="Bulk delete schedules",
+    responses={400: {"model": ErrorResponse, "description": "Too many items"}},
+)
 async def bulk_delete_schedules(
     request: Request, data: BulkDeleteRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     # Snapshot schedules before delete so we can notify each one's employees.
     affected = await db.schedules.find(
