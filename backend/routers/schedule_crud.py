@@ -589,17 +589,29 @@ async def relocate_schedule(
 
     await _check_relocate_conflicts(schedule, data, schedule_id)
 
-    # Optimistic concurrency: the update only succeeds if the schedule is
-    # still anchored at the snapshot we conflict-checked against. A racing
-    # relocate against the same row will see filter-miss and 409.
+    # Optimistic concurrency + conditional relocation: update only if the
+    # schedule is unchanged since our snapshot and there is no live schedule
+    # already occupying the requested slot for any affected employee.
     original_date = schedule.get("date")
     original_start = schedule.get("start_time")
+    original_version = int(schedule.get("version", 0))
+    conflict_predicate = {
+        "id": {"$ne": schedule_id},
+        "deleted_at": None,
+        "date": data.date,
+        "employee_ids": {"$in": schedule.get("employee_ids", [])},
+        "$or": [
+            {"start_time": {"$lt": data.end_time}, "end_time": {"$gt": data.start_time}},
+        ],
+    }
     updated = await db.schedules.find_one_and_update(
         {
             "id": schedule_id,
             "deleted_at": None,
             "date": original_date,
             "start_time": original_start,
+            "version": original_version,
+            "$nor": [conflict_predicate],
         },
         {
             "$set": {
@@ -613,9 +625,34 @@ async def relocate_schedule(
         return_document=ReturnDocument.AFTER,
     )
     if not updated:
+        # Return a deterministic conflict contract so clients can branch on
+        # conflict_type instead of parsing strings.
+        slot_taken = await db.schedules.find_one(conflict_predicate, {"_id": 0, "id": 1})
+        if slot_taken:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "conflict_type": "slot_taken",
+                    "message": "Requested slot is already occupied.",
+                    "blocking_schedule_id": slot_taken.get("id"),
+                },
+            )
+        latest = await db.schedules.find_one(
+            {"id": schedule_id, "deleted_at": None},
+            {"_id": 0, "version": 1, "date": 1, "start_time": 1},
+        )
         raise HTTPException(
             status_code=409,
-            detail="Schedule changed during relocation; please retry.",
+            detail={
+                "conflict_type": "stale_schedule",
+                "message": "Schedule changed during relocation; reload and retry.",
+                "expected": {
+                    "version": original_version,
+                    "date": original_date,
+                    "start_time": original_start,
+                },
+                "actual": latest,
+            },
         )
     logger.info(
         f"Schedule relocated: {schedule_id}",
