@@ -86,11 +86,8 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
     ])
-    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1))
-    fake_repo = SimpleNamespace(
-        find_one_active=find_one_mock,
-        collection=SimpleNamespace(update_one=update_one_mock),
-    )
+    update_one_active_mock = AsyncMock(return_value=(1, 1))
+    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_one_active=update_one_active_mock)
 
     monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
@@ -104,10 +101,9 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
     )
 
     assert updated["visibility"] == "shared"
-    assert update_one_mock.await_args.args[0] == {
+    assert update_one_active_mock.await_args.args[0] == {
         "id": "d1",
         "project_id": "p-1",
-        "deleted_at": None,
     }
 
 
@@ -116,11 +112,8 @@ def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
     ])
-    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1, modified_count=0))
-    fake_repo = SimpleNamespace(
-        find_one_active=find_one_mock,
-        collection=SimpleNamespace(update_one=update_one_mock),
-    )
+    update_one_active_mock = AsyncMock(return_value=(1, 0))
+    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_one_active=update_one_active_mock)
     monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
     updated = _run(
@@ -155,7 +148,11 @@ def test_partner_contact_update_returns_404_if_deleted_mid_flight(monkeypatch):
         "find_one_active",
         AsyncMock(side_effect=[{"id": "c-1", "partner_org_id": "org-1"}, None]),
     )
-    monkeypatch.setattr(partner_orgs.partner_contacts_repo, "update_active", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        partner_orgs.partner_contacts_repo,
+        "update_one_active",
+        AsyncMock(return_value=(1, 1)),
+    )
 
     try:
         _run(
