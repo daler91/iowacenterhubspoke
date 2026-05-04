@@ -41,11 +41,19 @@ from routers.schedule_helpers import (
 
 router = APIRouter(tags=["schedules"])
 
+MAX_BULK_IDS = 500
 
-@router.post("/bulk-delete", summary="Bulk delete schedules")
+
+@router.post(
+    "/bulk-delete",
+    summary="Bulk delete schedules",
+    responses={400: {"model": ErrorResponse, "description": "Too many items"}},
+)
 async def bulk_delete_schedules(
     request: Request, data: BulkDeleteRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     # Snapshot schedules before delete so we can notify each one's employees.
     affected = await db.schedules.find(
@@ -78,11 +86,13 @@ async def bulk_delete_schedules(
 @router.put(
     "/bulk-status",
     summary="Bulk update schedule status",
-    responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
+    responses={400: {"model": ErrorResponse, "description": "Invalid status or too many items"}},
 )
 async def bulk_update_status(
     request: Request, data: BulkStatusUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     if data.status not in [
         STATUS_UPCOMING,
@@ -168,12 +178,15 @@ async def _check_reassign_conflicts(schedules, employees):
     "/bulk-reassign",
     summary="Bulk reassign schedules to another employee",
     responses={
-        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND},
     },
 )
 async def bulk_reassign_schedules(
     request: Request, data: BulkReassignRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     employees_cursor = db.employees.find(
         {"id": {"$in": data.employee_ids}, "deleted_at": None}, {"_id": 0}
@@ -315,12 +328,15 @@ async def _notify_location_changes(
     "/bulk-location",
     summary="Bulk update schedule location",
     responses={
-        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND},
     },
 )
 async def bulk_update_location(
     request: Request, data: BulkLocationUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     location = await db.locations.find_one(
         {"id": data.location_id, "deleted_at": None}, {"_id": 0}
@@ -397,11 +413,16 @@ async def bulk_update_location(
 @router.put(
     "/bulk-class",
     summary="Bulk update schedule class type",
-    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND},
+    },
 )
 async def bulk_update_class(
     request: Request, data: BulkClassUpdateRequest, user: SchedulerRequired
 ):
+    if len(data.ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     class_doc = await db.classes.find_one(
         {"id": data.class_id, "deleted_at": None}, {"_id": 0}

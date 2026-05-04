@@ -333,8 +333,7 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
     )
 
     return {
-        "message": "Portal invite sent" if sent else "Invite created (email delivery pending)",
-        "portal_url": portal_url,
+        "message": "Portal invite sent" if sent else "Invite created (email delivery pending)"
     }
 
 

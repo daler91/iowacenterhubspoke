@@ -26,6 +26,7 @@ projects_repo = SoftDeleteRepository(db, "projects")
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 DOC_NOT_FOUND = "Document not found"
 PROJECT_NOT_FOUND = "Project not found"
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 # Only allow safe characters in file extensions
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
@@ -71,7 +72,10 @@ async def list_documents(
 @router.post(
     "",
     summary="Upload a document",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={
+        404: {"description": PROJECT_NOT_FOUND},
+        413: {"description": "File too large (max 10MB)"},
+    },
 )
 async def upload_document(
     project_id: str,
@@ -82,6 +86,9 @@ async def upload_document(
     project = await projects_repo.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+
+    if file.size and file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     doc_id = str(uuid.uuid4())
