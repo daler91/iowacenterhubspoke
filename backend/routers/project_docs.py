@@ -131,13 +131,18 @@ async def update_visibility(
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     if doc.get("visibility") != data.visibility:
-        result = await documents_repo.collection.update_one(
-            {"id": doc_id, "project_id": project_id, "deleted_at": None},
-            {"$set": {"visibility": data.visibility}},
+        # Keep project scope in the write filter to avoid cross-project writes
+        # if duplicate IDs ever exist. ``matched_count==0`` means the row is no
+        # longer active/scoped; ``modified_count==0`` can still be benign no-op.
+        matched, _ = await documents_repo.update_one_active(
+            {"id": doc_id, "project_id": project_id},
+            {"visibility": data.visibility},
         )
-        if result.matched_count == 0:
+        if matched == 0:
             raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
+    if not updated:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     return updated
 
 

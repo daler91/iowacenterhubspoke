@@ -202,3 +202,21 @@ class SoftDeleteRepository:
             {"$set": dict(fields)},
         )
         return result.modified_count > 0
+
+    async def update_one_active(
+        self,
+        query: Mapping[str, Any],
+        fields: Mapping[str, Any],
+    ) -> tuple[int, int]:
+        """Update one active document matching ``query``.
+
+        Returns ``(matched_count, modified_count)`` so callers can
+        distinguish no-op writes from not-found races.
+        """
+        if not fields:
+            return 0, 0
+        result = await self.collection.update_one(
+            self._with_active_filter(query),
+            {"$set": dict(fields)},
+        )
+        return result.matched_count, result.modified_count

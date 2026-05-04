@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 from types import SimpleNamespace
 
 from core.pagination import PaginationParams
-from routers import partner_orgs, project_docs
+from routers import partner_orgs, project_docs, schedule_bulk
 
 
 def _run(awaitable):
@@ -86,11 +86,8 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
     ])
-    update_one_mock = AsyncMock(return_value=SimpleNamespace(matched_count=1))
-    fake_repo = SimpleNamespace(
-        find_one_active=find_one_mock,
-        collection=SimpleNamespace(update_one=update_one_mock),
-    )
+    update_one_active_mock = AsyncMock(return_value=(1, 1))
+    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_one_active=update_one_active_mock)
 
     monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
@@ -104,8 +101,92 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
     )
 
     assert updated["visibility"] == "shared"
-    assert update_one_mock.await_args.args[0] == {
+    assert update_one_active_mock.await_args.args[0] == {
         "id": "d1",
         "project_id": "p-1",
-        "deleted_at": None,
     }
+
+
+def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
+    find_one_mock = AsyncMock(side_effect=[
+        {"id": "d1", "project_id": "p-1", "visibility": "internal"},
+        {"id": "d1", "project_id": "p-1", "visibility": "shared"},
+    ])
+    update_one_active_mock = AsyncMock(return_value=(1, 0))
+    fake_repo = SimpleNamespace(find_one_active=find_one_mock, update_one_active=update_one_active_mock)
+    monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
+
+    updated = _run(
+        project_docs.update_visibility(
+            "p-1",
+            "d1",
+            data=type("Visibility", (), {"visibility": "shared"})(),
+            user={"name": "Editor"},
+        )
+    )
+
+    assert updated["visibility"] == "shared"
+
+
+def test_partner_org_projects_and_contacts_preserve_totals(monkeypatch):
+    monkeypatch.setattr(partner_orgs.partner_orgs_repo, "get_by_id", AsyncMock(return_value={"id": "org-1"}))
+    monkeypatch.setattr(partner_orgs.projects_repo, "find_active", AsyncMock(return_value=[{"id": "p-1"}]))
+    monkeypatch.setattr(partner_orgs.projects_repo, "count_active", AsyncMock(return_value=3))
+    monkeypatch.setattr(partner_orgs.partner_contacts_repo, "find_active", AsyncMock(return_value=[{"id": "c-1"}]))
+    monkeypatch.setattr(partner_orgs.partner_contacts_repo, "count_active", AsyncMock(return_value=4))
+
+    projects = _run(partner_orgs.list_org_projects("org-1", user={"id": "u"}, limit=20))
+    contacts = _run(partner_orgs.list_contacts("org-1", user={"id": "u"}))
+
+    assert projects["total"] == 3
+    assert contacts["total"] == 4
+
+
+def test_partner_contact_update_returns_404_if_deleted_mid_flight(monkeypatch):
+    monkeypatch.setattr(
+        partner_orgs.partner_contacts_repo,
+        "find_one_active",
+        AsyncMock(side_effect=[{"id": "c-1", "partner_org_id": "org-1"}, None]),
+    )
+    monkeypatch.setattr(
+        partner_orgs.partner_contacts_repo,
+        "update_one_active",
+        AsyncMock(return_value=(1, 1)),
+    )
+
+    try:
+        _run(
+            partner_orgs.update_contact(
+                "org-1",
+                "c-1",
+                data=type("ContactUpdate", (), {"model_dump": lambda self: {"name": "New"}})(),
+                user={"name": "Scheduler"},
+            )
+        )
+        assert False, "Expected HTTPException"
+    except Exception as exc:
+        from fastapi import HTTPException
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 404
+
+
+def test_schedule_bulk_delete_uses_active_snapshot(monkeypatch):
+    monkeypatch.setattr(schedule_bulk, "consume_bulk_credits", AsyncMock(return_value=None))
+    monkeypatch.setattr(schedule_bulk.schedules_repo, "find_active", AsyncMock(return_value=[{"id": "s-1"}]))
+    monkeypatch.setattr(
+        schedule_bulk,
+        "db",
+        SimpleNamespace(
+            schedules=SimpleNamespace(update_many=AsyncMock(return_value=SimpleNamespace(modified_count=1)))
+        ),
+    )
+    monkeypatch.setattr(schedule_bulk, "log_activity", AsyncMock(return_value=None))
+    monkeypatch.setattr(schedule_bulk, "notify_schedule_changed", AsyncMock(return_value=None))
+    monkeypatch.setattr(schedule_bulk, "invalidate_workload_cache", AsyncMock(return_value=None))
+
+    res = _run(
+        schedule_bulk.bulk_delete_schedules(
+            request=SimpleNamespace(), data=SimpleNamespace(ids=["s-1"]), user={"name": "Scheduler"},
+        )
+    )
+    assert res["deleted_count"] == 1
