@@ -19,6 +19,8 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/partner-orgs", tags=["partner-orgs"])
 partner_orgs_repo = SoftDeleteRepository(db, "partner_orgs")
 partner_contacts_repo = SoftDeleteRepository(db, "partner_contacts")
+projects_repo = SoftDeleteRepository(db, "projects")
+tasks_repo = SoftDeleteRepository(db, "tasks")
 
 ORG_NOT_FOUND = "Partner organization not found"
 CONTACT_NOT_FOUND = "Contact not found"
@@ -190,17 +192,16 @@ async def list_org_projects(
     list. Caller-supplied ``limit`` is clamped to [1, 100].
     """
     limit = max(1, min(limit, 100))
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-    projects = (
-        await db.projects.find(
-            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0},
-        )
-        .sort("event_date", -1)
-        .to_list(limit)
+    projects = await projects_repo.find_active(
+        {"partner_org_id": org_id},
+        sort=[("event_date", -1)],
+        limit=limit,
     )
-    return {"items": projects, "total": len(projects)}
+    total = await projects_repo.count_active({"partner_org_id": org_id})
+    return {"items": projects, "total": total}
 
 
 # ── Contacts ──────────────────────────────────────────────────────────
@@ -212,13 +213,12 @@ async def list_org_projects(
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def list_contacts(org_id: str, user: CurrentUser):
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
-    contacts = await db.partner_contacts.find(
-        {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-    ).to_list(200)
-    return {"items": contacts, "total": len(contacts)}
+    contacts = await partner_contacts_repo.find_active({"partner_org_id": org_id}, limit=200)
+    total = await partner_contacts_repo.count_active({"partner_org_id": org_id})
+    return {"items": contacts, "total": total}
 
 
 @router.post(
@@ -227,7 +227,7 @@ async def list_contacts(org_id: str, user: CurrentUser):
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def create_contact(org_id: str, data: PartnerContactCreate, user: SchedulerRequired):
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None})
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
     contact_id = str(uuid.uuid4())
@@ -264,13 +264,15 @@ async def update_contact(org_id: str, contact_id: str, data: PartnerContactUpdat
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
-    result = await db.partner_contacts.update_one(
-        {"id": contact_id, "partner_org_id": org_id, "deleted_at": None},
-        {"$set": update_data},
+    contact = await partner_contacts_repo.find_one_active(
+        {"id": contact_id, "partner_org_id": org_id},
     )
-    if result.matched_count == 0:
+    if not contact:
         raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
-    updated = await db.partner_contacts.find_one({"id": contact_id}, {"_id": 0})
+    await partner_contacts_repo.update_active(contact_id, update_data)
+    updated = await partner_contacts_repo.find_one_active(
+        {"id": contact_id, "partner_org_id": org_id},
+    )
     return updated
 
 
@@ -286,12 +288,12 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
         send_portal_invite as send_invite_email,
     )
 
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
 
-    contact = await db.partner_contacts.find_one(
-        {"id": contact_id, "partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+    contact = await partner_contacts_repo.find_one_active(
+        {"id": contact_id, "partner_org_id": org_id},
     )
     if not contact:
         raise HTTPException(status_code=404, detail=CONTACT_NOT_FOUND)
@@ -346,13 +348,11 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
     responses={404: {"description": ORG_NOT_FOUND}},
 )
 async def get_partner_health(org_id: str, user: CurrentUser):
-    org = await db.partner_orgs.find_one({"id": org_id, "deleted_at": None}, {"_id": 0})
+    org = await partner_orgs_repo.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=ORG_NOT_FOUND)
 
-    projects = await db.projects.find(
-        {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
-    ).to_list(500)
+    projects = await projects_repo.find_active({"partner_org_id": org_id}, limit=500)
     project_ids = [p["id"] for p in projects]
 
     total_tasks = 0
@@ -360,10 +360,7 @@ async def get_partner_health(org_id: str, user: CurrentUser):
     last_active = None
 
     if project_ids:
-        tasks = await db.tasks.find(
-            {"project_id": {"$in": project_ids}, "deleted_at": None},
-            {"_id": 0},
-        ).to_list(5000)
+        tasks = await tasks_repo.find_active({"project_id": {"$in": project_ids}}, limit=5000)
         total_tasks = len(tasks)
         completed_tasks = sum(1 for t in tasks if t.get("completed"))
         completed_dates = [t["completed_at"] for t in tasks if t.get("completed_at")]

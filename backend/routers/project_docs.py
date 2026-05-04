@@ -131,11 +131,10 @@ async def update_visibility(
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     if doc.get("visibility") != data.visibility:
-        result = await documents_repo.collection.update_one(
-            {"id": doc_id, "project_id": project_id, "deleted_at": None},
-            {"$set": {"visibility": data.visibility}},
+        updated_ok = await documents_repo.update_active(
+            doc_id, {"visibility": data.visibility}
         )
-        if result.matched_count == 0:
+        if not updated_ok:
             raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     return updated

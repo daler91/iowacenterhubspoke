@@ -15,6 +15,7 @@ from models.schemas import (
     ErrorResponse,
 )
 from core.auth import SchedulerRequired
+from core.repository import SoftDeleteRepository
 from core.rate_limit import consume_bulk_credits
 from services.activity import log_activity
 from services.notification_events import (
@@ -40,6 +41,8 @@ from routers.schedule_helpers import (
 )
 
 router = APIRouter(tags=["schedules"])
+schedules_repo = SoftDeleteRepository(db, "schedules")
+employees_repo = SoftDeleteRepository(db, "employees")
 
 MAX_BULK_IDS = 500
 
@@ -56,9 +59,10 @@ async def bulk_delete_schedules(
         raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
     # Snapshot schedules before delete so we can notify each one's employees.
-    affected = await db.schedules.find(
-        {"id": {"$in": data.ids}, "deleted_at": None}, {"_id": 0},
-    ).to_list(1000)
+    affected = await schedules_repo.find_active(
+        {"id": {"$in": data.ids}},
+        limit=1000,
+    )
     now = datetime.now(timezone.utc).isoformat()
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
@@ -102,10 +106,10 @@ async def bulk_update_status(
         raise HTTPException(status_code=400, detail="Invalid status")
     # Snapshot affected schedules before the update so we can notify each
     # schedule's employees. Only includes not-already-in-this-status rows.
-    affected = await db.schedules.find(
-        {"id": {"$in": data.ids}, "deleted_at": None, "status": {"$ne": data.status}},
-        {"_id": 0},
-    ).to_list(1000)
+    affected = await schedules_repo.find_active(
+        {"id": {"$in": data.ids}, "status": {"$ne": data.status}},
+        limit=1000,
+    )
     result = await db.schedules.update_many(
         {"id": {"$in": data.ids}, "deleted_at": None},
         {"$set": {"status": data.status}, "$inc": {"version": 1}},
@@ -188,10 +192,10 @@ async def bulk_reassign_schedules(
     if len(data.ids) > MAX_BULK_IDS:
         raise HTTPException(status_code=400, detail=f"Cannot process more than {MAX_BULK_IDS} items at once")
     await consume_bulk_credits(request, len(data.ids))
-    employees_cursor = db.employees.find(
-        {"id": {"$in": data.employee_ids}, "deleted_at": None}, {"_id": 0}
+    employees = await employees_repo.find_active(
+        {"id": {"$in": data.employee_ids}},
+        limit=len(data.employee_ids),
     )
-    employees = await employees_cursor.to_list(length=len(data.employee_ids))
     if len(employees) != len(data.employee_ids):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
@@ -200,11 +204,12 @@ async def bulk_reassign_schedules(
     names = ", ".join(e["name"] for e in employees)
 
     # Pre-flight conflict check for new employees
-    schedules = await db.schedules.find(
-        {"id": {"$in": data.ids}, "deleted_at": None},
+    schedules = await schedules_repo.find_active(
+        {"id": {"$in": data.ids}},
         {"_id": 0, "id": 1, "date": 1, "start_time": 1, "end_time": 1,
          "drive_time_minutes": 1, "employee_ids": 1},
-    ).to_list(200)
+        limit=200,
+    )
 
     conflict_preview = await _check_reassign_conflicts(schedules, employees)
 
