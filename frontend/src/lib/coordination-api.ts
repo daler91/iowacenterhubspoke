@@ -160,7 +160,7 @@ function portalHeaders(token: string) {
 
 export const portalAPI = {
   requestLink: (email: string) => api.post('/portal/auth/request-link', { email }),
-  verify: (token: string) => api.get(`/portal/auth/verify/${token}`),
+  verify: (token: string) => api.get('/portal/auth/verify', portalHeaders(token)),
   dashboard: (token: string) => api.get('/portal/dashboard', portalHeaders(token)),
   projects: (token: string) => api.get('/portal/projects', portalHeaders(token)),
   projectTasks: (projectId: string, token: string) =>

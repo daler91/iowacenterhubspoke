@@ -169,7 +169,7 @@ export default function PortalProjectDetail() {
   return (
     <PortalLayout org={org} contact={contact} activeTab="overview" onTabChange={() => {}} token={token}>
       <div className="space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/portal/${token}`)}>Back to dashboard</Button>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/portal')}>Back to dashboard</Button>
 
         <Card className="p-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">

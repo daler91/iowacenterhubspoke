@@ -199,7 +199,9 @@ function AppRoutes() {
               </RouteBoundary>
             } />
           </Route>
+          <Route path="/portal" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/projects/:projectId" element={<RouteBoundary><PortalProjectDetail /></RouteBoundary>} />
           <Route path="/portal/:token/projects/:projectId" element={<RouteBoundary><PortalProjectDetail /></RouteBoundary>} />
           <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />
         </Routes>
