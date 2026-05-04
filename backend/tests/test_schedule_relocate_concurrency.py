@@ -14,21 +14,27 @@ class FakeSchedules:
             "s-2": {"id": "s-2", "deleted_at": None, "date": "2026-06-01", "start_time": "11:00", "end_time": "12:00", "version": 1, "employee_ids": ["e-1"], "location_name": "B"},
         }
 
-    async def find_one(self, query, projection=None):
+    async def find_one(self, query, projection=None, session=None):
         qid = query.get("id")
         if isinstance(qid, str) and qid in self.docs:
             doc = self.docs[qid]
             if query.get("date") and doc.get("date") != query["date"]:
                 return None
             return deepcopy(doc)
-        if query.get("id", {}).get("$ne"):
-            # conflict probe after failed update: return current occupant
+        if isinstance(query.get("id"), dict) and query["id"].get("$ne"):
+            # conflict probe in relocate transaction
             for d in self.docs.values():
-                if d["date"] == query["date"] and d["start_time"] < query["$or"][0]["start_time"]["$lt"] and d["end_time"] > query["$or"][0]["end_time"]["$gt"]:
+                if d["id"] == query["id"]["$ne"]:
+                    continue
+                if d["date"] != query["date"]:
+                    continue
+                if not any(emp in query["employee_ids"]["$in"] for emp in d.get("employee_ids", [])):
+                    continue
+                if d["start_time"] < query["start_time"]["$lt"] and d["end_time"] > query["end_time"]["$gt"]:
                     return {"id": d["id"]}
         return None
 
-    async def find_one_and_update(self, query, update, projection=None, return_document=None):
+    async def find_one_and_update(self, query, update, projection=None, return_document=None, session=None):
         sid = query["id"]
         doc = self.docs[sid]
         # first write wins target slot
@@ -49,6 +55,21 @@ class FakeSchedules:
 class FakeDB:
     def __init__(self):
         self.schedules = FakeSchedules()
+        self.client = self
+
+    async def start_session(self):
+        return _FakeSession()
+
+
+class _FakeSession:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    def start_transaction(self):
+        return self
 
 
 def test_competing_relocations_only_one_succeeds(monkeypatch):
