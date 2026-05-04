@@ -15,6 +15,10 @@ from core.token_vault import decrypt_token
 
 logger = get_logger(__name__)
 
+ALLOWED_WEBHOOK_SCHEMES = {"https"}
+WEBHOOK_TIMEOUT_SECONDS = 10.0
+WEBHOOK_MAX_RESPONSE_BYTES = 64 * 1024
+
 
 def _safe_sub_id(sid: str) -> str:
     """Return a canonical UUID string for logging, or a placeholder if invalid."""
@@ -24,19 +28,83 @@ def _safe_sub_id(sid: str) -> str:
         return "invalid-id"
 
 
+def _is_denied_webhook_ip(ip: ipaddress._BaseAddress) -> bool:
+    """Return True when an IP falls inside denied SSRF-sensitive ranges."""
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        return True
+    if ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+        return True
+    if isinstance(ip, ipaddress.IPv4Address) and ip in ipaddress.ip_network("100.64.0.0/10"):
+        return True
+    return False
+
+
+def _resolve_hostname_ips(hostname: str) -> list[ipaddress._BaseAddress]:
+    """Resolve all IPs for a hostname across address families."""
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname") from exc
+
+    ips: list[ipaddress._BaseAddress] = []
+    for info in addr_infos:
+        sockaddr = info[4]
+        if not sockaddr:
+            continue
+        raw_ip = sockaddr[0]
+        try:
+            ips.append(ipaddress.ip_address(raw_ip))
+        except ValueError:
+            continue
+    if not ips:
+        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname")
+    return ips
+
+
 def validate_webhook_url(url: str) -> None:
-    """Validate that a webhook URL is HTTPS and does not target private networks."""
+    """Validate HTTPS webhook URL and block internal/unsafe destinations."""
     parsed = urlparse(url)
-    if parsed.scheme != "https":
+    if parsed.scheme.lower() not in ALLOWED_WEBHOOK_SCHEMES:
         raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
     if not parsed.hostname:
         raise HTTPException(status_code=400, detail="Invalid webhook URL")
-    try:
-        ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
-    except (socket.gaierror, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Cannot resolve webhook URL hostname") from exc
-    if ip.is_private or ip.is_loopback or ip.is_link_local:
-        raise HTTPException(status_code=400, detail="Webhook URL must not target private/internal networks")
+
+    for ip in _resolve_hostname_ips(parsed.hostname):
+        if _is_denied_webhook_ip(ip):
+            raise HTTPException(status_code=400, detail="Webhook URL must not target private/internal networks")
+
+
+def _validate_response_location(location: str) -> None:
+    """Validate any redirect target location before following it."""
+    parsed = urlparse(location)
+    if not parsed.scheme or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Webhook redirect target must be an absolute HTTPS URL")
+    if parsed.scheme.lower() not in ALLOWED_WEBHOOK_SCHEMES:
+        raise HTTPException(status_code=400, detail="Webhook redirect target must use HTTPS")
+    for ip in _resolve_hostname_ips(parsed.hostname):
+        if _is_denied_webhook_ip(ip):
+            raise HTTPException(status_code=400, detail="Webhook redirect target is blocked")
+
+
+def _validate_redirect_target(resp) -> None:
+    location = resp.headers.get("location")
+    if not location:
+        return
+    _validate_response_location(location)
+
+
+def _truncate_response(content: bytes) -> str:
+    return content[:WEBHOOK_MAX_RESPONSE_BYTES].decode("utf-8", errors="replace")
+
+
+def _default_timeout():
+    import httpx
+    return httpx.Timeout(connect=WEBHOOK_TIMEOUT_SECONDS, read=WEBHOOK_TIMEOUT_SECONDS, write=WEBHOOK_TIMEOUT_SECONDS, pool=WEBHOOK_TIMEOUT_SECONDS)
+
+
+def _default_limits():
+    import httpx
+    return httpx.Limits(max_keepalive_connections=10, max_connections=20)
 
 
 async def fire_webhook_event(event: str, payload: dict):
@@ -107,7 +175,11 @@ async def deliver_webhook(
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(
+            timeout=_default_timeout(),
+            limits=_default_limits(),
+            follow_redirects=False,
+        ) as client:
             resp = await client.post(
                 url,
                 content=body,
@@ -117,6 +189,9 @@ async def deliver_webhook(
                     "X-Webhook-Event": event,
                 },
             )
+            if 300 <= resp.status_code < 400:
+                _validate_redirect_target(resp)
+            response_content = await resp.aread()
         duration = int((time.monotonic() - start) * 1000)
         success = 200 <= resp.status_code < 300
 
@@ -126,7 +201,7 @@ async def deliver_webhook(
             "event": event,
             "payload": payload,
             "status_code": resp.status_code,
-            "response_body": resp.text[:500],
+            "response_body": _truncate_response(response_content),
             "success": success,
             "error": None,
             "sent_at": now,
