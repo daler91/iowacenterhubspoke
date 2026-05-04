@@ -72,7 +72,10 @@ async def list_documents(
 @router.post(
     "",
     summary="Upload a document",
-    responses={404: {"description": PROJECT_NOT_FOUND}},
+    responses={
+        404: {"description": PROJECT_NOT_FOUND},
+        413: {"description": "File too large (max 10MB)"},
+    },
 )
 async def upload_document(
     project_id: str,

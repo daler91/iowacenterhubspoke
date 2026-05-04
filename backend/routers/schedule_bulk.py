@@ -41,6 +41,8 @@ from routers.schedule_helpers import (
 
 router = APIRouter(tags=["schedules"])
 
+MAX_BULK_IDS = 500
+
 
 @router.post("/bulk-delete", summary="Bulk delete schedules")
 async def bulk_delete_schedules(
@@ -78,7 +80,7 @@ async def bulk_delete_schedules(
 @router.put(
     "/bulk-status",
     summary="Bulk update schedule status",
-    responses={400: {"model": ErrorResponse, "description": "Invalid status"}},
+    responses={400: {"model": ErrorResponse, "description": "Invalid status or too many items"}},
 )
 async def bulk_update_status(
     request: Request, data: BulkStatusUpdateRequest, user: SchedulerRequired
@@ -170,7 +172,8 @@ async def _check_reassign_conflicts(schedules, employees):
     "/bulk-reassign",
     summary="Bulk reassign schedules to another employee",
     responses={
-        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND},
     },
 )
 async def bulk_reassign_schedules(
@@ -319,7 +322,8 @@ async def _notify_location_changes(
     "/bulk-location",
     summary="Bulk update schedule location",
     responses={
-        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND},
     },
 )
 async def bulk_update_location(
@@ -403,7 +407,10 @@ async def bulk_update_location(
 @router.put(
     "/bulk-class",
     summary="Bulk update schedule class type",
-    responses={404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Too many items"},
+        404: {"model": ErrorResponse, "description": CLASS_NOT_FOUND},
+    },
 )
 async def bulk_update_class(
     request: Request, data: BulkClassUpdateRequest, user: SchedulerRequired
