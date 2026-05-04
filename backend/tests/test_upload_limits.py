@@ -69,8 +69,21 @@ def test_stream_upload_to_bytes_rejects_oversized_payload():
     assert exc.value.status_code == 413
 
 
+def test_stream_upload_to_bytes_accepts_payload_at_exact_cap():
+    exact = b"x" * MAX_UPLOAD_BYTES
+    file = _make_upload_file(exact)
+    assert _run(stream_upload_to_bytes(file)) == exact
+
+
 def test_stream_upload_to_bytes_rejects_disallowed_content_type():
     file = _make_upload_file(b"anything", content_type="application/x-msdownload")
+    with pytest.raises(HTTPException) as exc:
+        _run(stream_upload_to_bytes(file))
+    assert exc.value.status_code == 400
+
+
+def test_stream_upload_to_bytes_rejects_malformed_content_type():
+    file = _make_upload_file(b"anything", content_type="not/a-real/type; boundary")
     with pytest.raises(HTTPException) as exc:
         _run(stream_upload_to_bytes(file))
     assert exc.value.status_code == 400
