@@ -5,6 +5,7 @@ import App from "@/App";
 import { isChunkLoadError, reloadOnceForStaleChunk } from "@/lib/chunkError";
 import {
   CONSENT_CHANGED_EVENT,
+  hasAnalyticsConsent,
   initPostHogIfConsented,
 } from "@/lib/consent";
 
@@ -37,6 +38,7 @@ if (sentryDsn) {
 // for main-thread time; falls back to a short setTimeout on browsers without
 // requestIdleCallback (Safari < 17).
 const bootAnalytics = () => {
+  if (!hasAnalyticsConsent()) return;
   initPostHogIfConsented();
   if (globalThis.window !== undefined) {
     globalThis.addEventListener(CONSENT_CHANGED_EVENT, () => {
