@@ -99,7 +99,12 @@ def _truncate_response(content: bytes) -> str:
 
 def _default_timeout():
     import httpx
-    return httpx.Timeout(connect=WEBHOOK_TIMEOUT_SECONDS, read=WEBHOOK_TIMEOUT_SECONDS, write=WEBHOOK_TIMEOUT_SECONDS, pool=WEBHOOK_TIMEOUT_SECONDS)
+    return httpx.Timeout(
+        connect=WEBHOOK_TIMEOUT_SECONDS,
+        read=WEBHOOK_TIMEOUT_SECONDS,
+        write=WEBHOOK_TIMEOUT_SECONDS,
+        pool=WEBHOOK_TIMEOUT_SECONDS,
+    )
 
 
 def _default_limits():
