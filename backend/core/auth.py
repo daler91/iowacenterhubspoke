@@ -200,9 +200,10 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     # Session invalidation: reject tokens with stale password-version claims
     # or belonging to a soft-deleted user account.
     token_pwdv = int(payload.get('pwdv', 0))
-    current_pwdv, is_deleted = await _get_pwd_version(payload['user_id'])
+    changed_marker, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
     if is_deleted:
         raise HTTPException(status_code=401, detail='Account deactivated')
+    current_pwdv = int(changed_marker or 0)
     if token_pwdv < current_pwdv:
         raise HTTPException(
             status_code=401,
@@ -307,6 +308,8 @@ async def _get_pwd_version(user_id: str) -> tuple[int, bool]:
 async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
     """Backward-compatible shim for older tests/patches."""
     pwdv, is_deleted = await _get_pwd_version(user_id)
+    if pwdv <= 0:
+        return None, is_deleted
     return float(pwdv), is_deleted
 
 
