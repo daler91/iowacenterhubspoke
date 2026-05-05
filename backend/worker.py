@@ -107,112 +107,11 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     return schedules_by_date, loc_map
 
 
-async def _enqueue_outlook_events(ctx, created, employees, class_doc, location):
-    from core.outlook_config import OUTLOOK_CALENDAR_ENABLED
-    if not OUTLOOK_CALENDAR_ENABLED:
-        return
-    for employee in employees:
-        if not employee.get('email'):
-            continue
-        for doc in created:
-            try:
-                pool = ctx.get('redis')
-                if not pool:
-                    continue
-                subject = f"{class_doc['name'] if class_doc else 'Class'} - {location['city_name']}"
-                await pool.enqueue_job(
-                    "create_outlook_event",
-                    schedule_id=doc['id'],
-                    email=employee['email'],
-                    subject=subject,
-                    location_name=location['city_name'],
-                    date=doc['date'],
-                    start_time=doc['start_time'],
-                    end_time=doc['end_time'],
-                    notes=doc.get('notes', ''),
-                    employee_id=employee['id'],
-                )
-            except (OSError, RuntimeError) as exc:
-                logger.exception("Failed to enqueue Outlook event for schedule %s: %s", doc['id'], exc)
+async def _enqueue_calendar_events(created, employees, class_doc, location):
+    from services.calendar_sync import enqueue_calendar_events_for_all
 
-
-def _add_minutes(time_str: str, minutes: int) -> str:
-    h, m = map(int, time_str.split(":"))
-    total = h * 60 + m + minutes
-    return f"{(total // 60) % 24:02d}:{total % 60:02d}"
-
-
-def _subtract_minutes(time_str: str, minutes: int) -> str:
-    h, m = map(int, time_str.split(":"))
-    total = max(0, h * 60 + m - minutes)
-    return f"{total // 60:02d}:{total % 60:02d}"
-
-
-async def _create_google_events_for_doc(employee, doc, city, subject):
-    """Create drive-to, class, and drive-from Google Calendar events for one schedule doc."""
-    from database import db as _db
-    from services.google_calendar import create_google_event as _create
-
-    google_email = employee.get('google_calendar_email') or employee['email']
-    event_ids = []
-    drive_to = doc.get("drive_to_override_minutes") or doc.get("drive_time_minutes") or 0
-    drive_from = doc.get("drive_from_override_minutes") or doc.get("drive_time_minutes") or 0
-
-    if drive_to > 0:
-        dt_start = _subtract_minutes(doc['start_time'], drive_to)
-        eid = await _create(
-            google_email, f"Drive to {city} ({drive_to} min)",
-            city, doc['date'], dt_start, doc['start_time'], None, employee=employee,
-        )
-        if eid:
-            event_ids.append(eid)
-
-    eid = await _create(
-        google_email, subject, city,
-        doc['date'], doc['start_time'], doc['end_time'],
-        doc.get('notes') or None, employee=employee,
-    )
-    if eid:
-        event_ids.append(eid)
-
-    if drive_from > 0:
-        df_end = _add_minutes(doc['end_time'], drive_from)
-        eid = await _create(
-            google_email, f"Drive from {city} ({drive_from} min)",
-            city, doc['date'], doc['end_time'], df_end, None, employee=employee,
-        )
-        if eid:
-            event_ids.append(eid)
-
-    if event_ids:
-        cal_data = {
-            "google_calendar_event_id": event_ids[0],
-            "google_calendar_event_ids": event_ids,
-        }
-        await _db.schedules.update_one(
-            {"id": doc['id']},
-            {"$set": {f"calendar_events.{employee['id']}": cal_data}},
-        )
-
-
-async def _enqueue_google_events(created, employees, class_doc, location):
-    from core.google_config import GOOGLE_CALENDAR_ENABLED
-    if not GOOGLE_CALENDAR_ENABLED:
-        return
-    city = location['city_name']
-    class_name = class_doc['name'] if class_doc else 'Class'
-    subject = f"{class_name} - {city}"
-    for employee in employees:
-        if not employee.get('google_calendar_connected'):
-            continue
-        for doc in created:
-            try:
-                await _create_google_events_for_doc(employee, doc, city, subject)
-            except Exception:
-                logger.exception(
-                    "Failed to create Google Calendar events for schedule %s",
-                    doc['id'],
-                )
+    for doc in created:
+        enqueue_calendar_events_for_all(employees, location, class_doc, doc)
 
 
 async def _log_bulk_creation(log_activity, created, employees, location, class_doc, dates_to_schedule, user_name):
@@ -295,8 +194,7 @@ async def generate_bulk_schedules(
     if created:
         await _log_bulk_creation(log_activity, created, employees, location, class_doc, dates_to_schedule, user_name)
 
-    await _enqueue_outlook_events(ctx, created, employees, class_doc, location)
-    await _enqueue_google_events(created, employees, class_doc, location)
+    await _enqueue_calendar_events(created, employees, class_doc, location)
 
     # The router that enqueued this job already invalidated the workload
     # cache, but that happened BEFORE insert_many ran. Any /workload read
