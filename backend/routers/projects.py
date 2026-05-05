@@ -70,6 +70,25 @@ _CLASS_ID_FIELD = "$class_id"
 _SCHEDULE_LIST_LIMIT_MAX = project_queries.LIST_LIMIT_MAX
 
 
+def _clamp_limit(value: int, max_value: int) -> int:
+    """Backward-compatible wrapper for legacy test/import callers."""
+    return project_queries.clamp_limit(value, max_value)
+
+
+async def _build_task_stats(project_ids: list[str]) -> dict:
+    """Backward-compatible wrapper returning legacy dict payload."""
+    project_queries.db = db
+    stats = await project_queries._build_task_stats(project_ids)
+    return {
+        project_id: {
+            "total": dto.total,
+            "completed": dto.completed,
+            "partner_overdue": dto.partner_overdue,
+        }
+        for project_id, dto in stats.items()
+    }
+
+
 def _phase_match(phase: str) -> dict:
     """Build the phase predicate for a single board column.
 
