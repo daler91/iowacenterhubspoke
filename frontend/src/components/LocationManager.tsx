@@ -16,6 +16,7 @@ import PlacesAutocomplete from './PlacesAutocomplete';
 import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
 import LocationProfile from './LocationProfile';
+import { useLocationDriveTime } from '../features/manager/hooks';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -119,7 +120,7 @@ export default function LocationManager() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
-  const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const { calculatingDrive, autoFillDriveTime } = useLocationDriveTime(setForm);
   const [driveTimeTouched, setDriveTimeTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -143,20 +144,8 @@ export default function LocationManager() {
     // Distance Matrix down, no API key, etc.) drop in a conservative
     // default so the form is still submittable — users frequently miss
     // the toast, then hit "save" and bounce off backend validation.
-    setCalculatingDrive(true);
-    try {
-      const res = await locationsAPI.getDriveTimeFromHub(latitude, longitude);
-      setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
-    } catch {
-      const FALLBACK_DRIVE_MINUTES = '15';
-      setForm(prev => ({ ...prev, drive_time_minutes: FALLBACK_DRIVE_MINUTES }));
-      toast.warning(
-        `Drive time auto-calc failed. Using ${FALLBACK_DRIVE_MINUTES} min estimate — adjust manually if needed.`,
-      );
-    } finally {
-      setCalculatingDrive(false);
-    }
-  }, [driveTimeTouched]);
+    await autoFillDriveTime(latitude, longitude);
+  }, [autoFillDriveTime, driveTimeTouched]);
 
   const openNew = () => {
     setEditing(null);
@@ -501,4 +490,3 @@ export default function LocationManager() {
     </PageShell>
   );
 }
-
