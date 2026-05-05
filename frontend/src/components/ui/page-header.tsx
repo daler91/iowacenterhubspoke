@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { PageBreadcrumb } from './page-breadcrumb';
 
@@ -30,14 +30,19 @@ export function PageHeader({
   actions,
   className,
 }: PageHeaderProps) {
+  const headingId = useId();
   return (
-    <div className={cn('space-y-2', className)} data-testid="page-header">
+    <header
+      className={cn('space-y-2', className)}
+      data-testid="page-header"
+      aria-labelledby={headingId}
+    >
       {breadcrumbs && breadcrumbs.length > 0 && (
         <PageBreadcrumb segments={breadcrumbs} />
       )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-foreground dark:text-white">
+          <h1 id={headingId} className="text-2xl font-bold text-foreground dark:text-white">
             {title}
           </h1>
           {subtitle && (
@@ -50,7 +55,7 @@ export function PageHeader({
           <div className="flex items-center gap-2 shrink-0">{actions}</div>
         )}
       </div>
-    </div>
+    </header>
   );
 }
 
