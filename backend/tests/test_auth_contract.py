@@ -140,9 +140,9 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
 
     invalidate_calls = []
 
-    async def _invalidate(uid):
+    async def _invalidate(uid, **kwargs):
         await asyncio.sleep(0)
-        invalidate_calls.append(uid)
+        invalidate_calls.append((uid, kwargs))
 
     monkeypatch.setattr(auth, "invalidate_pwd_cache", _invalidate)
 
@@ -152,7 +152,7 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
     reset_res = asyncio.run(auth.reset_password.__wrapped__(Request({"type": "http", "method": "POST", "path": "/api/auth/reset-password", "headers": []}), auth.ResetPasswordRequest(token="t1", new_password="new-passphrase-123")))  # noqa: S106
     assert reset_res == {"message": "Password reset successful"}
     assert db.users.rows[0]["password_hash"] == "hashed:new-passphrase-123"
-    assert invalidate_calls == ["u1"]
+    assert invalidate_calls == [("u1", {"pwd_version": 1})]
 
     # simulate multi-worker cache coherence via explicit invalidation on password_change
     current = {"user_id": "u1", "email": "u@example.com", "name": "User", "role": "viewer"}
@@ -167,4 +167,4 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
     assert change_res == {
         "message": "Password changed successfully. All other sessions have been invalidated."
     }
-    assert invalidate_calls == ["u1", "u1"]
+    assert invalidate_calls == [("u1", {"pwd_version": 1}), ("u1", {"pwd_version": 2})]

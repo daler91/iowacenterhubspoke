@@ -114,7 +114,9 @@ REFRESH_TOKEN_LIFETIME_SECONDS = int(
 )
 
 
-def create_token(user_id: str, email: str, name: str, role: str = '', iat: float = None) -> str:
+def create_token(
+    user_id: str, email: str, name: str, role: str = '', iat: float = None, pwdv: int = 0
+) -> str:
     import uuid as _uuid
     now_ts = int(datetime.now(timezone.utc).timestamp())
     payload = {
@@ -126,6 +128,7 @@ def create_token(user_id: str, email: str, name: str, role: str = '', iat: float
         'iat': int(iat or now_ts),
         'exp': now_ts + TOKEN_LIFETIME_SECONDS,
         'typ': 'access',
+        'pwdv': int(pwdv or 0),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -194,13 +197,14 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     if payload.get('typ') != 'access':
         raise HTTPException(status_code=401, detail='Invalid token type')
 
-    # Session invalidation: reject tokens issued before a password change
+    # Session invalidation: reject tokens with stale password-version claims
     # or belonging to a soft-deleted user account.
-    token_iat = payload.get('iat', 0)
-    changed_ts, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
+    token_pwdv = int(payload.get('pwdv', 0))
+    changed_marker, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
     if is_deleted:
         raise HTTPException(status_code=401, detail='Account deactivated')
-    if token_iat and changed_ts and token_iat < changed_ts:
+    current_pwdv = int(changed_marker or 0)
+    if token_pwdv < current_pwdv:
         raise HTTPException(
             status_code=401,
             detail='Session invalidated by password change. Please log in again.'
@@ -217,15 +221,15 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
 # is capped at ``_PWD_CACHE_TTL`` seconds. Redis is best-effort: if the
 # cluster is down we still serve from Mongo and degrade to the L1-only
 # behavior.
-_pwd_change_cache: dict[str, tuple[float, float | None, bool]] = {}  # user_id -> (cached_at, changed_ts, is_deleted)
+_pwd_change_cache: dict[str, tuple[float, int, bool]] = {}  # user_id -> (cached_at, pwdv, is_deleted)
 _PWD_CACHE_TTL = 30  # seconds; short enough that cross-worker staleness is bounded
 _REDIS_MARKER_TTL = 900  # seconds; long enough to outlive the longest expected L1 gap
-_REDIS_CHANGED_PREFIX = "auth:pwd_changed:"
+_REDIS_VERSION_PREFIX = "auth:pwdv:"
 _REDIS_DELETED_PREFIX = "auth:user_deleted:"
 
 
-async def _read_redis_markers(user_id: str) -> tuple[float | None, bool | None]:
-    """Return (changed_ts, is_deleted) from Redis, or (None, None) on miss.
+async def _read_redis_markers(user_id: str) -> tuple[int | None, bool | None]:
+    """Return (pwd_version, is_deleted) from Redis, or (None, None) on miss.
 
     ``is_deleted=None`` distinguishes "no marker present" from
     "marker says not deleted" so the caller can still fall through to
@@ -236,29 +240,29 @@ async def _read_redis_markers(user_id: str) -> tuple[float | None, bool | None]:
         pool = await get_redis_pool()
         if pool is None:
             return None, None
-        changed_raw = await pool.get(f"{_REDIS_CHANGED_PREFIX}{user_id}")
+        changed_raw = await pool.get(f"{_REDIS_VERSION_PREFIX}{user_id}")
         deleted_raw = await pool.get(f"{_REDIS_DELETED_PREFIX}{user_id}")
-        changed_ts: float | None = None
+        pwd_version: int | None = None
         if changed_raw is not None:
             if isinstance(changed_raw, bytes):
                 changed_raw = changed_raw.decode()
             try:
-                changed_ts = datetime.fromisoformat(changed_raw).timestamp()
+                pwd_version = int(changed_raw)
             except ValueError:
-                changed_ts = None
+                pwd_version = None
         is_deleted: bool | None = None
         if deleted_raw is not None:
             if isinstance(deleted_raw, bytes):
                 deleted_raw = deleted_raw.decode()
             is_deleted = deleted_raw == "1"
-        return changed_ts, is_deleted
+        return pwd_version, is_deleted
     except Exception as exc:
         logging.debug("auth redis read failed for %s: %s", user_id, exc)
         return None, None
 
 
-async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
-    """Get (password_changed_at timestamp, is_deleted) for a user.
+async def _get_pwd_version(user_id: str) -> tuple[int, bool]:
+    """Get (pwd_version, is_deleted) for a user.
 
     L1 (in-process) → L2 (Redis) → L3 (Mongo). A Redis hit refreshes L1;
     a Mongo read also warms Redis so sibling workers benefit on the next
@@ -269,7 +273,7 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
     if cached and (now - cached[0]) < _PWD_CACHE_TTL:
         return cached[1], cached[2]
 
-    redis_changed, redis_deleted = await _read_redis_markers(user_id)
+    redis_pwdv, redis_deleted = await _read_redis_markers(user_id)
 
     # Always confirm deletion against Mongo — Redis is a hint, not the source
     # of truth. If restore_user raced a Redis write that silently failed, a
@@ -277,18 +281,14 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
     # user blocked with 401 until the marker TTL expired.
     from database import db
     user_doc = await db.users.find_one(
-        {"id": user_id}, {"password_changed_at": 1, "deleted_at": 1}
+        {"id": user_id}, {"pwd_version": 1, "deleted_at": 1}
     )
     # Missing user row means the account was hard-deleted; treat as revoked
     # so existing access tokens fail closed instead of lingering as "active"
     # in cache until token expiry.
     is_deleted = user_doc is None or bool(user_doc.get('deleted_at'))
-    changed_ts: float | None = redis_changed
-    if user_doc and user_doc.get('password_changed_at'):
-        mongo_ts = datetime.fromisoformat(user_doc['password_changed_at']).timestamp()
-        # Prefer the later of the two — Redis marker may pre-date Mongo on
-        # a race where the write landed but hasn't propagated yet.
-        changed_ts = max(changed_ts or 0.0, mongo_ts) or None
+    mongo_pwdv = int((user_doc or {}).get('pwd_version', 0) or 0)
+    pwdv = max(int(redis_pwdv or 0), mongo_pwdv)
 
     # If Redis said "deleted" but Mongo says otherwise, clear the stale
     # marker so sibling workers don't keep consulting it.
@@ -301,11 +301,21 @@ async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
         except Exception as exc:
             logging.debug("auth redis stale-marker cleanup failed for %s: %s", user_id, exc)
 
-    _pwd_change_cache[user_id] = (now, changed_ts, is_deleted)
-    return changed_ts, is_deleted
+    _pwd_change_cache[user_id] = (now, pwdv, is_deleted)
+    return pwdv, is_deleted
 
 
-async def invalidate_pwd_cache(user_id: str, *, is_deleted: Optional[bool] = None) -> None:
+async def _get_pwd_changed_ts(user_id: str) -> tuple[float | None, bool]:
+    """Backward-compatible shim for older tests/patches."""
+    pwdv, is_deleted = await _get_pwd_version(user_id)
+    if pwdv <= 0:
+        return None, is_deleted
+    return float(pwdv), is_deleted
+
+
+async def invalidate_pwd_cache(
+    user_id: str, *, is_deleted: Optional[bool] = None, pwd_version: Optional[int] = None
+) -> None:
     """Drop the L1 auth cache and broadcast the change via Redis.
 
     Called after every ``password_changed_at`` write and after soft-delete
@@ -326,9 +336,9 @@ async def invalidate_pwd_cache(user_id: str, *, is_deleted: Optional[bool] = Non
         pool = await get_redis_pool()
         if pool is None:
             return
-        now_iso = datetime.now(timezone.utc).isoformat()
+        next_pwdv = int(pwd_version) if pwd_version is not None else 0
         await pool.set(
-            f"{_REDIS_CHANGED_PREFIX}{user_id}", now_iso, ex=_REDIS_MARKER_TTL,
+            f"{_REDIS_VERSION_PREFIX}{user_id}", str(next_pwdv), ex=_REDIS_MARKER_TTL,
         )
         if is_deleted is True:
             await pool.set(

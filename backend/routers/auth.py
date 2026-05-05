@@ -32,13 +32,14 @@ async def _issue_session_cookies(
     email: str,
     name: str,
     role: str,
+    pwd_version: int = 0,
 ):
     """Issue an access token + refresh token pair and set both cookies.
 
     The refresh jti is persisted so the /auth/refresh handler can
     invalidate it on rotation and refuse replays.
     """
-    access = create_token(user_id, email, name, role)
+    access = create_token(user_id, email, name, role, pwdv=pwd_version)
     refresh, jti = create_refresh_token(user_id)
     now = datetime.now(timezone.utc)
     await db.refresh_tokens.insert_one({
@@ -372,7 +373,9 @@ async def login(request: Request, data: UserLogin, response: Response):
     role = user.get("role", ROLE_VIEWER)
     user_var.set(user['email'])
     logger.info("User logged in", extra={"entity": {"user_id": user['id']}})
-    await _issue_session_cookies(response, user['id'], user['email'], user['name'], role)
+    await _issue_session_cookies(
+        response, user['id'], user['email'], user['name'], role, int(user.get("pwd_version", 0) or 0)
+    )
     return {
         "user": {"id": user['id'], "name": user['name'], "email": user['email'], "role": role},
     }
@@ -529,6 +532,7 @@ async def refresh_session(request: Request, response: Response):
         user_doc["email"],
         user_doc["name"],
         user_doc.get("role", ROLE_VIEWER),
+        int(user_doc.get("pwd_version", 0) or 0),
     )
     return {"refreshed": True}
 
@@ -616,14 +620,17 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     now = datetime.now(timezone.utc)
     # Also bump password_changed_at so any active sessions (which carry an
     # older iat) are invalidated by the token validator in core/auth.py.
+    current = await db.users.find_one({"id": row["user_id"]}, {"_id": 0, "pwd_version": 1})
+    new_pwdv = int((current or {}).get("pwd_version", 0) or 0) + 1
     await db.users.update_one(
         {"id": row["user_id"]},
         {"$set": {
             "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
+            "pwd_version": new_pwdv,
         }},
     )
-    await invalidate_pwd_cache(row["user_id"])
+    await invalidate_pwd_cache(row["user_id"], pwd_version=new_pwdv)
     # Invalidate ALL outstanding reset tokens for this user, not just the one
     # that was submitted. Otherwise a second leaked link could still be used
     # to reset the password again after a successful reset.
@@ -1086,14 +1093,16 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     now = datetime.now(timezone.utc)
+    new_pwdv = int(user_doc.get("pwd_version", 0) or 0) + 1
     await db.users.update_one(
         {"id": user['user_id']},
         {"$set": {
             "password_hash": await hash_password(data.new_password),
             "password_changed_at": now.isoformat(),
+            "pwd_version": new_pwdv,
         }}
     )
-    await invalidate_pwd_cache(user['user_id'])
+    await invalidate_pwd_cache(user['user_id'], pwd_version=new_pwdv)
     logger.info("Password changed", extra={"entity": {"user_id": user['user_id']}})
 
     # Revoke all outstanding refresh tokens for this user so other devices
@@ -1114,5 +1123,6 @@ async def change_password(data: PasswordChange, user: CurrentUser, response: Res
         user['email'],
         user['name'],
         user.get('role', ROLE_VIEWER),
+        new_pwdv,
     )
     return {"message": "Password changed successfully. All other sessions have been invalidated."}
