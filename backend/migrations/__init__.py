@@ -16,6 +16,7 @@ from . import (
     backfill_project_class_id,
     migrate_multi_employee,
     rename_class_type_to_event_format,
+    manage_secondary_indexes,
 )
 
 MigrationFn = Callable[[object], Awaitable[int]]
@@ -25,4 +26,5 @@ MIGRATIONS: List[Tuple[str, MigrationFn]] = [
     ("002_rename_class_type_to_event_format", rename_class_type_to_event_format.run),
     ("003_add_task_status_fields", add_task_status_fields.run),
     ("004_backfill_project_class_id", backfill_project_class_id.run),
+    ("005_manage_secondary_indexes", manage_secondary_indexes.run),
 ]

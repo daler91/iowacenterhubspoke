@@ -10,20 +10,50 @@ async def _ensure(collection, specs):
             await collection.create_index(spec)
 
 
-async def ensure_indexes(db, logger):
-    """Create required database indexes."""
-    try:
-        await _ensure(
-            db.schedules,
-            [
-                [("employee_ids", 1), ("deleted_at", 1), ("date", 1)],
-                [("location_id", 1), ("deleted_at", 1), ("date", 1)],
-                [("class_id", 1), ("deleted_at", 1), ("date", 1)],
-                [("date", 1), ("status", 1)],
-                [("deleted_at", 1)],
-            ],
-        )
+async def _has_index(collection, index_name: str) -> bool:
+    indexes = await collection.index_information()
+    return index_name in indexes
 
+
+async def _repair_secondary_index_drift(db, logger) -> None:
+    """Self-heal secondary indexes if migration state drifts from DB state.
+
+    ``005_manage_secondary_indexes`` is tracked in ``schema_migrations`` and is
+    therefore one-shot by design. In restore/drift scenarios where migration
+    records are present but indexes are missing, we still need a safety net.
+    We keep startup overhead low by checking a few sentinel indexes and only
+    executing the full secondary-index ensure when drift is detected.
+    """
+    sentinels = (
+        (db.schedules, "employee_ids_1_deleted_at_1_date_1"),
+        (db.drive_time_cache, "key_1"),
+        (db.notifications_sent, "principal_kind_1_principal_id_1_type_key_1_channel_1_dedup_key_1"),
+    )
+    for collection, index_name in sentinels:
+        if not await _has_index(collection, index_name):
+            logger.warning(
+                "Detected secondary index drift (%s missing on %s); running repair ensure",
+                index_name,
+                collection.name,
+            )
+            try:
+                from migrations.manage_secondary_indexes import run as run_secondary_index_ensure
+            except ImportError:
+                from backend.migrations.manage_secondary_indexes import run as run_secondary_index_ensure
+            await run_secondary_index_ensure(db)
+            logger.info("Repaired secondary indexes after drift detection")
+            return
+
+
+async def ensure_indexes(db, logger):
+    """Create only critical safety indexes needed before serving traffic.
+
+    All non-critical/read-optimization indexes are migration-managed via
+    ``migrations/005_manage_secondary_indexes.py`` and should be applied by
+    deployment migration tooling before rolling app instances.
+    """
+    try:
+        # Critical-at-boot: request-path safety and data-integrity guards.
         for stale_index in ("idempotency_key_1", "idempotency_key_live_unique"):
             try:
                 await db.schedules.drop_index(stale_index)
@@ -39,125 +69,20 @@ async def ensure_indexes(db, logger):
             },
             name="idempotency_key_per_user_live_unique",
         )
-
-        await _ensure(db.employees, [[("id", 1), ("deleted_at", 1)], [("deleted_at", 1)]])
-        await _ensure(db.locations, [[("id", 1), ("deleted_at", 1)], [("deleted_at", 1)]])
-        await _ensure(db.classes, [[("id", 1), ("deleted_at", 1)], [("deleted_at", 1)]])
-        await _ensure(
-            db.activity_logs,
-            [
-                [("timestamp", -1)],
-                [("entity_type", 1), ("entity_id", 1)],
-                [("user_id", 1)],
-            ],
-        )
-        await db.activity_logs.create_index("expires_at", expireAfterSeconds=0)
-        await _ensure(db.users, [[("deleted_at", 1)]])
-        await db.drive_time_cache.create_index("key", unique=True)
-        await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
-
+        # Critical-at-boot: security/session/token correctness.
         await db.invitations.create_index("token", unique=True)
-        await _ensure(db.invitations, ["email"])
         await db.invitations.create_index("expires_at", expireAfterSeconds=0)
-
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
         await db.password_resets.create_index("token", unique=True)
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.refresh_tokens.create_index("jti", unique=True)
-        await _ensure(db.refresh_tokens, ["user_id"])
         await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
         await db.login_failures.create_index("email", unique=True)
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
-
-        await _ensure(
-            db.projects,
-            [
-                [("partner_org_id", 1)],
-                [("phase", 1)],
-                [("community", 1)],
-                [("deleted_at", 1)],
-                [("schedule_id", 1), ("deleted_at", 1)],
-            ],
-        )
-        await _ensure(
-            db.tasks,
-            [
-                [("project_id", 1)],
-                [("project_id", 1), ("phase", 1)],
-                [("project_id", 1), ("completed", 1)],
-            ],
-        )
-        await _ensure(
-            db.partner_orgs,
-            [
-                [("community", 1)],
-                [("status", 1)],
-                [("deleted_at", 1)],
-                [("location_id", 1), ("status", 1), ("deleted_at", 1)],
-            ],
-        )
-        await _ensure(db.partner_contacts, [[("partner_org_id", 1)]])
-        await _ensure(db.task_attachments, [[("task_id", 1)]])
-        await _ensure(
-            db.task_comments,
-            [
-                [("task_id", 1), ("created_at", 1)],
-                [("task_id", 1), ("parent_comment_id", 1)],
-            ],
-        )
-        await db.email_reminders.create_index([("task_id", 1), ("threshold_key", 1)], unique=True)
-        await _ensure(db.email_reminders, [[("sent_at", -1)]])
-        await _ensure(db.event_outcomes, [[("project_id", 1)], [("project_id", 1), ("status", 1)]])
-        await db.promotion_checklists.create_index("project_id", unique=True)
-        await _ensure(
-            db.webhook_subscriptions,
-            [[("active", 1), ("events", 1)], [("deleted_at", 1)]],
-        )
-        await _ensure(db.schedules, [[("series_id", 1), ("date", 1)]])
-        await _ensure(
-            db.messages,
-            [
-                [("project_id", 1), ("visibility", 1)],
-                [("project_id", 1), ("created_at", -1)],
-            ],
-        )
-        await _ensure(db.webhook_logs, [[("subscription_id", 1), ("sent_at", -1)]])
-        await _ensure(db.documents, [[("project_id", 1)]])
         await db.portal_tokens.create_index("token", unique=True)
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
-
-        await _ensure(
-            db.notifications,
-            [
-                [("principal_kind", 1), ("principal_id", 1), ("created_at", -1)],
-                [("principal_kind", 1), ("principal_id", 1), ("read_at", 1), ("dismissed_at", 1)],
-            ],
-        )
-        await _ensure(
-            db.notification_queue,
-            [[("principal_kind", 1), ("principal_id", 1), ("frequency", 1), ("sent_at", 1)]],
-        )
-        await db.notifications_sent.create_index([(
-            "principal_kind", 1), ("principal_id", 1), ("type_key", 1), ("channel", 1), ("dedup_key", 1)], unique=True)
-
-        ttl_partial_filter = {"created_at_date": {_MONGO_EXISTS: True}}
-        await db.notifications.create_index(
-            "created_at_date",
-            expireAfterSeconds=60 * 60 * 24 * 365,
-            partialFilterExpression=ttl_partial_filter,
-        )
-        await db.notifications_sent.create_index(
-            "created_at_date",
-            expireAfterSeconds=60 * 60 * 24 * 90,
-            partialFilterExpression=ttl_partial_filter,
-        )
-        await db.notification_queue.create_index(
-            "created_at_date",
-            expireAfterSeconds=60 * 60 * 24 * 30,
-            partialFilterExpression=ttl_partial_filter,
-        )
-
-        logger.info("Ensured indexes on all collections")
+        await _repair_secondary_index_drift(db, logger)
+        logger.info("Ensured critical boot-time indexes")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
