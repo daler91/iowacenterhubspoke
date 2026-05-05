@@ -5,6 +5,22 @@ from dotenv import load_dotenv
 
 from core.logger import setup_logging, get_logger
 from core.constants import MAX_QUERY_LIMIT
+from core.constants import DEFAULT_REDIS_URL
+from jobs.calendar.jobs import (
+    create_google_event,
+    create_outlook_event,
+    delete_google_event,
+    delete_outlook_event,
+)
+from jobs.notifications.jobs import (
+    deliver_webhook_job,
+    send_partner_magic_link_email_job,
+    send_password_reset_email_job,
+)
+from jobs.reminders_digest.jobs import (
+    process_notification_digests,
+    process_task_reminders,
+)
 
 load_dotenv()
 # Set up JSON structured logging
@@ -393,7 +409,6 @@ WORKER_HEARTBEAT_KEY = "arq:heartbeat"
 WORKER_HEARTBEAT_TTL_SECONDS = 120
 
 
-
 async def emit_worker_heartbeat(ctx) -> None:
     """Cron job: stamp a Redis key so ``/health`` can tell whether a worker
     is live. Without this, dead workers look healthy — jobs enqueue fine
@@ -410,10 +425,6 @@ async def emit_worker_heartbeat(ctx) -> None:
     )
 
 
-
-from jobs.calendar.jobs import create_outlook_event, delete_outlook_event, create_google_event, delete_google_event
-from jobs.notifications.jobs import deliver_webhook_job, send_password_reset_email_job, send_partner_magic_link_email_job
-from jobs.reminders_digest.jobs import process_task_reminders, process_notification_digests
 
 class WorkerSettings:
     functions = [
