@@ -1,8 +1,7 @@
 # Database migrations
 
-The backend ships with an auto-applying migration runner so every deployment
-converges to the same MongoDB schema without any manual `python -m
-migrations.<name>` ceremony.
+The backend ships with an idempotent migration runner. Deployments should run
+it explicitly as a pre-rollout job, then roll application instances.
 
 ## How it works
 
@@ -27,12 +26,13 @@ The current registry, in execution order:
 | `002_rename_class_type_to_event_format` | `rename_class_type_to_event_format.py` | Rename `class_type` → `event_format` in `projects` and `project_templates`. |
 | `003_add_task_status_fields` | `add_task_status_fields.py` | Add `status` / `spotlight` / `at_risk` to legacy `tasks` docs. |
 | `004_backfill_project_class_id` | `backfill_project_class_id.py` | Copy `class_id` from linked schedule into project docs that lack it. |
+| `005_manage_secondary_indexes` | `manage_secondary_indexes.py` | Create and maintain non-critical/query-performance indexes outside app boot. |
 
 ## Idempotency contract
 
 Every migration in the registry MUST be idempotent — its query filter must
 identify only the rows that need updating, so re-running against an
-already-migrated database is a no-op. The four shipped migrations all use
+already-migrated database is a no-op. The shipped migrations use
 filters like `{"field": {"$exists": False}}` or `{"field": None}`. If you add
 a new migration, follow the same pattern or include a pre-check that exits
 early when nothing needs doing.
@@ -81,3 +81,18 @@ If a migration fails mid-flight:
   - Manually delete the failed `schema_migrations` row and rerun.
 
 Both flows are safe because every migration is idempotent.
+
+
+## Deployment runbook sequencing
+
+Use this order in production deployments:
+
+1. **Run migrations job first** (CI/CD pre-deploy step or one-off task) so schema +
+   secondary indexes converge before new pods/instances accept traffic.
+2. **Roll out backend app instances** after migration job succeeds.
+3. App startup will still enforce **critical boot-time safety indexes**
+   (`idempotency_key_per_user_live_unique` and auth/session token TTL+uniques) as a
+   final guardrail, but does not build broad query indexes anymore.
+
+This sequencing minimizes startup latency spikes and removes wide index-build risk
+from the request-serving boot path.
