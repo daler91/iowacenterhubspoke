@@ -46,6 +46,19 @@ describe('useScheduleForm Error Handling', () => {
     recurrence: 'none',
   };
 
+
+
+  const seedValidForm = (setForm: (updater: (prev: any) => any) => void) => {
+    act(() => {
+      setForm((prev) => ({ ...prev, ...validFormState }));
+    });
+  };
+
+  const submitHookForm = async (handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>) => {
+    await act(async () => {
+      await handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
+    });
+  };
   it('handles 409 error with outlook conflicts only', async () => {
     const errorResponse = {
       response: {
@@ -58,19 +71,14 @@ describe('useScheduleForm Error Handling', () => {
         },
       },
     };
-    schedulesAPI.create.mockRejectedValueOnce(errorResponse);
+    (schedulesAPI.create as jest.Mock).mockRejectedValueOnce(errorResponse);
 
     const { result } = renderHook(() =>
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit({ preventDefault: jest.fn() });
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(result.current.outlookOverride).toBe(true);
     expect(toast.warning).toHaveBeenCalledWith(
@@ -93,19 +101,14 @@ describe('useScheduleForm Error Handling', () => {
         },
       },
     };
-    schedulesAPI.create.mockRejectedValueOnce(errorResponse);
+    (schedulesAPI.create as jest.Mock).mockRejectedValueOnce(errorResponse);
 
     const { result } = renderHook(() =>
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit({ preventDefault: jest.fn() });
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(result.current.outlookOverride).toBe(false);
     expect(toast.error).toHaveBeenCalledWith(
@@ -116,7 +119,7 @@ describe('useScheduleForm Error Handling', () => {
   });
 
   it('surfaces partner_project_warning from create response as a warning toast', async () => {
-    schedulesAPI.create.mockResolvedValueOnce({
+    (schedulesAPI.create as jest.Mock).mockResolvedValueOnce({
       data: {
         id: 'sched-1',
         partner_project_warning: "Partner 'Acme' is not active (status=paused); coordination project was not created.",
@@ -127,13 +130,8 @@ describe('useScheduleForm Error Handling', () => {
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit({ preventDefault: jest.fn() });
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(toast.success).toHaveBeenCalledWith('Class scheduled successfully');
     expect(toast.warning).toHaveBeenCalledWith(
@@ -145,8 +143,8 @@ describe('useScheduleForm Error Handling', () => {
 
 
   it('retries conflict preview and clears error after success', async () => {
-    schedulesAPI.checkConflicts.mockRejectedValueOnce(new Error('nope'));
-    schedulesAPI.checkConflicts.mockResolvedValueOnce({
+    (schedulesAPI.checkConflicts as jest.Mock).mockRejectedValueOnce(new Error('nope'));
+    (schedulesAPI.checkConflicts as jest.Mock).mockResolvedValueOnce({
       data: {
         conflicts: [{ location: 'Studio B', time: '10:00-11:00' }],
         outlook_conflicts: [],
@@ -184,19 +182,14 @@ describe('useScheduleForm Error Handling', () => {
         },
       },
     };
-    schedulesAPI.create.mockRejectedValueOnce(errorResponse);
+    (schedulesAPI.create as jest.Mock).mockRejectedValueOnce(errorResponse);
 
     const { result } = renderHook(() =>
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit({ preventDefault: jest.fn() });
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(toast.error).toHaveBeenCalledWith('Internal Server Error');
     expect(result.current.loading).toBe(false);

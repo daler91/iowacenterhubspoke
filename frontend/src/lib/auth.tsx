@@ -77,7 +77,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     inviteToken: string | null = null,
     privacyPolicyAccepted = false,
   ) => {
-    const payload: Record<string, string | boolean> = { name, email, password };
+    const payload: { name: string; email: string; password: string; invite_token?: string; privacy_policy_accepted?: boolean } = { name, email, password };
     if (inviteToken) payload.invite_token = inviteToken;
     if (privacyPolicyAccepted) payload.privacy_policy_accepted = true;
     const res = await authAPI.register(payload);

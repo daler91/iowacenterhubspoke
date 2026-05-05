@@ -111,7 +111,7 @@ export default function ResetPasswordPage() {
                   data-testid="reset-password-input"
                   placeholder="At least 8 characters"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   required
                   minLength={8}
                   className="h-11 bg-muted/50"
@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
                   data-testid="reset-confirm-input"
                   placeholder="Re-enter password"
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirm(e.target.value)}
                   required
                   minLength={8}
                   className="h-11 bg-muted/50"

@@ -216,7 +216,7 @@ export default function LoginPage() {
                     data-testid="register-name-input"
                     placeholder="John Doe"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                     required={!isLogin}
                     className="h-11 bg-muted/50"
                   />
@@ -230,7 +230,7 @@ export default function LoginPage() {
                   data-testid="login-email-input"
                   placeholder="you@company.com"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })}
                   required
                   disabled={!!inviteData}
                   className={`h-11 bg-muted/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -255,7 +255,7 @@ export default function LoginPage() {
                   data-testid="login-password-input"
                   placeholder="Enter password"
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, password: e.target.value })}
                   required
                   className="h-11 bg-muted/50"
                 />
@@ -270,7 +270,7 @@ export default function LoginPage() {
                     type="checkbox"
                     data-testid="register-privacy-checkbox"
                     checked={privacyAccepted}
-                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrivacyAccepted(e.target.checked)}
                     className="mt-0.5"
                     required
                   />
