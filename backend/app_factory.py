@@ -16,7 +16,14 @@ async def run_startup_sequence(*, app, client, db, logger, ensure_redis_client):
         from migrations.runner import run_pending as run_pending_migrations
     except ImportError:
         from backend.migrations.runner import run_pending as run_pending_migrations
-    await run_pending_migrations(db)
+    try:
+        await run_pending_migrations(db)
+    except RuntimeError as exc:
+        if "MongoDB reported OutOfDiskSpace while creating secondary indexes" not in str(exc):
+            raise
+        logger.warning(
+            "Skipping non-critical secondary-index migration at boot due to MongoDB disk pressure; app startup will continue and migration 005 can be retried after disk is increased."
+        )
 
     try:
         from startup.indexes import ensure_indexes
