@@ -10,6 +10,41 @@ async def _ensure(collection, specs):
             await collection.create_index(spec)
 
 
+async def _has_index(collection, index_name: str) -> bool:
+    indexes = await collection.index_information()
+    return index_name in indexes
+
+
+async def _repair_secondary_index_drift(db, logger) -> None:
+    """Self-heal secondary indexes if migration state drifts from DB state.
+
+    ``005_manage_secondary_indexes`` is tracked in ``schema_migrations`` and is
+    therefore one-shot by design. In restore/drift scenarios where migration
+    records are present but indexes are missing, we still need a safety net.
+    We keep startup overhead low by checking a few sentinel indexes and only
+    executing the full secondary-index ensure when drift is detected.
+    """
+    sentinels = (
+        (db.schedules, "employee_ids_1_deleted_at_1_date_1"),
+        (db.drive_time_cache, "key_1"),
+        (db.notifications_sent, "principal_kind_1_principal_id_1_type_key_1_channel_1_dedup_key_1"),
+    )
+    for collection, index_name in sentinels:
+        if not await _has_index(collection, index_name):
+            logger.warning(
+                "Detected secondary index drift (%s missing on %s); running repair ensure",
+                index_name,
+                collection.name,
+            )
+            try:
+                from migrations.manage_secondary_indexes import run as run_secondary_index_ensure
+            except ImportError:
+                from backend.migrations.manage_secondary_indexes import run as run_secondary_index_ensure
+            await run_secondary_index_ensure(db)
+            logger.info("Repaired secondary indexes after drift detection")
+            return
+
+
 async def ensure_indexes(db, logger):
     """Create only critical safety indexes needed before serving traffic.
 
@@ -47,6 +82,7 @@ async def ensure_indexes(db, logger):
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
         await db.portal_tokens.create_index("token", unique=True)
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
+        await _repair_secondary_index_drift(db, logger)
         logger.info("Ensured critical boot-time indexes")
     except Exception as e:
         logger.warning(f"Failed to create indexes: {e}")
