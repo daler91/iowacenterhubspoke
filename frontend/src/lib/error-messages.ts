@@ -33,6 +33,17 @@ const GENERIC_BY_STATUS: Record<number, string> = {
 const DEFAULT_MESSAGE = 'Something went wrong. Please try again.';
 const NETWORK_MESSAGE = "Can't reach the server — check your connection and try again.";
 
+function looksLikeHtmlDocument(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  return v.startsWith('<!doctype html') || v.startsWith('<html') || /<[^>]+>/.test(v);
+}
+
+function safeUserDetail(detail: string | null): string | null {
+  if (!detail) return null;
+  if (looksLikeHtmlDocument(detail)) return null;
+  return detail;
+}
+
 function trimmedString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
@@ -79,10 +90,10 @@ export function describeApiError(
     return e.message || fallback;
   }
 
-  const detail = extractDetail(e);
-  if (detail) return detail;
+  const detail = safeUserDetail(extractDetail(e));
 
   const status = e.response.status;
+  if (detail) return detail;
   if (status && GENERIC_BY_STATUS[status]) return GENERIC_BY_STATUS[status];
   return fallback;
 }
@@ -107,10 +118,10 @@ export function describeUploadError(
     return e.message || fallback;
   }
 
-  const detail = extractDetail(e);
-  if (detail) return detail;
+  const detail = safeUserDetail(extractDetail(e));
 
   const status = e.response.status;
+  if (detail) return detail;
   if (status === 413) {
     return 'File too large (10 MB max) — pick a smaller file or compress it.';
   }
