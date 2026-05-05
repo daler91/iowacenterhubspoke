@@ -23,6 +23,7 @@ import {
   type Project,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
+import { normalizeApiError } from '../../lib/api';
 import { toast } from 'sonner';
 
 // Shared class string for the empty/loading placeholder <p> inside
