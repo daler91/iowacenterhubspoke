@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 from time import perf_counter
@@ -15,6 +14,7 @@ from services.notification_events import (
     notify_project_phase_advanced,
 )
 from services.workload_cache import invalidate as invalidate_workload_cache
+from services import projects_query_service as project_queries
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -64,67 +64,29 @@ _WARM_LEADS_FIELD = "$warm_leads"
 _CLASS_ID_FIELD = "$class_id"
 
 
-async def _build_task_stats(project_ids: list[str]) -> dict:
-    """Fetch tasks for the given project IDs and return per-project stats.
-
-    Uses a server-side `$group` aggregation so we never pull individual
-    task documents back for the board view — the previous approach read
-    up to 10k tasks into memory and looped in Python. Here Mongo returns
-    one row per project, regardless of task volume.
-    """
-    if not project_ids:
-        return {}
-    now = datetime.now(timezone.utc).isoformat()
-    pipeline = [
-        {_AGG_MATCH: {"project_id": {"$in": project_ids}, "deleted_at": None}},
-        {
-            _AGG_GROUP: {
-                "_id": "$project_id",
-                "total": {"$sum": 1},
-                "completed": {
-                    "$sum": {_AGG_COND: [{"$eq": ["$completed", True]}, 1, 0]},
-                },
-                "partner_overdue": {
-                    "$sum": {
-                        _AGG_COND: [
-                            {
-                                "$and": [
-                                    {"$ne": ["$completed", True]},
-                                    {"$in": [{_AGG_IF_NULL: ["$owner", ""]}, ["partner", "both"]]},
-                                    {"$lt": [{_AGG_IF_NULL: ["$due_date", ""]}, now]},
-                                ],
-                            },
-                            1,
-                            0,
-                        ],
-                    },
-                },
-            },
-        },
-    ]
-    stats: dict = {}
-    async for row in db.tasks.aggregate(pipeline):
-        stats[row["_id"]] = {
-            "total": row.get("total", 0),
-            "completed": row.get("completed", 0),
-            "partner_overdue": row.get("partner_overdue", 0),
-        }
-    return stats
-
-
 # ── Projects ──────────────────────────────────────────────────────────
 
 
-_BOARD_PHASE_LIMIT_DEFAULT = 50
-_BOARD_PHASE_LIMIT_MAX = 200
-
-
-_SCHEDULE_LIST_LIMIT_MAX = 200
+_SCHEDULE_LIST_LIMIT_MAX = project_queries.LIST_LIMIT_MAX
 
 
 def _clamp_limit(value: int, max_value: int) -> int:
-    """Clamp request-supplied limits to a hard [1, max_value] range."""
-    return max(1, min(value, max_value))
+    """Backward-compatible wrapper for legacy test/import callers."""
+    return project_queries.clamp_limit(value, max_value)
+
+
+async def _build_task_stats(project_ids: list[str]) -> dict:
+    """Backward-compatible wrapper returning legacy dict payload."""
+    project_queries.db = db
+    stats = await project_queries._build_task_stats(project_ids)
+    return {
+        project_id: {
+            "total": dto.total,
+            "completed": dto.completed,
+            "partner_overdue": dto.partner_overdue,
+        }
+        for project_id, dto in stats.items()
+    }
 
 
 def _phase_match(phase: str) -> dict:
@@ -185,13 +147,9 @@ async def get_project_board(
     community: Optional[str] = None,
     event_format: Optional[str] = None,
     class_id: Optional[str] = None,
-    phase_limit: int = _BOARD_PHASE_LIMIT_DEFAULT,
+    phase_limit: int = project_queries.BOARD_PHASE_LIMIT_DEFAULT,
 ):
-    # Clamp phase_limit so a caller can't force a full-collection scan
-    # by passing e.g. phase_limit=10**9. The previous implementation
-    # loaded up to 500 projects total with no per-column bound.
-    phase_limit = _clamp_limit(phase_limit, _BOARD_PHASE_LIMIT_MAX)
-
+    phase_limit = project_queries.clamp_limit(phase_limit, project_queries.BOARD_PHASE_LIMIT_MAX)
     start_ts = perf_counter()
     query: dict = {"deleted_at": None}
     if community:
@@ -201,63 +159,33 @@ async def get_project_board(
     if class_id:
         query["class_id"] = class_id
 
-    active_phases = [p for p in PROJECT_PHASES if p != "complete"]
-    # Facet query runs against the full active-project set (not the
-    # paged columns) so the filter dropdown stays complete even when a
-    # phase is truncated — otherwise users couldn't narrow the filters
-    # to reach projects that landed past the cap.
-    facets_query = {**query, "phase": {"$ne": "complete"}}
-
-    # Fan one paged query out per phase in parallel plus the facets
-    # query. Each phase query is bounded at phase_limit+1 and hits the
-    # existing `phase` index.
-    tasks = [
-        _fetch_phase_projects(query, phase, phase_limit) for phase in active_phases
-    ]
-    tasks.append(db.projects.distinct("community", facets_query))
-    results = await asyncio.gather(*tasks)
-    phase_results = results[: len(active_phases)]
-    community_facets = results[-1]
-
-    all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
-    task_stats = await _build_task_stats(all_ids)
-
-    columns: dict[str, list] = {phase: [] for phase in active_phases}
-    phase_truncated: dict[str, bool] = {}
-    for phase, rows, truncated in phase_results:
-        phase_truncated[phase] = truncated
-        for p in rows:
-            stats = task_stats.get(p["id"], _EMPTY_STATS)
-            p["task_total"] = stats["total"]
-            p["task_completed"] = stats["completed"]
-            p["partner_overdue"] = stats["partner_overdue"]
-        columns[phase] = rows
-
+    project_queries.db = db
+    payload = await project_queries.get_project_board_data(query, phase_limit)
     elapsed_ms = round((perf_counter() - start_ts) * 1000, 2)
     logger.info(
         "projects.board metrics",
         extra={
             "context": {
                 "duration_ms": elapsed_ms,
-                "query_count": len(active_phases) + 2,  # phase queries + facets + task stats aggregate
+                "query_count": payload.pop("query_count"),
                 "phase_limit": phase_limit,
-                "project_count": len(all_ids),
-                "phase_count": len(active_phases),
+                "project_count": payload.pop("project_count"),
+                "phase_count": payload.pop("phase_count"),
+                "latency_budget_ms": 800,
+                "query_budget": 12,
+                "over_budget": elapsed_ms > 800,
             }
         },
     )
-
-    return {
-        "columns": columns,
-        "phase_truncated": phase_truncated,
-        "phase_limit": phase_limit,
-        "facets": {
-            "communities": sorted(c for c in community_facets if c),
-        },
-    }
+    return payload
 
 
 async def _aggregate_completed_metrics() -> dict:
+    project_queries.db = db
+    return await project_queries.aggregate_completed_metrics()
+
+
+async def _aggregate_completed_metrics_legacy_impl() -> dict:
     """Return completed count and totals from Mongo aggregation."""
     pipeline = [
         {_AGG_MATCH: {"deleted_at": None, "phase": "complete"}},
@@ -510,7 +438,7 @@ async def get_dashboard(
         "class_breakdown": list(class_breakdown.values()),
         "communities": communities,
         "upcoming_projects": upcoming_projects,
-        "trends": _build_trends(all_projects, period),
+        "trends": project_queries.build_trends(all_projects, period),
         "truncated": truncated,
     }
 
@@ -572,12 +500,15 @@ async def list_projects(
     if schedule_id:
         query["schedule_id"] = schedule_id
     total = await db.projects.count_documents(query)
+    limit = project_queries.clamp_limit(
+        pagination.limit, project_queries.LIST_LIMIT_MAX,
+    )
     items = (
         await db.projects.find(query, {"_id": 0})
         .sort("event_date", -1)
         .skip(pagination.skip)
-        .limit(pagination.limit)
-        .to_list(pagination.limit)
+        .limit(limit)
+        .to_list(limit)
     )
     return paginated_response(items, total, pagination)
 
