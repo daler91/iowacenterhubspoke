@@ -5,7 +5,7 @@ import {
   PlayCircle, Clock, Activity
 } from 'lucide-react';
 import { Badge } from './ui/badge';
-import VirtualizedList from './VirtualizedList';
+import { VirtualizedWrapper } from './ui/virtualized-wrapper';
 
 const ACTION_CONFIG = {
   schedule_created: { icon: CalendarPlus, color: 'text-hub', bg: 'bg-hub-soft', label: 'Scheduled' },
@@ -101,7 +101,7 @@ export default function ActivityFeed(props: Readonly<ActivityFeedProps>) {
             <div className="px-5 py-2 bg-muted/50 dark:bg-muted/50 sticky top-0 z-10">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{date}</p>
             </div>
-            <VirtualizedList
+            <VirtualizedWrapper
               items={items}
               itemHeight={88}
               height={Math.min(480, Math.max(120, items.length * 88))}

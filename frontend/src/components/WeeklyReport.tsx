@@ -16,7 +16,7 @@ const STATUS_CLASSES = {
 
 import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
-import VirtualizedList from './VirtualizedList';
+import { VirtualizedWrapper } from './ui/virtualized-wrapper';
 
 interface WeeklyReportProps {
   classes?: unknown[];
@@ -214,7 +214,7 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   <div className="bg-muted/50 dark:bg-muted px-3 py-2">Drive</div>
                   <div className="bg-muted/50 dark:bg-muted px-3 py-2">Status</div>
                 </div>
-                <VirtualizedList items={(emp.schedule_details || [])} itemHeight={76} height={Math.min(320, Math.max(80, (emp.schedule_details || []).length * 76))} role="table" ariaLabel={`Schedule details for ${emp.employee_name}`} renderItem={(scheduleDetail) => (
+                <VirtualizedWrapper items={(emp.schedule_details || [])} itemHeight={76} height={Math.min(320, Math.max(80, (emp.schedule_details || []).length * 76))} role="table" ariaLabel={`Schedule details for ${emp.employee_name}`} renderItem={(scheduleDetail) => (
                   <div
                     key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`}
                     className="block border-b border-border last:border-b-0 bg-white dark:bg-card md:bg-transparent dark:md:bg-transparent md:border-0 md:grid md:grid-cols-6 md:gap-px md:bg-muted dark:md:bg-muted text-xs p-3 md:p-0 space-y-1 md:space-y-0"
