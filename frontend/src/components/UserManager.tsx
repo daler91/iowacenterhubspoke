@@ -21,6 +21,7 @@ import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { extractErrorMessage } from '../lib/types';
 import { VirtualizedWrapper } from './ui/virtualized-wrapper';
+import { useUserAdminActions } from '../features/manager/hooks';
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },
@@ -188,48 +189,18 @@ export default function UserManager() {
     });
   }, [fetchUsers, fetchInvitations, fetchLockouts]);
 
-  const handleApprove = async (userId) => {
-    try {
-      await usersAPI.approve(userId);
-      toast.success('User approved');
-      fetchUsers();
-    } catch (err: unknown) {
-      toast.error(extractErrorMessage(err, 'Failed to approve user'));
-    }
-  };
-
-  const handleReject = async (userId) => {
-    try {
-      await usersAPI.reject(userId);
-      toast.success('User rejected');
-      fetchUsers();
-    } catch (err: unknown) {
-      toast.error(extractErrorMessage(err, 'Failed to reject user'));
-    }
-  };
+  const { approve: handleApprove, reject: handleReject, updateRole, remove } = useUserAdminActions(fetchUsers);
 
   // useCallback so UserRow's React.memo comparison keeps sibling rows
   // from re-rendering when only one row mutates. fetchUsers is already
   // memoized, so each callback has a stable identity across renders.
   const handleRoleChange = useCallback(async (userId: string, role: string) => {
-    try {
-      await usersAPI.updateRole(userId, role);
-      toast.success(`Role updated to ${role}`);
-      fetchUsers();
-    } catch (err: unknown) {
-      toast.error(extractErrorMessage(err, 'Failed to update role'));
-    }
-  }, [fetchUsers]);
+    await updateRole(userId, role);
+  }, [updateRole]);
 
   const handleDelete = useCallback(async (userId: string) => {
-    try {
-      await usersAPI.delete(userId);
-      toast.success('User deleted');
-      fetchUsers();
-    } catch (err: unknown) {
-      toast.error(extractErrorMessage(err, 'Failed to delete user'));
-    }
-  }, [fetchUsers]);
+    await remove(userId);
+  }, [remove]);
 
   const requestDelete = useCallback((userId: string) => {
     const u = users.find(x => x.id === userId);

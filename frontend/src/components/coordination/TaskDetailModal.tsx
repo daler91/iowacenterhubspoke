@@ -26,6 +26,7 @@ import {
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
+import { useTaskCommentActions } from '../../features/coordination/hooks';
 
 
 function formatCommentDate(iso: string) {
@@ -529,6 +530,7 @@ export default function TaskDetailModal({
       setLoading(false);
     }
   }, [projectId, taskId]);
+  const { submitComment } = useTaskCommentActions(projectId, taskId, loadTask);
 
   // loadTask is intentionally omitted from deps: it is stable for the
   // (projectId, taskId) pair via useCallback, and including it would
@@ -982,11 +984,8 @@ export default function TaskDetailModal({
               comments={task.comments ?? []}
               members={members}
               onPostComment={async (body, parentCommentId, mentions) => {
-                const res = await projectTasksAPI.postComment(
-                  projectId, taskId, body, parentCommentId, mentions,
-                );
-                await loadTask();
-                return res.data?.id ?? null;
+                const created = await submitComment({ body, parentCommentId, mentions });
+                return created ? 'created' : null;
               }}
             />
           </div>
