@@ -984,8 +984,7 @@ export default function TaskDetailModal({
               comments={task.comments ?? []}
               members={members}
               onPostComment={async (body, parentCommentId, mentions) => {
-                const created = await submitComment({ body, parentCommentId, mentions });
-                return created ? 'created' : null;
+                return submitComment({ body, parentCommentId, mentions });
               }}
             />
           </div>

@@ -16,15 +16,15 @@ export function useTaskCommentActions(projectId: string, taskId: string, onRefre
   const [submitting, setSubmitting] = useState(false);
 
   const submitComment = useCallback(async (draft: TaskCommentDraft) => {
-    if (!draft.body.trim()) return false;
+    if (!draft.body.trim()) return null;
     setSubmitting(true);
     try {
-      await coordinationFeatureApi.postComment(projectId, taskId, toPayload(draft));
+      const res = await coordinationFeatureApi.postComment(projectId, taskId, toPayload(draft));
       await onRefresh();
-      return true;
+      return res.data?.id ?? null;
     } catch (error) {
       toast.error(describeApiError(error, 'Could not add comment.'));
-      return false;
+      return null;
     } finally {
       setSubmitting(false);
     }
