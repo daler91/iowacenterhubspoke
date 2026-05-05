@@ -5,6 +5,22 @@ from dotenv import load_dotenv
 
 from core.logger import setup_logging, get_logger
 from core.constants import MAX_QUERY_LIMIT
+from core.constants import DEFAULT_REDIS_URL
+from jobs.calendar.jobs import (
+    create_google_event,
+    create_outlook_event,
+    delete_google_event,
+    delete_outlook_event,
+)
+from jobs.notifications.jobs import (
+    deliver_webhook_job,
+    send_partner_magic_link_email_job,
+    send_password_reset_email_job,
+)
+from jobs.reminders_digest.jobs import (
+    process_notification_digests,
+    process_task_reminders,
+)
 
 load_dotenv()
 # Set up JSON structured logging
@@ -386,196 +402,9 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
 
     logger.info("Sync completed", extra={"entity": {"type": entity_type, "id": entity_id}})
 
-
-async def create_outlook_event(
-    ctx, schedule_id: str, email: str, subject: str, location_name: str,
-    date: str, start_time: str, end_time: str, notes: str = "",
-    employee_id: str = "",
-):
-    """Idempotent create — if arq retries after a partial failure, we won't
-    create a duplicate event for a schedule that already has one mapped."""
-    from services.outlook import create_outlook_event as _create
-    from database import db
-
-    # Short-circuit if a previous attempt already persisted a mapping for
-    # this (schedule_id, employee_id). Otherwise a retry after a pool
-    # timeout between calendar-create and DB-update would double-book.
-    existing = await db.schedules.find_one(
-        {"id": schedule_id}, {"_id": 0, "calendar_events": 1, "outlook_event_id": 1},
-    )
-    if existing:
-        if employee_id:
-            mapped = (
-                (existing.get("calendar_events") or {})
-                .get(employee_id, {})
-                .get("outlook_event_id")
-            )
-        else:
-            mapped = existing.get("outlook_event_id")
-        if mapped:
-            # Mask IDs — CodeQL flags raw UUID interpolation even on
-            # internal identifiers. The mask still gives ops a 4/4
-            # correlation key for cross-service log-joining.
-            from core.logger import mask_id
-            logger.info(
-                "Outlook event already mapped; skipping create",
-                extra={"entity": {
-                    "schedule_id_masked": mask_id(schedule_id),
-                    "employee_scoped": bool(employee_id),
-                }},
-            )
-            return
-
-    employee = None
-    if employee_id:
-        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-
-    event_id = await _create(
-        email, subject, location_name, date, start_time, end_time,
-        notes or None, employee=employee,
-    )
-    if event_id:
-        update_key = f"calendar_events.{employee_id}.outlook_event_id" if employee_id else "outlook_event_id"
-        await db.schedules.update_one({"id": schedule_id}, {"$set": {update_key: event_id}})
-        logger.info("Outlook event created for schedule %s: %s", schedule_id, event_id)
-    else:
-        logger.warning("Outlook event creation returned no ID for schedule %s", schedule_id)
-
-
-async def delete_outlook_event(ctx, email: str, event_id: str, employee_id: str = ""):
-    from services.outlook import delete_outlook_event as _delete
-    from database import db
-
-    employee = None
-    if employee_id:
-        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-
-    success = await _delete(email, event_id, employee=employee)
-    if success:
-        logger.info("Outlook event %s deleted", event_id)
-    else:
-        logger.warning("Failed to delete Outlook event %s", event_id)
-
-
-async def create_google_event(
-    ctx, schedule_id: str, email: str, subject: str, location_name: str,
-    date: str, start_time: str, end_time: str, notes: str = "",
-    employee_id: str = "",
-):
-    """Idempotent create — see ``create_outlook_event`` for the rationale."""
-    from services.google_calendar import create_google_event as _create
-    from database import db
-
-    existing = await db.schedules.find_one(
-        {"id": schedule_id}, {"_id": 0, "calendar_events": 1, "google_calendar_event_id": 1},
-    )
-    if existing:
-        if employee_id:
-            mapped = (
-                (existing.get("calendar_events") or {})
-                .get(employee_id, {})
-                .get("google_calendar_event_id")
-            )
-        else:
-            mapped = existing.get("google_calendar_event_id")
-        if mapped:
-            from core.logger import mask_id
-            logger.info(
-                "Google event already mapped; skipping create",
-                extra={"entity": {
-                    "schedule_id_masked": mask_id(schedule_id),
-                    "employee_scoped": bool(employee_id),
-                }},
-            )
-            return
-
-    employee = None
-    if employee_id:
-        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-
-    event_id = await _create(
-        email, subject, location_name, date, start_time, end_time,
-        notes or None, employee=employee,
-    )
-    if event_id:
-        if employee_id:
-            update_key = f"calendar_events.{employee_id}.google_calendar_event_id"
-        else:
-            update_key = "google_calendar_event_id"
-        await db.schedules.update_one({"id": schedule_id}, {"$set": {update_key: event_id}})
-        logger.info("Google Calendar event created for schedule %s: %s", schedule_id, event_id)
-    else:
-        logger.warning("Google Calendar event creation returned no ID for schedule %s", schedule_id)
-
-
-async def delete_google_event(ctx, email: str, event_id: str, employee_id: str = ""):
-    from services.google_calendar import delete_google_event as _delete
-    from database import db
-
-    employee = None
-    if employee_id:
-        employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
-
-    success = await _delete(email, event_id, employee=employee)
-    if success:
-        logger.info("Google Calendar event %s deleted", event_id)
-    else:
-        logger.warning("Failed to delete Google Calendar event %s", event_id)
-
-
-from core.constants import DEFAULT_REDIS_URL  # noqa: E402
-
 redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
-
-async def process_task_reminders(ctx):
-    """Cron job: check for tasks approaching/past due and send reminders."""
-    from services.task_reminders import check_and_send_reminders
-    return await check_and_send_reminders()
-
-
-async def process_notification_digests(ctx):
-    """Cron job: flush queued daily/weekly notification digests.
-
-    Runs every hour. The digest service only sends to principals whose
-    configured ``digest.daily_hour`` / ``digest.weekly_day`` matches now,
-    so the hour-granularity cadence is the natural choice.
-    """
-    from services.digest import process_digests
-    return await process_digests()
-
-
-async def deliver_webhook_job(ctx, subscription_id, event, payload):
-    """Background job: deliver a webhook to a subscriber."""
-    from services.webhooks import deliver_webhook
-    return await deliver_webhook(ctx, subscription_id, event, payload)
-
-
-async def send_password_reset_email_job(ctx, email):
-    """Background job: send a password reset email (anti-enumeration safe).
-
-    The handler enqueues unconditionally; this worker is where the DB
-    lookup and SMTP send happen, off the request path.
-    """
-    from services.email_jobs import send_password_reset_email
-    return await send_password_reset_email(email)
-
-
-async def send_partner_magic_link_email_job(ctx, email):
-    """Background job: send a partner portal magic link email.
-
-    Same pattern as send_password_reset_email_job — the handler enqueues
-    unconditionally and returns immediately; this worker does the DB
-    lookup and SMTP send.
-    """
-    from services.email_jobs import send_partner_magic_link_email
-    return await send_partner_magic_link_email(email)
-
-
 WORKER_HEARTBEAT_KEY = "arq:heartbeat"
-# Key TTL set deliberately higher than the cron cadence so a single missed
-# tick doesn't flip the liveness signal, but short enough that a truly
-# dead worker is detected within ~2 minutes.
 WORKER_HEARTBEAT_TTL_SECONDS = 120
 
 
