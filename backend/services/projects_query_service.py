@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 from database import db
 from core.constants import PROJECT_PHASES
@@ -35,7 +35,13 @@ def clamp_limit(value: int, max_value: int) -> int:
 
 def _phase_match(phase: str) -> dict[str, Any]:
     if phase == "planning":
-        return {"$or": [{"phase": "planning"}, {"phase": {"$in": [None, ""]}}, {"phase": {"$exists": False}}]}
+        return {
+            "$or": [
+                {"phase": "planning"},
+                {"phase": {"$in": [None, ""]}},
+                {"phase": {"$exists": False}},
+            ]
+        }
     return {"phase": phase}
 
 
@@ -45,18 +51,56 @@ async def _build_task_stats(project_ids: list[str]) -> dict[str, TaskStatsDTO]:
     now = datetime.now(timezone.utc).isoformat()
     pipeline = [
         {"$match": {"project_id": {"$in": project_ids}, "deleted_at": None}},
-        {"$group": {"_id": "$project_id", "total": {"$sum": 1}, "completed": {"$sum": {"$cond": [{"$eq": ["$completed", True]}, 1, 0]}}, "partner_overdue": {"$sum": {"$cond": [{"$and": [{"$ne": ["$completed", True]}, {"$in": [{"$ifNull": ["$owner", ""]}, ["partner", "both"]]}, {"$lt": [{"$ifNull": ["$due_date", ""]}, now]}]}, 1, 0]}}}},
+        {
+            "$group": {
+                "_id": "$project_id",
+                "total": {"$sum": 1},
+                "completed": {
+                    "$sum": {"$cond": [{"$eq": ["$completed", True]}, 1, 0]}
+                },
+                "partner_overdue": {
+                    "$sum": {
+                        "$cond": [
+                            {
+                                "$and": [
+                                    {"$ne": ["$completed", True]},
+                                    {
+                                        "$in": [
+                                            {"$ifNull": ["$owner", ""]},
+                                            ["partner", "both"],
+                                        ]
+                                    },
+                                    {"$lt": [{"$ifNull": ["$due_date", ""]}, now]},
+                                ]
+                            },
+                            1,
+                            0,
+                        ]
+                    }
+                },
+            }
+        },
     ]
     out: dict[str, TaskStatsDTO] = {}
     async for row in db.tasks.aggregate(pipeline):
-        out[row["_id"]] = TaskStatsDTO(row.get("total", 0), row.get("completed", 0), row.get("partner_overdue", 0))
+        out[row["_id"]] = TaskStatsDTO(
+            row.get("total", 0),
+            row.get("completed", 0),
+            row.get("partner_overdue", 0),
+        )
     return out
 
 
 async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dict[str, Any]:
     active_phases = [p for p in PROJECT_PHASES if p != "complete"]
+
     async def fetch_phase(phase: str):
-        rows = await db.projects.find({**query, **_phase_match(phase)}, {"_id": 0}).sort("updated_at", -1).limit(phase_limit + 1).to_list(phase_limit + 1)
+        rows = await (
+            db.projects.find({**query, **_phase_match(phase)}, {"_id": 0})
+            .sort("updated_at", -1)
+            .limit(phase_limit + 1)
+            .to_list(phase_limit + 1)
+        )
         truncated = len(rows) > phase_limit
         page = rows[:phase_limit]
         for row in page:
@@ -64,7 +108,10 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
         return phase, page, truncated
 
     facets_query = {**query, "phase": {"$ne": "complete"}}
-    results = await asyncio.gather(*[fetch_phase(p) for p in active_phases], db.projects.distinct("community", facets_query))
+    results = await asyncio.gather(
+        *[fetch_phase(p) for p in active_phases],
+        db.projects.distinct("community", facets_query),
+    )
     phase_results = results[:len(active_phases)]
     communities = results[-1]
     all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
@@ -93,12 +140,27 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
 
 
 async def aggregate_completed_metrics() -> dict[str, int]:
-    rows = await db.projects.aggregate([
-        {"$match": {"deleted_at": None, "phase": "complete"}},
-        {"$group": {"_id": None, "classes_delivered": {"$sum": 1}, "total_attendance": {"$sum": {"$ifNull": ["$attendance_count", 0]}}, "warm_leads": {"$sum": {"$ifNull": ["$warm_leads", 0]}}}},
-    ]).to_list(1)
+    rows = await db.projects.aggregate(
+        [
+            {"$match": {"deleted_at": None, "phase": "complete"}},
+            {
+                "$group": {
+                    "_id": None,
+                    "classes_delivered": {"$sum": 1},
+                    "total_attendance": {
+                        "$sum": {"$ifNull": ["$attendance_count", 0]}
+                    },
+                    "warm_leads": {"$sum": {"$ifNull": ["$warm_leads", 0]}},
+                }
+            },
+        ]
+    ).to_list(1)
     row = rows[0] if rows else {}
-    return {"classes_delivered": row.get("classes_delivered", 0), "total_attendance": row.get("total_attendance", 0), "warm_leads": row.get("warm_leads", 0)}
+    return {
+        "classes_delivered": row.get("classes_delivered", 0),
+        "total_attendance": row.get("total_attendance", 0),
+        "warm_leads": row.get("warm_leads", 0),
+    }
 
 
 def build_trends(projects: list[dict[str, Any]], period_days: int) -> dict[str, Any]:
@@ -109,7 +171,13 @@ def build_trends(projects: list[dict[str, Any]], period_days: int) -> dict[str, 
             continue
         month = (p.get("event_date") or "")[:7]
         community = p.get("community", "Unknown")
-        months.setdefault(month, {}).setdefault(community, {"delivered": 0, "attendance": 0})
+        months.setdefault(month, {}).setdefault(
+            community,
+            {"delivered": 0, "attendance": 0},
+        )
         months[month][community]["delivered"] += 1
         months[month][community]["attendance"] += p.get("attendance_count") or 0
-    return {"months": sorted(months.keys()), "by_month": {m: months[m] for m in sorted(months.keys())}}
+    return {
+        "months": sorted(months.keys()),
+        "by_month": {m: months[m] for m in sorted(months.keys())},
+    }

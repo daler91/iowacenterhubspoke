@@ -143,7 +143,21 @@ async def get_project_board(
     project_queries.db = db
     payload = await project_queries.get_project_board_data(query, phase_limit)
     elapsed_ms = round((perf_counter() - start_ts) * 1000, 2)
-    logger.info("projects.board metrics", extra={"context": {"duration_ms": elapsed_ms, "query_count": payload.pop("query_count"), "phase_limit": phase_limit, "project_count": payload.pop("project_count"), "phase_count": payload.pop("phase_count"), "latency_budget_ms": 800, "query_budget": 12, "over_budget": elapsed_ms > 800}})
+    logger.info(
+        "projects.board metrics",
+        extra={
+            "context": {
+                "duration_ms": elapsed_ms,
+                "query_count": payload.pop("query_count"),
+                "phase_limit": phase_limit,
+                "project_count": payload.pop("project_count"),
+                "phase_count": payload.pop("phase_count"),
+                "latency_budget_ms": 800,
+                "query_budget": 12,
+                "over_budget": elapsed_ms > 800,
+            }
+        },
+    )
     return payload
 
 
@@ -375,7 +389,7 @@ async def get_dashboard(
     active_partners = await db.partner_orgs.count_documents(
         {"deleted_at": None, "status": "active"},
     )
-    completed_metrics = await project_queries.aggregate_completed_metrics()
+    completed_metrics = await _aggregate_completed_metrics()
     upcoming_count = await db.projects.count_documents(
         {"deleted_at": None, "phase": {"$ne": "complete"}},
     )
@@ -467,12 +481,15 @@ async def list_projects(
     if schedule_id:
         query["schedule_id"] = schedule_id
     total = await db.projects.count_documents(query)
+    limit = project_queries.clamp_limit(
+        pagination.limit, project_queries.LIST_LIMIT_MAX,
+    )
     items = (
         await db.projects.find(query, {"_id": 0})
         .sort("event_date", -1)
         .skip(pagination.skip)
-                .limit(project_queries.clamp_limit(pagination.limit, project_queries.LIST_LIMIT_MAX))
-        .to_list(project_queries.clamp_limit(pagination.limit, project_queries.LIST_LIMIT_MAX))
+        .limit(limit)
+        .to_list(limit)
     )
     return paginated_response(items, total, pagination)
 
