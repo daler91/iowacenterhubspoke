@@ -534,7 +534,8 @@ async def _check_worker_heartbeat() -> str:
             return "missing"
         if isinstance(raw, bytes):
             raw = raw.decode()
-                last = datetime.fromisoformat(raw)
+        from datetime import datetime, timezone
+        last = datetime.fromisoformat(raw)
         age = (datetime.now(timezone.utc) - last).total_seconds()
         if age > _WORKER_HEARTBEAT_MAX_AGE_SECONDS:
             return "stale"
