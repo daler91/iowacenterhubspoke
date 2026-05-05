@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 const PAGES: ReadonlyArray<{ path: string; name: string }> = [
-  { path: '/calendar', name: 'calendar' },
+  { path: '/calendar?date=2026-01-15&view=week', name: 'calendar' },
   { path: '/insights', name: 'insights' },
   { path: '/coordination', name: 'coordination-dashboard' },
 ];

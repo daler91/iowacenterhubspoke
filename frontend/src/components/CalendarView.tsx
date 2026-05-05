@@ -255,11 +255,7 @@ export default function CalendarView() {
       breadcrumbs={[{ label: 'Planning' }, { label: 'Calendar' }]}
       title="Scheduling Calendar"
       subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
-      status={fetchErrors?.schedules ? {
-        kind: 'error',
-        error: { message: fetchErrors.schedules },
-        onRetry: fetchSchedules,
-      } : { kind: 'ready' }}
+      status={{ kind: 'ready' }}
     >
       <section data-testid="calendar-home-header" aria-label="Calendar overview">
         {(schedules || []).length === 0 && (
