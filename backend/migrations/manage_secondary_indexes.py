@@ -19,6 +19,18 @@ def _is_out_of_disk(exc: OperationFailure) -> bool:
     return getattr(exc, "code", None) == _MONGO_OUT_OF_DISK_CODE
 
 
+def _reraise_out_of_disk(collection, exc: OperationFailure) -> None:
+    logger.error(
+        "Cannot create index on %s due to low disk space; failing migration so it can retry later: %s",
+        collection.name,
+        exc,
+    )
+    raise RuntimeError(
+        "MongoDB reported OutOfDiskSpace while creating secondary indexes. "
+        "Migration 005_manage_secondary_indexes must be retried after disk is increased or cleaned."
+    ) from exc
+
+
 async def _ensure(collection, specs):
     for spec in specs:
         try:
@@ -29,12 +41,7 @@ async def _ensure(collection, specs):
                 await collection.create_index(spec)
         except OperationFailure as exc:
             if _is_out_of_disk(exc):
-                logger.warning(
-                    "Skipping index creation for %s due to low disk space: %s",
-                    collection.name,
-                    exc,
-                )
-                continue
+                _reraise_out_of_disk(collection, exc)
             raise
 
 
@@ -43,12 +50,7 @@ async def _create_index(collection, keys, **kwargs):
         await collection.create_index(keys, **kwargs)
     except OperationFailure as exc:
         if _is_out_of_disk(exc):
-            logger.warning(
-                "Skipping index creation for %s due to low disk space: %s",
-                collection.name,
-                exc,
-            )
-            return
+            _reraise_out_of_disk(collection, exc)
         raise
 
 
