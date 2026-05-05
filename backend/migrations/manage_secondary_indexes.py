@@ -5,16 +5,51 @@ startup blast radius stay low. Apply via migration tooling before deploying
 new app instances.
 """
 
+from pymongo.errors import OperationFailure
+
+from core.logger import get_logger
+
 _MONGO_EXISTS = "$exists"
+_MONGO_OUT_OF_DISK_CODE = 14031
+
+logger = get_logger(__name__)
+
+
+def _is_out_of_disk(exc: OperationFailure) -> bool:
+    return getattr(exc, "code", None) == _MONGO_OUT_OF_DISK_CODE
 
 
 async def _ensure(collection, specs):
     for spec in specs:
-        if isinstance(spec, tuple):
-            keys, kwargs = spec
-            await collection.create_index(keys, **kwargs)
-        else:
-            await collection.create_index(spec)
+        try:
+            if isinstance(spec, tuple):
+                keys, kwargs = spec
+                await collection.create_index(keys, **kwargs)
+            else:
+                await collection.create_index(spec)
+        except OperationFailure as exc:
+            if _is_out_of_disk(exc):
+                logger.warning(
+                    "Skipping index creation for %s due to low disk space: %s",
+                    collection.name,
+                    exc,
+                )
+                continue
+            raise
+
+
+async def _create_index(collection, keys, **kwargs):
+    try:
+        await collection.create_index(keys, **kwargs)
+    except OperationFailure as exc:
+        if _is_out_of_disk(exc):
+            logger.warning(
+                "Skipping index creation for %s due to low disk space: %s",
+                collection.name,
+                exc,
+            )
+            return
+        raise
 
 
 async def run(db) -> int:
@@ -49,10 +84,10 @@ async def run(db) -> int:
             [("user_id", 1)],
         ],
     )
-    await db.activity_logs.create_index("expires_at", expireAfterSeconds=0)
+    await _create_index(db.activity_logs, "expires_at", expireAfterSeconds=0)
     await _ensure(db.users, [[("deleted_at", 1)]])
-    await db.drive_time_cache.create_index("key", unique=True)
-    await db.drive_time_cache.create_index("expires_at", expireAfterSeconds=0)
+    await _create_index(db.drive_time_cache, "key", unique=True)
+    await _create_index(db.drive_time_cache, "expires_at", expireAfterSeconds=0)
     await _ensure(db.invitations, ["email"])
     await _ensure(db.refresh_tokens, ["user_id"])
 
@@ -92,7 +127,8 @@ async def run(db) -> int:
             [("task_id", 1), ("parent_comment_id", 1)],
         ],
     )
-    await db.email_reminders.create_index(
+    await _create_index(
+        db.email_reminders,
         [("task_id", 1), ("threshold_key", 1)],
         unique=True,
     )
@@ -101,14 +137,17 @@ async def run(db) -> int:
         db.event_outcomes,
         [[("project_id", 1)], [("project_id", 1), ("status", 1)]],
     )
-    await db.promotion_checklists.create_index("project_id", unique=True)
+    await _create_index(db.promotion_checklists, "project_id", unique=True)
     await _ensure(
         db.webhook_subscriptions,
         [[("active", 1), ("events", 1)], [("deleted_at", 1)]],
     )
     await _ensure(
         db.messages,
-        [[("project_id", 1), ("visibility", 1)], [("project_id", 1), ("created_at", -1)]],
+        [
+            [("project_id", 1), ("visibility", 1)],
+            [("project_id", 1), ("created_at", -1)],
+        ],
     )
     await _ensure(db.webhook_logs, [[("subscription_id", 1), ("sent_at", -1)]])
     await _ensure(db.documents, [[("project_id", 1)]])
@@ -127,9 +166,17 @@ async def run(db) -> int:
     )
     await _ensure(
         db.notification_queue,
-        [[("principal_kind", 1), ("principal_id", 1), ("frequency", 1), ("sent_at", 1)]],
+        [
+            [
+                ("principal_kind", 1),
+                ("principal_id", 1),
+                ("frequency", 1),
+                ("sent_at", 1),
+            ]
+        ],
     )
-    await db.notifications_sent.create_index(
+    await _create_index(
+        db.notifications_sent,
         [
             ("principal_kind", 1),
             ("principal_id", 1),
@@ -141,17 +188,20 @@ async def run(db) -> int:
     )
 
     ttl_partial_filter = {"created_at_date": {_MONGO_EXISTS: True}}
-    await db.notifications.create_index(
+    await _create_index(
+        db.notifications,
         "created_at_date",
         expireAfterSeconds=60 * 60 * 24 * 365,
         partialFilterExpression=ttl_partial_filter,
     )
-    await db.notifications_sent.create_index(
+    await _create_index(
+        db.notifications_sent,
         "created_at_date",
         expireAfterSeconds=60 * 60 * 24 * 90,
         partialFilterExpression=ttl_partial_filter,
     )
-    await db.notification_queue.create_index(
+    await _create_index(
+        db.notification_queue,
         "created_at_date",
         expireAfterSeconds=60 * 60 * 24 * 30,
         partialFilterExpression=ttl_partial_filter,
