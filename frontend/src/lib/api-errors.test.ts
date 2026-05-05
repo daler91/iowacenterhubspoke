@@ -16,7 +16,11 @@ describe('normalizeApiError', () => {
 
     expect(result.status).toBe(409);
     expect(result.conflicts).toEqual([{ location: 'Studio A' }]);
-    expect(result.message).toBe('Something went wrong. Please try again.');
+    expect(result.message).toBe('Conflict');
+    expect(result.detailPayload).toEqual({
+      message: 'Conflict',
+      conflicts: [{ location: 'Studio A' }],
+    });
   });
 
   it('uses string detail as message', () => {

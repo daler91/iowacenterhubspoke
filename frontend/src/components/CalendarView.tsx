@@ -7,9 +7,8 @@ import {
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import { MapPin, Users, BookOpen } from 'lucide-react';
-import { schedulesAPI } from '../lib/api';
+import { schedulesAPI, normalizeApiError } from '../lib/api';
 import { cn } from '../lib/utils';
-import { normalizeApiError } from '../lib/api-errors';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';

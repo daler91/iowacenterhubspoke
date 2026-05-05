@@ -4,6 +4,13 @@ import { schedulesAPI } from '../lib/api';
 import { toast } from 'sonner';
 
 jest.mock('../lib/api', () => ({
+  normalizeApiError: (err: any, fallback = 'Something went wrong. Please try again.') => ({
+    status: err?.response?.status ?? null,
+    detail: err?.response?.data?.detail,
+    detailPayload: (typeof err?.response?.data?.detail === 'object' && err?.response?.data?.detail !== null) ? err.response.data.detail : null,
+    conflicts: Array.isArray(err?.response?.data?.detail?.conflicts) ? err.response.data.detail.conflicts : [],
+    message: typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : (err?.response?.data?.detail?.message || fallback),
+  }),
   schedulesAPI: {
     create: jest.fn(),
     update: jest.fn(),
@@ -133,6 +140,39 @@ describe('useScheduleForm Error Handling', () => {
       "Partner 'Acme' is not active (status=paused); coordination project was not created.",
       { duration: 8000 }
     );
+  });
+
+
+
+  it('retries conflict preview and clears error after success', async () => {
+    schedulesAPI.checkConflicts.mockRejectedValueOnce(new Error('nope'));
+    schedulesAPI.checkConflicts.mockResolvedValueOnce({
+      data: {
+        conflicts: [{ location: 'Studio B', time: '10:00-11:00' }],
+        outlook_conflicts: [],
+        google_conflicts: [],
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
+    );
+
+    act(() => {
+      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
+    });
+
+    await act(async () => {
+      await result.current.retryConflictPreview();
+    });
+    expect(result.current.conflictPreviewError).toBe(true);
+
+    await act(async () => {
+      await result.current.retryConflictPreview();
+    });
+
+    expect(result.current.conflictPreviewError).toBe(false);
+    expect(result.current.previewConflicts.conflicts).toEqual([{ location: 'Studio B', time: '10:00-11:00' }]);
   });
 
   it('handles generic error on create', async () => {

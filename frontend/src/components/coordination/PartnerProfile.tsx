@@ -157,17 +157,12 @@ export default function PartnerProfile() {
       toast.success(`Status updated to ${newStatus}`);
       mutatePartnerOrg();
     } catch (err: unknown) {
-      const resp = err && typeof err === 'object' && 'response' in err
-        ? (err as { response: { data?: { detail?: unknown } } }).response
-        : null;
-      const detail = resp?.data?.detail;
-      const blockers = detail && typeof detail === 'object' && 'blockers' in detail
-        ? (detail as { blockers: string[] }).blockers
-        : null;
-      if (blockers) {
+      const normalized = normalizeApiError(err, 'Failed to update status');
+      const blockers = Array.isArray(normalized.detailPayload?.blockers) ? normalized.detailPayload.blockers : null;
+      if (blockers && blockers.length > 0) {
         toast.error(blockers.join('. '));
       } else {
-        toast.error(typeof detail === 'string' ? detail : 'Failed to update status');
+        toast.error(normalized.message);
       }
     }
   };
