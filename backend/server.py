@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import uuid
-from datetime import datetime, timezone
 
 # Sentry error tracking (opt-in via SENTRY_DSN env var)
 _sentry_dsn = os.getenv("SENTRY_DSN")
@@ -44,6 +43,7 @@ from routers import (  # noqa: E402
 )
 from core.constants import DEFAULT_REDIS_URL  # noqa: E402
 from app_factory import build_lifespan  # noqa: E402
+
 
 async def _safe_aclose(redis_client) -> None:
     """Best-effort close of a Redis client. Never raises."""
@@ -534,8 +534,7 @@ async def _check_worker_heartbeat() -> str:
             return "missing"
         if isinstance(raw, bytes):
             raw = raw.decode()
-        from datetime import datetime, timezone
-        last = datetime.fromisoformat(raw)
+                last = datetime.fromisoformat(raw)
         age = (datetime.now(timezone.utc) - last).total_seconds()
         if age > _WORKER_HEARTBEAT_MAX_AGE_SECONDS:
             return "stale"

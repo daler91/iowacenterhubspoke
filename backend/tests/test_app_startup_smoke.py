@@ -2,6 +2,7 @@ import asyncio
 import sys
 import types
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 
 def _run(coro):
@@ -17,29 +18,18 @@ def test_startup_sequence_orders_hooks(monkeypatch):
 
     calls = []
 
-    class _Admin:
-        async def command(self, cmd):
-            calls.append(("mongo", cmd))
+    admin = SimpleNamespace(command=AsyncMock(side_effect=lambda cmd: calls.append(("mongo", cmd))))
 
-    client = SimpleNamespace(admin=_Admin())
+    client = SimpleNamespace(admin=admin)
     db = object()
     logger = SimpleNamespace(info=lambda *a, **k: None)
     app = SimpleNamespace(state=SimpleNamespace(redis="stale"))
 
-    async def _redis(app_):
-        calls.append(("redis", None))
-
-    async def _migrations(db_, logger_):
-        calls.append(("migrations", None))
-
-    async def _runner(db_):
-        calls.append(("runner", None))
-
-    async def _indexes(db_, logger_):
-        calls.append(("indexes", None))
-
-    async def _seeds(db_, logger_):
-        calls.append(("seeds", None))
+    _redis = AsyncMock(side_effect=lambda app_: calls.append(("redis", None)))
+    _migrations = AsyncMock(side_effect=lambda db_, logger_: calls.append(("migrations", None)))
+    _runner = AsyncMock(side_effect=lambda db_: calls.append(("runner", None)))
+    _indexes = AsyncMock(side_effect=lambda db_, logger_: calls.append(("indexes", None)))
+    _seeds = AsyncMock(side_effect=lambda db_, logger_: calls.append(("seeds", None)))
 
     monkeypatch.setitem(sys.modules, "startup", types.ModuleType("startup"))
     monkeypatch.setitem(sys.modules, "migrations", types.ModuleType("migrations"))
