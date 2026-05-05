@@ -12,7 +12,7 @@ import { cn } from '../lib/utils';
 import StatsStrip from './StatsStrip';
 import ScheduleFilters from './ScheduleFilters';
 import CalendarToolbar from './CalendarToolbar';
-import { PageHeader } from './ui/page-header';
+import { PageShell } from './ui/page-shell';
 import CalendarWeek from './CalendarWeek';
 import CalendarDay from './CalendarDay';
 import MobileCalendar from './MobileCalendar';
@@ -249,13 +249,15 @@ export default function CalendarView() {
   };
 
   return (
-    <div className="space-y-5 animate-slide-in" data-testid="calendar-view">
-      <div data-testid="calendar-home-header">
-        <PageHeader
-          breadcrumbs={[{ label: 'Planning' }, { label: 'Calendar' }]}
-          title="Scheduling Calendar"
-          subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
-        />
+    <PageShell
+      testId="calendar-view"
+      className="space-y-5"
+      breadcrumbs={[{ label: 'Planning' }, { label: 'Calendar' }]}
+      title="Scheduling Calendar"
+      subtitle="Your main planning view — focused on classes, travel time, and weekly flow."
+      status={{ kind: 'ready' }}
+    >
+      <section data-testid="calendar-home-header" aria-label="Calendar overview">
         {(schedules || []).length === 0 && (
           <div className="bg-white dark:bg-card border border-border rounded-lg p-6 space-y-4" data-testid="empty-state-guide">
             <h3 className="text-lg font-semibold text-foreground">Get started with scheduling</h3>
@@ -340,7 +342,7 @@ export default function CalendarView() {
             )}
           </output>
         )}
-      </div>
+      </section>
 
       <StatsStrip stats={stats} onStatClick={onStatClick} />
 
@@ -489,6 +491,6 @@ export default function CalendarView() {
           onForce={handleForceRelocate}
         />
       </Suspense>
-    </div>
+    </PageShell>
   );
 }
