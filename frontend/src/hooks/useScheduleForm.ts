@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
-import { schedulesAPI, type ScheduleConflictCheckPayload, type ScheduleMutationPayload, type ScheduleRequestPayload, type ScheduleRecurringPayload, type ScheduleSinglePayload } from '../lib/api';
+import { schedulesAPI, normalizeApiError, type ScheduleConflictCheckPayload, type ScheduleMutationPayload, type ScheduleRequestPayload, type ScheduleRecurringPayload, type ScheduleSinglePayload } from '../lib/api';
 import { createDefaultCustomRecurrence } from '../components/CustomRecurrenceDialog';
 import { isSchedulesSwrKey } from './useDashboardData';
 import type { Schedule } from '../lib/types';
 import { extractErrorMessage } from '../lib/types';
-import { normalizeApiError } from '../lib/api-errors';
 
 const getDayValue = (dateStr: string) => new Date(`${dateStr}T00:00:00`).getDay();
 
@@ -313,9 +312,9 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
 
   const handleConflictError = (err: unknown) => {
     const normalized = normalizeApiError(err, 'Failed to save schedule');
-    const detail = typeof normalized.detail === 'object' && normalized.detail !== null ? normalized.detail as Record<string, unknown> : {};
-    const outlookConflicts = (detail.outlook_conflicts as Array<Record<string, unknown>>) || [];
-    const googleConflicts = (detail.google_conflicts as Array<Record<string, unknown>>) || [];
+    const detail = normalized.detailPayload;
+    const outlookConflicts = Array.isArray(detail?.outlook_conflicts) ? detail.outlook_conflicts : [];
+    const googleConflicts = Array.isArray(detail?.google_conflicts) ? detail.google_conflicts : [];
     const internalConflicts = normalized.conflicts;
     if (internalConflicts.length === 0 && (outlookConflicts.length > 0 || googleConflicts.length > 0)) {
       if (outlookConflicts.length > 0) setOutlookOverride(true);
@@ -326,7 +325,7 @@ export function useScheduleForm({ open, editSchedule, onSaved, onOpenChange, onP
       ].filter(Boolean).join(' and ');
       toast.warning(`Employee has ${sources} conflicts. Click "Schedule anyway" to override.`, { duration: 6000 });
     } else {
-      const msg = (detail.message as string) || 'Schedule conflict detected';
+      const msg = typeof detail?.message === 'string' ? detail.message : 'Schedule conflict detected';
       const conflictList = internalConflicts.map((c) => `${c.location} (${c.time})`).join(', ');
       toast.error(`${msg}: ${conflictList}`, { duration: 8000 });
     }

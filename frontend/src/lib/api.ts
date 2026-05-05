@@ -1,6 +1,5 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
-import { normalizeApiError } from './api-errors';
 import type {
   ApiListParams,
   ClassCreate,
@@ -14,6 +13,51 @@ import type {
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
 const API_BASE = `${BACKEND_URL}/api/v1`;
+
+
+export interface ApiErrorConflictItem {
+  location?: string;
+  time?: string;
+  [key: string]: unknown;
+}
+
+export interface ApiErrorDetailPayload {
+  message?: string;
+  conflicts?: ApiErrorConflictItem[];
+  outlook_conflicts?: Record<string, unknown>[];
+  google_conflicts?: Record<string, unknown>[];
+  blockers?: string[];
+  [key: string]: unknown;
+}
+
+export interface NormalizedApiError {
+  status: number | null;
+  detail: unknown;
+  detailPayload: ApiErrorDetailPayload | null;
+  conflicts: ApiErrorConflictItem[];
+  message: string;
+}
+
+const FALLBACK_API_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
+export function isApiErrorDetailPayload(value: unknown): value is ApiErrorDetailPayload {
+  return typeof value === 'object' && value !== null;
+}
+
+export function normalizeApiError(err: unknown, fallbackMessage: string = FALLBACK_API_ERROR_MESSAGE): NormalizedApiError {
+  const maybe = err as { response?: { status?: number; data?: { detail?: unknown } }; message?: string };
+  const status = maybe?.response?.status ?? null;
+  const detail = maybe?.response?.data?.detail;
+  const detailPayload = isApiErrorDetailPayload(detail) ? detail : null;
+  const conflicts = Array.isArray(detailPayload?.conflicts) ? detailPayload.conflicts : [];
+
+  let message = fallbackMessage;
+  if (typeof detail === 'string' && detail.trim()) message = detail;
+  else if (typeof detailPayload?.message === 'string' && detailPayload.message.trim()) message = detailPayload.message;
+  else if (typeof maybe?.message === 'string' && maybe.message.trim()) message = maybe.message;
+
+  return { status, detail, detailPayload, conflicts, message };
+}
 
 const api = axios.create({
   baseURL: API_BASE,
