@@ -423,6 +423,7 @@ async def emit_worker_heartbeat(ctx) -> None:
         ex=WORKER_HEARTBEAT_TTL_SECONDS,
     )
 
+
 class WorkerSettings:
     functions = [
         generate_bulk_schedules, sync_schedules_denormalized,
