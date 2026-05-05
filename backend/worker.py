@@ -402,7 +402,6 @@ async def sync_schedules_denormalized(ctx, entity_type: str, entity_id: str):
 
     logger.info("Sync completed", extra={"entity": {"type": entity_type, "id": entity_id}})
 
-from core.constants import DEFAULT_REDIS_URL
 redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
 
 WORKER_HEARTBEAT_KEY = "arq:heartbeat"
@@ -423,8 +422,6 @@ async def emit_worker_heartbeat(ctx) -> None:
         datetime.now(timezone.utc).isoformat(),
         ex=WORKER_HEARTBEAT_TTL_SECONDS,
     )
-
-
 
 class WorkerSettings:
     functions = [
