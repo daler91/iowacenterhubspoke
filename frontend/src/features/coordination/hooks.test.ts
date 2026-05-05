@@ -17,4 +17,17 @@ describe('useTaskCommentActions', () => {
     expect(coordinationFeatureApi.postComment).toHaveBeenCalled();
     expect(refresh).toHaveBeenCalled();
   });
+
+  it('rethrows post failures so caller can preserve draft state', async () => {
+    const refresh = jest.fn().mockResolvedValue(undefined);
+    const boom = new Error('network');
+    (coordinationFeatureApi.postComment as jest.Mock).mockRejectedValue(boom);
+    const { result } = renderHook(() => useTaskCommentActions('p1', 't1', refresh));
+    await act(async () => {
+      await expect(
+        result.current.submitComment({ body: 'Hello', mentions: [], parentCommentId: null }),
+      ).rejects.toThrow('network');
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });

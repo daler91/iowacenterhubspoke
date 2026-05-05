@@ -24,7 +24,7 @@ export function useTaskCommentActions(projectId: string, taskId: string, onRefre
       return res.data?.id ?? null;
     } catch (error) {
       toast.error(describeApiError(error, 'Could not add comment.'));
-      return null;
+      throw error;
     } finally {
       setSubmitting(false);
     }
