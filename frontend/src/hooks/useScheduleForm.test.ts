@@ -46,6 +46,19 @@ describe('useScheduleForm Error Handling', () => {
     recurrence: 'none',
   };
 
+
+
+  const seedValidForm = (setForm: (updater: (prev: any) => any) => void) => {
+    act(() => {
+      setForm((prev) => ({ ...prev, ...validFormState }));
+    });
+  };
+
+  const submitHookForm = async (handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>) => {
+    await act(async () => {
+      await handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
+    });
+  };
   it('handles 409 error with outlook conflicts only', async () => {
     const errorResponse = {
       response: {
@@ -64,13 +77,8 @@ describe('useScheduleForm Error Handling', () => {
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(result.current.outlookOverride).toBe(true);
     expect(toast.warning).toHaveBeenCalledWith(
@@ -99,13 +107,8 @@ describe('useScheduleForm Error Handling', () => {
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(result.current.outlookOverride).toBe(false);
     expect(toast.error).toHaveBeenCalledWith(
@@ -127,13 +130,8 @@ describe('useScheduleForm Error Handling', () => {
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(toast.success).toHaveBeenCalledWith('Class scheduled successfully');
     expect(toast.warning).toHaveBeenCalledWith(
@@ -190,13 +188,8 @@ describe('useScheduleForm Error Handling', () => {
       useScheduleForm({ open: true, editSchedule: null, onSaved: mockOnSaved, onOpenChange: mockOnOpenChange })
     );
 
-    act(() => {
-      result.current.setForm((prev) => ({ ...prev, ...validFormState }));
-    });
-
-    await act(async () => {
-      await result.current.handleSubmit(new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>);
-    });
+    seedValidForm(result.current.setForm);
+    await submitHookForm(result.current.handleSubmit);
 
     expect(toast.error).toHaveBeenCalledWith('Internal Server Error');
     expect(result.current.loading).toBe(false);

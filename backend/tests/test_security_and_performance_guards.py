@@ -20,9 +20,9 @@ def test_no_url_token_auth_usage_in_routers_or_services():
     )
     for rel in ("routers", "services"):
         for path in (BACKEND_ROOT / rel).rglob("*.py"):
-            text = path.read_text(encoding="utf-8")
-            if any(n in text for n in needles) and "Authorization" not in text:
-                offenders.append(str(path.relative_to(REPO_ROOT)))
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if any(n in line for n in needles):
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}")
     assert not offenders, f"Potential URL token auth patterns found: {offenders}"
 
 
