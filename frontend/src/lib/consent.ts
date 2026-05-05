@@ -52,7 +52,6 @@ export async function initPostHogIfConsented(): Promise<void> {
     person_profiles: "identified_only",
     session_recording: {
       recordCrossOriginIframes: true,
-      capturePerformance: false,
     },
   });
 }

@@ -116,7 +116,7 @@ export default function CommunityDashboard() {
             aria-label={`Open board for ${community.community}`}
             className="p-4 cursor-pointer hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-hub focus-visible:outline-none"
             onClick={() => navigate(`/coordination/board?community=${encodeURIComponent(community.community)}`)}
-            onKeyDown={(e) => {
+            onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 navigate(`/coordination/board?community=${encodeURIComponent(community.community)}`);
@@ -187,7 +187,7 @@ export default function CommunityDashboard() {
                   aria-label={`Open project ${project.title}`}
                   className="border-b last:border-0 hover:bg-muted/50 dark:hover:bg-muted cursor-pointer focus-visible:bg-muted dark:focus-visible:bg-muted focus-visible:outline-none"
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
-                  onKeyDown={(e) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       navigate(`/coordination/projects/${project.id}`);
@@ -198,7 +198,7 @@ export default function CommunityDashboard() {
                   <td className="px-4 py-3 text-foreground/80">{project.community}</td>
                   <td className="px-4 py-3 text-foreground/80">{new Date(project.event_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
+                    <Badge variant="default" className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                       {PHASE_LABELS[project.phase]}
                     </Badge>
                   </td>

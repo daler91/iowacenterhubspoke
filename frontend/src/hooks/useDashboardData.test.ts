@@ -23,10 +23,10 @@ jest.mock('../lib/api', () => ({
 // string key to an array key (`['schedules', dateFrom, dateTo]`) so the
 // hook can cache each window independently. Tests don't care about the
 // specific window — they just want to look up "the schedules mock".
-const normalizeKey = (key) => (Array.isArray(key) ? key[0] : key);
+const normalizeKey = (key: unknown): string => (Array.isArray(key) ? String(key[0]) : String(key));
 
 describe('useDashboardData', () => {
-  let mockMutate;
+  let mockMutate: Record<string, jest.Mock>;
 
   beforeEach(() => {
     mockMutate = {
@@ -39,7 +39,7 @@ describe('useDashboardData', () => {
       mutateWorkload: jest.fn(),
     };
 
-    useSWR.mockImplementation((key) => {
+    (useSWR as jest.Mock).mockImplementation((key: unknown) => {
       switch (normalizeKey(key)) {
         case 'locations':
           return { data: [{ id: 1, name: 'Location 1' }], mutate: mockMutate.mutateLocations };
@@ -78,7 +78,7 @@ describe('useDashboardData', () => {
   });
 
   it('should return empty arrays/objects when useSWR returns undefined', () => {
-    useSWR.mockImplementation((key) => {
+    (useSWR as jest.Mock).mockImplementation((key: unknown) => {
       if (key === 'stats') return { data: undefined, mutate: jest.fn() };
       return { data: undefined, mutate: jest.fn() };
     });
@@ -174,9 +174,9 @@ describe('useDashboardData', () => {
   it('passes date_from/date_to to schedulesAPI.getAll when a window is supplied', () => {
     // Capture the fetcher passed for the schedules key and invoke it so
     // we can assert on the params handed to the API.
-    schedulesAPI.getAll.mockResolvedValue({ data: [] });
-    let scheduleFetcher;
-    useSWR.mockImplementation((key, fetcher) => {
+    (schedulesAPI.getAll as jest.Mock).mockResolvedValue({ data: [] });
+    let scheduleFetcher: (() => Promise<unknown>) | undefined;
+    (useSWR as jest.Mock).mockImplementation((key: unknown, fetcher?: () => Promise<unknown>) => {
       if (Array.isArray(key) && key[0] === 'schedules') {
         scheduleFetcher = fetcher;
       }
@@ -188,7 +188,7 @@ describe('useDashboardData', () => {
     }));
 
     expect(typeof scheduleFetcher).toBe('function');
-    scheduleFetcher();
+    scheduleFetcher?.();
     expect(schedulesAPI.getAll).toHaveBeenCalledWith({
       date_from: '2024-01-01',
       date_to: '2024-03-01',
@@ -196,9 +196,9 @@ describe('useDashboardData', () => {
   });
 
   it('calls schedulesAPI.getAll with no params when window is null', () => {
-    schedulesAPI.getAll.mockResolvedValue({ data: [] });
-    let scheduleFetcher;
-    useSWR.mockImplementation((key, fetcher) => {
+    (schedulesAPI.getAll as jest.Mock).mockResolvedValue({ data: [] });
+    let scheduleFetcher: (() => Promise<unknown>) | undefined;
+    (useSWR as jest.Mock).mockImplementation((key: unknown, fetcher?: () => Promise<unknown>) => {
       if (Array.isArray(key) && key[0] === 'schedules') {
         scheduleFetcher = fetcher;
       }
@@ -207,7 +207,7 @@ describe('useDashboardData', () => {
 
     renderHook(() => useDashboardData({ scheduleWindow: null }));
 
-    scheduleFetcher();
+    scheduleFetcher?.();
     expect(schedulesAPI.getAll).toHaveBeenCalledWith(undefined);
   });
 });

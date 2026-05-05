@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
                   data-testid="forgot-email-input"
                   placeholder="you@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                   required
                   className="h-11 bg-muted/50"
                 />
