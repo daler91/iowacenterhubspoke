@@ -74,7 +74,8 @@
     "test:e2e": "playwright test",
     "check-testids": "node scripts/check-testids.js",
     "lint": "eslint src",
-    "lint:fix": "eslint src --fix"
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc --noEmit"
   },
   "browserslist": {
     "production": [
