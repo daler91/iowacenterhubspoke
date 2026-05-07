@@ -127,6 +127,9 @@ async def update_visibility(
     project_id: str, doc_id: str,
     data: DocumentVisibilityUpdate, user: EditorRequired,
 ):
+    project = await projects_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
@@ -171,6 +174,9 @@ async def delete_document(project_id: str, doc_id: str, user: SchedulerRequired)
     responses={404: {"description": DOC_NOT_FOUND}},
 )
 async def restore_document(project_id: str, doc_id: str, user: SchedulerRequired):
+    project = await projects_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     doc = await documents_repo.collection.find_one(
         {"id": doc_id, "project_id": project_id, "deleted_at": {"$ne": None}}
     )
@@ -191,6 +197,9 @@ async def download_document(
     project_id: str, doc_id: str, user: CurrentUser,
     inline: bool = False,
 ):
+    project = await projects_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
     doc = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not doc:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)

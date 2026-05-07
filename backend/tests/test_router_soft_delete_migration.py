@@ -62,6 +62,42 @@ def test_project_docs_pagination_totals_and_soft_delete(monkeypatch):
     assert deleted["message"] == "Document deleted"
 
 
+
+
+def test_project_docs_restore_rejects_deleted_parent_project(monkeypatch):
+    monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value=None))
+    find_one = AsyncMock()
+    restore = AsyncMock()
+    monkeypatch.setattr(project_docs.documents_repo, "collection", SimpleNamespace(find_one=find_one))
+    monkeypatch.setattr(project_docs.documents_repo, "restore", restore)
+
+    from fastapi import HTTPException
+    try:
+        _run(project_docs.restore_document("p-deleted", "d1", user={"name": "Scheduler"}))
+        assert False, "Expected HTTPException"
+    except Exception as exc:
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 404
+
+    find_one.assert_not_awaited()
+    restore.assert_not_awaited()
+
+
+def test_project_docs_download_rejects_deleted_parent_project(monkeypatch):
+    monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value=None))
+    find_one_active = AsyncMock()
+    monkeypatch.setattr(project_docs.documents_repo, "find_one_active", find_one_active)
+
+    from fastapi import HTTPException
+    try:
+        _run(project_docs.download_document("p-deleted", "d1", user={"id": "u"}))
+        assert False, "Expected HTTPException"
+    except Exception as exc:
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 404
+
+    find_one_active.assert_not_awaited()
+
 def test_project_docs_visibility_patch_is_idempotent(monkeypatch):
     find_one_mock = AsyncMock(return_value={"id": "d1", "project_id": "p-1", "visibility": "shared"})
     update_mock = AsyncMock(return_value=False)
