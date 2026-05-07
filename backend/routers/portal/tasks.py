@@ -109,7 +109,7 @@ async def portal_project_tasks(project_id: str, ctx: PortalContext):
             "owner": {"$in": ["partner", "both"]},
             "deleted_at": None,
         },
-        {"_id": 0},
+        {"_id": 0, "details": 0},
     ).sort("sort_order", 1).to_list(500)
     return {"items": tasks, "total": len(tasks)}
 
@@ -157,7 +157,7 @@ async def portal_project_tasks_bulk(
             "deleted_at": None,
         }},
         {"$sort": {"sort_order": 1}},
-        {"$project": {"_id": 0}},
+        {"$project": {"_id": 0, "details": 0}},
         {"$group": {"_id": "$project_id", "tasks": {"$push": "$$ROOT"}}},
         {"$project": {
             "_id": 0,
@@ -182,7 +182,7 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
     await _require_partner_project(project_id, ctx)
     task = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
-        {"_id": 0},
+        {"_id": 0, "details": 0},
     )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
@@ -305,7 +305,7 @@ async def portal_task_detail(project_id: str, task_id: str, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
     task = await db.tasks.find_one(
         {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
-        {"_id": 0},
+        {"_id": 0, "details": 0},
     )
     if not task:
         raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
