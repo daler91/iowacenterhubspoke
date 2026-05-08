@@ -189,7 +189,7 @@ async def restore_employee(employee_id: str, user: AdminRequired):
 )
 async def get_employee_stats(employee_id: str, user: CurrentUser):
     """Return schedule counts, drive/class hours, location breakdown, and recent schedules."""
-    employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0})
+    employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0})
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
