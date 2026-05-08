@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [replayLogout, setReplayLogout] = useState(false);
-  const [inviteData, setInviteData] = useState<{ email: string; name?: string; role: string } | null>(null);
+  const [inviteData, setInviteData] = useState<{ valid: boolean } | null>(null);
   const inviteToken = searchParams.get('invite');
 
   // Read the one-shot "refresh-token replay detected" flag set by the
@@ -44,11 +44,7 @@ export default function LoginPage() {
         if (cancelled) return;
         setInviteData(res.data);
         setIsLogin(false);
-        setForm(prev => ({
-          ...prev,
-          email: res.data.email,
-          name: res.data.name || '',
-        }));
+        setForm(prev => ({ ...prev }));
       } catch {
         if (!cancelled) {
           toast.error('This invitation link is invalid or has expired');
@@ -105,7 +101,7 @@ export default function LoginPage() {
   let pageDescription = 'Get started with your scheduling hub';
   if (inviteData) {
     pageTitle = 'Accept Invitation';
-    pageDescription = `You've been invited to join as ${inviteData.role}`;
+    pageDescription = "You've been invited to join this workspace";
   } else if (isLogin) {
     pageTitle = 'Sign in';
     pageDescription = 'Enter your credentials to access the scheduler';
