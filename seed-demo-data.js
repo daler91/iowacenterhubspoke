@@ -15,10 +15,24 @@ const { MongoClient } = require('mongodb');
 const { randomUUID } = require('node:crypto');
 
 const MONGO_URL = process.env.MONGO_URL;
-const DB_NAME = process.env.DB_NAME || 'iowa_center_hub';
+const DB_NAME = process.env.DB_NAME || 'iowa_center_hub_demo';
 
 if (!MONGO_URL) {
   console.error('ERROR: MONGO_URL environment variable is not set.');
+  process.exit(1);
+}
+
+
+const ALLOW_DESTRUCTIVE_SEED = process.env.ALLOW_DESTRUCTIVE_SEED === 'true';
+const ALLOW_PROD_SEED = process.env.ALLOW_PROD_SEED === 'true';
+
+if (!ALLOW_DESTRUCTIVE_SEED) {
+  console.error('ERROR: Refusing to run destructive seed without ALLOW_DESTRUCTIVE_SEED=true.');
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV === 'production' && !ALLOW_PROD_SEED) {
+  console.error('ERROR: Refusing to run seed in production without ALLOW_PROD_SEED=true.');
   process.exit(1);
 }
 
