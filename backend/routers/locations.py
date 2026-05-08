@@ -50,7 +50,7 @@ async def get_drive_time_between_endpoint(from_id: str, to_id: str, user: Curren
 
 
 @router.get("/drive-time-from-hub")
-async def get_drive_time_from_hub_endpoint(lat: float, lng: float, user: CurrentUser):
+async def get_drive_time_from_hub_endpoint(lat: float, lng: float, user: AdminRequired):
     """Get drive time from Hub (Des Moines) to given coordinates."""
     minutes = await get_drive_time_from_hub(lat, lng)
     return {"drive_time_minutes": minutes}
