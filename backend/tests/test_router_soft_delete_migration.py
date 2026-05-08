@@ -99,6 +99,7 @@ def test_project_docs_download_rejects_deleted_parent_project(monkeypatch):
     find_one_active.assert_not_awaited()
 
 def test_project_docs_visibility_patch_is_idempotent(monkeypatch):
+    monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value={"id": "p-1"}))
     find_one_mock = AsyncMock(return_value={"id": "d1", "project_id": "p-1", "visibility": "shared"})
     update_mock = AsyncMock(return_value=False)
 
@@ -118,6 +119,7 @@ def test_project_docs_visibility_patch_is_idempotent(monkeypatch):
 
 
 def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
+    monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value={"id": "p-1"}))
     find_one_mock = AsyncMock(side_effect=[
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
@@ -144,6 +146,7 @@ def test_project_docs_visibility_update_scopes_write_to_project(monkeypatch):
 
 
 def test_project_docs_visibility_race_noop_does_not_404(monkeypatch):
+    monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value={"id": "p-1"}))
     find_one_mock = AsyncMock(side_effect=[
         {"id": "d1", "project_id": "p-1", "visibility": "internal"},
         {"id": "d1", "project_id": "p-1", "visibility": "shared"},
