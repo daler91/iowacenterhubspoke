@@ -207,7 +207,7 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
 
     if token_pwdv is None:
         token_iat = int(payload.get('iat') or 0)
-        if password_changed_ts is not None and token_iat < int(password_changed_ts):
+        if current_pwdv > 0 or (password_changed_ts is not None and token_iat < int(password_changed_ts)):
             raise HTTPException(
                 status_code=401,
                 detail='Session invalidated by password change. Please log in again.'
