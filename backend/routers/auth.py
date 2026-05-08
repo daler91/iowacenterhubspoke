@@ -526,6 +526,18 @@ async def refresh_session(request: Request, response: Response):
         # to a deactivated user. Chain stays revoked.
         raise HTTPException(status_code=401, detail="User no longer active")
 
+    # Reject refresh tokens minted before a password reset/change.
+    token_iat = int(payload.get("iat", 0) or 0)
+    changed_at = _parse_iso_ts(user_doc.get("password_changed_at"))
+    if token_iat and changed_at and token_iat < int(changed_at.timestamp()):
+        await db.refresh_tokens.update_many(
+            {"user_id": user_id, "used_at": None},
+            {"$set": {"used_at": now_iso, "revoked_reason": "password_changed"}},
+        )
+        response.delete_cookie(key="auth_token", httponly=True, samesite="lax", secure=True)
+        response.delete_cookie(key="refresh_token", httponly=True, samesite="lax", secure=True, path="/api")
+        raise HTTPException(status_code=401, detail="Session invalidated by password change. Please log in again.")
+
     await _issue_session_cookies(
         response,
         user_doc["id"],
@@ -637,6 +649,10 @@ async def reset_password(request: Request, data: ResetPasswordRequest):
     await db.password_resets.update_many(
         {"user_id": row["user_id"], "used_at": None},
         {"$set": {"used_at": now.isoformat()}},
+    )
+    await db.refresh_tokens.update_many(
+        {"user_id": row["user_id"], "used_at": None},
+        {"$set": {"used_at": now.isoformat(), "revoked_reason": "password_changed"}},
     )
     logger.info(
         "Password reset via token",
