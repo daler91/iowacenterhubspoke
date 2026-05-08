@@ -179,6 +179,22 @@ def test_get_same_name_users_is_bounded(monkeypatch):
     fake_db = _build_fake_db(users=users, employee=None, activity_logs=[], password_resets=[])
     monkeypatch.setattr("routers.auth.db", fake_db)
 
-    result = asyncio.run(_get_same_name_users("Alex"))
+    result, truncated = asyncio.run(_get_same_name_users("Alex"))
 
     assert len(result) == 200
+    assert truncated is True
+
+
+def test_classify_legacy_rows_with_truncated_candidates_forces_ambiguity():
+    same_name_users = [{"id": "u1", "created_at": "2024-01-01T00:00:00+00:00"}]
+    legacy_rows = [{"id": "l1", "timestamp": "2024-02-01T00:00:00+00:00"}]
+
+    confident, ambiguous = _classify_legacy_rows(
+        legacy_rows=legacy_rows,
+        user_id="u1",
+        same_name_users=same_name_users,
+        truncated_candidates=True,
+    )
+
+    assert confident == []
+    assert [r["id"] for r in ambiguous] == ["l1"]
