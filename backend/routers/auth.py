@@ -353,7 +353,7 @@ async def login(request: Request, data: UserLogin, response: Response):
             ),
         )
 
-    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    user = await db.users.find_one({"email": data.email, "deleted_at": None}, {"_id": 0})
     if not user or not await verify_password(data.password, user['password_hash']):
         await _record_login_failure(data.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
