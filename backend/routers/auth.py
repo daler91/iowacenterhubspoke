@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -259,11 +260,15 @@ async def _send_pending_notifications(user_doc: dict) -> None:
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserRegister, response: Response):
     """Create a new user account. Invited and admin-email users are auto-approved; others require admin approval."""
-    existing = await db.users.find_one({"email": data.email}, {"_id": 0})
+    normalized_email = data.email.strip().lower()
+    existing = await db.users.find_one(
+        {"email": {"$regex": f"^{re.escape(normalized_email)}$", "$options": "i"}},
+        {"_id": 0},
+    )
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    is_admin_email = data.email.lower() in ADMIN_EMAILS
+    is_admin_email = normalized_email in ADMIN_EMAILS
     invitation_lookup = await _validate_invitation(data)
 
     # Self-service registrants must accept the privacy notice.
