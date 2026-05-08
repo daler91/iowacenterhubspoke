@@ -68,8 +68,8 @@ def test_project_docs_restore_rejects_deleted_parent_project(monkeypatch):
     monkeypatch.setattr(project_docs.projects_repo, "get_by_id", AsyncMock(return_value=None))
     find_one = AsyncMock()
     restore = AsyncMock()
-    monkeypatch.setattr(project_docs.documents_repo, "collection", SimpleNamespace(find_one=find_one))
-    monkeypatch.setattr(project_docs.documents_repo, "restore", restore)
+    fake_repo = SimpleNamespace(collection=SimpleNamespace(find_one=find_one), restore=restore)
+    monkeypatch.setattr(project_docs, "documents_repo", fake_repo)
 
     from fastapi import HTTPException
     try:
