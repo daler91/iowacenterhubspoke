@@ -247,7 +247,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
                   {pieData.map((entry, i) => (
-                    <Cell key={entry.name} fill={entry.color} />
+                    <Cell key={entry.employee_id} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
@@ -260,7 +260,7 @@ export default function WorkloadDashboard(props: Readonly<WorkloadDashboardProps
           )}
           <div className="space-y-2 mt-2">
             {pieData.map((pieItem) => (
-              <div key={pieItem.name} className="flex items-center justify-between text-xs">
+              <div key={pieItem.employee_id} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pieItem.color }} />
                   <EntityLink type="employee" id={pieItem.employee_id} className="text-foreground/80 dark:text-muted-foreground truncate max-w-[120px]">{pieItem.name}</EntityLink>
