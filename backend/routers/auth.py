@@ -661,15 +661,12 @@ def _parse_iso_ts(raw: object) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
-async def _get_same_name_users(name: str) -> list[dict]:
-    """Load every user record that shares a display name."""
-    rows: list[dict] = []
-    async for row in db.users.find(
+async def _get_same_name_users(name: str, *, limit: int = 200) -> list[dict]:
+    """Load a bounded set of user records that share a display name."""
+    return await db.users.find(
         {"name": name},
         {"_id": 0, "id": 1, "created_at": 1},
-    ):
-        rows.append(row)
-    return rows
+    ).to_list(limit)
 
 
 def _classify_legacy_rows(

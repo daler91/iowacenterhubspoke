@@ -16,7 +16,9 @@ class _FakeCursor:
 
     async def to_list(self, _limit):
         await asyncio.sleep(0)
-        return list(self._rows)
+        if _limit is None:
+            return list(self._rows)
+        return list(self._rows[:_limit])
 
     def __aiter__(self):
         self._iter_idx = 0
@@ -165,3 +167,18 @@ def test_classify_legacy_rows_first_created_boundary_equal_timestamp_is_ambiguou
 
     assert [r["id"] for r in confident] == ["before_boundary"]
     assert [r["id"] for r in ambiguous] == ["at_boundary"]
+
+
+def test_get_same_name_users_is_bounded(monkeypatch):
+    from routers.auth import _get_same_name_users
+
+    users = [
+        {"id": f"u{i}", "name": "Alex", "created_at": "2024-01-01T00:00:00+00:00"}
+        for i in range(250)
+    ]
+    fake_db = _build_fake_db(users=users, employee=None, activity_logs=[], password_resets=[])
+    monkeypatch.setattr("routers.auth.db", fake_db)
+
+    result = asyncio.run(_get_same_name_users("Alex"))
+
+    assert len(result) == 200
