@@ -34,6 +34,14 @@ def _looks_multi_worker() -> bool:
 
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
+_WEAK_JWT_SECRETS = {
+    'change-me-to-a-random-secret',
+}
+if JWT_SECRET and JWT_SECRET.strip().lower() in _WEAK_JWT_SECRETS:
+    raise ValueError(
+        "CRITICAL: JWT_SECRET uses an insecure placeholder value."
+        " Generate a strong random secret before starting the server."
+    )
 if not JWT_SECRET:
     if _looks_multi_worker():
         raise ValueError(
