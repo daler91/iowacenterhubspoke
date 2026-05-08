@@ -619,6 +619,7 @@ async def relocate_schedule(
             for emp in schedule.get("employee_ids", [])
         ]
         try:
+            inserted_claim_ids = []
             for claim_id in claim_ids:
                 await db.schedule_slot_claims.insert_one(
                     {
@@ -628,7 +629,14 @@ async def relocate_schedule(
                     },
                     session=session,
                 )
+                inserted_claim_ids.append(claim_id)
         except DuplicateKeyError:
+            # In standalone fallback mode (no transaction), clean up any
+            # partial claim inserts from this relocation attempt.
+            if session is None and inserted_claim_ids:
+                await db.schedule_slot_claims.delete_many(
+                    {"_id": {"$in": inserted_claim_ids}}
+                )
             raise HTTPException(
                 status_code=409,
                 detail={

@@ -1,6 +1,7 @@
 import asyncio
 from copy import deepcopy
 
+import pytest
 from fastapi import HTTPException
 from pymongo.errors import OperationFailure
 
@@ -109,6 +110,12 @@ class _FakeClaims:
             raise DuplicateKeyError("duplicate claim")
         self._ids.add(_id)
 
+    async def delete_many(self, query):
+        await asyncio.sleep(0)
+        ids = query.get("_id", {}).get("$in", [])
+        for claim_id in ids:
+            self._ids.discard(claim_id)
+
 
 def test_competing_relocations_only_one_succeeds(monkeypatch):
     monkeypatch.setattr("routers.schedule_crud.db", FakeDB())
@@ -161,3 +168,29 @@ def test_relocate_falls_back_without_transactions(monkeypatch):
     result = asyncio.run(relocate_schedule("s-1", payload, {"name": "tester"}))
     assert result["date"] == "2026-06-01"
     assert result["start_time"] == "13:00"
+
+
+def test_fallback_rolls_back_partial_claims(monkeypatch):
+    db = StandaloneFakeDB()
+    db.schedules.docs["s-1"]["employee_ids"] = ["e-1", "e-2"]
+    # Force a duplicate only on the second claim insert so the first claim
+    # would otherwise remain stale without cleanup.
+    db.schedule_slot_claims._ids.add("e-2:2026-06-01:13:00:14:00")
+    monkeypatch.setattr("routers.schedule_crud.db", db)
+
+    async def noop(*_a, **_k):
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
+    monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
+    monkeypatch.setattr("routers.schedule_crud.sync_relocate_calendar", noop)
+    monkeypatch.setattr("routers.schedule_crud._sync_linked_project_date", noop)
+    monkeypatch.setattr("routers.schedule_crud.log_activity", noop)
+    monkeypatch.setattr("routers.schedule_crud.notify_schedule_changed", noop)
+    monkeypatch.setattr("routers.schedule_crud.invalidate_workload_cache", noop)
+
+    payload = ScheduleRelocate(date="2026-06-01", start_time="13:00", end_time="14:00", force=False)
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(relocate_schedule("s-1", payload, {"name": "tester"}))
+    assert excinfo.value.status_code == 409
+    assert "e-1:2026-06-01:13:00:14:00" not in db.schedule_slot_claims._ids
