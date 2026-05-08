@@ -110,10 +110,6 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                       <p className="text-sm whitespace-pre-wrap">{task.description || 'No description provided.'}</p>
                     </Card>
                     <Card className="p-4">
-                      <p className="text-xs text-muted-foreground mb-1">Details</p>
-                      <p className="text-sm whitespace-pre-wrap">{task.details || 'No details provided.'}</p>
-                    </Card>
-                    <Card className="p-4">
                       <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Attachments</p>
                         <label className={cn('text-xs', !canUpload && 'opacity-60')}>
                           <input type="file" className="hidden" disabled={!canUpload} onChange={async (e) => {
