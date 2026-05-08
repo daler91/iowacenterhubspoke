@@ -201,18 +201,22 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     # (new tokens) and preserve legacy iat-based invalidation for tokens
     # minted before pwdv rollout.
     token_pwdv = payload.get('pwdv')
-    current_pwdv, is_deleted, password_changed_ts = await _get_pwd_invalidation_state(payload['user_id'])
+    changed_marker, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
     if is_deleted:
         raise HTTPException(status_code=401, detail='Account deactivated')
 
     if token_pwdv is None:
         token_iat = int(payload.get('iat') or 0)
-        if current_pwdv > 0 or (password_changed_ts is not None and token_iat < int(password_changed_ts)):
+        # changed_marker can be either:
+        # - password_changed_at epoch timestamp (>= 1e9), or
+        # - pwd_version shim value when no timestamp exists (small int).
+        marker = int(changed_marker or 0)
+        if marker > 0 and (marker < 1_000_000_000 or token_iat < marker):
             raise HTTPException(
                 status_code=401,
                 detail='Session invalidated by password change. Please log in again.'
             )
-    elif int(token_pwdv) < current_pwdv:
+    elif int(token_pwdv) < int(changed_marker or 0):
         raise HTTPException(
             status_code=401,
             detail='Session invalidated by password change. Please log in again.'
