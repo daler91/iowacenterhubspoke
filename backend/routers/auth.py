@@ -690,15 +690,13 @@ def _parse_iso_ts(raw: object) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
-async def _get_same_name_users(name: str) -> list[dict]:
-    """Load every user record that shares a display name."""
-    rows: list[dict] = []
-    async for row in db.users.find(
+async def _get_same_name_users(name: str, *, limit: int = 200) -> tuple[list[dict], bool]:
+    """Load a bounded set of user records that share a display name."""
+    rows = await db.users.find(
         {"name": name},
         {"_id": 0, "id": 1, "created_at": 1},
-    ):
-        rows.append(row)
-    return rows
+    ).to_list(limit + 1)
+    return rows[:limit], len(rows) > limit
 
 
 def _classify_legacy_rows(
@@ -706,12 +704,14 @@ def _classify_legacy_rows(
     legacy_rows: list[dict],
     user_id: str,
     same_name_users: list[dict],
+    truncated_candidates: bool = False,
 ) -> tuple[list[dict], list[dict]]:
     """Classify legacy rows into confident vs ambiguous attribution."""
     confident_legacy: list[dict] = []
     ambiguous_legacy: list[dict] = []
 
     created_by_id, invalid_created = _build_created_by_id(same_name_users)
+    invalid_created = invalid_created or truncated_candidates
     target_created, has_single_candidate, boundary_second_created = _legacy_boundaries(
         created_by_id=created_by_id,
         user_id=user_id,
@@ -794,11 +794,12 @@ async def _classify_export_legacy_activity(
     """Classify legacy activity rows for export payloads."""
     if not legacy_rows or not legacy_name:
         return [], []
-    same_name_users = await _get_same_name_users(legacy_name)
+    same_name_users, truncated_candidates = await _get_same_name_users(legacy_name)
     return _classify_legacy_rows(
         legacy_rows=legacy_rows,
         user_id=user_id,
         same_name_users=same_name_users,
+        truncated_candidates=truncated_candidates,
     )
 
 
