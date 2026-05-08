@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -61,6 +62,16 @@ async def _issue_session_cookies(
 
 _admin_email_str = os.getenv("ADMIN_EMAILS", os.getenv("ADMIN_EMAIL", ""))
 ADMIN_EMAILS = [e.strip().lower() for e in _admin_email_str.split(",") if e.strip()]
+MONGO_REGEX_KEY = "$regex"
+MONGO_OPTIONS_KEY = "$options"
+
+
+def _case_insensitive_exact_email(email: str) -> dict:
+    return {
+        MONGO_REGEX_KEY: f"^{re.escape(email)}$",
+        MONGO_OPTIONS_KEY: "i",
+    }
+
 
 # Per-email brute-force thresholds. IP-based rate limits already throttle
 # raw traffic; this layer adds an email-scoped lockout that a botnet
@@ -257,11 +268,15 @@ async def _send_pending_notifications(user_doc: dict) -> None:
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserRegister, response: Response):
     """Create a new user account. Invited and admin-email users are auto-approved; others require admin approval."""
-    existing = await db.users.find_one({"email": data.email}, {"_id": 0})
+    normalized_email = data.email.strip().lower()
+    existing = await db.users.find_one(
+        {"email": _case_insensitive_exact_email(normalized_email)},
+        {"_id": 0},
+    )
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    is_admin_email = data.email.lower() in ADMIN_EMAILS
+    is_admin_email = normalized_email in ADMIN_EMAILS
     invitation_lookup = await _validate_invitation(data)
 
     # Self-service registrants must accept the privacy notice.
@@ -809,10 +824,9 @@ async def export_my_data(user: CurrentUser):
         {"_id": 0, "password_hash": 0},
     )
     # Case-insensitive match so mixed-case stored addresses are found.
-    import re as _re
     employee_doc = await db.employees.find_one(
         {
-            "email": {"$regex": f"^{_re.escape(email)}$", "$options": "i"},
+            "email": _case_insensitive_exact_email(email),
             "deleted_at": None,
         },
         {
@@ -964,11 +978,7 @@ async def delete_my_account(user: CurrentUser, response: Response):
     # user-facing email is stored lower-cased. ``^...$`` anchors
     # prevent partial matches like ``sub.bob@...``; ``re.escape``
     # neutralises any regex metacharacters in the address.
-    import re as _re
-    email_pattern = {
-        "$regex": f"^{_re.escape(user_doc['email'])}$",
-        "$options": "i",
-    }
+    email_pattern = _case_insensitive_exact_email(user_doc["email"])
 
     # Soft-delete any employee record with this email, scrub PII fields.
     employee_ids_to_anonymize: list[str] = []
