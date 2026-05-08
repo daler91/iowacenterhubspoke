@@ -672,6 +672,7 @@ app.include_router(legacy_router)
 # on every response; we also log the first hit per path so we can track
 # real-world traffic before the hard removal in a future release.
 _LEGACY_SUNSET = "Wed, 01 Jul 2026 00:00:00 GMT"
+_LEGACY_ROUTE_PATHS = frozenset(route.path for route in legacy_router.routes)
 _LEGACY_WARNED_PATHS: set[str] = set()
 
 
@@ -688,7 +689,7 @@ async def legacy_api_deprecation_middleware(request: Request, call_next):
         response.headers["Deprecation"] = "true"
         response.headers["Sunset"] = _LEGACY_SUNSET
         response.headers["Link"] = '</api/v1/>; rel="successor-version"'
-        if path not in _LEGACY_WARNED_PATHS:
+        if path in _LEGACY_ROUTE_PATHS and path not in _LEGACY_WARNED_PATHS:
             _LEGACY_WARNED_PATHS.add(path)
             logger.warning(
                 "Legacy /api/ route hit: %s — migrate clients to /api/v1/",
