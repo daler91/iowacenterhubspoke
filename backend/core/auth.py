@@ -229,7 +229,8 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
 # is capped at ``_PWD_CACHE_TTL`` seconds. Redis is best-effort: if the
 # cluster is down we still serve from Mongo and degrade to the L1-only
 # behavior.
-_pwd_change_cache: dict[str, tuple[float, int, bool, float | None]] = {}  # user_id -> (cached_at, pwdv, is_deleted, password_changed_ts)
+_pwd_change_cache: dict[str, tuple[float, int, bool, float | None]] = {}
+# user_id -> (cached_at, pwdv, is_deleted, password_changed_ts)
 _PWD_CACHE_TTL = 30  # seconds; short enough that cross-worker staleness is bounded
 _REDIS_MARKER_TTL = 900  # seconds; long enough to outlive the longest expected L1 gap
 _REDIS_VERSION_PREFIX = "auth:pwdv:"
