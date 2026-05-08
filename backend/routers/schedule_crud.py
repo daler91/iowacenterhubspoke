@@ -671,12 +671,24 @@ async def relocate_schedule(
         session_ctx = await db.client.start_session()
         async with session_ctx as session:
             async with session.start_transaction():
-                schedule, updated, original_date, original_start, original_version = await _run_relocate(session=session)
+                (
+                    schedule,
+                    updated,
+                    original_date,
+                    original_start,
+                    original_version,
+                ) = await _run_relocate(session=session)
     except OperationFailure as exc:
         message = str(exc)
         if "Transaction numbers are only allowed on a replica set member or mongos" not in message:
             raise
-        schedule, updated, original_date, original_start, original_version = await _run_relocate()
+        (
+            schedule,
+            updated,
+            original_date,
+            original_start,
+            original_version,
+        ) = await _run_relocate()
     if not updated:
         # Return a deterministic conflict contract so clients can branch on
         # conflict_type instead of parsing strings.
