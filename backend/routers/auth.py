@@ -62,6 +62,15 @@ async def _issue_session_cookies(
 
 _admin_email_str = os.getenv("ADMIN_EMAILS", os.getenv("ADMIN_EMAIL", ""))
 ADMIN_EMAILS = [e.strip().lower() for e in _admin_email_str.split(",") if e.strip()]
+MONGO_REGEX_KEY = "$regex"
+MONGO_OPTIONS_KEY = "$options"
+
+
+def _case_insensitive_exact_email(email: str) -> dict:
+    return {
+        MONGO_REGEX_KEY: f"^{re.escape(email)}$",
+        MONGO_OPTIONS_KEY: "i",
+    }
 
 # Per-email brute-force thresholds. IP-based rate limits already throttle
 # raw traffic; this layer adds an email-scoped lockout that a botnet
@@ -262,7 +271,7 @@ async def register(request: Request, data: UserRegister, response: Response):
     """Create a new user account. Invited and admin-email users are auto-approved; others require admin approval."""
     normalized_email = data.email.strip().lower()
     existing = await db.users.find_one(
-        {"email": {"$regex": f"^{re.escape(normalized_email)}$", "$options": "i"}},
+        {"email": _case_insensitive_exact_email(normalized_email)},
         {"_id": 0},
     )
     if existing:
@@ -800,10 +809,9 @@ async def export_my_data(user: CurrentUser):
         {"_id": 0, "password_hash": 0},
     )
     # Case-insensitive match so mixed-case stored addresses are found.
-    import re as _re
     employee_doc = await db.employees.find_one(
         {
-            "email": {"$regex": f"^{_re.escape(email)}$", "$options": "i"},
+            "email": _case_insensitive_exact_email(email),
             "deleted_at": None,
         },
         {
@@ -955,11 +963,7 @@ async def delete_my_account(user: CurrentUser, response: Response):
     # user-facing email is stored lower-cased. ``^...$`` anchors
     # prevent partial matches like ``sub.bob@...``; ``re.escape``
     # neutralises any regex metacharacters in the address.
-    import re as _re
-    email_pattern = {
-        "$regex": f"^{_re.escape(user_doc['email'])}$",
-        "$options": "i",
-    }
+    email_pattern = _case_insensitive_exact_email(user_doc["email"])
 
     # Soft-delete any employee record with this email, scrub PII fields.
     employee_ids_to_anonymize: list[str] = []
