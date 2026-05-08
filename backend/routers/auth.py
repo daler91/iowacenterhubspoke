@@ -72,6 +72,7 @@ def _case_insensitive_exact_email(email: str) -> dict:
         MONGO_OPTIONS_KEY: "i",
     }
 
+
 # Per-email brute-force thresholds. IP-based rate limits already throttle
 # raw traffic; this layer adds an email-scoped lockout that a botnet
 # can't dodge by rotating source IPs.
