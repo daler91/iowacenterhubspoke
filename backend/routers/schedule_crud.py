@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pymongo import ReturnDocument
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from database import db
 from models.schemas import (
@@ -582,83 +582,113 @@ async def relocate_schedule(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    session_ctx = await db.client.start_session()
-    async with session_ctx as session:
-        async with session.start_transaction():
-            schedule = await db.schedules.find_one(
-                {"id": schedule_id, "deleted_at": None}, {"_id": 0}, session=session
-            )
-            if not schedule:
-                raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    async def _run_relocate(session=None):
+        schedule = await db.schedules.find_one(
+            {"id": schedule_id, "deleted_at": None}, {"_id": 0}, session=session
+        )
+        if not schedule:
+            raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-            await _check_relocate_conflicts(schedule, data, schedule_id)
+        await _check_relocate_conflicts(schedule, data, schedule_id)
 
-            original_date = schedule.get("date")
-            original_start = schedule.get("start_time")
-            original_version = int(schedule.get("version", 0))
-            conflict_predicate = {
-                "id": {"$ne": schedule_id},
-                "deleted_at": None,
-                "date": data.date,
-                "employee_ids": {"$in": schedule.get("employee_ids", [])},
-                "start_time": {"$lt": data.end_time},
-                "end_time": {"$gt": data.start_time},
-            }
-            slot_taken = await db.schedules.find_one(
-                conflict_predicate, {"_id": 0, "id": 1}, session=session
+        original_date = schedule.get("date")
+        original_start = schedule.get("start_time")
+        original_version = int(schedule.get("version", 0))
+        conflict_predicate = {
+            "id": {"$ne": schedule_id},
+            "deleted_at": None,
+            "date": data.date,
+            "employee_ids": {"$in": schedule.get("employee_ids", [])},
+            "start_time": {"$lt": data.end_time},
+            "end_time": {"$gt": data.start_time},
+        }
+        slot_taken = await db.schedules.find_one(
+            conflict_predicate, {"_id": 0, "id": 1}, session=session
+        )
+        if slot_taken:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "conflict_type": "slot_taken",
+                    "message": "Requested slot is already occupied.",
+                    "blocking_schedule_id": slot_taken.get("id"),
+                },
             )
-            if slot_taken:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "conflict_type": "slot_taken",
-                        "message": "Requested slot is already occupied.",
-                        "blocking_schedule_id": slot_taken.get("id"),
+        claim_ids = [
+            f"{emp}:{data.date}:{data.start_time}:{data.end_time}"
+            for emp in schedule.get("employee_ids", [])
+        ]
+        try:
+            inserted_claim_ids = []
+            for claim_id in claim_ids:
+                await db.schedule_slot_claims.insert_one(
+                    {
+                        "_id": claim_id,
+                        "schedule_id": schedule_id,
+                        "employee_id": claim_id.split(":")[0],
                     },
+                    session=session,
                 )
-            claim_ids = [
-                f"{emp}:{data.date}:{data.start_time}:{data.end_time}"
-                for emp in schedule.get("employee_ids", [])
-            ]
-            try:
-                for claim_id in claim_ids:
-                    await db.schedule_slot_claims.insert_one(
-                        {
-                            "_id": claim_id,
-                            "schedule_id": schedule_id,
-                            "employee_id": claim_id.split(":")[0],
-                        },
-                        session=session,
-                    )
-            except DuplicateKeyError:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "conflict_type": "slot_taken",
-                        "message": "Requested slot is already occupied.",
-                    },
-                ) from None
+                inserted_claim_ids.append(claim_id)
+        except DuplicateKeyError:
+            # In standalone fallback mode (no transaction), clean up any
+            # partial claim inserts from this relocation attempt.
+            if session is None and inserted_claim_ids:
+                await db.schedule_slot_claims.delete_many(
+                    {"_id": {"$in": inserted_claim_ids}}
+                )
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "conflict_type": "slot_taken",
+                    "message": "Requested slot is already occupied.",
+                },
+            ) from None
 
-            updated = await db.schedules.find_one_and_update(
-                {
-                    "id": schedule_id,
-                    "deleted_at": None,
-                    "date": original_date,
-                    "start_time": original_start,
-                    "version": original_version,
+        updated = await db.schedules.find_one_and_update(
+            {
+                "id": schedule_id,
+                "deleted_at": None,
+                "date": original_date,
+                "start_time": original_start,
+                "version": original_version,
+            },
+            {
+                "$set": {
+                    "date": data.date,
+                    "start_time": data.start_time,
+                    "end_time": data.end_time,
                 },
-                {
-                    "$set": {
-                        "date": data.date,
-                        "start_time": data.start_time,
-                        "end_time": data.end_time,
-                    },
-                    "$inc": {"version": 1},
-                },
-                projection={"_id": 0},
-                return_document=ReturnDocument.AFTER,
-                session=session,
-            )
+                "$inc": {"version": 1},
+            },
+            projection={"_id": 0},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        return schedule, updated, original_date, original_start, original_version
+
+    try:
+        session_ctx = await db.client.start_session()
+        async with session_ctx as session:
+            async with session.start_transaction():
+                (
+                    schedule,
+                    updated,
+                    original_date,
+                    original_start,
+                    original_version,
+                ) = await _run_relocate(session=session)
+    except OperationFailure as exc:
+        message = str(exc)
+        if "Transaction numbers are only allowed on a replica set member or mongos" not in message:
+            raise
+        (
+            schedule,
+            updated,
+            original_date,
+            original_start,
+            original_version,
+        ) = await _run_relocate()
     if not updated:
         # Return a deterministic conflict contract so clients can branch on
         # conflict_type instead of parsing strings.
