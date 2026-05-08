@@ -158,12 +158,10 @@ async def validate_invite(token: str):
     invitation = await db.invitations.find_one({"token": token, "status": "pending"}, {"_id": 0})
     if not invitation or _invitation_is_expired(invitation):
         raise HTTPException(status_code=404, detail="Invalid or expired invitation link")
-    return {
-        "valid": True,
-        "email": invitation["email"],
-        "name": invitation.get("name"),
-        "role": invitation["role"],
-    }
+    # Do not disclose invite metadata (email/role/name) from a bearer token
+    # alone. The invitee is expected to already know the intended email
+    # address from the invitation email itself.
+    return {"valid": True}
 
 
 async def _validate_invitation(data: UserRegister) -> Optional[dict]:
