@@ -76,6 +76,24 @@ def test_portal_update_task_malformed_due_date(monkeypatch):
         asyncio.run(portal_tasks.portal_update_task("p1", "t5", portal_tasks.PortalTaskUpdate(due_date="not-a-date"), {"contact": {"id": "c1"}}))
     assert exc.value.status_code == 400
 
+
+
+def test_portal_update_task_due_date_overflow_returns_400(monkeypatch):
+    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "_require_partner_task", AsyncMock(return_value={"id": "t7", "owner": "partner"}))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            portal_tasks.portal_update_task(
+                "p1",
+                "t7",
+                portal_tasks.PortalTaskUpdate(due_date="0001-01-01T00:00:00+23:59"),
+                {"contact": {"id": "c1"}},
+            ),
+        )
+    assert exc.value.status_code == 400
+
+
 def test_portal_update_task_tolerates_auto_advance_failure(monkeypatch):
     monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
