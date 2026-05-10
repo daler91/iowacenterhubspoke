@@ -28,6 +28,8 @@ import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
 import { useTaskCommentActions } from '../../features/coordination/hooks';
 
+const CUSTOM_ASSIGNEE_OPTION_VALUE = '__custom_assignee_option__';
+
 
 function formatCommentDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -767,14 +769,16 @@ export default function TaskDetailModal({
                     <SearchableSelect
                       options={[
                         ...employees.map(e => ({ value: e.name, label: e.name })),
-                        ...(assignedTo && !employees.some(e => e.name === assignedTo)
+                        ...(assignedTo
+                          && assignedTo !== CUSTOM_ASSIGNEE_OPTION_VALUE
+                          && !employees.some(e => e.name === assignedTo)
                           ? [{ value: assignedTo, label: assignedTo }]
                           : []),
-                        { value: '__custom__', label: 'Custom name...' },
+                        { value: CUSTOM_ASSIGNEE_OPTION_VALUE, label: 'Custom name...' },
                       ]}
                       value={assignedTo}
                       onValueChange={(v) => {
-                        if (v === '__custom__') {
+                        if (v === CUSTOM_ASSIGNEE_OPTION_VALUE) {
                           const name = prompt('Enter assignee name:');
                           if (name) { setAssignedTo(name); saveField('assigned_to', name); }
                         } else {
