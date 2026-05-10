@@ -114,13 +114,13 @@ pip install -r requirements.txt
 # minimal
 export MONGO_URL=mongodb://localhost:27017
 export DB_NAME=iowa_center_hub
-export JWT_SECRET=change-me
+export JWT_SECRET=$(openssl rand -hex 32)
 
 # optional / feature-gated
 export REDIS_URL=redis://localhost:6379
 export GOOGLE_MAPS_API_KEY=your_key_here
 
-uvicorn server:app --reload --host 0.0.0.0 --port 8080
+uvicorn server:app --reload --host 127.0.0.1 --port 8080
 ```
 
 #### Worker (optional but recommended for async features)
