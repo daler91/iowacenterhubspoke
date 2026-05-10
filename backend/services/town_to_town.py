@@ -140,8 +140,7 @@ async def sync_same_day_town_to_town(
     # Batch-fetch all sibling locations up-front so the loop below does at
     # most one Mongo round-trip per sibling (the $set), not two.
     needed_loc_ids = {
-        sib["location_id"] for sib in siblings
-        if sib.get("location_id") and not sib.get("travel_override_minutes")
+        sib["location_id"] for sib in siblings if sib.get("location_id")
     }
     loc_by_id: dict[str, dict] = {}
     if needed_loc_ids:
@@ -159,15 +158,15 @@ async def sync_same_day_town_to_town(
             "town_to_town_warning": tt_warning,
             "town_to_town_drive_minutes": tt_drive,
         }
+        loc = loc_by_id.get(sib.get("location_id"))
         if not tt:
             update["town_to_town"] = False
             update["town_to_town_warning"] = None
             update["town_to_town_drive_minutes"] = None
-        # ``travel_override_minutes`` was removed from the API surface but
-        # legacy schedule docs may still carry it; respect the stored value
-        # so we don't clobber a user's prior override on sibling resync.
-        if not sib.get("travel_override_minutes"):
-            loc = loc_by_id.get(sib.get("location_id"))
+            # Normalize legacy stale overrides when no town-to-town leg exists.
+            update["travel_override_minutes"] = None
             if loc:
                 update["drive_time_minutes"] = loc["drive_time_minutes"]
+        elif not sib.get("travel_override_minutes") and loc:
+            update["drive_time_minutes"] = loc["drive_time_minutes"]
         await db.schedules.update_one({"id": sib["id"]}, {"$set": update})
