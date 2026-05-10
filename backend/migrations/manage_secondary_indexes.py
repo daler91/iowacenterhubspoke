@@ -98,6 +98,7 @@ async def run(db) -> int:
         [
             [("partner_org_id", 1)],
             [("phase", 1)],
+            [("phase", 1), ("deleted_at", 1), ("updated_at", -1)],
             [("community", 1)],
             [("deleted_at", 1)],
             [("schedule_id", 1), ("deleted_at", 1)],
