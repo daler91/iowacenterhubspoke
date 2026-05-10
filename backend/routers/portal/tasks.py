@@ -421,6 +421,7 @@ async def portal_post_task_comment(
         project_id=project_id,
         refs_input=data.mentions,
         partner_org_id=project.get("partner_org_id"),
+        include_internal=False,
     )
 
     comment_id = str(uuid.uuid4())
@@ -486,6 +487,7 @@ async def portal_project_members(project_id: str, ctx: PortalContext):
     principals = await principals_for_project(
         project_id=project_id,
         partner_org_id=project.get("partner_org_id"),
+        include_internal=False,
     )
     items = [
         principal_to_member_dict(p, include_email=False)

@@ -78,6 +78,7 @@ async def portal_send_message(
         project_id=project_id,
         refs_input=data.mentions,
         partner_org_id=project.get("partner_org_id"),
+        include_internal=False,
     )
 
     msg_id = str(uuid.uuid4())
