@@ -20,10 +20,8 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: 'build',
-    // 'hidden' emits .map files (useful for Sentry symbolication uploads) but
-    // does NOT reference them from the served JS, so they aren't fetched by
-    // browsers in production.
-    sourcemap: 'hidden',
+    // Do not emit source maps in production artifacts served publicly.
+    sourcemap: mode === 'production' ? false : true,
     rollupOptions: {
       output: {
         manualChunks: {
