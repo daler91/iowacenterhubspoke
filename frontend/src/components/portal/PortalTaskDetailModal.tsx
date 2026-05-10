@@ -10,6 +10,7 @@ import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_LABELS, TASK_STATUSES, 
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import { cn } from '../../lib/utils';
+import { formatCalendarDate } from '../../lib/date-format';
 import { toast } from 'sonner';
 import { ConversationsPanel } from '../coordination/TaskDetailModal';
 import { describeApiError } from '../../lib/error-messages';
@@ -98,7 +99,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onValueChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
-                  <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{new Date(task.due_date).toLocaleDateString()}</p></Card>
+                  <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{formatCalendarDate(task.due_date)}</p></Card>
                 </div>
               </div>
 

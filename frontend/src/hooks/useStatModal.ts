@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { getCalendarDateKey, getLocalCalendarDateKey } from '../lib/date-format';
 import type { Schedule, Employee, Location, ClassType } from '../lib/types';
 
 type StatType = 'today' | 'scheduled' | 'team' | 'locations' | 'classes';
@@ -21,14 +21,18 @@ export function useStatModal({ schedules = [], employees = [], locations = [], c
     setStatModalType(type);
 
     if (type === 'today') {
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
+      const todayStr = getLocalCalendarDateKey();
       const todaySchedules = (schedules || []).filter(s => s.date === todayStr);
       setStatModalData(todaySchedules);
       setStatModalTitle('Today\'s Schedule');
     } else if (type === 'scheduled') {
-      const futureSchedules = (schedules || []).filter(s => new Date(s.date) >= new Date(new Date().setHours(0,0,0,0)));
-      futureSchedules.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const todayStr = getLocalCalendarDateKey();
+      const futureSchedules = (schedules || []).filter(s => {
+        const scheduleDateKey = getCalendarDateKey(s.date);
+        return scheduleDateKey !== null && scheduleDateKey >= todayStr;
+      });
+      futureSchedules.sort((a, b) =>
+        (getCalendarDateKey(a.date) ?? '').localeCompare(getCalendarDateKey(b.date) ?? ''));
       setStatModalData(futureSchedules);
       setStatModalTitle('All Scheduled Classes');
     } else if (type === 'team') {

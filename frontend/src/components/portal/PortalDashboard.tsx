@@ -18,7 +18,7 @@ import type {
 } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import { describeApiError } from '../../lib/error-messages';
-import { formatCalendarDate } from '../../lib/date-format';
+import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
@@ -89,7 +89,7 @@ function messageDeliveryText(summary: NotificationSummary | undefined, mentionsS
 }
 
 function TaskRow({ projectId, task, onToggleTask, onOpenTask }: TaskRowProps) {
-  const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+  const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
 
   return (
     <Card className={cn('p-3 border', task.completed && 'opacity-60')}>
@@ -100,7 +100,7 @@ function TaskRow({ projectId, task, onToggleTask, onOpenTask }: TaskRowProps) {
         <div className="min-w-0 flex-1">
           <button type="button" onClick={() => onOpenTask(projectId, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
           <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-            <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+            <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{formatCalendarDate(task.due_date)}</span>
             <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
           </div>
         </div>
@@ -359,7 +359,7 @@ export default function PortalDashboard() {
   );
 
   const renderTaskCard = (projectId: string, task: Task) => {
-    const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+    const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
     return (
       <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
         <div className="flex items-start gap-2">
@@ -369,7 +369,7 @@ export default function PortalDashboard() {
           <div className="min-w-0 flex-1">
             <button type="button" onClick={() => openTaskDetail(projectId, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-              <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+              <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{formatCalendarDate(task.due_date)}</span>
               <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
             </div>
           </div>
