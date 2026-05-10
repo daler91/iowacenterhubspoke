@@ -232,11 +232,11 @@ def _build_task_update(payload: PortalTaskUpdate, ctx: PortalContext) -> dict:
     if payload.due_date is not None:
         try:
             parsed_due_date = datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
-        except ValueError as exc:
+            if parsed_due_date.tzinfo is None:
+                parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
+            update["due_date"] = parsed_due_date.astimezone(timezone.utc).isoformat()
+        except (OverflowError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="Invalid due_date format (expected ISO-8601)") from exc
-        if parsed_due_date.tzinfo is None:
-            parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
-        update["due_date"] = parsed_due_date.astimezone(timezone.utc).isoformat()
     return update
 
 
