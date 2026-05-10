@@ -27,6 +27,7 @@ class BoardMetrics:
 BOARD_PHASE_LIMIT_DEFAULT = 50
 BOARD_PHASE_LIMIT_MAX = 200
 LIST_LIMIT_MAX = 200
+BOARD_COMMUNITY_FACET_LIMIT_MAX = 200
 
 
 def clamp_limit(value: int, max_value: int) -> int:
@@ -108,12 +109,19 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
         return phase, page, truncated
 
     facets_query = {**query, "phase": {"$ne": "complete"}}
+    facet_pipeline = [
+        {"$match": facets_query},
+        {"$match": {"community": {"$type": "string", "$ne": ""}}},
+        {"$group": {"_id": "$community"}},
+        {"$sort": {"_id": 1}},
+        {"$limit": BOARD_COMMUNITY_FACET_LIMIT_MAX},
+    ]
     results = await asyncio.gather(
         *[fetch_phase(p) for p in active_phases],
-        db.projects.distinct("community", facets_query),
+        db.projects.aggregate(facet_pipeline).to_list(BOARD_COMMUNITY_FACET_LIMIT_MAX),
     )
     phase_results = results[:len(active_phases)]
-    communities = results[-1]
+    communities = [row.get("_id") for row in results[-1]]
     all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
     stats = await _build_task_stats(all_ids)
 
@@ -132,7 +140,7 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
         "columns": columns,
         "phase_truncated": truncated,
         "phase_limit": phase_limit,
-        "facets": {"communities": sorted(c for c in communities if c)},
+        "facets": {"communities": communities},
         "query_count": len(active_phases) + 2,
         "project_count": len(all_ids),
         "phase_count": len(active_phases),
