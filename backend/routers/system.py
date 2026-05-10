@@ -206,12 +206,12 @@ async def get_notifications(
         key=lambda x: x.get('severity') == 'warning',
         reverse=True,
     )
-    if not paginated:
-        # Backward-compatible response shape for existing clients.
-        return ordered
-
     returned = ordered[skip: skip + limit]
     total = len(ordered)
+
+    if not paginated:
+        # Keep legacy list shape, but enforce bounded windowing.
+        return returned
     return {
         "items": returned,
         "total": total,
