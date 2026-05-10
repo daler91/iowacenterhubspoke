@@ -236,9 +236,9 @@ async def get_task_detail(
 async def update_task(
     project_id: str, task_id: str, data: TaskUpdate, user: EditorRequired,
 ):
-    update_data = {
-        k: v for k, v in data.model_dump().items() if v is not None
-    }
+    # Keep explicitly provided nulls (e.g. due_date=null to clear value),
+    # while still ignoring fields omitted from the request body.
+    update_data = data.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     # Snapshot the pre-update task so we can tell what actually changed
