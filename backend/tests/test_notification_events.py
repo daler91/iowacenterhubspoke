@@ -515,6 +515,27 @@ async def test_task_completed_noop_with_no_recipients(
     assert capture_dispatch == []
 
 
+@pytest.mark.asyncio
+async def test_task_completed_internal_owner_excludes_partner_recipients(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["project_principals"] = [
+        _internal("u-alice"), _partner("c-bob"),
+    ]
+
+    await notify_task_completed(
+        {"id": "t-1", "title": "T", "owner": "internal"},
+        {"id": "p-1", "title": "Kickoff"},
+        {"id": "u-actor", "name": "Actor"},
+    )
+
+    assert len(capture_dispatch) == 1
+    principal, event = capture_dispatch[0]
+    assert principal.kind == "internal"
+    assert principal.id == "u-alice"
+    assert event.type_key == "task.completed"
+
+
 # ── notify_task_comment ──────────────────────────────────────────────
 
 @pytest.mark.asyncio
