@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useId, useState, useRef } from 'react';
 import { Car, ArrowDown, Pencil, RotateCcw } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
@@ -17,6 +17,7 @@ function DriveTimePill({ leg, onOverrideChange }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const inputRef = useRef(null);
+  const inputId = useId();
 
   const canEdit = !!onOverrideChange;
   const field = leg.override_field;
@@ -85,11 +86,11 @@ function DriveTimePill({ leg, onOverrideChange }) {
         }}
       >
         <div className="space-y-1.5">
-          <label htmlFor="override-drive-time" className="text-xs font-medium text-foreground">
+          <label htmlFor={inputId} className="text-xs font-medium text-foreground">
             Override drive time
           </label>
           <Input
-            id="override-drive-time"
+            id={inputId}
             ref={inputRef}
             type="number"
             min="1"
@@ -157,7 +158,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
             const isSameCity = leg.minutes === 0 && !isHub && !leg.is_overridden;
 
             return (
-              <div key={`drive-${leg.from_label}-${leg.to_label}`} className="flex items-stretch">
+              <div key={`drive-${leg.from_label}-${leg.to_label}-${leg.start_time ?? ''}-${leg.end_time ?? ''}-${i}`} className="flex items-stretch">
                 {/* Vertical line + node */}
                 <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                   {isHub && (
@@ -210,7 +211,7 @@ export function TravelChainPreview({ travelChain, onOverrideChange }) {
 
           // Class leg
           return (
-            <div key={`class-${leg.owner_schedule_id}`} className="flex items-stretch">
+            <div key={`class-${leg.location_name}-${leg.start_time}-${leg.end_time}-${i}`} className="flex items-stretch">
               <div className="flex flex-col items-center mr-3 relative" style={{ width: '12px' }}>
                 <div className={cn(
                   "w-3 h-3 rounded-full border-2 z-10 shrink-0",
