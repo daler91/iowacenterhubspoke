@@ -33,6 +33,7 @@ import {
   type Task, type TaskPhase, type TaskStatus,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
+import { formatCalendarDate } from '../../lib/date-format';
 import { toast } from 'sonner';
 import OutcomeTracker from './OutcomeTracker';
 import PromotionChecklist from './PromotionChecklist';
@@ -485,7 +486,7 @@ export default function ProjectDetail() {
           )}
         </div>
         <p className="text-sm text-foreground/80 mt-1">
-          {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
+          {formatCalendarDate(project.event_date)} &middot; {project.venue_name}
           {project.location_name && <> &middot; <MapPin className="w-3 h-3 inline" /> {project.location_name}</>}
           {!project.location_name && project.community && <> &middot; {project.community}</>}
           {project.partner_org_name && (

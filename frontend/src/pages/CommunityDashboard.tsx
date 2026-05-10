@@ -9,6 +9,7 @@ import { useCommunityDashboard } from '../hooks/useCoordinationData';
 import {
   PHASE_LABELS, PHASE_COLORS,
 } from '../lib/coordination-types';
+import { formatCalendarDate } from '../lib/date-format';
 import ExportButton from '../components/coordination/ExportButton';
 import DashboardTrendChart from '../components/coordination/DashboardTrendChart';
 import PartnerHealthTable from '../components/coordination/PartnerHealthTable';
@@ -196,7 +197,7 @@ export default function CommunityDashboard() {
                 >
                   <td className="px-4 py-3 font-medium text-foreground">{project.title}</td>
                   <td className="px-4 py-3 text-foreground/80">{project.community}</td>
-                  <td className="px-4 py-3 text-foreground/80">{new Date(project.event_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-foreground/80">{formatCalendarDate(project.event_date)}</td>
                   <td className="px-4 py-3">
                     <Badge variant="default" className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                       {PHASE_LABELS[project.phase]}

@@ -18,6 +18,7 @@ import {
   PROJECT_PHASES, PHASE_LABELS, PHASE_DOT_COLORS,
   EVENT_FORMAT_LABELS, type Project,
 } from '../../lib/coordination-types';
+import { formatCalendarDate } from '../../lib/date-format';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import ProjectCreateDialog from './ProjectCreateDialog';
@@ -101,7 +102,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
           )}
         </div>
         <p className="text-xs text-muted-foreground mb-1">
-          {new Date(project.event_date).toLocaleDateString()} &middot; {project.venue_name}
+          {formatCalendarDate(project.event_date)} &middot; {project.venue_name}
         </p>
         <p className="text-xs text-muted-foreground mb-2">{project.community}</p>
         <div className="flex items-center gap-2 mb-2">
@@ -384,7 +385,7 @@ export default function ProjectBoard() {
                 >
                   <h4 className="text-sm font-semibold text-foreground line-clamp-1">{project.title}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(project.event_date).toLocaleDateString()} &middot; {project.community}
+                    {formatCalendarDate(project.event_date)} &middot; {project.community}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">

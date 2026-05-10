@@ -24,6 +24,7 @@ import {
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
 import { normalizeApiError } from '../../lib/api';
+import { formatCalendarDate } from '../../lib/date-format';
 import { toast } from 'sonner';
 
 // Shared class string for the empty/loading placeholder <p> inside
@@ -71,7 +72,7 @@ function renderProjectHistory({
               <td className="py-2.5 text-foreground/80">
                 {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
               </td>
-              <td className="py-2.5 text-foreground/80">{new Date(project.event_date).toLocaleDateString()}</td>
+              <td className="py-2.5 text-foreground/80">{formatCalendarDate(project.event_date)}</td>
               <td className="py-2.5">
                 <Badge className={cn('text-[10px]', PHASE_COLORS[project.phase], 'text-white')}>
                   {PHASE_LABELS[project.phase]}

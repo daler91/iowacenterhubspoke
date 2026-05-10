@@ -18,6 +18,7 @@ import type {
 } from '../../lib/coordination-types';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import { describeApiError } from '../../lib/error-messages';
+import { formatCalendarDate } from '../../lib/date-format';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
 import { cn } from '../../lib/utils';
@@ -558,7 +559,7 @@ export default function PortalDashboard() {
                   </Badge>
                 </div>
                 <p className="text-sm text-foreground/80">
-                  {new Date(project.event_date).toLocaleDateString()}
+                  {formatCalendarDate(project.event_date)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project.venue_name || 'Venue TBD'}

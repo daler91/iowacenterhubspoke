@@ -16,6 +16,7 @@ import MentionTextarea, { renderMentionBody } from '../coordination/MentionTexta
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import { describeApiError } from '../../lib/error-messages';
+import { formatCalendarDate } from '../../lib/date-format';
 
 const PORTAL_TOKEN_KEY = 'portal_session_token';
 type TaskViewMode = 'list' | 'kanban';
@@ -178,7 +179,7 @@ export default function PortalProjectDetail() {
                 <span className={cn('w-2.5 h-2.5 rounded-full', PHASE_DOT_COLORS[project.phase])} />
                 <h1 className="text-xl font-semibold">{project.title}</h1>
               </div>
-              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1"><CalendarDays className="w-4 h-4" />{new Date(project.event_date).toLocaleDateString()}</p>
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1"><CalendarDays className="w-4 h-4" />{formatCalendarDate(project.event_date)}</p>
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1"><MapPin className="w-4 h-4" />{project.venue_name || 'Venue TBD'} • {project.context_type || 'Context TBD'}</p>
             </div>
             <Badge className={cn('text-[10px] shrink-0 text-white', PHASE_COLORS[project.phase])}>{PHASE_LABELS[project.phase]}</Badge>
