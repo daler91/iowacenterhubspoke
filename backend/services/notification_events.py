@@ -532,6 +532,10 @@ async def notify_task_deleted(task: dict, project: dict, actor: dict) -> None:
     )
     recipients.extend(project_folks)
 
+    # Internal-only tasks must never fan out to partner principals.
+    if task.get("owner") == "internal":
+        recipients = [p for p in recipients if p.kind != "partner"]
+
     if not recipients:
         return
 
