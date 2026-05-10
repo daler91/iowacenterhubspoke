@@ -33,7 +33,7 @@ import {
   type Task, type TaskPhase, type TaskStatus,
 } from '../../lib/coordination-types';
 import { cn } from '../../lib/utils';
-import { formatCalendarDate } from '../../lib/date-format';
+import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
 import { toast } from 'sonner';
 import OutcomeTracker from './OutcomeTracker';
 import PromotionChecklist from './PromotionChecklist';
@@ -73,7 +73,7 @@ function TaskCard({
     : undefined;
 
   const status: TaskStatus = task.status || (task.completed ? 'completed' : 'to_do');
-  const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+  const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
 
   const handleStatusChange = async (newStatus: string) => {
     try {
@@ -211,7 +211,7 @@ function TaskCard({
                 'text-[10px]',
                 isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground',
               )}>
-                {new Date(task.due_date).toLocaleDateString()}
+                {formatCalendarDate(task.due_date)}
               </span>
               {(task.attachment_count ?? 0) > 0 && (
                 <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">

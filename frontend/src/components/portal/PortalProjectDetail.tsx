@@ -205,7 +205,7 @@ export default function PortalProjectDetail() {
                     <div className="min-w-0 flex-1">
                       <button className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')} onClick={() => setSelectedTaskId(task.id)}>{task.title}</button>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] text-muted-foreground">{new Date(task.due_date).toLocaleDateString()}</span>
+                        <span className="text-[11px] text-muted-foreground">{formatCalendarDate(task.due_date)}</span>
                         <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
                       </div>
                     </div>

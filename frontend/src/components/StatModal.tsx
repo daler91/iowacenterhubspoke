@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +9,7 @@ import {
 import { Badge } from './ui/badge';
 import { Users, MapPin, Clock, BookOpen } from 'lucide-react';
 import { EntityLink } from './ui/entity-link';
+import { formatCalendarDate } from '../lib/date-format';
 
 const UNKNOWN_CLASS = { name: 'Unknown Class', color: '#ccc' };
 const UNKNOWN_LOCATION = { city_name: 'Unknown Location' };
@@ -62,7 +62,13 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
                 };
                 const location = getLocationById(schedule.location_id);
                 const isToday = type === 'today';
-                const dateText = isToday ? 'Today' : format(new Date(schedule.date), 'MMM d, yyyy');
+                const dateText = isToday
+                  ? 'Today'
+                  : formatCalendarDate(schedule.date, 'en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
 
                 return (
                   <div key={schedule.id} className="flex flex-col p-4 border rounded-lg hover:bg-muted/50 dark:hover:bg-muted transition-colors">

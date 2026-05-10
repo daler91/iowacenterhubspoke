@@ -166,13 +166,16 @@ describe('PortalDashboard task board and message confirmations', () => {
     mockedPortalAPI.projectMembers.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMembers>>);
   });
 
-  it('lets partners switch their filtered task list into a Kanban board', async () => {
+  it('keeps task due dates on their calendar day and lets partners switch to a Kanban board', async () => {
     render(<PortalDashboard />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
     await waitFor(() => {
       expect(mockedPortalAPI.bulkProjectTasks).toHaveBeenCalledWith(['project-1'], 'good-token');
     });
+
+    expect(screen.getByText('5/1/2026')).toBeInTheDocument();
+    expect(screen.getByText('5/3/2026')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /board/i }));
 

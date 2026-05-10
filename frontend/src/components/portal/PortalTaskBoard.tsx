@@ -8,6 +8,7 @@ import { AlertTriangle, MessageSquare, Paperclip, Star } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
 import { TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, OWNER_COLORS, OWNER_LABELS, type Project, type Task, type TaskStatus } from '../../lib/coordination-types';
+import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
 import { cn } from '../../lib/utils';
 
 const DND_ID = 'portal-task-board-dnd';
@@ -24,14 +25,14 @@ function DroppableColumn({ status, children }: Readonly<{ status: TaskStatus; ch
 function DraggableTaskCard({ task, onOpen }: Readonly<{ task: Task; onOpen: () => void }>) {
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id, data: { task } });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined;
-  const isOverdue = !task.completed && task.due_date < new Date().toISOString();
+  const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
   return (
     <Card ref={setNodeRef} style={style} {...listeners} {...attributes} aria-describedby={DND_ID} className={cn('p-2.5 border cursor-grab active:cursor-grabbing touch-none', isDragging && 'opacity-50', task.completed && 'opacity-60', task.spotlight && 'border-l-4 border-l-warn bg-warn-soft/30', task.at_risk && !task.spotlight && 'border-l-4 border-l-danger bg-danger-soft/30')}>
       {task.at_risk && <div className="mb-2 inline-flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-semibold text-danger-strong"><AlertTriangle className="h-3 w-3" />AT RISK</div>}
       {task.spotlight && <Star className="mb-1 h-3.5 w-3.5 text-warn-strong fill-warn" />}
       <button type="button" onClick={onOpen} className={cn('text-sm text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-        <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{new Date(task.due_date).toLocaleDateString()}</span>
+        <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{formatCalendarDate(task.due_date)}</span>
         <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
         {(task.attachment_count ?? 0) > 0 && <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><Paperclip className="h-3 w-3" />{task.attachment_count}</span>}
         {(task.comment_count ?? 0) > 0 && <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><MessageSquare className="h-3 w-3" />{task.comment_count}</span>}
