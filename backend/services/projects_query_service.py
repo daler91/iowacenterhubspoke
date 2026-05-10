@@ -93,6 +93,7 @@ async def _build_task_stats(project_ids: list[str]) -> dict[str, TaskStatsDTO]:
 
 async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dict[str, Any]:
     active_phases = [p for p in PROJECT_PHASES if p != "complete"]
+    board_phases = [*active_phases, "complete"]
 
     async def fetch_phase(phase: str):
         rows = await (
@@ -109,15 +110,15 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
 
     facets_query = {**query, "phase": {"$ne": "complete"}}
     results = await asyncio.gather(
-        *[fetch_phase(p) for p in active_phases],
+        *[fetch_phase(p) for p in board_phases],
         db.projects.distinct("community", facets_query),
     )
-    phase_results = results[:len(active_phases)]
+    phase_results = results[:len(board_phases)]
     communities = results[-1]
     all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
     stats = await _build_task_stats(all_ids)
 
-    columns: dict[str, list[dict[str, Any]]] = {p: [] for p in active_phases}
+    columns: dict[str, list[dict[str, Any]]] = {p: [] for p in board_phases}
     truncated: dict[str, bool] = {}
     for phase, rows, is_trunc in phase_results:
         truncated[phase] = is_trunc
@@ -133,9 +134,9 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
         "phase_truncated": truncated,
         "phase_limit": phase_limit,
         "facets": {"communities": sorted(c for c in communities if c)},
-        "query_count": len(active_phases) + 2,
+        "query_count": len(board_phases) + 2,
         "project_count": len(all_ids),
-        "phase_count": len(active_phases),
+        "phase_count": len(board_phases),
     }
 
 
