@@ -84,7 +84,7 @@ def huge_notification_db():
     return _DB(schedules=schedules, employees=employees)
 
 
-def test_notifications_default_shape_remains_list_and_not_truncated(monkeypatch, huge_notification_db):
+def test_notifications_default_shape_remains_list_and_is_bounded(monkeypatch, huge_notification_db):
     monkeypatch.setattr(system_router, "db", huge_notification_db)
 
     import services.notification_prefs as prefs_mod
@@ -93,9 +93,10 @@ def test_notifications_default_shape_remains_list_and_not_truncated(monkeypatch,
 
     result = asyncio.run(system_router.get_notifications(user={"user_id": "u1"}))
 
-    # 120 upcoming + 130 idle = 250 total; legacy non-paginated shape is a list.
+    # 120 upcoming + 130 idle = 250 total; legacy non-paginated shape remains a list
+    # but is bounded by the same skip/limit window used by paginated responses.
     assert isinstance(result, list)
-    assert len(result) == 250
+    assert len(result) == 200
 
 
 def test_notifications_paginated_shape_reports_has_more_false(monkeypatch, huge_notification_db):
