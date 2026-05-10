@@ -665,7 +665,14 @@ async def relocate_schedule(
             return_document=ReturnDocument.AFTER,
             session=session,
         )
-        return schedule, updated, original_date, original_start, original_version
+        return (
+            schedule,
+            updated,
+            original_date,
+            original_start,
+            original_version,
+            inserted_claim_ids,
+        )
 
     try:
         session_ctx = await db.client.start_session()
@@ -677,6 +684,7 @@ async def relocate_schedule(
                     original_date,
                     original_start,
                     original_version,
+                    inserted_claim_ids,
                 ) = await _run_relocate(session=session)
     except OperationFailure as exc:
         message = str(exc)
@@ -688,8 +696,11 @@ async def relocate_schedule(
             original_date,
             original_start,
             original_version,
+            inserted_claim_ids,
         ) = await _run_relocate()
     if not updated:
+        if inserted_claim_ids:
+            await db.schedule_slot_claims.delete_many({"_id": {"$in": inserted_claim_ids}})
         # Return a deterministic conflict contract so clients can branch on
         # conflict_type instead of parsing strings.
         latest = await db.schedules.find_one(
