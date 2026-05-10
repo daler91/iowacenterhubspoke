@@ -893,7 +893,7 @@ async def test_task_deleted_internal_owner_excludes_partner_recipients(
     stub_recipient_helpers["project_principals"] = [_internal("u-alice"), _partner("c-primary")]
 
     task = {
-        "id": "t-1", "title": "Internal task", "owner": "internal",
+        "id": "t-1", "title": "Internal task", "owner": " Internal ",
         "assignee_email": "partner@x.com",
     }
     project = {"id": "p-1", "title": "Kickoff"}
