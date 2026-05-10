@@ -28,6 +28,7 @@ BOARD_PHASE_LIMIT_DEFAULT = 50
 BOARD_PHASE_LIMIT_MAX = 200
 LIST_LIMIT_MAX = 200
 BOARD_COMMUNITY_FACET_LIMIT_MAX = 200
+BOARD_COMMUNITY_FACET_SCAN_MAX = 2000
 
 
 def clamp_limit(value: int, max_value: int) -> int:
@@ -109,19 +110,21 @@ async def get_project_board_data(query: dict[str, Any], phase_limit: int) -> dic
         return phase, page, truncated
 
     facets_query = {**query, "phase": {"$ne": "complete"}}
-    facet_pipeline = [
-        {"$match": facets_query},
-        {"$match": {"community": {"$type": "string", "$ne": ""}}},
-        {"$group": {"_id": "$community"}},
-        {"$sort": {"_id": 1}},
-        {"$limit": BOARD_COMMUNITY_FACET_LIMIT_MAX},
-    ]
     results = await asyncio.gather(
         *[fetch_phase(p) for p in active_phases],
-        db.projects.aggregate(facet_pipeline).to_list(BOARD_COMMUNITY_FACET_LIMIT_MAX),
+        db.projects.find(facets_query, {"_id": 0, "community": 1})
+        .sort("updated_at", -1)
+        .limit(BOARD_COMMUNITY_FACET_SCAN_MAX)
+        .to_list(BOARD_COMMUNITY_FACET_SCAN_MAX),
     )
     phase_results = results[:len(active_phases)]
-    communities = [row.get("_id") for row in results[-1]]
+    communities = sorted(
+        {
+            row.get("community")
+            for row in results[-1]
+            if isinstance(row.get("community"), str) and row.get("community")
+        }
+    )[:BOARD_COMMUNITY_FACET_LIMIT_MAX]
     all_ids = [p["id"] for _, rows, _ in phase_results for p in rows]
     stats = await _build_task_stats(all_ids)
 
