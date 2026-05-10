@@ -564,6 +564,10 @@ async def notify_task_completed(task: dict, project: dict, actor: dict) -> None:
         project_id=project.get("id", ""),
         exclude_ids={actor.get("id") or actor.get("user_id") or ""},
     )
+    # Respect the portal visibility boundary: partner principals should not
+    # receive notifications about tasks marked internal-only.
+    if task.get("owner") == "internal":
+        recipients = [p for p in recipients if p.kind == "internal"]
     if not recipients:
         return
 
