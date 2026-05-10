@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'build',
     // Do not emit source maps in production artifacts served publicly.
-    sourcemap: mode === 'production' ? false : true,
+    sourcemap: mode !== 'production',
     rollupOptions: {
       output: {
         manualChunks: {
