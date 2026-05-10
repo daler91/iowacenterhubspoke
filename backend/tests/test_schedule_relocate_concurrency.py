@@ -9,6 +9,23 @@ from models.schemas import ScheduleRelocate
 from routers.schedule_crud import relocate_schedule
 
 
+def _relocate_payload():
+    return ScheduleRelocate(date="2026-06-01", start_time="13:00", end_time="14:00", force=False)
+
+
+def _patch_relocate_side_effects(monkeypatch):
+    async def noop(*_a, **_k):
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
+    monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
+    monkeypatch.setattr("routers.schedule_crud.sync_relocate_calendar", noop)
+    monkeypatch.setattr("routers.schedule_crud._sync_linked_project_date", noop)
+    monkeypatch.setattr("routers.schedule_crud.log_activity", noop)
+    monkeypatch.setattr("routers.schedule_crud.notify_schedule_changed", noop)
+    monkeypatch.setattr("routers.schedule_crud.invalidate_workload_cache", noop)
+
+
 class FakeSchedules:
     def __init__(self):
         self.docs = {
@@ -120,18 +137,9 @@ class _FakeClaims:
 def test_competing_relocations_only_one_succeeds(monkeypatch):
     monkeypatch.setattr("routers.schedule_crud.db", FakeDB())
 
-    async def noop(*_a, **_k):
-        await asyncio.sleep(0)
+    _patch_relocate_side_effects(monkeypatch)
 
-    monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
-    monkeypatch.setattr("routers.schedule_crud.sync_relocate_calendar", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_linked_project_date", noop)
-    monkeypatch.setattr("routers.schedule_crud.log_activity", noop)
-    monkeypatch.setattr("routers.schedule_crud.notify_schedule_changed", noop)
-    monkeypatch.setattr("routers.schedule_crud.invalidate_workload_cache", noop)
-
-    payload = ScheduleRelocate(date="2026-06-01", start_time="13:00", end_time="14:00", force=False)
+    payload = _relocate_payload()
 
     async def _run():
         return await asyncio.gather(
@@ -153,18 +161,9 @@ def test_competing_relocations_only_one_succeeds(monkeypatch):
 def test_relocate_falls_back_without_transactions(monkeypatch):
     monkeypatch.setattr("routers.schedule_crud.db", StandaloneFakeDB())
 
-    async def noop(*_a, **_k):
-        await asyncio.sleep(0)
+    _patch_relocate_side_effects(monkeypatch)
 
-    monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
-    monkeypatch.setattr("routers.schedule_crud.sync_relocate_calendar", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_linked_project_date", noop)
-    monkeypatch.setattr("routers.schedule_crud.log_activity", noop)
-    monkeypatch.setattr("routers.schedule_crud.notify_schedule_changed", noop)
-    monkeypatch.setattr("routers.schedule_crud.invalidate_workload_cache", noop)
-
-    payload = ScheduleRelocate(date="2026-06-01", start_time="13:00", end_time="14:00", force=False)
+    payload = _relocate_payload()
     result = asyncio.run(relocate_schedule("s-1", payload, {"name": "tester"}))
     assert result["date"] == "2026-06-01"
     assert result["start_time"] == "13:00"
@@ -178,19 +177,35 @@ def test_fallback_rolls_back_partial_claims(monkeypatch):
     db.schedule_slot_claims._ids.add("e-2:2026-06-01:13:00:14:00")
     monkeypatch.setattr("routers.schedule_crud.db", db)
 
-    async def noop(*_a, **_k):
-        await asyncio.sleep(0)
+    _patch_relocate_side_effects(monkeypatch)
 
-    monkeypatch.setattr("routers.schedule_crud._check_relocate_conflicts", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_same_day_town_to_town", noop)
-    monkeypatch.setattr("routers.schedule_crud.sync_relocate_calendar", noop)
-    monkeypatch.setattr("routers.schedule_crud._sync_linked_project_date", noop)
-    monkeypatch.setattr("routers.schedule_crud.log_activity", noop)
-    monkeypatch.setattr("routers.schedule_crud.notify_schedule_changed", noop)
-    monkeypatch.setattr("routers.schedule_crud.invalidate_workload_cache", noop)
-
-    payload = ScheduleRelocate(date="2026-06-01", start_time="13:00", end_time="14:00", force=False)
+    payload = _relocate_payload()
     with pytest.raises(HTTPException) as excinfo:
         asyncio.run(relocate_schedule("s-1", payload, {"name": "tester"}))
     assert excinfo.value.status_code == 409
     assert "e-1:2026-06-01:13:00:14:00" not in db.schedule_slot_claims._ids
+
+
+def test_fallback_cleans_claims_on_stale_update(monkeypatch):
+    db = StandaloneFakeDB()
+    monkeypatch.setattr("routers.schedule_crud.db", db)
+
+    original_find_one_and_update = db.schedules.find_one_and_update
+
+    async def stale_once(*args, **kwargs):
+        await asyncio.sleep(0)
+        return None
+
+    db.schedules.find_one_and_update = stale_once
+
+    _patch_relocate_side_effects(monkeypatch)
+
+    payload = _relocate_payload()
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(relocate_schedule("s-1", payload, {"name": "tester"}))
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail["conflict_type"] == "stale_schedule"
+    assert "e-1:2026-06-01:13:00:14:00" not in db.schedule_slot_claims._ids
+
+    db.schedules.find_one_and_update = original_find_one_and_update
