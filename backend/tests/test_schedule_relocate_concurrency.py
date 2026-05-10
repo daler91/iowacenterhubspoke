@@ -83,15 +83,26 @@ class _FakeSession:
 
 class _FakeClaims:
     def __init__(self):
-        self._ids = set()
+        self._claims = {}
 
     async def insert_one(self, doc, session=None):
         await asyncio.sleep(0)
         _id = doc["_id"]
-        if _id in self._ids:
+        if _id in self._claims:
             from pymongo.errors import DuplicateKeyError
             raise DuplicateKeyError("duplicate claim")
-        self._ids.add(_id)
+        self._claims[_id] = doc
+
+    async def delete_many(self, query, session=None):
+        await asyncio.sleep(0)
+        schedule_id = query.get("schedule_id")
+        if not schedule_id:
+            return
+        self._claims = {
+            claim_id: claim
+            for claim_id, claim in self._claims.items()
+            if claim.get("schedule_id") != schedule_id
+        }
 
 
 def test_competing_relocations_only_one_succeeds(monkeypatch):

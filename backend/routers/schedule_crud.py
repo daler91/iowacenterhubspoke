@@ -328,6 +328,7 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    await db.schedule_slot_claims.delete_many({"schedule_id": schedule_id})
     logger.info(
         f"Schedule soft-deleted: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id}},
@@ -620,6 +621,10 @@ async def relocate_schedule(
                 f"{emp}:{data.date}:{data.start_time}:{data.end_time}"
                 for emp in schedule.get("employee_ids", [])
             ]
+            await db.schedule_slot_claims.delete_many(
+                {"schedule_id": schedule_id},
+                session=session,
+            )
             try:
                 for claim_id in claim_ids:
                     await db.schedule_slot_claims.insert_one(
@@ -659,26 +664,25 @@ async def relocate_schedule(
                 return_document=ReturnDocument.AFTER,
                 session=session,
             )
-    if not updated:
-        # Return a deterministic conflict contract so clients can branch on
-        # conflict_type instead of parsing strings.
-        latest = await db.schedules.find_one(
-            {"id": schedule_id, "deleted_at": None},
-            {"_id": 0, "version": 1, "date": 1, "start_time": 1},
-        )
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "conflict_type": "stale_schedule",
-                "message": "Schedule changed during relocation; reload and retry.",
-                "expected": {
-                    "version": original_version,
-                    "date": original_date,
-                    "start_time": original_start,
-                },
-                "actual": latest,
-            },
-        )
+            if not updated:
+                latest = await db.schedules.find_one(
+                    {"id": schedule_id, "deleted_at": None},
+                    {"_id": 0, "version": 1, "date": 1, "start_time": 1},
+                    session=session,
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "conflict_type": "stale_schedule",
+                        "message": "Schedule changed during relocation; reload and retry.",
+                        "expected": {
+                            "version": original_version,
+                            "date": original_date,
+                            "start_time": original_start,
+                        },
+                        "actual": latest,
+                    },
+                )
     logger.info(
         f"Schedule relocated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}},
