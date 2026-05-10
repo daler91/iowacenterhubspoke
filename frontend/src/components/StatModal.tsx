@@ -33,7 +33,10 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent
+        data-testid="stat-modal"
+        className="flex h-[min(720px,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-[760px]"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -45,10 +48,11 @@ export default function StatModal({ isOpen, onClose, title, type, data, classes,
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 relative min-h-0">
+        <div className="relative min-h-0 flex-1">
           <div
             aria-label={title}
-            className="absolute inset-0 overflow-y-auto py-4 pr-2 space-y-3"
+            data-testid="stat-modal-scroll-area"
+            className="h-full overflow-y-auto py-4 pr-2 space-y-3"
           >
           {(type === 'today' || type === 'scheduled') && (
             data.length > 0 ? (
