@@ -140,8 +140,7 @@ async def sync_same_day_town_to_town(
     # Batch-fetch all sibling locations up-front so the loop below does at
     # most one Mongo round-trip per sibling (the $set), not two.
     needed_loc_ids = {
-        sib["location_id"] for sib in siblings
-        if sib.get("location_id") and not sib.get("travel_override_minutes")
+        sib["location_id"] for sib in siblings if sib.get("location_id")
     }
     loc_by_id: dict[str, dict] = {}
     if needed_loc_ids:
