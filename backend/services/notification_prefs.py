@@ -168,6 +168,7 @@ async def resolve_mention_principals(
     refs: list[dict],
     *,
     partner_org_id: Optional[str] = None,
+    include_internal: bool = True,
 ) -> list[Principal]:
     """Resolve a list of ``{id, kind}`` mention refs against the project's
     member set.
@@ -180,7 +181,9 @@ async def resolve_mention_principals(
     if not refs:
         return []
     members = await principals_for_project(
-        project_id=project_id, partner_org_id=partner_org_id,
+        project_id=project_id,
+        partner_org_id=partner_org_id,
+        include_internal=include_internal,
     )
     index: dict[tuple[str, str], Principal] = {
         (m.kind, m.id): m for m in members
@@ -204,6 +207,7 @@ async def prepare_mentions(
     refs_input: Optional[list],
     *,
     partner_org_id: Optional[str] = None,
+    include_internal: bool = True,
 ) -> tuple[list[Principal], list[dict]]:
     """One-shot helper used by every POST-comment / POST-message route.
 
@@ -217,6 +221,7 @@ async def prepare_mentions(
         project_id=project_id,
         refs=refs,
         partner_org_id=partner_org_id,
+        include_internal=include_internal,
     )
     stored = [principal_to_mention_dict(p) for p in mentioned]
     return mentioned, stored
@@ -227,6 +232,7 @@ async def principals_for_project(
     exclude_ids: Optional[set[str]] = None,
     *,
     partner_org_id: Optional[str] = None,
+    include_internal: bool = True,
 ) -> list[Principal]:
     """Return every stakeholder for a project (internal + partner contacts).
 
@@ -278,17 +284,18 @@ async def principals_for_project(
 
     # Internal stakeholders — every non-viewer, approved user. Preferences
     # let individuals silence categories they don't care about.
-    users = await db.users.find(
-        {
-            "role": {"$in": ["admin", "editor", "scheduler"]},
-            "status": "approved",
-        },
-        {"_id": 0, "password_hash": 0},
-    ).to_list(500)
-    for u in users:
-        if u["id"] in exclude_ids:
-            continue
-        principals.append(_principal_from_doc("internal", u))
+    if include_internal:
+        users = await db.users.find(
+            {
+                "role": {"$in": ["admin", "editor", "scheduler"]},
+                "status": "approved",
+            },
+            {"_id": 0, "password_hash": 0},
+        ).to_list(500)
+        for u in users:
+            if u["id"] in exclude_ids:
+                continue
+            principals.append(_principal_from_doc("internal", u))
 
     return principals
 
