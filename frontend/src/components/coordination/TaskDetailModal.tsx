@@ -767,9 +767,12 @@ export default function TaskDetailModal({
                     <SearchableSelect
                       options={[
                         ...employees.map(e => ({ value: e.name, label: e.name })),
+                        ...(assignedTo && !employees.some(e => e.name === assignedTo)
+                          ? [{ value: assignedTo, label: assignedTo }]
+                          : []),
                         { value: '__custom__', label: 'Custom name...' },
                       ]}
-                      value={employees.some(e => e.name === assignedTo) ? assignedTo : ''}
+                      value={assignedTo}
                       onValueChange={(v) => {
                         if (v === '__custom__') {
                           const name = prompt('Enter assignee name:');
