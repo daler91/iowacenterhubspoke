@@ -906,6 +906,42 @@ async def test_task_deleted_notifies_assignee_plus_project(
     assert ev.dedup_key == "t-1:deleted"
 
 
+@pytest.mark.asyncio
+async def test_task_deleted_internal_owner_excludes_partner_recipients(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["by_email"]["partner@x.com"] = _partner("c-assignee", "partner@x.com")
+    stub_recipient_helpers["project_principals"] = [_internal("u-alice"), _partner("c-primary")]
+
+    task = {
+        "id": "t-1", "title": "Internal task", "owner": " Internal ",
+        "assignee_email": "partner@x.com",
+    }
+    project = {"id": "p-1", "title": "Kickoff"}
+    actor = {"id": "u-actor", "name": "Actor"}
+
+    await notify_task_deleted(task, project, actor)
+
+    ids = {p.id for p, _ in capture_dispatch}
+    assert ids == {"u-alice"}
+
+
+@pytest.mark.asyncio
+async def test_task_deleted_partner_owner_allows_partner_recipients(
+    capture_dispatch, stub_recipient_helpers, stub_app_url,
+):
+    stub_recipient_helpers["project_principals"] = [_internal("u-alice"), _partner("c-primary")]
+
+    task = {"id": "t-1", "title": "Partner task", "owner": "partner"}
+    project = {"id": "p-1", "title": "Kickoff"}
+    actor = {"id": "u-actor", "name": "Actor"}
+
+    await notify_task_deleted(task, project, actor)
+
+    ids = {p.id for p, _ in capture_dispatch}
+    assert ids == {"u-alice", "c-primary"}
+
+
 # ── notify_project_deleted ───────────────────────────────────────────
 
 @pytest.mark.asyncio
