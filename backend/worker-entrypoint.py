@@ -12,6 +12,9 @@ APP_GID = 1001
 
 def main() -> None:
     if os.geteuid() == 0:
+        # Clear any inherited supplementary groups (including root's)
+        # before switching the primary gid/uid.
+        os.setgroups([])
         os.setgid(APP_GID)
         os.setuid(APP_UID)
         if os.geteuid() == 0:
