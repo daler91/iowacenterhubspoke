@@ -86,12 +86,20 @@ class EmployeeUpdate(BaseModel):
 
 
 class RecurrenceRule(BaseModel):
-    interval: int = 1
-    frequency: str  # week, month
+    interval: int = Field(1, ge=1, le=52)
+    frequency: Literal["week", "month"]
     weekdays: Optional[List[int]] = None  # 0=Sun ... 6=Sat
-    end_mode: Optional[str] = END_MODE_NEVER  # never, on_date, after_occurrences
-    end_date: Optional[str] = None
-    occurrences: Optional[int] = None
+    end_mode: Literal["never", "on_date", "after_occurrences"] = END_MODE_NEVER
+    end_date: Optional[str] = Field(None, pattern=ISO_DATE_PATTERN)
+    occurrences: Optional[int] = Field(None, ge=1, le=520)
+
+    @model_validator(mode="after")
+    def _validate_end_mode_requirements(self):
+        if self.end_mode == "after_occurrences" and self.occurrences is None:
+            raise ValueError("occurrences is required when end_mode is after_occurrences")
+        if self.end_mode == "on_date" and not self.end_date:
+            raise ValueError("end_date is required when end_mode is on_date")
+        return self
 
 
 class ClassCreate(BaseModel):
