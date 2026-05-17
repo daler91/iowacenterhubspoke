@@ -88,7 +88,7 @@ function messageDeliveryText(summary: NotificationSummary | undefined, mentionsS
   return 'Message sent';
 }
 
-function TaskRow({ projectId, task, onToggleTask, onOpenTask }: TaskRowProps) {
+function TaskRow({ projectId, task, onToggleTask, onOpenTask }: Readonly<TaskRowProps>) {
   const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
 
   return (
@@ -109,7 +109,7 @@ function TaskRow({ projectId, task, onToggleTask, onOpenTask }: TaskRowProps) {
   );
 }
 
-function ProjectTaskSection({ project, tasks, onToggleTask, onOpenTask }: ProjectTaskSectionProps) {
+function ProjectTaskSection({ project, tasks, onToggleTask, onOpenTask }: Readonly<ProjectTaskSectionProps>) {
   return (
     <section>
       <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
