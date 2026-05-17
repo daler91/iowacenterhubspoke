@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from core.logger import get_logger
@@ -38,6 +39,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/portal", tags=["portal"])
 _TASK_STATUSES = {"to_do", "in_progress", "completed", "on_hold"}
 _TASK_PHASES = {"planning", "promotion", "delivery", "follow_up"}
+ATTACHMENT_NOT_FOUND = "Attachment not found"
 
 
 class PortalTaskUpdate(BaseModel):
@@ -358,6 +360,34 @@ async def portal_upload_task_attachment(
     await db.task_attachments.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@router.get(
+    "/projects/{project_id}/tasks/{task_id}/attachments/{att_id}/download",
+    summary="Partner downloads a task attachment",
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": ATTACHMENT_NOT_FOUND}},
+)
+async def portal_download_task_attachment(
+    project_id: str, task_id: str, att_id: str, ctx: PortalContext,
+    inline: bool = False,
+):
+    await _require_partner_project(project_id, ctx)
+    await _require_partner_task(task_id, project_id)
+    att = await db.task_attachments.find_one(
+        {"id": att_id, "task_id": task_id, "project_id": project_id},
+        {"_id": 0},
+    )
+    if not att:
+        raise HTTPException(status_code=404, detail=ATTACHMENT_NOT_FOUND)
+    stored = os.path.basename(att.get("file_path", ""))
+    file_path = os.path.join(UPLOAD_DIR, stored)
+    if not stored or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    return FileResponse(
+        file_path,
+        filename=att.get("filename", "download"),
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 @router.get(

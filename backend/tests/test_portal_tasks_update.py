@@ -215,6 +215,151 @@ def test_portal_task_detail_filters_child_resources_by_project_and_task(monkeypa
     comments.find.assert_called_once_with(scope, {"_id": 0})
 
 
+def test_portal_download_task_attachment_requires_partner_project_before_query(monkeypatch):
+    monkeypatch.setattr(
+        portal_tasks,
+        "_require_partner_project",
+        AsyncMock(side_effect=HTTPException(status_code=404, detail="Project not found")),
+    )
+    require_task = AsyncMock()
+    monkeypatch.setattr(portal_tasks, "_require_partner_task", require_task)
+    attachments = SimpleNamespace(find_one=AsyncMock())
+    monkeypatch.setattr(portal_tasks, "db", SimpleNamespace(task_attachments=attachments))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            portal_tasks.portal_download_task_attachment(
+                "p1",
+                "t1",
+                "att-1",
+                {"partner_org_id": "org-other"},
+            )
+        )
+
+    assert exc.value.status_code == 404
+    require_task.assert_not_awaited()
+    attachments.find_one.assert_not_awaited()
+
+
+def test_portal_download_task_attachment_requires_partner_visible_task(monkeypatch):
+    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(
+        portal_tasks,
+        "_require_partner_task",
+        AsyncMock(side_effect=HTTPException(status_code=404, detail="Task not found")),
+    )
+    attachments = SimpleNamespace(find_one=AsyncMock())
+    monkeypatch.setattr(portal_tasks, "db", SimpleNamespace(task_attachments=attachments))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            portal_tasks.portal_download_task_attachment(
+                "p1",
+                "t-internal",
+                "att-1",
+                {"partner_org_id": "org1"},
+            )
+        )
+
+    assert exc.value.status_code == 404
+    attachments.find_one.assert_not_awaited()
+
+
+def test_portal_download_task_attachment_scopes_lookup_to_project(monkeypatch):
+    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(
+        portal_tasks,
+        "_require_partner_task",
+        AsyncMock(return_value={"id": "t1", "project_id": "p1", "owner": "partner"}),
+    )
+    attachments = SimpleNamespace(find_one=AsyncMock(return_value=None))
+    monkeypatch.setattr(portal_tasks, "db", SimpleNamespace(task_attachments=attachments))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            portal_tasks.portal_download_task_attachment(
+                "p1",
+                "t1",
+                "att-other-project",
+                {"partner_org_id": "org1"},
+            )
+        )
+
+    assert exc.value.status_code == 404
+    attachments.find_one.assert_awaited_once_with(
+        {"id": "att-other-project", "task_id": "t1", "project_id": "p1"},
+        {"_id": 0},
+    )
+
+
+def test_portal_download_task_attachment_returns_attachment_response(monkeypatch):
+    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(
+        portal_tasks,
+        "_require_partner_task",
+        AsyncMock(return_value={"id": "t1", "project_id": "p1", "owner": "both"}),
+    )
+    attachments = SimpleNamespace(
+        find_one=AsyncMock(
+            return_value={
+                "id": "att-1",
+                "task_id": "t1",
+                "project_id": "p1",
+                "file_path": "../stored.pdf",
+                "filename": "Partner Packet.pdf",
+            },
+        ),
+    )
+    monkeypatch.setattr(portal_tasks, "db", SimpleNamespace(task_attachments=attachments))
+    monkeypatch.setattr(portal_tasks.os.path, "exists", lambda _path: True)
+
+    response = asyncio.run(
+        portal_tasks.portal_download_task_attachment(
+            "p1",
+            "t1",
+            "att-1",
+            {"partner_org_id": "org1"},
+        )
+    )
+
+    assert response.path.endswith(os.path.join("uploads", "stored.pdf"))
+    assert response.headers["content-disposition"].startswith("attachment;")
+
+
+def test_portal_preview_task_attachment_returns_inline_response(monkeypatch):
+    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(
+        portal_tasks,
+        "_require_partner_task",
+        AsyncMock(return_value={"id": "t1", "project_id": "p1", "owner": "partner"}),
+    )
+    attachments = SimpleNamespace(
+        find_one=AsyncMock(
+            return_value={
+                "id": "att-1",
+                "task_id": "t1",
+                "project_id": "p1",
+                "file_path": "stored.pdf",
+                "filename": "Partner Packet.pdf",
+            },
+        ),
+    )
+    monkeypatch.setattr(portal_tasks, "db", SimpleNamespace(task_attachments=attachments))
+    monkeypatch.setattr(portal_tasks.os.path, "exists", lambda _path: True)
+
+    response = asyncio.run(
+        portal_tasks.portal_download_task_attachment(
+            "p1",
+            "t1",
+            "att-1",
+            {"partner_org_id": "org1"},
+            inline=True,
+        )
+    )
+
+    assert response.headers["content-disposition"].startswith("inline;")
+
+
 def test_portal_update_task_invalid_status(monkeypatch):
     monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(portal_tasks, "_require_partner_task", AsyncMock(return_value={"id": "t4", "owner": "partner"}))

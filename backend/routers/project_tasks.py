@@ -498,7 +498,10 @@ async def list_task_attachments(
 ):
     await _verify_task(project_id, task_id)
     atts = (
-        await db.task_attachments.find({"task_id": task_id}, {"_id": 0})
+        await db.task_attachments.find(
+            {"task_id": task_id, "project_id": project_id},
+            {"_id": 0},
+        )
         .sort("uploaded_at", -1)
         .to_list(200)
     )
@@ -551,8 +554,9 @@ async def upload_task_attachment(
 async def delete_task_attachment(
     project_id: str, task_id: str, att_id: str, user: SchedulerRequired,
 ):
+    await _verify_task(project_id, task_id)
     att = await db.task_attachments.find_one(
-        {"id": att_id, "task_id": task_id},
+        {"id": att_id, "task_id": task_id, "project_id": project_id},
     )
     if not att:
         raise HTTPException(status_code=404, detail=ATTACHMENT_NOT_FOUND)
@@ -560,7 +564,9 @@ async def delete_task_attachment(
     file_path = os.path.join(UPLOAD_DIR, stored)
     if stored and os.path.exists(file_path):
         os.remove(file_path)
-    await db.task_attachments.delete_one({"id": att_id})
+    await db.task_attachments.delete_one(
+        {"id": att_id, "task_id": task_id, "project_id": project_id},
+    )
     return {"message": "Attachment deleted"}
 
 
@@ -573,8 +579,9 @@ async def download_task_attachment(
     project_id: str, task_id: str, att_id: str, user: CurrentUser,
     inline: bool = False,
 ):
+    await _verify_task(project_id, task_id)
     att = await db.task_attachments.find_one(
-        {"id": att_id, "task_id": task_id}, {"_id": 0},
+        {"id": att_id, "task_id": task_id, "project_id": project_id}, {"_id": 0},
     )
     if not att:
         raise HTTPException(status_code=404, detail=ATTACHMENT_NOT_FOUND)

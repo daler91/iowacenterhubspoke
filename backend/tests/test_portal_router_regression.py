@@ -35,6 +35,7 @@ def test_portal_route_paths_are_preserved_after_modularization():
         "/portal/projects/{project_id}/tasks/{task_id}/complete": {"PATCH"},
         "/portal/projects/{project_id}/tasks/{task_id}": {"GET", "PATCH"},
         "/portal/projects/{project_id}/tasks/{task_id}/attachments": {"GET", "POST"},
+        "/portal/projects/{project_id}/tasks/{task_id}/attachments/{att_id}/download": {"GET"},
         "/portal/projects/{project_id}/tasks/{task_id}/comments": {"GET", "POST"},
         "/portal/projects/{project_id}/members": {"GET"},
         "/portal/projects/{project_id}/documents": {"GET", "POST"},
