@@ -27,6 +27,7 @@ class BoardMetrics:
 BOARD_PHASE_LIMIT_DEFAULT = 50
 BOARD_PHASE_LIMIT_MAX = 200
 LIST_LIMIT_MAX = 200
+MONGO_IF_NULL = "$ifNull"
 
 
 def clamp_limit(value: int, max_value: int) -> int:
@@ -66,11 +67,11 @@ async def _build_task_stats(project_ids: list[str]) -> dict[str, TaskStatsDTO]:
                                     {"$ne": ["$completed", True]},
                                     {
                                         "$in": [
-                                            {"$ifNull": ["$owner", ""]},
+                                            {MONGO_IF_NULL: ["$owner", ""]},
                                             ["partner", "both"],
                                         ]
                                     },
-                                    {"$lt": [{"$ifNull": ["$due_date", ""]}, now]},
+                                    {"$lt": [{MONGO_IF_NULL: ["$due_date", ""]}, now]},
                                 ]
                             },
                             1,
@@ -149,9 +150,9 @@ async def aggregate_completed_metrics() -> dict[str, int]:
                     "_id": None,
                     "classes_delivered": {"$sum": 1},
                     "total_attendance": {
-                        "$sum": {"$ifNull": ["$attendance_count", 0]}
+                        "$sum": {MONGO_IF_NULL: ["$attendance_count", 0]}
                     },
-                    "warm_leads": {"$sum": {"$ifNull": ["$warm_leads", 0]}},
+                    "warm_leads": {"$sum": {MONGO_IF_NULL: ["$warm_leads", 0]}},
                 }
             },
         ]
