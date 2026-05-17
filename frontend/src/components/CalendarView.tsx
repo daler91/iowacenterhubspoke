@@ -35,6 +35,18 @@ function viewBoundsFor(view: string, anchor: Date): [Date, Date] {
   return [anchor, anchor];
 }
 
+function exportDaysOffsetFor(view: string): number {
+  if (view === 'month') return 30;
+  if (view === 'week') return 7;
+  return 1;
+}
+
+function nextDateForView(view: string, currentDate: Date, direction: 'prev' | 'next') {
+  if (view === 'week') return direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1);
+  if (view === 'day') return direction === 'next' ? addDays(currentDate, 1) : subDays(currentDate, 1);
+  return direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1);
+}
+
 export default function CalendarView() {
   const isMobile = useIsMobile();
   const {
@@ -81,7 +93,7 @@ export default function CalendarView() {
 
   // URL State
   const calendarView = searchParams.get('view') || 'week';
-  const exportDaysOffset = calendarView === 'month' ? 30 : calendarView === 'week' ? 7 : 1;
+  const exportDaysOffset = exportDaysOffsetFor(calendarView);
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
@@ -167,15 +179,7 @@ export default function CalendarView() {
   );
 
   const navigateDate = (direction: 'prev' | 'next') => {
-    let nextDate;
-    if (calendarView === 'week') {
-      nextDate = direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1);
-    } else if (calendarView === 'day') {
-      nextDate = direction === 'next' ? addDays(currentDate, 1) : subDays(currentDate, 1);
-    } else {
-      nextDate = direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1);
-    }
-    setCurrentDate(nextDate);
+    setCurrentDate(nextDateForView(calendarView, currentDate, direction));
   };
 
   const exportPDF = async () => {
