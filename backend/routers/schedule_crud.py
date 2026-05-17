@@ -571,8 +571,6 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
         )
 
 
-
-
 def _is_replica_set_transaction_error(exc: OperationFailure) -> bool:
     return "Transaction numbers are only allowed on a replica set member or mongos" in str(exc)
 
