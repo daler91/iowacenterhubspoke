@@ -5,6 +5,7 @@ logger = get_logger("Worker")
 
 
 async def create_outlook_event(
+    _ctx,
     schedule_id: str,
     email: str,
     subject: str,
@@ -41,7 +42,7 @@ async def create_outlook_event(
     )
 
 
-async def delete_outlook_event(email: str, event_id: str, employee_id: str = ""):
+async def delete_outlook_event(_ctx, email: str, event_id: str, employee_id: str = ""):
     from database import db
     from services.outlook import create_outlook_event as provider_create
     from services.outlook import delete_outlook_event as provider_delete
@@ -63,6 +64,7 @@ async def delete_outlook_event(email: str, event_id: str, employee_id: str = "")
 
 
 async def create_google_event(
+    _ctx,
     schedule_id: str,
     email: str,
     subject: str,
@@ -99,7 +101,7 @@ async def create_google_event(
     )
 
 
-async def delete_google_event(email: str, event_id: str, employee_id: str = ""):
+async def delete_google_event(_ctx, email: str, event_id: str, employee_id: str = ""):
     from database import db
     from services.google_calendar import create_google_event as provider_create
     from services.google_calendar import delete_google_event as provider_delete
