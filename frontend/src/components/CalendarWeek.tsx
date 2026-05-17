@@ -351,13 +351,12 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
       return;
     }
 
-    // Calculate drop position from the pointer coordinates
     const overElement = over.rect;
     const pointerY = event.activatorEvent?.clientY;
-    // Use delta to compute current pointer position
-    const deltaY = event.delta?.y ?? 0;
-    const startPointerY = pointerY ?? 0;
-    const currentPointerY = startPointerY + deltaY;
+    const dragTop = event.active?.rect?.current?.translated?.top;
+    const currentPointerY = typeof pointerY === 'number'
+      ? pointerY + (event.delta?.y ?? 0)
+      : (typeof dragTop === 'number' ? dragTop : overElement.top);
 
     const relativeY = currentPointerY - overElement.top;
     const snappedMinutes = snapYToMinutes(relativeY);
@@ -377,13 +376,9 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
     const targetDateStr = over.id;
 
-    // Calculate the new start time from the last known indicator position or fallback to pointer calc
-    const overElement = over.rect;
-    const pointerY = event.activatorEvent?.clientY;
-    const deltaY = event.delta?.y ?? 0;
-    const currentPointerY = (pointerY ?? 0) + deltaY;
-    const relativeY = currentPointerY - overElement.top;
-    const newStartMinutes = snapYToMinutes(relativeY);
+    const newStartMinutes = dropIndicator.dateStr === targetDateStr && dropIndicator.minutes != null
+      ? dropIndicator.minutes
+      : timeToMinutes(schedule.start_time);
 
     const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
     const newEndMinutes = newStartMinutes + duration;
@@ -395,7 +390,7 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     if (targetDateStr === schedule.date && newStart === schedule.start_time) return;
 
     onRelocate(schedule.id, targetDateStr, newStart, newEnd);
-  }, [onRelocate, canEdit]);
+  }, [onRelocate, canEdit, dropIndicator]);
 
   const handleDragCancel = useCallback(() => {
     setActiveSchedule(null);
@@ -496,4 +491,3 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     </DndContext>
   );
 }
-
