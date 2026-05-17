@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 
 SINGLE_CONFLICT_LOG_THRESHOLD = 100
 BULK_CONFLICT_LOG_THRESHOLD = 10_000
+MAX_RECURRENCE_OCCURRENCES = 520
 
 SCHEDULE_CONFLICT_PROJECTION = {
     "id": 1,
@@ -213,9 +214,12 @@ def _parse_recurrence_limits(rule):
     default_limit = 24 if rule.frequency == "month" else 52
     occurrence_limit = None
     if rule.end_mode == "after_occurrences":
-        occurrence_limit = max(rule.occurrences or 1, 1)
+        occurrence_limit = min(max(rule.occurrences or 1, 1), MAX_RECURRENCE_OCCURRENCES)
     elif rule.end_mode == "never":
         occurrence_limit = default_limit
+    elif rule.end_mode == "on_date":
+        # Hard cap recurrence expansion to avoid unbounded request fan-out.
+        occurrence_limit = MAX_RECURRENCE_OCCURRENCES
     end_date = None
     if rule.end_mode == "on_date" and rule.end_date:
         end_date = dt_date.fromisoformat(rule.end_date)
