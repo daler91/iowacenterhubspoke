@@ -45,6 +45,9 @@ def main() -> None:
 
     if os.geteuid() == 0:
         _chown_tree(upload_dir, APP_UID, APP_GID)
+        # Clear inherited supplementary groups (e.g. root group 0)
+        # before dropping primary gid/uid.
+        os.setgroups([])
         os.setgid(APP_GID)
         os.setuid(APP_UID)
         # Belt-and-braces: if setuid silently failed (no error raised but
