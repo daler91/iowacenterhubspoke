@@ -180,11 +180,28 @@ def decode_refresh_token(token: str) -> dict:
     return payload
 
 
-async def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
+def _extract_auth_token(request: Request, authorization: Optional[str]) -> Optional[str]:
     token = request.cookies.get('auth_token')
-    if not token and authorization and authorization.startswith('Bearer '):
-        token = authorization.split(' ')[1]
+    if token or not authorization or not authorization.startswith('Bearer '):
+        return token
+    return authorization.split(' ')[1]
 
+
+def _raise_session_invalidated() -> None:
+    raise HTTPException(
+        status_code=401,
+        detail='Session invalidated by password change. Please log in again.'
+    )
+
+
+def _is_legacy_token_invalid(current_pwdv: int, password_changed_ts: float | None, token_iat: int) -> bool:
+    if current_pwdv > 0:
+        return True
+    return password_changed_ts is not None and token_iat < int(password_changed_ts)
+
+
+async def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
+    token = _extract_auth_token(request, authorization)
     if not token:
         raise HTTPException(status_code=401, detail='Not authenticated')
 
@@ -205,34 +222,24 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     if payload.get('typ') != 'access':
         raise HTTPException(status_code=401, detail='Invalid token type')
 
-    # Session invalidation: reject tokens with stale password-version claims
-    # (new tokens) and preserve legacy iat-based invalidation for tokens
-    # minted before pwdv rollout.
     token_pwdv = payload.get('pwdv')
     try:
         current_pwdv, is_deleted, password_changed_ts = await _get_pwd_invalidation_state(payload['user_id'])
     except TypeError:
-        # Test fallback: some unit suites monkeypatch only the legacy helper
-        # and wire db collections as non-awaitable MagicMock objects.
         changed_marker, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
         marker = int(changed_marker or 0)
         password_changed_ts = float(marker) if marker >= 1_000_000_000 else None
         current_pwdv = marker if marker < 1_000_000_000 else 0
+
     if is_deleted:
         raise HTTPException(status_code=401, detail='Account deactivated')
 
     if token_pwdv is None:
         token_iat = int(payload.get('iat') or 0)
-        if current_pwdv > 0 or (password_changed_ts is not None and token_iat < int(password_changed_ts)):
-            raise HTTPException(
-                status_code=401,
-                detail='Session invalidated by password change. Please log in again.'
-            )
+        if _is_legacy_token_invalid(current_pwdv, password_changed_ts, token_iat):
+            _raise_session_invalidated()
     elif int(token_pwdv) < current_pwdv:
-        raise HTTPException(
-            status_code=401,
-            detail='Session invalidated by password change. Please log in again.'
-        )
+        _raise_session_invalidated()
 
     return payload
 
@@ -286,6 +293,21 @@ async def _read_redis_markers(user_id: str) -> tuple[int | None, bool | None]:
         return None, None
 
 
+def _coerce_password_changed_ts(raw_changed_at) -> float | None:
+    if raw_changed_at is None:
+        return None
+    if isinstance(raw_changed_at, datetime):
+        return raw_changed_at.timestamp()
+    if isinstance(raw_changed_at, (int, float)):
+        return float(raw_changed_at)
+    if isinstance(raw_changed_at, str):
+        try:
+            return datetime.fromisoformat(raw_changed_at.replace('Z', '+00:00')).timestamp()
+        except ValueError:
+            return None
+    return None
+
+
 async def _get_pwd_invalidation_state(user_id: str) -> tuple[int, bool, float | None]:
     """Get (pwd_version, is_deleted, password_changed_ts) for a user.
 
@@ -315,18 +337,8 @@ async def _get_pwd_invalidation_state(user_id: str) -> tuple[int, bool, float | 
     mongo_pwdv = int((user_doc or {}).get('pwd_version', 0) or 0)
     pwdv = max(int(redis_pwdv or 0), mongo_pwdv)
 
-    password_changed_ts: float | None = None
     raw_changed_at = (user_doc or {}).get('password_changed_at')
-    if raw_changed_at is not None:
-        if isinstance(raw_changed_at, datetime):
-            password_changed_ts = raw_changed_at.timestamp()
-        elif isinstance(raw_changed_at, (int, float)):
-            password_changed_ts = float(raw_changed_at)
-        elif isinstance(raw_changed_at, str):
-            try:
-                password_changed_ts = datetime.fromisoformat(raw_changed_at.replace('Z', '+00:00')).timestamp()
-            except ValueError:
-                password_changed_ts = None
+    password_changed_ts = _coerce_password_changed_ts(raw_changed_at)
 
     # If Redis said "deleted" but Mongo says otherwise, clear the stale
     # marker so sibling workers don't keep consulting it.

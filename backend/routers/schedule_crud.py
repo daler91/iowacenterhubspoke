@@ -571,6 +571,12 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
         )
 
 
+
+
+def _is_replica_set_transaction_error(exc: OperationFailure) -> bool:
+    return "Transaction numbers are only allowed on a replica set member or mongos" in str(exc)
+
+
 @router.put(
     "/{schedule_id}/relocate",
     summary="Relocate a schedule to a new date/time",
@@ -696,8 +702,7 @@ async def relocate_schedule(
                     inserted_claim_ids,
                 ) = await _run_relocate(session=session)
     except OperationFailure as exc:
-        message = str(exc)
-        if "Transaction numbers are only allowed on a replica set member or mongos" not in message:
+        if not _is_replica_set_transaction_error(exc):
             raise
         (
             schedule,

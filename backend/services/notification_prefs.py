@@ -227,6 +227,37 @@ async def prepare_mentions(
     return mentioned, stored
 
 
+async def _load_partner_principals(partner_org_id: str, exclude_ids: set[str]) -> list[Principal]:
+    contacts = await db.partner_contacts.find(
+        {
+            "partner_org_id": partner_org_id,
+            "is_primary": True,
+            "deleted_at": None,
+        },
+        {"_id": 0},
+    ).to_list(10)
+    return [
+        _principal_from_doc("partner", c)
+        for c in contacts
+        if c["id"] not in exclude_ids and c.get("email")
+    ]
+
+
+async def _load_internal_principals(exclude_ids: set[str]) -> list[Principal]:
+    users = await db.users.find(
+        {
+            "role": {"$in": ["admin", "editor", "scheduler"]},
+            "status": "approved",
+        },
+        {"_id": 0, "password_hash": 0},
+    ).to_list(500)
+    return [
+        _principal_from_doc("internal", u)
+        for u in users
+        if u["id"] not in exclude_ids
+    ]
+
+
 async def principals_for_project(
     project_id: str,
     exclude_ids: Optional[set[str]] = None,
@@ -267,35 +298,11 @@ async def principals_for_project(
 
     principals: list[Principal] = []
 
-    # Partner primary contacts
     if partner_org_id:
-        contacts = await db.partner_contacts.find(
-            {
-                "partner_org_id": partner_org_id,
-                "is_primary": True,
-                "deleted_at": None,
-            },
-            {"_id": 0},
-        ).to_list(10)
-        for c in contacts:
-            if c["id"] in exclude_ids or not c.get("email"):
-                continue
-            principals.append(_principal_from_doc("partner", c))
+        principals.extend(await _load_partner_principals(partner_org_id, exclude_ids))
 
-    # Internal stakeholders — every non-viewer, approved user. Preferences
-    # let individuals silence categories they don't care about.
     if include_internal:
-        users = await db.users.find(
-            {
-                "role": {"$in": ["admin", "editor", "scheduler"]},
-                "status": "approved",
-            },
-            {"_id": 0, "password_hash": 0},
-        ).to_list(500)
-        for u in users:
-            if u["id"] in exclude_ids:
-                continue
-            principals.append(_principal_from_doc("internal", u))
+        principals.extend(await _load_internal_principals(exclude_ids))
 
     return principals
 
