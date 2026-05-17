@@ -245,7 +245,15 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
     if (!over) { setDropIndicatorMinutes(null); return; }
 
     const overElement = over.rect;
-    const pointerY = event.activatorEvent?.clientY ?? 0;
+    const pointerY = event.activatorEvent?.clientY;
+
+    if (typeof pointerY !== 'number') {
+      const dragTop = event.active?.rect?.current?.translated?.top;
+      const relativeY = (typeof dragTop === 'number' ? dragTop : overElement.top) - overElement.top;
+      setDropIndicatorMinutes(snapYToMinutes(relativeY));
+      return;
+    }
+
     const deltaY = event.delta?.y ?? 0;
     const relativeY = (pointerY + deltaY) - overElement.top;
     setDropIndicatorMinutes(snapYToMinutes(relativeY));
@@ -262,10 +270,10 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
     if (!schedule) return;
 
     const overElement = over.rect;
-    const pointerY = event.activatorEvent?.clientY ?? 0;
-    const deltaY = event.delta?.y ?? 0;
-    const relativeY = (pointerY + deltaY) - overElement.top;
-    const newStartMinutes = snapYToMinutes(relativeY);
+    const pointerY = event.activatorEvent?.clientY;
+    const newStartMinutes = typeof pointerY === 'number'
+      ? snapYToMinutes((pointerY + (event.delta?.y ?? 0)) - overElement.top)
+      : (dropIndicatorMinutes ?? timeToMinutes(schedule.start_time));
     const duration = timeToMinutes(schedule.end_time) - timeToMinutes(schedule.start_time);
     const newEndMinutes = newStartMinutes + duration;
 
@@ -275,7 +283,7 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
     if (newStart === schedule.start_time) return;
 
     onRelocate(schedule.id, dateStr, newStart, newEnd);
-  }, [onRelocate, canEdit, dateStr]);
+  }, [onRelocate, canEdit, dateStr, dropIndicatorMinutes]);
 
   const handleDragCancel = useCallback(() => {
     setActiveSchedule(null);
@@ -345,4 +353,3 @@ export default function CalendarDay({ currentDate, schedules, onEditSchedule, on
     </DndContext>
   );
 }
-
