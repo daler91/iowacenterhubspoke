@@ -39,6 +39,7 @@ export function renderMentionBody(body: string, _mentions?: Mention[]): ReactNod
 }
 
 interface Props {
+  readonly id?: string;
   readonly value: string;
   readonly mentions: Mention[];
   readonly members: readonly ProjectMember[];
@@ -49,6 +50,7 @@ interface Props {
   readonly className?: string;
   readonly textareaClassName?: string;
   readonly disabled?: boolean;
+  readonly 'aria-label'?: string;
 }
 
 interface TriggerState {
@@ -73,8 +75,9 @@ function filterMembers(members: readonly ProjectMember[], query: string): Projec
 }
 
 export default function MentionTextarea({
-  value, mentions, members, onChange, onSubmit,
+  id, value, mentions, members, onChange, onSubmit,
   placeholder, rows = 1, className, textareaClassName, disabled,
+  'aria-label': ariaLabel,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [trigger, setTrigger] = useState<TriggerState | null>(null);
@@ -184,6 +187,7 @@ export default function MentionTextarea({
   return (
     <div className={cn('relative flex-1', className)}>
       <textarea
+        id={id}
         ref={textareaRef}
         value={value}
         onChange={handleChange}
@@ -195,6 +199,7 @@ export default function MentionTextarea({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
+        aria-label={ariaLabel}
         className={cn(
           'w-full bg-transparent border-0 outline-none resize-none py-1.5 placeholder:text-muted-foreground text-sm',
           textareaClassName,

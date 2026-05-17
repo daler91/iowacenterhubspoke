@@ -21,6 +21,7 @@ jest.mock('../../lib/coordination-api', () => ({
     requestLink: jest.fn(),
     bulkProjectTasks: jest.fn(),
     completeTask: jest.fn(),
+    updateTask: jest.fn(),
     taskDetail: jest.fn(),
     projectDocuments: jest.fn(),
     previewDocument: jest.fn(),
@@ -164,6 +165,8 @@ describe('PortalDashboard task board and message confirmations', () => {
     } as Awaited<ReturnType<typeof portalAPI.bulkProjectTasks>>);
     mockedPortalAPI.projectMessages.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
     mockedPortalAPI.projectMembers.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMembers>>);
+    mockedPortalAPI.projectDocuments.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
+    mockedPortalAPI.updateTask.mockResolvedValue({ data: {} } as Awaited<ReturnType<typeof portalAPI.updateTask>>);
   });
 
   it('keeps task due dates on their calendar day and lets partners switch to a Kanban board', async () => {
@@ -208,6 +211,115 @@ describe('PortalDashboard task board and message confirmations', () => {
 
     expect(await screen.findByText('Last delivery')).toBeInTheDocument();
     expect(screen.getByText('Mentions resolved/notified: 1 / 0')).toBeInTheDocument();
+  });
+
+  it('shows an actionable task retry state instead of an empty list after load failure', async () => {
+    mockedPortalAPI.bulkProjectTasks
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ data: { items: { 'project-1': [] } } } as Awaited<ReturnType<typeof portalAPI.bulkProjectTasks>>);
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
+
+    expect(await screen.findByText('Tasks could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByText('No tasks assigned to you')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /retry tasks/i }));
+
+    await waitFor(() => {
+      expect(mockedPortalAPI.bulkProjectTasks).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText('No tasks assigned to you')).toBeInTheDocument();
+  });
+
+  it('shows document and message load errors with retry actions', async () => {
+    mockedPortalAPI.projectDocuments
+      .mockRejectedValueOnce(new Error('documents unavailable'))
+      .mockResolvedValueOnce({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
+    mockedPortalAPI.projectMessages
+      .mockRejectedValueOnce(new Error('messages unavailable'))
+      .mockResolvedValueOnce({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Documents' }));
+    expect(await screen.findByText('Documents could not be loaded.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry documents/i }));
+    await waitFor(() => {
+      expect(mockedPortalAPI.projectDocuments).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText('No shared documents')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Messages' }));
+    expect(await screen.findByText('Messages could not be loaded.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry messages/i }));
+    await waitFor(() => {
+      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument();
+  });
+
+  it('guards rapid task toggles while the update is pending', async () => {
+    let resolveUpdate!: (value: Awaited<ReturnType<typeof portalAPI.updateTask>>) => void;
+    mockedPortalAPI.updateTask.mockReturnValue(
+      new Promise((resolve) => { resolveUpdate = resolve; }) as ReturnType<typeof portalAPI.updateTask>,
+    );
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
+    const toggle = await screen.findByRole('button', { name: /mark complete: confirm room layout/i });
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toBeDisabled());
+    fireEvent.click(toggle);
+
+    expect(mockedPortalAPI.updateTask).toHaveBeenCalledTimes(1);
+    resolveUpdate({ data: {} } as Awaited<ReturnType<typeof portalAPI.updateTask>>);
+    await waitFor(() => expect(toggle).not.toBeDisabled());
+  });
+
+  it('guards send while pending and exposes document icon button names', async () => {
+    mockedPortalAPI.projectDocuments.mockResolvedValue({
+      data: {
+        items: [{
+          id: 'doc-1',
+          project_id: 'project-1',
+          filename: 'partner-packet.pdf',
+          file_type: 'pdf',
+          file_path: 'partner-packet.pdf',
+          visibility: 'shared',
+          uploaded_by: 'user-1',
+          uploaded_at: '2026-04-01T00:00:00Z',
+          version: 1,
+        }],
+      },
+    } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
+    let resolveSend!: (value: Awaited<ReturnType<typeof portalAPI.sendMessage>>) => void;
+    mockedPortalAPI.sendMessage.mockReturnValue(
+      new Promise((resolve) => { resolveSend = resolve; }) as ReturnType<typeof portalAPI.sendMessage>,
+    );
+
+    render(<PortalDashboard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Documents' }));
+    expect(await screen.findByRole('button', { name: /preview partner-packet.pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download partner-packet.pdf/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Messages' }));
+    await waitFor(() => {
+      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledWith('project-1', 'good-token');
+    });
+    fireEvent.change(screen.getByLabelText('Message'), {
+      target: { value: 'Hello team' },
+    });
+    const send = screen.getByRole('button', { name: /send message/i });
+    fireEvent.click(send);
+    await waitFor(() => expect(send).toBeDisabled());
+    fireEvent.click(send);
+    expect(mockedPortalAPI.sendMessage).toHaveBeenCalledTimes(1);
+    resolveSend({ data: { id: 'msg-1', mentions: [] } } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
   });
 
   it('confirms how many recipients were notified when API returns notification_summary', async () => {

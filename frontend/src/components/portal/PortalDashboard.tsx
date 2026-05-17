@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -32,6 +32,28 @@ const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 const LEGACY_PORTAL_TOKEN_KEY = 'portal_session_token';
 type TaskViewMode = 'list' | 'kanban';
+type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+function setPendingKey(
+  setter: Dispatch<SetStateAction<Record<string, boolean>>>,
+  key: string,
+  pending: boolean,
+) {
+  setter((prev) => {
+    if (pending) return { ...prev, [key]: true };
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
+}
+
+function taskActionKey(projectId: string, taskId: string) {
+  return `${projectId}:${taskId}`;
+}
+
+function documentActionKey(action: 'preview' | 'download', projectId: string, docId: string) {
+  return `${action}:${projectId}:${docId}`;
+}
 interface NotificationSummary {
   mentions_requested?: number;
   mentions_resolved?: number;
@@ -94,7 +116,12 @@ function TaskRow({ projectId, task, onToggleTask, onOpenTask }: Readonly<TaskRow
   return (
     <Card className={cn('p-3 border', task.completed && 'opacity-60')}>
       <div className="flex items-start gap-2">
-        <button type="button" onClick={() => onToggleTask(projectId, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+        <button
+          type="button"
+          onClick={() => onToggleTask(projectId, task.id, task.completed)}
+          aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+          className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
+        >
           {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
         </button>
         <div className="min-w-0 flex-1">
@@ -152,12 +179,21 @@ export default function PortalDashboard() {
 
   // Tab-specific state
   const [allTasks, setAllTasks] = useState<Record<string, Task[]>>({});
+  const [tasksStatus, setTasksStatus] = useState<LoadStatus>('idle');
+  const [tasksError, setTasksError] = useState('');
   const [documents, setDocuments] = useState<Record<string, ProjectDocument[]>>({});
+  const [documentsStatus, setDocumentsStatus] = useState<LoadStatus>('idle');
+  const [documentsError, setDocumentsError] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesStatus, setMessagesStatus] = useState<LoadStatus>('idle');
+  const [msgError, setMsgError] = useState('');
   const [msgBody, setMsgBody] = useState('');
   const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
+  const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
+  const [documentActionIds, setDocumentActionIds] = useState<Record<string, boolean>>({});
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [activeProject, setActiveProject] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
@@ -170,6 +206,9 @@ export default function PortalDashboard() {
   // URL directly — fetch the bytes as a blob and hand the dialog an object
   // URL instead. We revoke on close (or unmount) to free the blob.
   async function openDocPreview(projectId: string, doc: ProjectDocument) {
+    const key = documentActionKey('preview', projectId, doc.id);
+    if (documentActionIds[key]) return;
+    setPendingKey(setDocumentActionIds, key, true);
     try {
       const res = await portalAPI.previewDocument(projectId, doc.id, token);
       const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
@@ -178,6 +217,8 @@ export default function PortalDashboard() {
       setPreviewingDoc({ doc, url });
     } catch (err) {
       toast.error(describeApiError(err, "Couldn't load that preview."));
+    } finally {
+      setPendingKey(setDocumentActionIds, key, false);
     }
   }
 
@@ -213,41 +254,49 @@ export default function PortalDashboard() {
 
   const loadTasks = async () => {
     if (!token || !dashboardData?.projects) return;
+    setTasksStatus('loading');
+    setTasksError('');
     // Single bulk request instead of N parallel /tasks calls. Backend
     // groups tasks by project_id and authz-clamps to projects this token
     // actually owns.
     const projectIds = dashboardData.projects.map(p => p.id);
     try {
       const res = await portalAPI.bulkProjectTasks(projectIds, token);
-      const items = (res.data?.items || {}) as Record<string, unknown[]>;
+      const items = (res.data?.items || {}) as Record<string, Task[]>;
       // Make sure every project has an entry, even if it has no tasks.
-      const filled: Record<string, unknown[]> = {};
+      const filled: Record<string, Task[]> = {};
       projectIds.forEach(id => { filled[id] = items[id] || []; });
       setAllTasks(filled);
-    } catch {
-      const empty: Record<string, unknown[]> = {};
-      projectIds.forEach(id => { empty[id] = []; });
-      setAllTasks(empty);
+      setTasksStatus('ready');
+    } catch (err) {
+      setTasksError(describeApiError(err, "We couldn't load your tasks."));
+      setTasksStatus('error');
     }
   };
 
   const loadDocuments = async () => {
     if (!token || !dashboardData?.projects) return;
-    const results = await Promise.all(
-      dashboardData.projects.map(async (p) => {
-        try {
+    setDocumentsStatus('loading');
+    setDocumentsError('');
+    try {
+      const results = await Promise.all(
+        dashboardData.projects.map(async (p) => {
           const res = await portalAPI.projectDocuments(p.id, token);
           return [p.id, res.data.items || []] as const;
-        } catch {
-          return [p.id, []] as const;
-        }
-      })
-    );
-    setDocuments(Object.fromEntries(results));
+        })
+      );
+      setDocuments(Object.fromEntries(results));
+      setDocumentsStatus('ready');
+    } catch (err) {
+      setDocumentsError(describeApiError(err, "We couldn't load shared documents."));
+      setDocumentsStatus('error');
+    }
   };
 
   const loadMessages = async (projectId: string) => {
     if (!token) return;
+    setMessagesStatus('loading');
+    setMsgError('');
     try {
       const res = await portalAPI.projectMessages(projectId, token);
       setMessages(res.data.items || []);
@@ -260,8 +309,10 @@ export default function PortalDashboard() {
       } catch {
         setMembers([]);
       }
-    } catch {
-      toast.error('Failed to load messages');
+      setMessagesStatus('ready');
+    } catch (err) {
+      setMsgError(describeApiError(err, "We couldn't load messages for this project."));
+      setMessagesStatus('error');
     }
   };
 
@@ -275,6 +326,9 @@ export default function PortalDashboard() {
 
   const handleToggleTask = async (projectId: string, taskId: string, completed: boolean) => {
     if (!token) return;
+    const key = taskActionKey(projectId, taskId);
+    if (pendingTaskIds[key]) return;
+    setPendingKey(setPendingTaskIds, key, true);
     try {
       await portalAPI.updateTask(projectId, taskId, token, { completed: !completed });
       await loadTasks();
@@ -295,12 +349,17 @@ export default function PortalDashboard() {
       });
     } catch {
       toast.error('Failed to update task');
+    } finally {
+      setPendingKey(setPendingTaskIds, key, false);
     }
   };
 
 
   const handleMoveTask = async (projectId: string, task: Task, status: TaskStatus) => {
     if (!token) return { ok: false, message: 'Missing portal session.' };
+    const key = taskActionKey(projectId, task.id);
+    if (pendingTaskIds[key]) return { ok: false, message: 'That task update is still saving.' };
+    setPendingKey(setPendingTaskIds, key, true);
     // Keep partner permissions conservative: if backend rejects a phase/status
     // update, preserve source-of-truth and explain inline.
     try {
@@ -314,6 +373,8 @@ export default function PortalDashboard() {
       const message = describeApiError(err, 'You do not have permission to move that task to this status.');
       toast.error(message);
       return { ok: false, message };
+    } finally {
+      setPendingKey(setPendingTaskIds, key, false);
     }
   };
 
@@ -354,10 +415,17 @@ export default function PortalDashboard() {
 
   const renderTaskCard = (projectId: string, task: Task) => {
     const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
+    const isTaskPending = !!pendingTaskIds[taskActionKey(projectId, task.id)];
     return (
       <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
         <div className="flex items-start gap-2">
-          <button type="button" onClick={() => handleToggleTask(projectId, task.id, task.completed)} className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}>
+          <button
+            type="button"
+            onClick={() => handleToggleTask(projectId, task.id, task.completed)}
+            disabled={isTaskPending}
+            aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+            className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
+          >
             {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
           </button>
           <div className="min-w-0 flex-1">
@@ -390,7 +458,8 @@ export default function PortalDashboard() {
   );
 
   const handleSendMessage = async () => {
-    if (!token || !activeProject || !msgBody.trim()) return;
+    if (!token || !activeProject || !msgBody.trim() || sendingMessage) return;
+    setSendingMessage(true);
     try {
       const project = dashboardData?.projects.find(p => p.id === activeProject);
       const res = await portalAPI.sendMessage(activeProject, token, {
@@ -409,6 +478,8 @@ export default function PortalDashboard() {
     } catch {
       setLastDeliverySummary(null);
       toast.error('Failed to send message');
+    } finally {
+      setSendingMessage(false);
     }
   };
 
@@ -589,15 +660,31 @@ export default function PortalDashboard() {
             </div>
           </div>
 
-          {taskViewMode === 'list' ? renderTaskList() : (
-            <PortalTaskBoard
-              projects={visibleProjects}
-              allTasks={allTasks as Record<string, Task[]>}
-              onOpenTask={openTaskDetail}
-              onMoveTask={handleMoveTask}
-            />
+          {tasksStatus === 'loading' && (
+            <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
+              Loading tasks...
+            </output>
           )}
-          {visibleTaskCount === 0 && (
+          {tasksStatus === 'error' && (
+            <Card className="p-4 border-danger/30 bg-danger-soft/20" role="alert">
+              <p className="text-sm font-medium text-danger-strong">Tasks could not be loaded.</p>
+              <p className="text-sm text-foreground/80 mt-1">{tasksError}</p>
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadTasks}>
+                Retry tasks
+              </Button>
+            </Card>
+          )}
+          {tasksStatus === 'ready' && (
+            taskViewMode === 'list' ? renderTaskList() : (
+              <PortalTaskBoard
+                projects={visibleProjects}
+                allTasks={allTasks as Record<string, Task[]>}
+                onOpenTask={openTaskDetail}
+                onMoveTask={handleMoveTask}
+              />
+            )
+          )}
+          {tasksStatus === 'ready' && visibleTaskCount === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
           )}
         </div>
@@ -618,7 +705,21 @@ export default function PortalDashboard() {
       {activeTab === 'documents' && dashboardData && (
         <div className="space-y-6">
           {renderProjectFilter('portal-document-project-filter')}
-          {visibleProjects.map(project => {
+          {documentsStatus === 'loading' && (
+            <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
+              Loading shared documents...
+            </output>
+          )}
+          {documentsStatus === 'error' && (
+            <Card className="p-4 border-danger/30 bg-danger-soft/20" role="alert">
+              <p className="text-sm font-medium text-danger-strong">Documents could not be loaded.</p>
+              <p className="text-sm text-foreground/80 mt-1">{documentsError}</p>
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadDocuments}>
+                Retry documents
+              </Button>
+            </Card>
+          )}
+          {documentsStatus === 'ready' && visibleProjects.map(project => {
             const docs = documents[project.id] || [];
             if (docs.length === 0) return null;
             return (
@@ -640,6 +741,7 @@ export default function PortalDashboard() {
                           size="sm"
                           variant="ghost"
                           onClick={() => openDocPreview(project.id, doc)}
+                          disabled={!!documentActionIds[documentActionKey('preview', project.id, doc.id)]}
                           className="shrink-0"
                           aria-label={`Preview ${doc.filename}`}
                         >
@@ -650,6 +752,9 @@ export default function PortalDashboard() {
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
+                          const key = documentActionKey('download', project.id, doc.id);
+                          if (documentActionIds[key]) return;
+                          setPendingKey(setDocumentActionIds, key, true);
                           try {
                             const res = await portalAPI.downloadDocument(project.id, doc.id, token);
                             const blob = new Blob([res.data]);
@@ -661,8 +766,11 @@ export default function PortalDashboard() {
                             URL.revokeObjectURL(url);
                           } catch (err) {
                             toast.error(describeApiError(err, 'Download failed'));
+                          } finally {
+                            setPendingKey(setDocumentActionIds, key, false);
                           }
                         }}
+                        disabled={!!documentActionIds[documentActionKey('download', project.id, doc.id)]}
                         className="shrink-0"
                         aria-label={`Download ${doc.filename}`}
                       >
@@ -674,7 +782,7 @@ export default function PortalDashboard() {
               </div>
             );
           })}
-          {visibleProjects.every((project) => (documents[project.id] || []).length === 0) && (
+          {documentsStatus === 'ready' && visibleProjects.every((project) => (documents[project.id] || []).length === 0) && (
             <p className="text-sm text-muted-foreground text-center py-8">No shared documents</p>
           )}
         </div>
@@ -691,9 +799,10 @@ export default function PortalDashboard() {
                 type="button"
                 role="tab"
                 aria-selected={activeProject === project.id}
+                disabled={messagesStatus === 'loading' && activeProject === project.id}
                 onClick={() => loadMessages(project.id)}
                 className={cn(
-                  'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0',
+                  'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0 disabled:cursor-not-allowed disabled:opacity-60',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
                   activeProject === project.id
                     ? 'bg-hub-soft text-hub-strong'
@@ -707,7 +816,28 @@ export default function PortalDashboard() {
 
           {/* Messages */}
           <Card className="p-4 mb-3 max-h-96 overflow-y-auto">
-            {messages.length > 0 ? (
+            {messagesStatus === 'loading' ? (
+              <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
+                Loading messages...
+              </output>
+            ) : messagesStatus === 'error' ? (
+              <div role="alert" className="text-center py-6">
+                <p className="text-sm font-medium text-danger-strong">Messages could not be loaded.</p>
+                <p className="text-sm text-foreground/80 mt-1">{msgError}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => loadMessages(activeProject || dashboardData.projects[0]?.id || '')}
+                  disabled={!activeProject && dashboardData.projects.length === 0}
+                >
+                  Retry messages
+                </Button>
+              </div>
+            ) : dashboardData.projects.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No message channels available yet</p>
+            ) : messages.length > 0 ? (
               <div className="space-y-3">
                 {messages.map(msg => (
                   <div key={msg.id} className="flex gap-3">
@@ -745,16 +875,20 @@ export default function PortalDashboard() {
           <div className="flex items-center gap-2 rounded-lg border border-border bg-white dark:bg-card px-3 py-1">
             <label htmlFor="portal-message-input" className="sr-only">Message</label>
             <MentionTextarea
+              id="portal-message-input"
               value={msgBody}
               mentions={msgMentions}
               members={members}
               onChange={(b, m) => { setMsgBody(b); setMsgMentions(m); }}
               onSubmit={handleSendMessage}
+              disabled={sendingMessage || messagesStatus === 'loading' || !activeProject}
+              aria-label="Message"
               placeholder="Type a message — @ to mention..."
             />
             <Button
               type="button"
               onClick={handleSendMessage}
+              disabled={sendingMessage || !msgBody.trim() || !activeProject}
               aria-label="Send message"
               className="bg-hub hover:bg-hub/90 text-white px-4 shrink-0"
             >

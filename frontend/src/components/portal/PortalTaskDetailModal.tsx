@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -24,13 +24,34 @@ interface Props {
   onRefresh: () => Promise<void> | void;
 }
 
+function setPendingKey(
+  setter: Dispatch<SetStateAction<Record<string, boolean>>>,
+  key: string,
+  pending: boolean,
+) {
+  setter((prev) => {
+    if (pending) return { ...prev, [key]: true };
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
+}
+
+function attachmentActionKey(action: 'preview' | 'download', attachmentId: string) {
+  return `${action}:${attachmentId}`;
+}
+
 export default function PortalTaskDetailModal({ open, onOpenChange, projectId, taskId, token, onRefresh }: Readonly<Props>) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [task, setTask] = useState<Task | null>(null);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [previewing, setPreviewing] = useState<{ attachment: TaskAttachment; url: string } | null>(null);
+  const [statusPending, setStatusPending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attachmentActionIds, setAttachmentActionIds] = useState<Record<string, boolean>>({});
 
   const canUpload = task?.owner === 'partner' || task?.owner === 'both';
 
@@ -42,6 +63,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   const loadData = async () => {
     if (!open || !token) return;
     setLoading(true);
+    setLoadError('');
     try {
       const [detailRes, attachmentRes, memberRes] = await Promise.all([
         portalAPI.taskDetail(projectId, taskId, token),
@@ -52,7 +74,9 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
       setAttachments((attachmentRes.data?.items || []) as TaskAttachment[]);
       await refreshComments();
       setMembers((memberRes.data?.items || []) as ProjectMember[]);
-    } catch {
+    } catch (err) {
+      setLoadError(describeApiError(err, "We couldn't load task details."));
+      setTask(null);
       toast.error('Failed to load task details');
     } finally {
       setLoading(false);
@@ -67,18 +91,21 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
   const canEditStatus = task?.owner === 'partner' || task?.owner === 'both';
 
   const handleStatusChange = async (nextStatus: string) => {
-    if (!task || !canEditStatus) return;
+    if (!task || !canEditStatus || statusPending) return;
     const status = nextStatus as TaskStatus;
     const previous = taskStatus;
     if (status === previous) return;
     const completed = status === 'completed';
     setTask(prev => prev ? { ...prev, status, completed } : prev);
+    setStatusPending(true);
     try {
       await portalAPI.updateTask(projectId, taskId, token, { status, completed });
       await onRefresh();
     } catch (err) {
       setTask(prev => prev ? { ...prev, status: previous, completed: previous === 'completed' } : prev);
       toast.error(describeApiError(err, 'Failed to update task status'));
+    } finally {
+      setStatusPending(false);
     }
   };
 
@@ -87,7 +114,22 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-5xl w-[95vw] max-h-[85vh] p-0 overflow-hidden gap-0 rounded-2xl">
           <DialogTitle className="sr-only">Task details</DialogTitle>
-          {loading || !task ? <p className="p-6 text-sm text-muted-foreground">Loading details…</p> : (
+          <DialogDescription className="sr-only">
+            Review task status, attachments, and comments.
+          </DialogDescription>
+          {loading ? (
+            <output className="block p-6 text-sm text-muted-foreground" aria-live="polite">
+              Loading details...
+            </output>
+          ) : loadError || !task ? (
+            <div className="p-6" role="alert">
+              <p className="text-sm font-medium text-danger-strong">Task details could not be loaded.</p>
+              <p className="text-sm text-foreground/80 mt-1">{loadError || 'The task is unavailable.'}</p>
+              <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => { void loadData(); }}>
+                Retry task details
+              </Button>
+            </div>
+          ) : (
             <div className="flex flex-col h-full max-h-[85vh]">
               <div className="p-5 pr-14 border-b space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -98,7 +140,17 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Card className="p-3"><p className="text-xs text-muted-foreground mb-1">Status</p>{canEditStatus ? <SearchableSelect id="portal-task-status" value={taskStatus} onValueChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className="h-8" /> : <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>}</Card>
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground mb-1">Status</p>
+                    {canEditStatus ? (
+                      <>
+                        <SearchableSelect id="portal-task-status" value={taskStatus} onValueChange={handleStatusChange} options={TASK_STATUSES.map(s => ({ value: s, label: TASK_STATUS_LABELS[s] }))} placeholder="Select status" searchPlaceholder="Search status..." className={cn('h-8', statusPending && 'pointer-events-none opacity-60')} />
+                        {statusPending && <output className="mt-1 block text-xs text-muted-foreground" aria-live="polite">Saving status...</output>}
+                      </>
+                    ) : (
+                      <p className="text-sm font-medium flex items-center gap-1.5"><span className={cn('w-2 h-2 rounded-full', TASK_STATUS_COLORS[taskStatus])} />{TASK_STATUS_LABELS[taskStatus]}</p>
+                    )}
+                  </Card>
                   <Card className="p-3"><p className="text-xs text-muted-foreground">Due date</p><p className="text-sm font-medium"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />{formatCalendarDate(task.due_date)}</p></Card>
                 </div>
               </div>
@@ -111,25 +163,40 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                       <p className="text-sm whitespace-pre-wrap">{task.description || 'No description provided.'}</p>
                     </Card>
                     <Card className="p-4">
-                      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Attachments</p>
-                        <label className={cn('text-xs', !canUpload && 'opacity-60')}>
-                          <input type="file" className="hidden" disabled={!canUpload} onChange={async (e) => {
-                            const file = e.target.files?.[0]; if (!file || !canUpload) return;
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold">Attachments</p>
+                        <label className={cn('text-xs', (!canUpload || uploading) && 'opacity-60')} aria-disabled={!canUpload || uploading}>
+                          <input type="file" className="hidden" disabled={!canUpload || uploading} onChange={async (e) => {
+                            const input = e.currentTarget;
+                            const file = e.target.files?.[0];
+                            if (!file || !canUpload || uploading) return;
+                            setUploading(true);
                             try {
                               await portalAPI.uploadTaskAttachment(projectId, taskId, token, file);
                               toast.success('Attachment uploaded');
                               await loadData();
                               await onRefresh();
-                            } catch (err) { toast.error(describeApiError(err, 'Upload failed')); }
+                            } catch (err) {
+                              toast.error(describeApiError(err, 'Upload failed'));
+                            } finally {
+                              setUploading(false);
+                              input.value = '';
+                            }
                           }} />
-                          <span className="inline-flex items-center gap-1 cursor-pointer"><Paperclip className="w-3.5 h-3.5" />Upload</span>
+                          <span className={cn('inline-flex items-center gap-1', canUpload && !uploading ? 'cursor-pointer' : 'cursor-not-allowed')}>
+                            <Paperclip className="w-3.5 h-3.5" aria-hidden="true" />
+                            {uploading ? 'Uploading...' : 'Upload'}
+                          </span>
                         </label>
                       </div>
                       <div className="space-y-2">{attachments.length === 0 ? <p className="text-xs text-muted-foreground">No attachments.</p> : attachments.map((a) => (
                         <div key={a.id} className="flex items-center gap-2 border rounded-md p-2">
-                          <FileText className="w-4 h-4 text-muted-foreground" />
+                          <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                           <div className="flex-1 min-w-0"><p className="text-sm truncate">{a.filename}</p></div>
                           {canPreview(a.file_type) && <Button size="sm" variant="ghost" onClick={async () => {
+                            const key = attachmentActionKey('preview', a.id);
+                            if (attachmentActionIds[key]) return;
+                            setPendingKey(setAttachmentActionIds, key, true);
                             try {
                               const res = await portalAPI.previewTaskAttachment(projectId, taskId, a.id, token);
                               const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
@@ -137,17 +204,24 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
                               setPreviewing({ attachment: a, url: URL.createObjectURL(blob) });
                             } catch (err) {
                               toast.error(describeApiError(err, "Couldn't load that preview."));
+                            } finally {
+                              setPendingKey(setAttachmentActionIds, key, false);
                             }
-                          }}><Eye className="w-4 h-4" /></Button>}
+                          }} disabled={!!attachmentActionIds[attachmentActionKey('preview', a.id)]} aria-label={`Preview ${a.filename}`}><Eye className="w-4 h-4" aria-hidden="true" /></Button>}
                           <Button size="sm" variant="ghost" onClick={async () => {
+                            const key = attachmentActionKey('download', a.id);
+                            if (attachmentActionIds[key]) return;
+                            setPendingKey(setAttachmentActionIds, key, true);
                             try {
                               const d = await portalAPI.downloadTaskAttachment(projectId, taskId, a.id, token);
                               const blob = new Blob([d.data]);
                               const u = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = u; link.download = a.filename; link.click(); URL.revokeObjectURL(u);
                             } catch (err) {
                               toast.error(describeApiError(err, 'Download failed'));
+                            } finally {
+                              setPendingKey(setAttachmentActionIds, key, false);
                             }
-                          }}><Download className="w-4 h-4" /></Button>
+                          }} disabled={!!attachmentActionIds[attachmentActionKey('download', a.id)]} aria-label={`Download ${a.filename}`}><Download className="w-4 h-4" aria-hidden="true" /></Button>
                         </div>
                       ))}</div>
                     </Card>
@@ -174,7 +248,7 @@ export default function PortalTaskDetailModal({ open, onOpenChange, projectId, t
           if (!v) setPreviewing(null);
         }}
         url={previewing?.url || ''}
-        kind={previewing ? previewKind(previewing.attachment.file_type) : 'iframe'}
+        kind={previewing ? previewKind(previewing.attachment.file_type) ?? 'pdf' : 'pdf'}
         filename={previewing?.attachment.filename || ''}
       />
     </>
