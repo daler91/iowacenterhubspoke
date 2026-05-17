@@ -560,12 +560,8 @@ def _compute_health(completion_rate, last_active, classes_hosted):
     return health_score, tier
 
 
-async def _collect_cursor(cursor):
-    """Fully consume a Mongo cursor without applying a global cap."""
-    items = []
-    async for item in cursor:
-        items.append(item)
-    return items
+MAX_PARTNER_HEALTH_PROJECTS = 5000
+MAX_PARTNER_HEALTH_TASKS = 20000
 
 
 async def _fetch_projects_for_orgs(org_ids):
@@ -576,7 +572,7 @@ async def _fetch_projects_for_orgs(org_ids):
         {"partner_org_id": {"$in": org_ids}, "deleted_at": None},
         {"_id": 0, "id": 1, "partner_org_id": 1, "phase": 1, "updated_at": 1},
     )
-    projects = await _collect_cursor(project_cursor)
+    projects = await project_cursor.to_list(MAX_PARTNER_HEALTH_PROJECTS)
 
     projects_by_org: dict[str, list[dict]] = defaultdict(list)
     project_to_org: dict[str, str] = {}
@@ -599,11 +595,11 @@ async def _aggregate_task_counts_by_org(project_to_org):
     if not project_ids:
         return task_counts_by_org
 
-    task_cursor = db.tasks.find(
+    tasks = await db.tasks.find(
         {"project_id": {"$in": project_ids}, "deleted_at": None},
         {"_id": 0, "project_id": 1, "completed": 1},
-    )
-    async for task in task_cursor:
+    ).to_list(MAX_PARTNER_HEALTH_TASKS)
+    for task in tasks:
         owner_org_id = project_to_org.get(task.get("project_id"))
         if not owner_org_id:
             continue
