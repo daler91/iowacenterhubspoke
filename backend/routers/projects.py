@@ -387,6 +387,55 @@ async def _count_overdue_tasks_for_upcoming_projects(now_iso: str) -> int:
     return rows[0].get("count", 0)
 
 
+def _community_breakdown_from_projects(all_projects: list[dict]) -> list[dict]:
+    communities: dict = {}
+    for p in all_projects:
+        community = p.get("community", "Unknown")
+        communities.setdefault(
+            community,
+            {
+                "community": community,
+                "delivered": 0,
+                "upcoming": 0,
+                "attendance": 0,
+                "warm_leads": 0,
+                "phases": {},
+            },
+        )
+        if p.get("phase") == "complete":
+            communities[community]["delivered"] += 1
+            communities[community]["attendance"] += p.get("attendance_count") or 0
+            communities[community]["warm_leads"] += p.get("warm_leads") or 0
+        else:
+            communities[community]["upcoming"] += 1
+            phase = p.get("phase", "planning")
+            communities[community]["phases"][phase] = (
+                communities[community]["phases"].get(phase, 0) + 1
+            )
+    return list(communities.values())
+
+
+def _class_breakdown_from_projects(all_projects: list[dict]) -> tuple[dict, list[str]]:
+    breakdown: dict = {}
+    for p in all_projects:
+        if p.get("phase") != "complete":
+            continue
+        cid = p.get("class_id") or "unlinked"
+        breakdown.setdefault(
+            cid,
+            {
+                "class_id": cid if cid != "unlinked" else None,
+                "delivered": 0,
+                "attendance": 0,
+                "warm_leads": 0,
+            },
+        )
+        breakdown[cid]["delivered"] += 1
+        breakdown[cid]["attendance"] += p.get("attendance_count") or 0
+        breakdown[cid]["warm_leads"] += p.get("warm_leads") or 0
+    return breakdown, [k for k in breakdown if k != "unlinked"]
+
+
 _DASHBOARD_AGG_FIELDS = {
     "_id": 0, "id": 1, "phase": 1, "community": 1, "event_date": 1,
     "attendance_count": 1, "warm_leads": 1, "class_id": 1, "schedule_id": 1,
@@ -413,19 +462,30 @@ async def get_dashboard(
         {"deleted_at": None, "phase": {"$ne": "complete"}},
     )
 
+    upcoming_ids = [p["id"] for p in all_projects if p.get("phase") != "complete" and p.get("id")]
     overdue_count = 0
-    if upcoming_count:
+    if upcoming_ids:
         now = datetime.now(timezone.utc).isoformat()
-        overdue_count = await _count_overdue_tasks_for_upcoming_projects(now)
+        overdue_count = await db.tasks.count_documents(
+            {
+                "project_id": {"$in": upcoming_ids},
+                "completed": False,
+                "due_date": {"$lt": now},
+                "deleted_at": None,
+            },
+        )
 
     upcoming_projects = await db.projects.find(
         {"deleted_at": None, "phase": {"$ne": "complete"}}, {"_id": 0},
     ).sort("event_date", 1).limit(20).to_list(20)
 
-    communities = await _aggregate_community_breakdown()
-    class_breakdown, class_ids = await _aggregate_class_breakdown()
+    communities = _community_breakdown_from_projects(all_projects)
+    class_breakdown, class_ids = _class_breakdown_from_projects(all_projects)
     await _enrich_class_breakdown(class_breakdown, class_ids)
-    orphan_completed = await _count_orphan_schedules()
+    schedule_ids = {p.get("schedule_id") for p in all_projects if p.get("schedule_id")}
+    orphan_completed = await db.schedules.count_documents(
+        {"status": "completed", "deleted_at": None, "id": {"$nin": list(schedule_ids)}},
+    )
 
     return {
         "classes_delivered": completed_metrics["classes_delivered"],
