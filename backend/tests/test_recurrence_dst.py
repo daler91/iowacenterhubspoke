@@ -82,3 +82,19 @@ def test_biweekly_recurrence_survives_dst():
         "2026-03-29",
         "2026-04-12",
     ]
+
+
+def test_on_date_recurrence_is_hard_capped_to_prevent_fan_out():
+    rule = RecurrenceRule(
+        interval=1,
+        frequency="week",
+        weekdays=[0],
+        end_mode="on_date",
+        end_date="9999-12-31",
+    )
+
+    dates = build_recurrence_dates("2026-01-04", rule)
+
+    assert len(dates) == 520
+    assert dates[0] == "2026-01-04"
+    assert dates[-1] == "2035-12-16"
