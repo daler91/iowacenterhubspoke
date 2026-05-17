@@ -14,6 +14,19 @@ import { cn } from '../lib/utils';
 
 const COLORS = ['#4F46E5', '#0D9488', '#DC2626', '#EA580C', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
+
+const getSecureRandomIndex = (max: number) => {
+  if (max <= 0) return 0;
+  const randomValues = new Uint32Array(1);
+  const limit = Math.floor(0x100000000 / max) * max;
+  let randomNumber = 0;
+  do {
+    crypto.getRandomValues(randomValues);
+    randomNumber = randomValues[0];
+  } while (randomNumber >= limit);
+  return randomNumber % max;
+};
+
 import { useOutletContext } from 'react-router-dom';
 import { EntityLink } from './ui/entity-link';
 import EmployeeProfile from './EmployeeProfile';
@@ -163,7 +176,7 @@ export default function EmployeeManager() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', email: '', phone: '', color: COLORS[Math.floor(Math.random() * COLORS.length)] });
+    setForm({ name: '', email: '', phone: '', color: COLORS[getSecureRandomIndex(COLORS.length)] });
     setDialogOpen(true);
   };
 
