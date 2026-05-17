@@ -28,7 +28,6 @@ import PortalTaskBoard from './PortalTaskBoard';
 import NotificationPreferences from '../NotificationPreferences';
 import PortalTaskDetailModal from './PortalTaskDetailModal';
 
-const PORTAL_TOKEN_KEY = 'portal_session_token';
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 type TaskViewMode = 'list' | 'kanban';
@@ -130,8 +129,7 @@ function ProjectTaskSection({ project, tasks, onToggleTask, onOpenTask }: Projec
 
 export default function PortalDashboard() {
   const { token: urlToken } = useParams<{ token: string }>();
-  // Prefer URL token, fall back to sessionStorage for in-session persistence
-  const token = urlToken || sessionStorage.getItem(PORTAL_TOKEN_KEY) || '';
+  const token = urlToken || '';
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
@@ -200,13 +198,10 @@ export default function PortalDashboard() {
         const verifyRes = await portalAPI.verify(token);
         setOrg(verifyRes.data.org);
         setContact(verifyRes.data.contact);
-        // Persist token in session so portal survives tab navigation
-        sessionStorage.setItem(PORTAL_TOKEN_KEY, token);
 
         const dashRes = await portalAPI.dashboard(token);
         setDashboardData(dashRes.data);
       } catch {
-        sessionStorage.removeItem(PORTAL_TOKEN_KEY);
         setError(INVALID_PORTAL_LINK_MESSAGE);
       } finally {
         setLoading(false);
