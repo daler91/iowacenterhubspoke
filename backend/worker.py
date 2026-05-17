@@ -107,7 +107,7 @@ async def _prefetch_schedule_data(db, data, dates_to_schedule):
     return schedules_by_date, loc_map
 
 
-async def _enqueue_calendar_events(created, employees, class_doc, location):
+def _enqueue_calendar_events(created, employees, class_doc, location):
     from services.calendar_sync import enqueue_calendar_events_for_all
 
     for doc in created:
@@ -194,7 +194,7 @@ async def generate_bulk_schedules(
     if created:
         await _log_bulk_creation(log_activity, created, employees, location, class_doc, dates_to_schedule, user_name)
 
-    await _enqueue_calendar_events(created, employees, class_doc, location)
+    _enqueue_calendar_events(created, employees, class_doc, location)
 
     # The router that enqueued this job already invalidated the workload
     # cache, but that happened BEFORE insert_many ran. Any /workload read

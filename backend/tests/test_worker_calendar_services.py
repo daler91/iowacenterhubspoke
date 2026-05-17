@@ -32,6 +32,7 @@ def test_idempotent_create_skips_when_already_mapped():
     db = FakeDb({"id": "s1", "calendar_events": {"e1": {"outlook_event_id": "evt-1"}}})
 
     async def provider_create(*args, **kwargs):
+        await asyncio.sleep(0)
         raise AssertionError("provider should not be called when mapped")
 
     result = asyncio.run(create_calendar_event_idempotent(
@@ -53,6 +54,7 @@ def test_create_propagates_exception_for_retry_behavior():
     db = FakeDb({"id": "s1", "calendar_events": {}})
 
     async def provider_create(*args, **kwargs):
+        await asyncio.sleep(0)
         raise RuntimeError("temporary provider outage")
 
     with pytest.raises(RuntimeError):
@@ -76,6 +78,7 @@ def test_create_persists_mapping_and_passes_idempotency_key():
     captured = {}
 
     async def provider_create(*args, **kwargs):
+        await asyncio.sleep(0)
         captured["idempotency_key"] = kwargs.get("idempotency_key")
         return "evt-new"
 
@@ -105,6 +108,7 @@ def test_run_for_employees_continues_after_failure():
     calls = []
 
     async def runner(employee):
+        await asyncio.sleep(0)
         calls.append(employee["id"])
         if employee["id"] == "e1":
             raise RuntimeError("fail once")

@@ -35,6 +35,7 @@ def test_pwd_version_blocks_stale_tokens(monkeypatch):
     fake_redis = _FakeRedis()
     monkeypatch.setattr("database.db", fake_db)
     async def _pool():
+        await asyncio.sleep(0)
         return fake_redis
     monkeypatch.setattr("core.queue.get_redis_pool", _pool)
 
@@ -50,6 +51,7 @@ def test_invalidate_broadcasts_version_to_other_worker_cache(monkeypatch):
     fake_redis = _FakeRedis()
 
     async def _pool():
+        await asyncio.sleep(0)
         return fake_redis
     monkeypatch.setattr("core.queue.get_redis_pool", _pool)
 
