@@ -111,7 +111,6 @@ def test_run_for_employees_continues_after_failure():
 
     adapter = CalendarProviderAdapter(name="google", id_field="google_calendar_event_id", create_event=runner)
     asyncio.run(run_for_employees(
-        db=None,
         adapter=adapter,
         employees=[{"id": "e1"}, {"id": "e2"}],
         runner=runner,

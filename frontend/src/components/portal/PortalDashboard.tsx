@@ -334,9 +334,6 @@ export default function PortalDashboard() {
   };
 
   const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
-  const projectsWithTasks = visibleProjects
-    .map((project) => ({ project, tasks: allTasks[project.id] || [] }))
-    .filter(({ tasks }) => tasks.length > 0);
 
   const renderProjectFilter = (selectId: string) => (
     <div className="flex items-center gap-2">
