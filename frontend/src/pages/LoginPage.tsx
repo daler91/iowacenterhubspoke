@@ -44,7 +44,6 @@ export default function LoginPage() {
         if (cancelled) return;
         setInviteData(res.data);
         setIsLogin(false);
-        setForm(prev => ({ ...prev }));
       } catch {
         if (!cancelled) {
           toast.error('This invitation link is invalid or has expired');
@@ -196,7 +195,7 @@ export default function LoginPage() {
             {inviteData && (
               <div className="mb-4 p-3 bg-hub-soft border border-hub-soft rounded-lg">
                 <p className="text-sm text-hub-strong font-medium">
-                  Invitation for {inviteData.email}
+                  Invitation link validated
                 </p>
                 <p className="text-xs text-hub mt-1">
                   Complete your registration below to get started.
@@ -228,8 +227,7 @@ export default function LoginPage() {
                   value={form.email}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })}
                   required
-                  disabled={!!inviteData}
-                  className={`h-11 bg-muted/50 ${inviteData ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className="h-11 bg-muted/50"
                 />
               </div>
               <div className="space-y-2">
