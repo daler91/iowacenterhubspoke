@@ -81,7 +81,7 @@ export default function CalendarView() {
 
   // URL State
   const calendarView = searchParams.get('view') || 'week';
-  const exportDaysOffset = { month: 30, week: 7 }[calendarView as string] || 1;
+  const exportDaysOffset = calendarView === 'month' ? 30 : calendarView === 'week' ? 7 : 1;
   const dateStr = searchParams.get('date');
   const currentDate = dateStr && isValid(parseISO(dateStr)) ? parseISO(dateStr) : new Date();
   const filterEmployee = searchParams.get('employee') || 'all';
