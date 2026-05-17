@@ -10,11 +10,13 @@ class FakeCollection:
         self.updated = None
 
     async def find_one(self, query, projection):
+        await asyncio.sleep(0)
         if query.get("id") == self.schedule_doc.get("id"):
             return self.schedule_doc
         return None
 
     async def update_one(self, query, update):
+        await asyncio.sleep(0)
         self.updated = (query, update)
 
 
