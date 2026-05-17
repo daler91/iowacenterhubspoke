@@ -212,14 +212,17 @@ def test_dashboard_aggregate_parity(monkeypatch):
     legacy_orphans = 1  # only s3 has no active linked project
 
     new_completed = asyncio.run(projects_router._aggregate_completed_metrics())
+    new_communities, communities_truncated = asyncio.run(projects_router._aggregate_community_breakdown())
     new_communities = sorted(
-        asyncio.run(projects_router._aggregate_community_breakdown()),
+        new_communities,
         key=lambda x: str(x["community"]),
     )
-    new_classes, _ = asyncio.run(projects_router._aggregate_class_breakdown())
+    new_classes, _, classes_truncated = asyncio.run(projects_router._aggregate_class_breakdown())
     new_orphans = asyncio.run(projects_router._count_orphan_schedules())
 
     assert new_completed == legacy_completed
     assert new_communities == legacy_communities
     assert new_classes == legacy_classes
     assert new_orphans == legacy_orphans
+    assert communities_truncated is False
+    assert classes_truncated is False
