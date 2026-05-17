@@ -211,7 +211,7 @@ async def _aggregate_completed_metrics_legacy_impl() -> dict:
     }
 
 
-async def _aggregate_community_breakdown() -> list:
+async def _aggregate_community_breakdown() -> tuple[list, bool]:
     """Group projects by community with delivery/upcoming and phase stats."""
     pipeline = [
         {_AGG_MATCH: {"deleted_at": None}},
@@ -240,9 +240,9 @@ async def _aggregate_community_breakdown() -> list:
             },
         },
     ]
-    rows = []
-    async for row in db.projects.aggregate(pipeline):
-        rows.append(row)
+    rows = await db.projects.aggregate(pipeline).to_list(_DASHBOARD_AGG_RESULT_LIMIT + 1)
+    truncated = len(rows) > _DASHBOARD_AGG_RESULT_LIMIT
+    rows = rows[:_DASHBOARD_AGG_RESULT_LIMIT]
     communities: list = []
     for row in rows:
         info = {
@@ -264,10 +264,10 @@ async def _aggregate_community_breakdown() -> list:
                 info["upcoming"] += count
                 info["phases"][phase] = info["phases"].get(phase, 0) + count
         communities.append(info)
-    return communities
+    return communities, truncated
 
 
-async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
+async def _aggregate_class_breakdown() -> tuple[dict, list[str], bool]:
     """Group completed projects by class_id. Returns (breakdown, class_ids)."""
     pipeline = [
         {_AGG_MATCH: {"deleted_at": None, "phase": "complete"}},
@@ -291,9 +291,9 @@ async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
             },
         },
     ]
-    rows = []
-    async for row in db.projects.aggregate(pipeline):
-        rows.append(row)
+    rows = await db.projects.aggregate(pipeline).to_list(_DASHBOARD_AGG_RESULT_LIMIT + 1)
+    truncated = len(rows) > _DASHBOARD_AGG_RESULT_LIMIT
+    rows = rows[:_DASHBOARD_AGG_RESULT_LIMIT]
     breakdown: dict = {}
     for row in rows:
         cid = row["_id"]
@@ -304,7 +304,7 @@ async def _aggregate_class_breakdown() -> tuple[dict, list[str]]:
             "warm_leads": row.get("warm_leads", 0),
         }
     class_ids = [k for k in breakdown if k != "unlinked"]
-    return breakdown, class_ids
+    return breakdown, class_ids, truncated
 
 
 async def _enrich_class_breakdown(breakdown: dict, class_ids: list[str]) -> None:
@@ -392,6 +392,7 @@ _DASHBOARD_AGG_FIELDS = {
     "attendance_count": 1, "warm_leads": 1, "class_id": 1, "schedule_id": 1,
 }
 _DASHBOARD_PROJECT_LIMIT = 5000
+_DASHBOARD_AGG_RESULT_LIMIT = 500
 
 
 @router.get("/dashboard", summary="Multi-community dashboard metrics")
@@ -422,8 +423,8 @@ async def get_dashboard(
         {"deleted_at": None, "phase": {"$ne": "complete"}}, {"_id": 0},
     ).sort("event_date", 1).limit(20).to_list(20)
 
-    communities = await _aggregate_community_breakdown()
-    class_breakdown, class_ids = await _aggregate_class_breakdown()
+    communities, communities_truncated = await _aggregate_community_breakdown()
+    class_breakdown, class_ids, class_breakdown_truncated = await _aggregate_class_breakdown()
     await _enrich_class_breakdown(class_breakdown, class_ids)
     orphan_completed = await _count_orphan_schedules()
 
@@ -440,6 +441,8 @@ async def get_dashboard(
         "upcoming_projects": upcoming_projects,
         "trends": project_queries.build_trends(all_projects, period),
         "truncated": truncated,
+        "communities_truncated": communities_truncated,
+        "class_breakdown_truncated": class_breakdown_truncated,
     }
 
 
