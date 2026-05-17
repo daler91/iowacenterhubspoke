@@ -553,7 +553,7 @@ async def update_series(
     return {"updated_count": updated_count, "series_id": series_id}
 
 
-async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
+async def _check_relocate_conflicts(schedule: dict, data):
     """Check conflicts for the first employee when relocating."""
     drive_time = schedule.get("drive_time_minutes", 0)
     employee_ids = schedule.get("employee_ids", [])
@@ -562,7 +562,7 @@ async def _check_relocate_conflicts(schedule: dict, data, schedule_id: str):
         return
     conflicts = await check_conflicts(
         first_employee_id, data.date, data.start_time, data.end_time,
-        drive_time, exclude_id=schedule_id,
+        drive_time, exclude_id=schedule.get("id"),
     )
     if conflicts and not data.force:
         raise HTTPException(
@@ -645,7 +645,7 @@ async def relocate_schedule(
         if not schedule:
             raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-        await _check_relocate_conflicts(schedule, data, schedule_id)
+        await _check_relocate_conflicts(schedule, data)
 
         original_date = schedule.get("date")
         original_start = schedule.get("start_time")

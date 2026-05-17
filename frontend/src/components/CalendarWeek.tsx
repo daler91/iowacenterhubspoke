@@ -354,9 +354,10 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
     const overElement = over.rect;
     const pointerY = event.activatorEvent?.clientY;
     const dragTop = event.active?.rect?.current?.translated?.top;
+    const fallbackPointerY = typeof dragTop === 'number' ? dragTop : overElement.top;
     const currentPointerY = typeof pointerY === 'number'
       ? pointerY + (event.delta?.y ?? 0)
-      : (typeof dragTop === 'number' ? dragTop : overElement.top);
+      : fallbackPointerY;
 
     const relativeY = currentPointerY - overElement.top;
     const snappedMinutes = snapYToMinutes(relativeY);
