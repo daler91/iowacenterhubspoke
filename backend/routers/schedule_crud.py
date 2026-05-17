@@ -587,8 +587,6 @@ async def _run_relocate_with_fallback(schedule_id: str, run_relocate):
         return await run_relocate()
 
 
-
-
 def _validate_relocation_dst(date: str, start_time: str, end_time: str) -> None:
     """Raise 400 when relocation times fall in a DST spring-forward gap."""
     from services.schedule_utils import validate_local_time_exists
@@ -635,6 +633,8 @@ async def _reserve_relocation_claims(
             },
         ) from None
     return inserted_claim_ids
+
+
 async def _ensure_relocate_update_succeeded(
     schedule_id: str,
     updated: dict | None,
