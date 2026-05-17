@@ -18,12 +18,11 @@ import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import { describeApiError } from '../../lib/error-messages';
 import { formatCalendarDate } from '../../lib/date-format';
 
-const PORTAL_TOKEN_KEY = 'portal_session_token';
 type TaskViewMode = 'list' | 'kanban';
 
 export default function PortalProjectDetail() {
   const { token: urlToken, projectId = '' } = useParams<{ token: string; projectId: string }>();
-  const token = urlToken || sessionStorage.getItem(PORTAL_TOKEN_KEY) || '';
+  const token = urlToken || '';
   const navigate = useNavigate();
   const [org, setOrg] = useState<PartnerOrg | null>(null);
   const [contact, setContact] = useState<PartnerContact | null>(null);
@@ -76,7 +75,6 @@ export default function PortalProjectDetail() {
         const verifyRes = await portalAPI.verify(token);
         setOrg(verifyRes.data.org);
         setContact(verifyRes.data.contact);
-        sessionStorage.setItem(PORTAL_TOKEN_KEY, token);
         await loadAll();
       } catch {
         setError('Failed to load project portal details.');
@@ -170,7 +168,7 @@ export default function PortalProjectDetail() {
   return (
     <PortalLayout org={org} contact={contact} activeTab="overview" onTabChange={() => {}} token={token}>
       <div className="space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal')}>Back to dashboard</Button>
+        <Button variant="ghost" size="sm" onClick={() => navigate(token ? `/portal/${token}` : '/portal')}>Back to dashboard</Button>
 
         <Card className="p-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">

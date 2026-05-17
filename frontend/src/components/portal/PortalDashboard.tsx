@@ -30,6 +30,7 @@ import PortalTaskDetailModal from './PortalTaskDetailModal';
 
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
+const LEGACY_PORTAL_TOKEN_KEY = 'portal_session_token';
 type TaskViewMode = 'list' | 'kanban';
 interface NotificationSummary {
   mentions_requested?: number;
@@ -202,6 +203,7 @@ export default function PortalDashboard() {
         const dashRes = await portalAPI.dashboard(token);
         setDashboardData(dashRes.data);
       } catch {
+        sessionStorage.removeItem(LEGACY_PORTAL_TOKEN_KEY);
         setError(INVALID_PORTAL_LINK_MESSAGE);
       } finally {
         setLoading(false);
