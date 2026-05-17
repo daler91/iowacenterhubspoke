@@ -8,6 +8,7 @@ class _FakeUsers:
         self.row = row
 
     async def find_one(self, *_args, **_kwargs):
+        await asyncio.sleep(0)
         return self.row
 
 
@@ -21,12 +22,15 @@ class _FakeRedis:
         self.values = {}
 
     async def get(self, key):
+        await asyncio.sleep(0)
         return self.values.get(key)
 
     async def set(self, key, value, ex=None):
+        await asyncio.sleep(0)
         self.values[key] = value
 
     async def delete(self, key):
+        await asyncio.sleep(0)
         self.values.pop(key, None)
 
 
