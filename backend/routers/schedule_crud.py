@@ -252,7 +252,16 @@ async def _sync_linked_project_date(schedule_id: str, new_date: str) -> None:
 async def update_schedule(
     schedule_id: str, data: ScheduleUpdate, user: SchedulerRequired
 ):
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    raw_data = data.model_dump()
+    nullable_override_fields = {
+        "drive_to_override_minutes",
+        "drive_from_override_minutes",
+    }
+    update_data = {
+        k: v
+        for k, v in raw_data.items()
+        if v is not None or (k in nullable_override_fields and k in data.model_fields_set)
+    }
     # expected_version is a control field, not a document field.
     expected_version = update_data.pop("expected_version", None)
     if not update_data:
