@@ -587,6 +587,54 @@ async def _run_relocate_with_fallback(schedule_id: str, run_relocate):
         return await run_relocate()
 
 
+def _validate_relocation_dst(date: str, start_time: str, end_time: str) -> None:
+    """Raise 400 when relocation times fall in a DST spring-forward gap."""
+    from services.schedule_utils import validate_local_time_exists
+
+    try:
+        validate_local_time_exists(date, start_time)
+        validate_local_time_exists(date, end_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _reserve_relocation_claims(
+    schedule_id: str,
+    schedule: dict,
+    date: str,
+    start_time: str,
+    end_time: str,
+    session=None,
+) -> list[str]:
+    claim_ids = [
+        f"{emp}:{date}:{start_time}:{end_time}"
+        for emp in schedule.get("employee_ids", [])
+    ]
+    inserted_claim_ids: list[str] = []
+    try:
+        for claim_id in claim_ids:
+            await db.schedule_slot_claims.insert_one(
+                {
+                    "_id": claim_id,
+                    "schedule_id": schedule_id,
+                    "employee_id": claim_id.split(":")[0],
+                },
+                session=session,
+            )
+            inserted_claim_ids.append(claim_id)
+    except DuplicateKeyError:
+        if session is None and inserted_claim_ids:
+            await db.schedule_slot_claims.delete_many({"_id": {"$in": inserted_claim_ids}})
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "conflict_type": "slot_taken",
+                "message": "Requested slot is already occupied.",
+            },
+        ) from None
+    return inserted_claim_ids
+
+
 async def _ensure_relocate_update_succeeded(
     schedule_id: str,
     updated: dict | None,
@@ -631,12 +679,7 @@ async def relocate_schedule(
     schedule_id: str, data: ScheduleRelocate, user: SchedulerRequired
 ):
     # Reject DST-nonexistent times on the new slot before we mutate anything.
-    from services.schedule_utils import validate_local_time_exists
-    try:
-        validate_local_time_exists(data.date, data.start_time)
-        validate_local_time_exists(data.date, data.end_time)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _validate_relocation_dst(data.date, data.start_time, data.end_time)
 
     async def _run_relocate(session=None):
         schedule = await db.schedules.find_one(
@@ -670,36 +713,14 @@ async def relocate_schedule(
                     "blocking_schedule_id": slot_taken.get("id"),
                 },
             )
-        claim_ids = [
-            f"{emp}:{data.date}:{data.start_time}:{data.end_time}"
-            for emp in schedule.get("employee_ids", [])
-        ]
-        try:
-            inserted_claim_ids = []
-            for claim_id in claim_ids:
-                await db.schedule_slot_claims.insert_one(
-                    {
-                        "_id": claim_id,
-                        "schedule_id": schedule_id,
-                        "employee_id": claim_id.split(":")[0],
-                    },
-                    session=session,
-                )
-                inserted_claim_ids.append(claim_id)
-        except DuplicateKeyError:
-            # In standalone fallback mode (no transaction), clean up any
-            # partial claim inserts from this relocation attempt.
-            if session is None and inserted_claim_ids:
-                await db.schedule_slot_claims.delete_many(
-                    {"_id": {"$in": inserted_claim_ids}}
-                )
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "conflict_type": "slot_taken",
-                    "message": "Requested slot is already occupied.",
-                },
-            ) from None
+        inserted_claim_ids = await _reserve_relocation_claims(
+            schedule_id=schedule_id,
+            schedule=schedule,
+            date=data.date,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            session=session,
+        )
 
         updated = await db.schedules.find_one_and_update(
             {
