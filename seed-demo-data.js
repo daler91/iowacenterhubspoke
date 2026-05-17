@@ -25,13 +25,18 @@ if (!MONGO_URL) {
 
 const ALLOW_DESTRUCTIVE_SEED = process.env.ALLOW_DESTRUCTIVE_SEED === 'true';
 const ALLOW_PROD_SEED = process.env.ALLOW_PROD_SEED === 'true';
+const IS_PRODUCTION =
+  process.env.ENVIRONMENT === 'production' ||
+  process.env.NODE_ENV === 'production' ||
+  Boolean(process.env.RAILWAY_ENVIRONMENT) ||
+  Boolean(process.env.RAILWAY_DEPLOYMENT_ID);
 
 if (!ALLOW_DESTRUCTIVE_SEED) {
   console.error('ERROR: Refusing to run destructive seed without ALLOW_DESTRUCTIVE_SEED=true.');
   process.exit(1);
 }
 
-if (process.env.NODE_ENV === 'production' && !ALLOW_PROD_SEED) {
+if (IS_PRODUCTION && !ALLOW_PROD_SEED) {
   console.error('ERROR: Refusing to run seed in production without ALLOW_PROD_SEED=true.');
   process.exit(1);
 }
