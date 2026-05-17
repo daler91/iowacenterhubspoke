@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from database import db
 from core.auth import CurrentUser, AdminRequired
 from core.logger import get_logger
@@ -26,7 +26,7 @@ async def get_system_config(user: CurrentUser):
 
 
 @router.get("/activity-logs", summary="Get activity logs")
-async def get_activity_logs(user: AdminRequired, limit: int = 30):
+async def get_activity_logs(user: AdminRequired, limit: int = Query(default=30, ge=1, le=100)):
     """Return recent activity log entries, newest first. Admin only."""
     logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     return logs
