@@ -712,8 +712,15 @@ elif (_static_dir / "assets").exists():
     if _static_root_resolved.exists():
         for p in _static_root_resolved.rglob("*"):
             if p.is_file():
+                try:
+                    resolved_file = p.resolve(strict=True)
+                    resolved_file.relative_to(_static_root_resolved)
+                except (FileNotFoundError, ValueError):
+                    # Skip files that resolve outside static root
+                    # (e.g., symlinks to external paths).
+                    continue
                 rel = p.relative_to(_static_root_resolved).as_posix()
-                _allowed_files[rel] = str(p)
+                _allowed_files[rel] = str(resolved_file)
 
     # Hashed Vite chunks are content-addressed; everything under /assets
     # can be cached forever. index.html must NOT be cached — otherwise a
