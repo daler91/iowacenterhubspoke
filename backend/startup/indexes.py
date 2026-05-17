@@ -74,6 +74,7 @@ async def ensure_indexes(db, logger):
         await db.invitations.create_index("expires_at", expireAfterSeconds=0)
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
         await db.password_resets.create_index("token", unique=True)
+        await db.google_oauth_states.create_index("state", unique=True)
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.refresh_tokens.create_index("jti", unique=True)
