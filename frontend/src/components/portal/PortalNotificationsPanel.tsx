@@ -102,6 +102,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
+      if (!(e.target instanceof Node)) return;
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
