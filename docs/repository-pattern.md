@@ -149,7 +149,7 @@ The repository deliberately does not try to handle:
   calls — the repository would only obscure the intent.
 - **Aggregation pipelines** (e.g. workload stats). Drop to
   `repo.collection.aggregate(...)` and write the pipeline by hand.
-- **Indexes**. Index management lives in `server.py::_ensure_indexes`.
+- **Indexes**. Critical boot-time and secondary index management lives in `backend/startup/indexes.py` and migration tooling.
 
 ## Status of the migration
 
