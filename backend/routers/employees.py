@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
@@ -21,6 +21,33 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 
 EMPLOYEE_NOT_FOUND = "Employee not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+
+MAX_STATS_RANGE_DAYS = 93
+
+
+def _build_bounded_date_match(start_date: str, end_date: str) -> dict:
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="start_date and end_date must be YYYY-MM-DD") from exc
+
+    if end < start:
+        raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
+    if (end - start).days > MAX_STATS_RANGE_DAYS - 1:
+        raise HTTPException(status_code=400, detail=f"Date range cannot exceed {MAX_STATS_RANGE_DAYS} days")
+    return {"$gte": start_date, "$lte": end_date}
+
+
+def _resolve_stats_date_range(start_date: Optional[str], end_date: Optional[str]) -> dict:
+    if bool(start_date) != bool(end_date):
+        raise HTTPException(status_code=400, detail="start_date and end_date are both required")
+    if not start_date or not end_date:
+        end = date.today()
+        start = end - timedelta(days=MAX_STATS_RANGE_DAYS - 1)
+        return {"$gte": start.isoformat(), "$lte": end.isoformat()}
+    return _build_bounded_date_match(start_date, end_date)
+
 
 
 @router.get("", summary="List all employees")
@@ -187,7 +214,12 @@ async def restore_employee(employee_id: str, user: AdminRequired):
     summary="Get employee statistics",
     responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
 )
-async def get_employee_stats(employee_id: str, user: CurrentUser):
+async def get_employee_stats(
+    employee_id: str,
+    user: CurrentUser,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
     """Return schedule counts, drive/class hours, location breakdown, and recent schedules."""
     projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
     employee = await db.employees.find_one(
@@ -198,6 +230,7 @@ async def get_employee_stats(employee_id: str, user: CurrentUser):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 
     match_stage = {"employee_ids": employee_id, "deleted_at": None}
+    match_stage["date"] = _resolve_stats_date_range(start_date, end_date)
     time_expr = build_time_expr()
 
     # Fan the four independent aggregations out in parallel instead of

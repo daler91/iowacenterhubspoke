@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 from database import db
@@ -24,6 +24,33 @@ router = APIRouter(prefix="/classes", tags=["classes"])
 
 CLASS_NOT_FOUND = "Class type not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+
+MAX_STATS_RANGE_DAYS = 93
+
+
+def _build_bounded_date_match(start_date: str, end_date: str) -> dict:
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="start_date and end_date must be YYYY-MM-DD") from exc
+
+    if end < start:
+        raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
+    if (end - start).days > MAX_STATS_RANGE_DAYS - 1:
+        raise HTTPException(status_code=400, detail=f"Date range cannot exceed {MAX_STATS_RANGE_DAYS} days")
+    return {"$gte": start_date, "$lte": end_date}
+
+
+def _resolve_stats_date_range(start_date: Optional[str], end_date: Optional[str]) -> dict:
+    if bool(start_date) != bool(end_date):
+        raise HTTPException(status_code=400, detail="start_date and end_date are both required")
+    if not start_date or not end_date:
+        end = date.today()
+        start = end - timedelta(days=MAX_STATS_RANGE_DAYS - 1)
+        return {"$gte": start.isoformat(), "$lte": end.isoformat()}
+    return _build_bounded_date_match(start_date, end_date)
+
 
 classes_repo = SoftDeleteRepository(db, "classes")
 
@@ -179,15 +206,8 @@ async def get_class_stats(
     if not class_doc:
         raise HTTPException(status_code=404, detail=CLASS_NOT_FOUND)
 
-    date_match = {}
-    if start_date:
-        date_match["$gte"] = start_date
-    if end_date:
-        date_match["$lte"] = end_date
-
     match_stage = {"class_id": class_id, "deleted_at": None}
-    if date_match:
-        match_stage["date"] = date_match
+    match_stage["date"] = _resolve_stats_date_range(start_date, end_date)
 
     time_expr = build_time_expr()
 
