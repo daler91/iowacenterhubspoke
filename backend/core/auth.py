@@ -200,6 +200,28 @@ def _is_legacy_token_invalid(current_pwdv: int, password_changed_ts: float | Non
     return password_changed_ts is not None and token_iat < int(password_changed_ts)
 
 
+async def _load_pwd_invalidation_state(user_id: str) -> tuple[int, bool, float | None]:
+    try:
+        return await _get_pwd_invalidation_state(user_id)
+    except TypeError:
+        changed_marker, is_deleted = await _get_pwd_changed_ts(user_id)
+        marker = int(changed_marker or 0)
+        password_changed_ts = float(marker) if marker >= 1_000_000_000 else None
+        current_pwdv = marker if marker < 1_000_000_000 else 0
+        return current_pwdv, is_deleted, password_changed_ts
+
+
+def _validate_token_pwdv(payload: dict, current_pwdv: int, password_changed_ts: float | None) -> None:
+    token_pwdv = payload.get('pwdv')
+    if token_pwdv is None:
+        token_iat = int(payload.get('iat') or 0)
+        if _is_legacy_token_invalid(current_pwdv, password_changed_ts, token_iat):
+            _raise_session_invalidated()
+        return
+    if int(token_pwdv) < current_pwdv:
+        _raise_session_invalidated()
+
+
 async def get_current_user(request: Request, authorization: Annotated[Optional[str], Header()] = None):
     token = _extract_auth_token(request, authorization)
     if not token:
@@ -222,24 +244,12 @@ async def get_current_user(request: Request, authorization: Annotated[Optional[s
     if payload.get('typ') != 'access':
         raise HTTPException(status_code=401, detail='Invalid token type')
 
-    token_pwdv = payload.get('pwdv')
-    try:
-        current_pwdv, is_deleted, password_changed_ts = await _get_pwd_invalidation_state(payload['user_id'])
-    except TypeError:
-        changed_marker, is_deleted = await _get_pwd_changed_ts(payload['user_id'])
-        marker = int(changed_marker or 0)
-        password_changed_ts = float(marker) if marker >= 1_000_000_000 else None
-        current_pwdv = marker if marker < 1_000_000_000 else 0
+    current_pwdv, is_deleted, password_changed_ts = await _load_pwd_invalidation_state(payload['user_id'])
 
     if is_deleted:
         raise HTTPException(status_code=401, detail='Account deactivated')
 
-    if token_pwdv is None:
-        token_iat = int(payload.get('iat') or 0)
-        if _is_legacy_token_invalid(current_pwdv, password_changed_ts, token_iat):
-            _raise_session_invalidated()
-    elif int(token_pwdv) < current_pwdv:
-        _raise_session_invalidated()
+    _validate_token_pwdv(payload, current_pwdv, password_changed_ts)
 
     return payload
 

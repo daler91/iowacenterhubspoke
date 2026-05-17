@@ -575,6 +575,49 @@ def _is_replica_set_transaction_error(exc: OperationFailure) -> bool:
     return "Transaction numbers are only allowed on a replica set member or mongos" in str(exc)
 
 
+async def _run_relocate_with_fallback(schedule_id: str, run_relocate):
+    try:
+        session_ctx = await db.client.start_session()
+        async with session_ctx as session:
+            async with session.start_transaction():
+                return await run_relocate(session=session)
+    except OperationFailure as exc:
+        if not _is_replica_set_transaction_error(exc):
+            raise
+        return await run_relocate()
+
+
+async def _ensure_relocate_update_succeeded(
+    schedule_id: str,
+    updated: dict | None,
+    inserted_claim_ids: list[str],
+    original_version: int,
+    original_date: str | None,
+    original_start: str | None,
+):
+    if updated:
+        return
+    if inserted_claim_ids:
+        await db.schedule_slot_claims.delete_many({"_id": {"$in": inserted_claim_ids}})
+    latest = await db.schedules.find_one(
+        {"id": schedule_id, "deleted_at": None},
+        {"_id": 0, "version": 1, "date": 1, "start_time": 1},
+    )
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "conflict_type": "stale_schedule",
+            "message": "Schedule changed during relocation; reload and retry.",
+            "expected": {
+                "version": original_version,
+                "date": original_date,
+                "start_time": original_start,
+            },
+            "actual": latest,
+        },
+    )
+
+
 @router.put(
     "/{schedule_id}/relocate",
     summary="Relocate a schedule to a new date/time",
@@ -687,51 +730,23 @@ async def relocate_schedule(
             inserted_claim_ids,
         )
 
-    try:
-        session_ctx = await db.client.start_session()
-        async with session_ctx as session:
-            async with session.start_transaction():
-                (
-                    schedule,
-                    updated,
-                    original_date,
-                    original_start,
-                    original_version,
-                    inserted_claim_ids,
-                ) = await _run_relocate(session=session)
-    except OperationFailure as exc:
-        if not _is_replica_set_transaction_error(exc):
-            raise
-        (
-            schedule,
-            updated,
-            original_date,
-            original_start,
-            original_version,
-            inserted_claim_ids,
-        ) = await _run_relocate()
-    if not updated:
-        if inserted_claim_ids:
-            await db.schedule_slot_claims.delete_many({"_id": {"$in": inserted_claim_ids}})
-        # Return a deterministic conflict contract so clients can branch on
-        # conflict_type instead of parsing strings.
-        latest = await db.schedules.find_one(
-            {"id": schedule_id, "deleted_at": None},
-            {"_id": 0, "version": 1, "date": 1, "start_time": 1},
-        )
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "conflict_type": "stale_schedule",
-                "message": "Schedule changed during relocation; reload and retry.",
-                "expected": {
-                    "version": original_version,
-                    "date": original_date,
-                    "start_time": original_start,
-                },
-                "actual": latest,
-            },
-        )
+    (
+        schedule,
+        updated,
+        original_date,
+        original_start,
+        original_version,
+        inserted_claim_ids,
+    ) = await _run_relocate_with_fallback(schedule_id, _run_relocate)
+
+    await _ensure_relocate_update_succeeded(
+        schedule_id,
+        updated,
+        inserted_claim_ids,
+        original_version,
+        original_date,
+        original_start,
+    )
     logger.info(
         f"Schedule relocated: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id, "new_date": data.date}},
