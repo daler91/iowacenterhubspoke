@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { toast } from 'sonner';
 import { schedulesAPI } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/auth';
 import { EntityLink } from './ui/entity-link';
 import { mutate } from 'swr';
 import { isSchedulesSwrKey } from '../hooks/useDashboardData';
@@ -211,6 +212,8 @@ function DroppableColumn({ id, children }: Readonly<{ id: string; children: Reac
 export default function KanbanBoard() {
   const navigate = useNavigate();
   const { schedules, employees, locations, classes, loadingState, onEditSchedule, onNewSchedule, fetchSchedules, fetchActivities, fetchWorkload, fetchErrors } = useOutletContext();
+  const { user } = useAuth();
+  const canCreateSchedule = user?.role !== 'viewer';
 
   const {
     selectionMode,
@@ -360,7 +363,7 @@ export default function KanbanBoard() {
           <p className="text-sm text-muted-foreground mb-4">
             Kanban cards will appear here once you start scheduling classes.
           </p>
-          {onNewSchedule && (
+          {onNewSchedule && canCreateSchedule && (
             <Button
               type="button"
               onClick={() => onNewSchedule()}
