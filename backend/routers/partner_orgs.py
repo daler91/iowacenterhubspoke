@@ -11,6 +11,7 @@ from models.coordination_schemas import (
 from core.auth import CurrentUser, AdminRequired, SchedulerRequired
 from core.pagination import Paginated, paginated_response
 from core.repository import SoftDeleteRepository
+from core.token_digest import token_digest
 from services.activity import log_activity
 from core.logger import get_logger
 
@@ -321,7 +322,7 @@ async def send_portal_invite(org_id: str, contact_id: str, user: SchedulerRequir
     await db.portal_tokens.insert_one({
         "id": str(uuid.uuid4()),
         "contact_id": contact_id,
-        "token": token,
+        "token_digest": token_digest(token),
         "expires_at": expires,
         "created_at": now.isoformat(),
         "last_used_at": None,

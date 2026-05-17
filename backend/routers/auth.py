@@ -21,6 +21,7 @@ from fastapi import Request
 from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
 from core.logger import get_logger, user_var
+from core.token_digest import token_digest
 
 logger = get_logger(__name__)
 
@@ -571,8 +572,12 @@ _INVALID_RESET_TOKEN = "Invalid or expired reset link"
 async def _find_valid_reset_token(token: str):
     """Look up a password_resets row that is unused and not expired."""
     row = await db.password_resets.find_one(
-        {"token": token, "used_at": None}, {"_id": 0},
+        {"token_digest": token_digest(token), "used_at": None}, {"_id": 0},
     )
+    if not row:
+        row = await db.password_resets.find_one(
+            {"token": token, "used_at": None}, {"_id": 0},
+        )
     if not row:
         return None
     raw_expires = row.get("expires_at")
@@ -864,7 +869,7 @@ async def export_my_data(user: CurrentUser):
 
     password_resets = await db.password_resets.find(
         {"user_id": user_id},
-        {"_id": 0, "token": 0},
+        {"_id": 0, "token": 0, "token_digest": 0},
     ).to_list(100)
 
     return {

@@ -169,12 +169,9 @@ async def portal_project_tasks_bulk(
 )
 async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
-    task = await db.tasks.find_one(
-        {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
-        {"_id": 0, "details": 0},
-    )
-    if not task:
-        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+    task = await _require_partner_task(task_id, project_id)
+    task.pop("_id", None)
+    task.pop("details", None)
 
     now = datetime.now(timezone.utc).isoformat()
     new_completed = not task.get("completed", False)
@@ -183,7 +180,10 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
         "completed_at": now if new_completed else None,
         "completed_by": ctx["contact"]["name"] if new_completed else None,
     }
-    await db.tasks.update_one({"id": task_id}, {"$set": update})
+    await db.tasks.update_one(
+        {"id": task_id, "project_id": project_id, "deleted_at": None},
+        {"$set": update},
+    )
     task.update(update)
     if new_completed:
         contact = ctx.get("contact") or {}
@@ -247,7 +247,10 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
     if not update:
         return task
     try:
-        await db.tasks.update_one({"id": task_id}, {"$set": update})
+        await db.tasks.update_one(
+            {"id": task_id, "project_id": project_id, "deleted_at": None},
+            {"$set": update},
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -292,17 +295,15 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
 )
 async def portal_task_detail(project_id: str, task_id: str, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
-    task = await db.tasks.find_one(
-        {"id": task_id, "project_id": project_id, "owner": {"$in": ["partner", "both"]}},
-        {"_id": 0, "details": 0},
-    )
-    if not task:
-        raise HTTPException(status_code=404, detail=TASK_NOT_FOUND)
+    task = await _require_partner_task(task_id, project_id)
+    task.pop("_id", None)
+    task.pop("details", None)
+    child_scope = {"task_id": task_id, "project_id": project_id}
     task["attachments"] = await db.task_attachments.find(
-        {"task_id": task_id}, {"_id": 0},
+        child_scope, {"_id": 0},
     ).sort("uploaded_at", -1).to_list(200)
     task["comments"] = await db.task_comments.find(
-        {"task_id": task_id}, {"_id": 0},
+        child_scope, {"_id": 0},
     ).sort("created_at", 1).to_list(500)
     task["attachment_count"] = len(task["attachments"])
     task["comment_count"] = len(task["comments"])
@@ -316,8 +317,9 @@ async def portal_task_detail(project_id: str, task_id: str, ctx: PortalContext):
 )
 async def portal_task_attachments(project_id: str, task_id: str, ctx: PortalContext):
     await _require_partner_project(project_id, ctx)
+    await _require_partner_task(task_id, project_id)
     atts = await db.task_attachments.find(
-        {"task_id": task_id}, {"_id": 0},
+        {"task_id": task_id, "project_id": project_id}, {"_id": 0},
     ).sort("uploaded_at", -1).to_list(200)
     return {"items": atts, "total": len(atts)}
 
@@ -368,9 +370,11 @@ async def portal_task_comments(
     pagination: Paginated,
 ):
     await _require_partner_project(project_id, ctx)
-    total = await db.task_comments.count_documents({"task_id": task_id})
+    await _require_partner_task(task_id, project_id)
+    child_scope = {"task_id": task_id, "project_id": project_id}
+    total = await db.task_comments.count_documents(child_scope)
     comments = (
-        await db.task_comments.find({"task_id": task_id}, {"_id": 0})
+        await db.task_comments.find(child_scope, {"_id": 0})
         .sort("created_at", 1)
         .skip(pagination.skip)
         .limit(pagination.limit)
@@ -397,7 +401,7 @@ async def portal_post_task_comment(
 
     if data.parent_comment_id:
         parent = await db.task_comments.find_one(
-            {"id": data.parent_comment_id, "task_id": task_id},
+            {"id": data.parent_comment_id, "task_id": task_id, "project_id": project_id},
             {"_id": 0, "id": 1},
         )
         if not parent:

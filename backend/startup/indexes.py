@@ -15,6 +15,23 @@ async def _has_index(collection, index_name: str) -> bool:
     return index_name in indexes
 
 
+async def _ensure_partial_unique_token_index(collection, field: str) -> None:
+    name = f"{field}_1"
+    partial = {field: {_MONGO_EXISTS: True, "$type": "string"}}
+    existing = (await collection.index_information()).get(name)
+    if existing and (
+        existing.get("unique") is not True
+        or existing.get("partialFilterExpression") != partial
+    ):
+        await collection.drop_index(name)
+    await collection.create_index(
+        field,
+        unique=True,
+        name=name,
+        partialFilterExpression=partial,
+    )
+
+
 async def _repair_secondary_index_drift(db, logger) -> None:
     """Self-heal secondary indexes if migration state drifts from DB state.
 
@@ -73,7 +90,8 @@ async def ensure_indexes(db, logger):
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("expires_at", expireAfterSeconds=0)
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
-        await db.password_resets.create_index("token", unique=True)
+        await _ensure_partial_unique_token_index(db.password_resets, "token")
+        await _ensure_partial_unique_token_index(db.password_resets, "token_digest")
         await db.google_oauth_states.create_index("state", unique=True)
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
@@ -81,7 +99,8 @@ async def ensure_indexes(db, logger):
         await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
         await db.login_failures.create_index("email", unique=True)
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
-        await db.portal_tokens.create_index("token", unique=True)
+        await _ensure_partial_unique_token_index(db.portal_tokens, "token")
+        await _ensure_partial_unique_token_index(db.portal_tokens, "token_digest")
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
         await db.projects.create_index([("phase", 1), ("deleted_at", 1), ("updated_at", -1)])
         await _repair_secondary_index_drift(db, logger)

@@ -101,7 +101,8 @@ async def portal_download_document(
     await _require_partner_project(project_id, ctx)
 
     doc = await db.documents.find_one(
-        {"id": doc_id, "project_id": project_id, "visibility": "shared"}, {"_id": 0}
+        {"id": doc_id, "project_id": project_id, "visibility": "shared", "deleted_at": None},
+        {"_id": 0},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 
+from core.token_digest import token_digest
 from routers import auth
 
 
@@ -168,3 +169,31 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
         "message": "Password changed successfully. All other sessions have been invalidated."
     }
     assert invalidate_calls == [("u1", {"pwd_version": 1}), ("u1", {"pwd_version": 2})]
+
+
+@pytest.mark.auth_contract
+def test_reset_token_lookup_accepts_digest_rows_and_legacy_plaintext_rows(monkeypatch):
+    now = datetime.now(timezone.utc)
+    db = FakeDB(
+        password_resets=[
+            {
+                "token_digest": token_digest("digest-token"),
+                "user_id": "u-digest",
+                "used_at": None,
+                "expires_at": now + timedelta(minutes=5),
+            },
+            {
+                "token": "legacy-token",
+                "user_id": "u-legacy",
+                "used_at": None,
+                "expires_at": now + timedelta(minutes=5),
+            },
+        ],
+    )
+    monkeypatch.setattr(auth, "db", db)
+
+    digest_row = asyncio.run(auth._find_valid_reset_token("digest-token"))
+    legacy_row = asyncio.run(auth._find_valid_reset_token("legacy-token"))
+
+    assert digest_row["user_id"] == "u-digest"
+    assert legacy_row["user_id"] == "u-legacy"

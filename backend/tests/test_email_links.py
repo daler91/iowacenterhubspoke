@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core.token_digest import token_digest
 from services.email import resolve_app_url
 
 
@@ -126,3 +127,110 @@ async def test_partner_magic_link_job_does_not_insert_token_without_app_url(
     await email_jobs.send_partner_magic_link_email("russ@example.com")
 
     fake_db.portal_tokens.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_password_reset_job_stores_token_digest_only(monkeypatch):
+    from services import email_jobs
+
+    inserted = {}
+
+    async def _insert(doc):
+        inserted.update(doc)
+
+    fake_db = MagicMock()
+    fake_db.users.find_one = AsyncMock(
+        return_value={"id": "user-1", "email": "russ@example.com", "name": "Russ"}
+    )
+    fake_db.password_resets.insert_one = AsyncMock(side_effect=_insert)
+    monkeypatch.setattr(email_jobs, "db", fake_db)
+    monkeypatch.setattr(email_jobs, "resolve_app_url", lambda: "https://app.example")
+    send_reset = AsyncMock()
+    monkeypatch.setattr(email_jobs, "send_password_reset", send_reset)
+    monkeypatch.setattr(email_jobs.secrets, "token_urlsafe", lambda _n: "reset-token")
+
+    await email_jobs.send_password_reset_email("russ@example.com")
+
+    assert "token" not in inserted
+    assert inserted["token_digest"] == token_digest("reset-token")
+    send_reset.assert_awaited_once()
+    assert send_reset.await_args.kwargs["reset_url"].endswith("/reset-password/reset-token")
+
+
+@pytest.mark.asyncio
+async def test_partner_magic_link_job_stores_token_digest_only(monkeypatch):
+    from services import email_jobs
+
+    inserted = {}
+
+    async def _insert(doc):
+        inserted.update(doc)
+
+    fake_db = MagicMock()
+    fake_db.partner_contacts.find_one = AsyncMock(
+        return_value={
+            "id": "contact-1",
+            "partner_org_id": "org-1",
+            "name": "Russ D",
+            "email": "russ@example.com",
+        }
+    )
+    fake_db.partner_orgs.find_one = AsyncMock(
+        return_value={"id": "org-1", "name": "Auzmor"}
+    )
+    fake_db.portal_tokens.insert_one = AsyncMock(side_effect=_insert)
+    monkeypatch.setattr(email_jobs, "db", fake_db)
+    monkeypatch.setattr(email_jobs, "resolve_app_url", lambda: "https://app.example")
+    send_invite = AsyncMock()
+    monkeypatch.setattr(email_jobs, "send_portal_invite", send_invite)
+    monkeypatch.setattr(email_jobs.secrets, "token_urlsafe", lambda _n: "portal-token")
+
+    await email_jobs.send_partner_magic_link_email("russ@example.com")
+
+    assert "token" not in inserted
+    assert inserted["token_digest"] == token_digest("portal-token")
+    send_invite.assert_awaited_once()
+    assert send_invite.await_args.kwargs["portal_url"].endswith("/portal/portal-token")
+
+
+@pytest.mark.asyncio
+async def test_direct_partner_invite_stores_token_digest_only(monkeypatch):
+    from routers import partner_orgs as partner_orgs_mod
+    from services import email as email_mod
+
+    inserted = {}
+
+    async def _insert(doc):
+        inserted.update(doc)
+
+    fake_db = MagicMock()
+    fake_db.partner_orgs.find_one = AsyncMock(
+        return_value={"id": "org-1", "name": "Auzmor"}
+    )
+    fake_db.partner_contacts.find_one = AsyncMock(
+        return_value={
+            "id": "contact-1",
+            "partner_org_id": "org-1",
+            "name": "Russ D",
+            "email": "russ@example.com",
+        }
+    )
+    fake_db.portal_tokens.insert_one = AsyncMock(side_effect=_insert)
+    monkeypatch.setattr(partner_orgs_mod, "db", fake_db)
+    monkeypatch.setattr(email_mod, "resolve_app_url", lambda: "https://app.example")
+    send_invite = AsyncMock(return_value=True)
+    monkeypatch.setattr(email_mod, "send_portal_invite", send_invite)
+    monkeypatch.setattr(partner_orgs_mod, "log_activity", AsyncMock())
+    monkeypatch.setattr(partner_orgs_mod.secrets, "token_urlsafe", lambda _n: "direct-token")
+
+    out = await partner_orgs_mod.send_portal_invite(
+        "org-1",
+        "contact-1",
+        {"name": "Scheduler"},
+    )
+
+    assert out == {"message": "Portal invite sent"}
+    assert "token" not in inserted
+    assert inserted["token_digest"] == token_digest("direct-token")
+    send_invite.assert_awaited_once()
+    assert send_invite.await_args.kwargs["portal_url"].endswith("/portal/direct-token")

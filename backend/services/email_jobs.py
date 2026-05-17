@@ -17,6 +17,7 @@ from services.email import (
     resolve_app_url,
 )
 from core.logger import get_logger
+from core.token_digest import token_digest
 
 logger = get_logger(__name__)
 
@@ -62,7 +63,7 @@ async def send_password_reset_email(email: str) -> None:
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
         "email": user["email"],
-        "token": token,
+        "token_digest": token_digest(token),
         "expires_at": expires,
         "created_at": now.isoformat(),
         "used_at": None,
@@ -120,7 +121,7 @@ async def send_partner_magic_link_email(email: str) -> None:
     await db.portal_tokens.insert_one({
         "id": str(uuid.uuid4()),
         "contact_id": contact["id"],
-        "token": token,
+        "token_digest": token_digest(token),
         "expires_at": expires,
         "created_at": now.isoformat(),
         "last_used_at": None,

@@ -143,7 +143,7 @@ async def export_outcomes(
 ):
     import pandas as pd
 
-    query: dict = {}
+    query: dict = {"deleted_at": None}
     if project_id:
         query["project_id"] = project_id
     items = await db.event_outcomes.find(

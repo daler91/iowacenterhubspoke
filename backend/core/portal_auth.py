@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import Depends, Header, HTTPException, Request
 from database import db
+from core.token_digest import token_digest
 
 INVALID_TOKEN = "Invalid or expired portal link"
 _LAST_USED_THROTTLE_SECONDS = 600  # 10 minutes
@@ -34,7 +35,11 @@ def _client_ip(request: Optional[Request]) -> Optional[str]:
 
 async def validate_portal_token(token: str, request: Optional[Request] = None) -> dict:
     """Validate a portal token string and return contact + org context."""
-    token_doc = await db.portal_tokens.find_one({"token": token}, {"_id": 0})
+    lookup_filter: dict = {"token_digest": token_digest(token)}
+    token_doc = await db.portal_tokens.find_one(lookup_filter, {"_id": 0})
+    if not token_doc:
+        lookup_filter = {"token": token}
+        token_doc = await db.portal_tokens.find_one(lookup_filter, {"_id": 0})
     if not token_doc:
         raise HTTPException(status_code=401, detail=INVALID_TOKEN)
     if token_doc.get("revoked_at"):
@@ -67,8 +72,9 @@ async def validate_portal_token(token: str, request: Optional[Request] = None) -
         ip = _client_ip(request)
         if ip:
             update["last_used_ip"] = ip
+        update_filter = {"id": token_doc["id"]} if token_doc.get("id") else lookup_filter
         await db.portal_tokens.update_one(
-            {"token": token},
+            update_filter,
             {"$set": update},
         )
 

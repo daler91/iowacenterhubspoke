@@ -63,6 +63,7 @@ async def list_portal_tokens(user: AdminRequired):
         {
             "_id": 0,
             "token": 0,  # never return the raw secret
+            "token_digest": 0,
         },
     ).sort("created_at", -1)
     tokens = await cursor.to_list(length=500)
