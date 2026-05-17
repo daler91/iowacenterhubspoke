@@ -47,6 +47,7 @@ def test_bearer_dependency_uses_authorization_header_only(monkeypatch):
     seen = {}
 
     async def fake_validate(token: str, request=None):
+        await asyncio.sleep(0)
         seen["token"] = token
         return {"contact": {"id": "c1"}, "org": {"id": "o1"}}
 

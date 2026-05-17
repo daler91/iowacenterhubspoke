@@ -376,7 +376,8 @@ export default function CalendarWeek({ currentDate, schedules, onDeleteSchedule,
 
     const targetDateStr = over.id;
 
-    const newStartMinutes = dropIndicator.dateStr === targetDateStr && dropIndicator.minutes != null
+    const hasDropTargetMinutes = dropIndicator.dateStr === targetDateStr && dropIndicator.minutes != null;
+    const newStartMinutes = hasDropTargetMinutes
       ? dropIndicator.minutes
       : timeToMinutes(schedule.start_time);
 

@@ -47,7 +47,6 @@ async def _persist_event_mapping(db, *, schedule_id: str, employee_id: str, fiel
 
 async def run_for_employees(
     *,
-    db,
     adapter: CalendarProviderAdapter,
     employees: list[dict],
     runner: Callable[[dict], Awaitable[None]],
