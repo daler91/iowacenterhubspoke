@@ -170,8 +170,8 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
             ))}
           </div>
 
-          {(report.employees || []).map((emp) => (
-            <div key={emp.employee_name} className="border border-border rounded-lg p-4" data-testid={`report-employee-${emp.employee_name}`}>
+          {(report.employees || []).map((emp, empIndex) => (
+            <div key={`${emp.employee_id || emp.employee_name}-${empIndex}`} className="border border-border rounded-lg p-4" data-testid={`report-employee-${emp.employee_name}`}>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: emp.employee_color }}>
@@ -214,9 +214,9 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
                   <div className="bg-muted/50 dark:bg-muted px-3 py-2">Drive</div>
                   <div className="bg-muted/50 dark:bg-muted px-3 py-2">Status</div>
                 </div>
-                <VirtualizedWrapper items={(emp.schedule_details || [])} itemHeight={76} height={Math.min(320, Math.max(80, (emp.schedule_details || []).length * 76))} role="table" ariaLabel={`Schedule details for ${emp.employee_name}`} renderItem={(scheduleDetail) => (
+                <VirtualizedWrapper items={(emp.schedule_details || [])} itemHeight={76} height={Math.min(320, Math.max(80, (emp.schedule_details || []).length * 76))} role="table" ariaLabel={`Schedule details for ${emp.employee_name}`} renderItem={(scheduleDetail, detailIndex) => (
                   <div
-                    key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}`}
+                    key={`${scheduleDetail.date}-${scheduleDetail.class_name}-${scheduleDetail.location}-${scheduleDetail.time}-${detailIndex}`}
                     className="block border-b border-border last:border-b-0 bg-white dark:bg-card md:bg-transparent dark:md:bg-transparent md:border-0 md:grid md:grid-cols-6 md:gap-px md:bg-muted dark:md:bg-muted text-xs p-3 md:p-0 space-y-1 md:space-y-0"
                   >
                     <div className="md:bg-card dark:md:bg-card md:px-3 md:py-2 text-foreground flex items-baseline gap-2 md:block">
@@ -267,4 +267,3 @@ export default function WeeklyReport(props: Readonly<WeeklyReportProps>) {
     </div>
   );
 }
-
