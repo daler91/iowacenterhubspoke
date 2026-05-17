@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from database import db
 from models.schemas import ScheduleCreate, ErrorResponse
-from core.auth import CurrentUser
+from core.auth import SchedulerRequired
 from core.logger import get_logger
 from services.schedule_utils import check_conflicts, check_outlook_conflicts, check_google_conflicts
 from services.drive_time import get_drive_time_between_locations
@@ -259,7 +259,7 @@ async def _check_conflicts_for_employee(
         404: {"model": ErrorResponse, "description": LOCATION_NOT_FOUND}
     },
 )
-async def check_schedule_conflicts(data: ScheduleCreate, user: CurrentUser):
+async def check_schedule_conflicts(data: ScheduleCreate, user: SchedulerRequired):
     """Check for time conflicts and Outlook conflicts before creating a schedule.
     Supports multiple employees via employee_ids — returns per_employee breakdown."""
     start_ts = perf_counter()
