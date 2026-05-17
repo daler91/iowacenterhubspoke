@@ -421,20 +421,6 @@ async def logout(request: Request, response: Response):
     return {"message": "Logged out successfully"}
 
 
-@router.post(
-    "/refresh",
-    summary="Rotate refresh token and issue a new access token",
-    responses={
-        401: {
-            "model": ErrorResponse,
-            "description": (
-                "No refresh cookie, token invalid/expired, unknown jti, "
-                "replay detected (all sessions revoked), or user no "
-                "longer active"
-            ),
-        },
-    },
-)
 def _used_at_age_seconds(used_at) -> float | None:
     """Return the number of seconds since a refresh-token's ``used_at``,
     or ``None`` when the value is missing or unparseable."""
@@ -500,6 +486,20 @@ async def _handle_refresh_claim_miss(
     )
 
 
+@router.post(
+    "/refresh",
+    summary="Rotate refresh token and issue a new access token",
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": (
+                "No refresh cookie, token invalid/expired, unknown jti, "
+                "replay detected (all sessions revoked), or user no "
+                "longer active"
+            ),
+        },
+    },
+)
 @limiter.limit("20/minute")
 async def refresh_session(request: Request, response: Response):
     """Exchange a valid refresh cookie for a fresh access+refresh pair.
