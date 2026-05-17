@@ -5,12 +5,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
 
 from core.logger import get_logger
 from core.pagination import Paginated, paginated_response
 from core.portal_auth import PortalContext
+from core.rate_limit import consume_bulk_credits
 from core.upload import stream_upload_to_disk
 from database import db
 from models.coordination_schemas import TaskCommentCreate
@@ -46,6 +47,9 @@ class PortalTaskUpdate(BaseModel):
     completed: bool | None = None
     due_date: str | None = None
 
+
+class PortalBulkTasksRequest(BaseModel):
+    project_ids: list[str] = Field(default_factory=list, min_length=1, max_length=200)
 
 # Mirror the single-project /tasks endpoint's `to_list(500)` cap. The
 # bulk endpoint applies this PER PROJECT via $slice so partner orgs with
@@ -120,7 +124,7 @@ async def portal_project_tasks(project_id: str, ctx: PortalContext):
     responses={401: {"description": INVALID_TOKEN}},
 )
 async def portal_project_tasks_bulk(
-    payload: dict, ctx: PortalContext,
+    request: Request, payload: PortalBulkTasksRequest, ctx: PortalContext,
 ):
     """Return ``{ project_id: [tasks...] }`` for every project the caller
     actually owns.
@@ -129,9 +133,10 @@ async def portal_project_tasks_bulk(
     per project, which scaled with the partner's project count. Here we
     do a single ``$in`` query and bucket the results in Python.
     """
-    requested = payload.get("project_ids") or []
-    if not isinstance(requested, list) or not requested:
+    requested = list(dict.fromkeys(payload.project_ids))
+    if not requested:
         return {"items": {}}
+    await consume_bulk_credits(request, len(requested))
     # Authz: clamp the requested set to the caller's own projects so a
     # malicious id list can't reach into another partner's data.
     owned_cursor = db.projects.find(
