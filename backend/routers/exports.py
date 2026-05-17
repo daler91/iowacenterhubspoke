@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from database import db
-from core.auth import CurrentUser
+from core.auth import SchedulerRequired
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ def _respond(df, fmt: str, filename: str):
 
 @router.get("/projects", summary="Export projects")
 async def export_projects(
-    user: CurrentUser,
+    user: SchedulerRequired,
     format: str = "csv",
     community: Optional[str] = None,
     phase: Optional[str] = None,
@@ -74,7 +74,7 @@ async def export_projects(
 
 @router.get("/tasks", summary="Export tasks")
 async def export_tasks(
-    user: CurrentUser,
+    user: SchedulerRequired,
     format: str = "csv",
     project_id: Optional[str] = None,
     completed: Optional[bool] = None,
@@ -100,7 +100,7 @@ async def export_tasks(
 
 @router.get("/partners", summary="Export partner organizations")
 async def export_partners(
-    user: CurrentUser,
+    user: SchedulerRequired,
     format: str = "csv",
     community: Optional[str] = None,
     status: Optional[str] = None,
@@ -137,7 +137,7 @@ async def export_partners(
 
 @router.get("/outcomes", summary="Export event outcomes")
 async def export_outcomes(
-    user: CurrentUser,
+    user: SchedulerRequired,
     format: str = "csv",
     project_id: Optional[str] = None,
 ):
