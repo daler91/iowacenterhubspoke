@@ -46,7 +46,7 @@ function groupCommentsByDate(comments: TaskComment[]) {
       currentDate = d;
       groups.push({ date: d, items: [] });
     }
-    groups.at(-1)!.items.push(c);
+    groups[groups.length - 1].items.push(c);
   }
   return groups;
 }
