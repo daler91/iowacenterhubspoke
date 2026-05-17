@@ -145,31 +145,20 @@ async def portal_project_tasks_bulk(
     owned_ids = [p["id"] async for p in owned_cursor]
     if not owned_ids:
         return {"items": {}}
-    # Cap PER PROJECT (matching the single-project endpoint at 500) instead
-    # of globally — a flat to_list cap silently dropped tasks for partners
-    # with many projects (Codex P1 r3106089947). $group + $slice gives each
-    # project the same headroom regardless of how many projects share the
-    # batch.
-    pipeline = [
-        {"$match": {
-            "project_id": {"$in": owned_ids},
-            "owner": {"$in": ["partner", "both"]},
-            "deleted_at": None,
-        }},
-        {"$sort": {"sort_order": 1}},
-        {"$project": {"_id": 0, "details": 0}},
-        {"$group": {"_id": "$project_id", "tasks": {"$push": "$$ROOT"}}},
-        {"$project": {
-            "_id": 0,
-            "project_id": "$_id",
-            "tasks": {"$slice": ["$tasks", _PORTAL_BULK_TASKS_PER_PROJECT]},
-        }},
-    ]
-    bucketed: dict[str, list] = {pid: [] for pid in owned_ids}
-    async for row in db.tasks.aggregate(pipeline):
-        pid = row.get("project_id")
-        if pid in bucketed:
-            bucketed[pid] = row.get("tasks", [])
+    # Cap results per project with explicit per-project queries. This keeps
+    # each cursor bounded up front and avoids materializing every matching
+    # task in an aggregation group before trimming.
+    bucketed: dict[str, list] = {}
+    for pid in owned_ids:
+        tasks = await db.tasks.find(
+            {
+                "project_id": pid,
+                "owner": {"$in": ["partner", "both"]},
+                "deleted_at": None,
+            },
+            {"_id": 0, "details": 0},
+        ).sort("sort_order", 1).to_list(_PORTAL_BULK_TASKS_PER_PROJECT)
+        bucketed[pid] = tasks
     return {"items": bucketed}
 
 
