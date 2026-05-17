@@ -34,6 +34,7 @@ TASK_NOT_FOUND = "Task not found"
 PROJECT_NOT_FOUND = "Project not found"
 ATTACHMENT_NOT_FOUND = "Attachment not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+NULL_NOT_ALLOWED = "Null is only allowed for clearable fields: due_date, assigned_to"
 
 # Field-name constants — referenced in the CAS update filter, the
 # notification-gate, and the task document. Kept as a constant to
@@ -241,6 +242,7 @@ async def update_task(
     update_data = data.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
+    _reject_non_clearable_nulls(update_data)
     # Snapshot the pre-update task so we can tell what actually changed
     # (assignment vs. completion) after the $set lands.
     prev = await db.tasks.find_one(
@@ -276,6 +278,14 @@ async def update_task(
             )
 
     return updated
+
+
+def _reject_non_clearable_nulls(update_data: dict) -> None:
+    """Reject explicit nulls for fields that are non-null in stored tasks."""
+    clearable_fields = {"due_date", _ASSIGNED_TO}
+    invalid = [k for k, v in update_data.items() if v is None and k not in clearable_fields]
+    if invalid:
+        raise HTTPException(status_code=400, detail=NULL_NOT_ALLOWED)
 
 
 def _apply_status_completion_fields(
