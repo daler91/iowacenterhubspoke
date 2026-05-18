@@ -1,4 +1,5 @@
 import { useState, useCallback, memo } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -18,7 +19,31 @@ import { EntityLink } from './ui/entity-link';
 import LocationProfile from './LocationProfile';
 import { useLocationDriveTime } from '../features/manager/hooks';
 
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+function getMapsKey() {
+  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+}
+
+function hasUsableMapsKey(key: string | undefined): key is string {
+  return !!key && key !== 'YOUR_GOOGLE_MAPS_API_KEY';
+}
+
+const emptyLocationForm = () => ({
+  address: '',
+  city_name: '',
+  drive_time_minutes: '',
+  latitude: '',
+  longitude: '',
+});
+
+function nullableString(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function nullableNumber(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? Number.parseFloat(trimmed) : null;
+}
 
 // One location card, memoized so editing or deleting a single location
 // doesn't force every sibling card to re-render. The parent stabilises
@@ -27,9 +52,33 @@ type Location = {
   id: string;
   city_name?: string;
   drive_time_minutes?: number;
+  address?: string | null;
   latitude?: number;
   longitude?: number;
 };
+
+type ScheduleSummary = {
+  location_id?: string;
+};
+
+type LocationManagerContext = {
+  locations?: Location[];
+  schedules?: ScheduleSummary[];
+  loadingState?: { locations?: boolean };
+  fetchLocations: () => unknown;
+  fetchActivities: () => unknown;
+};
+
+type PlaceSelection = {
+  city_name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+};
+
+function isPacContainerTarget(target: unknown) {
+  return target instanceof Element && !!target.closest('.pac-container');
+}
 
 type LocationRowProps = {
   loc: Location;
@@ -53,16 +102,14 @@ const LocationRow = memo(function LocationRow({
         </div>
         <div>
           <EntityLink type="location" id={loc.id} className="font-semibold text-foreground">{loc.city_name}</EntityLink>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex flex-col gap-1 mt-1">
+            {loc.address && (
+              <p className="text-xs text-muted-foreground line-clamp-1">{loc.address}</p>
+            )}
             <div className="flex items-center gap-1">
               <Car className="w-3 h-3 text-muted-foreground" />
               <span className="text-xs text-foreground/80 dark:text-muted-foreground">{loc.drive_time_minutes} min from Hub</span>
             </div>
-            {loc.latitude && (
-              <span className="text-xs text-muted-foreground">
-                {loc.latitude.toFixed(2)}, {loc.longitude?.toFixed(2)}
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -109,24 +156,31 @@ const LocationRow = memo(function LocationRow({
 export default function LocationManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { locations, schedules, loadingState, fetchLocations, fetchActivities } = useOutletContext();
+  const { locations, schedules, loadingState, fetchLocations, fetchActivities } = useOutletContext<LocationManagerContext>();
   const onRefresh = useCallback(() => {
     fetchLocations();
     fetchActivities();
   }, [fetchLocations, fetchActivities]);
-  const [selectedLocationId, setSelectedLocationId] = useState(null);
-  const onViewProfile = useCallback((id) => setSelectedLocationId(id), []);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const onViewProfile = useCallback((id: string) => setSelectedLocationId(id), []);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
+  const [editing, setEditing] = useState<Location | null>(null);
+  const [form, setForm] = useState(emptyLocationForm);
   const [loading, setLoading] = useState(false);
-  const { calculatingDrive, autoFillDriveTime } = useLocationDriveTime(setForm);
+  const {
+    calculatingDrive,
+    autoFillDriveTime,
+    driveTimeError,
+    clearDriveTimeError,
+  } = useLocationDriveTime(setForm);
   const [driveTimeTouched, setDriveTimeTouched] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
+  const [showAdvancedCoordinates, setShowAdvancedCoordinates] = useState(false);
 
-  const handlePlaceSelect = useCallback(async ({ city_name, latitude, longitude }) => {
+  const handlePlaceSelect = useCallback(async ({ city_name, address, latitude, longitude }: PlaceSelection) => {
     setForm(prev => ({
       ...prev,
+      address: address || prev.address,
       city_name,
       latitude: String(latitude),
       longitude: String(longitude),
@@ -140,51 +194,54 @@ export default function LocationManager() {
       return;
     }
 
-    // Auto-calculate drive time from hub. If the lookup fails (Google
-    // Distance Matrix down, no API key, etc.) drop in a conservative
-    // default so the form is still submittable — users frequently miss
-    // the toast, then hit "save" and bounce off backend validation.
+    // Auto-calculate drive time from hub when coordinates are available.
     await autoFillDriveTime(latitude, longitude);
   }, [autoFillDriveTime, driveTimeTouched]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ city_name: '', drive_time_minutes: '', latitude: '', longitude: '' });
+    setForm(emptyLocationForm());
     setDriveTimeTouched(false);
+    clearDriveTimeError();
+    setShowAdvancedCoordinates(false);
     setDialogOpen(true);
   };
 
   // Stable handlers so LocationRow's React.memo can skip re-renders for
   // sibling cards when one card mutates.
-  const openEdit = useCallback((loc) => {
+  const openEdit = useCallback((loc: Location) => {
     setEditing(loc);
     setForm({
-      city_name: loc.city_name,
-      drive_time_minutes: String(loc.drive_time_minutes),
+      address: loc.address || '',
+      city_name: loc.city_name || '',
+      drive_time_minutes: loc.drive_time_minutes == null ? '' : String(loc.drive_time_minutes),
       latitude: loc.latitude ? String(loc.latitude) : '',
       longitude: loc.longitude ? String(loc.longitude) : '',
     });
     // Existing rows start untouched — the stored value is the source of
     // truth until the user either clears the field or edits it.
     setDriveTimeTouched(false);
+    clearDriveTimeError();
+    setShowAdvancedCoordinates(false);
     setDialogOpen(true);
-  }, []);
+  }, [clearDriveTimeError]);
 
-  const openDelete = useCallback((loc) => setDeleteTarget(loc), []);
+  const openDelete = useCallback((loc: Location) => setDeleteTarget(loc), []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.city_name || !form.drive_time_minutes) {
-      toast.error('City name and drive time are required');
+    if (!form.city_name.trim() || !form.drive_time_minutes.trim()) {
+      toast.error('Location name and drive time are required');
       return;
     }
     setLoading(true);
     try {
       const payload = {
-        city_name: form.city_name,
+        city_name: form.city_name.trim(),
         drive_time_minutes: Number.parseInt(form.drive_time_minutes, 10),
-        latitude: form.latitude ? Number.parseFloat(form.latitude) : null,
-        longitude: form.longitude ? Number.parseFloat(form.longitude) : null,
+        address: nullableString(form.address),
+        latitude: nullableNumber(form.latitude),
+        longitude: nullableNumber(form.longitude),
       };
       if (editing) {
         await locationsAPI.update(editing.id, payload);
@@ -202,7 +259,8 @@ export default function LocationManager() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id?: string) => {
+    if (!id) return;
     try {
       await locationsAPI.delete(id);
       toast.success('Location deleted');
@@ -221,6 +279,9 @@ export default function LocationManager() {
   if (selectedLocationId) {
     return <LocationProfile locationId={selectedLocationId} onBack={() => setSelectedLocationId(null)} />;
   }
+
+  const mapsKey = getMapsKey();
+  const mapsEnabled = hasUsableMapsKey(mapsKey);
 
   return (
     <PageShell
@@ -284,20 +345,20 @@ export default function LocationManager() {
           onPointerDownOutside={(e) => {
             // Radix uses custom events - the real DOM target is in detail.originalEvent
             const target = e.detail?.originalEvent?.target || e.target;
-            if (target?.closest?.('.pac-container')) {
+            if (isPacContainerTarget(target)) {
               e.preventDefault();
             }
           }}
           onInteractOutside={(e) => {
             const target = e.detail?.originalEvent?.target || e.target;
-            if (target?.closest?.('.pac-container')) {
+            if (isPacContainerTarget(target)) {
               e.preventDefault();
             }
           }}
           onFocusOutside={(e) => {
             // Prevent focus trap from fighting with Places dropdown
             const target = e.detail?.originalEvent?.relatedTarget || e.target;
-            if (target?.closest?.('.pac-container')) {
+            if (isPacContainerTarget(target)) {
               e.preventDefault();
             }
           }}
@@ -309,50 +370,90 @@ export default function LocationManager() {
             <DialogDescription>
               {editing
                 ? 'Update the location details.'
-                : 'Search for a city to auto-fill coordinates and drive time, or enter manually.'}
+                : 'Search by address to fill coordinates and drive time, or enter the details manually.'}
             </DialogDescription>
           </DialogHeader>
-          {MAPS_KEY && MAPS_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY' ? (
-            <APIProvider apiKey={MAPS_KEY} libraries={['places']}>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="location-city-autocomplete">City Name</Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="location-address-input">Location address</Label>
+              {mapsEnabled ? (
+                <APIProvider apiKey={mapsKey} libraries={['places']}>
                   <PlacesAutocomplete
-                    id="location-city-autocomplete"
-                    value={form.city_name}
-                    onChange={(val) => setForm({ ...form, city_name: val })}
+                    id="location-address-input"
+                    value={form.address}
+                    onChange={(val) => setForm({ ...form, address: val })}
                     onSelect={handlePlaceSelect}
-                    placeholder="Search for a city..."
+                    placeholder="Search for an address..."
                     disabled={loading}
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    Select from suggestions to auto-fill coordinates and drive time
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location-drive-time-input">Drive Time from Hub (minutes)</Label>
-                  <div className="relative">
-                    <Input
-                      id="location-drive-time-input"
-                      type="number"
-                      data-testid="location-drive-time-input"
-                      placeholder="e.g. 45"
-                      value={form.drive_time_minutes}
-                      onChange={(e) => {
-                        setForm({ ...form, drive_time_minutes: e.target.value });
-                        setDriveTimeTouched(e.target.value !== '');
-                      }}
-                      required
-                      className="bg-muted/50"
-                    />
-                    {calculatingDrive && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-hub" aria-label="Calculating drive time" />
-                      </div>
-                    )}
+                </APIProvider>
+              ) : (
+                <Input
+                  id="location-address-input"
+                  data-testid="location-address-input"
+                  placeholder="2210 Grand Ave, Des Moines, IA"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  className="bg-muted/50"
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location-name-input">Location name</Label>
+              <Input
+                id="location-name-input"
+                data-testid="location-name-input"
+                placeholder="e.g. Ames, IA"
+                value={form.city_name}
+                onChange={(e) => setForm({ ...form, city_name: e.target.value })}
+                required
+                className="bg-muted/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location-drive-time-input">Drive Time from Hub (minutes)</Label>
+              <div className="relative">
+                <Input
+                  id="location-drive-time-input"
+                  type="number"
+                  data-testid="location-drive-time-input"
+                  placeholder="e.g. 45"
+                  value={form.drive_time_minutes}
+                  onChange={(e) => {
+                    setForm({ ...form, drive_time_minutes: e.target.value });
+                    setDriveTimeTouched(e.target.value !== '');
+                    clearDriveTimeError();
+                  }}
+                  required
+                  className="bg-muted/50"
+                />
+                {calculatingDrive && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 animate-spin text-hub" aria-label="Calculating drive time" />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+                )}
+              </div>
+              {driveTimeError && (
+                <p role="alert" className="text-xs text-danger-strong">
+                  {driveTimeError}
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowAdvancedCoordinates(prev => !prev)}
+                className="h-auto w-full justify-between p-0 text-sm font-medium hover:bg-transparent"
+                aria-expanded={showAdvancedCoordinates}
+              >
+                Advanced coordinates
+                <span className="text-xs text-muted-foreground">
+                  {showAdvancedCoordinates ? 'Hide' : 'Show'}
+                </span>
+              </Button>
+              {showAdvancedCoordinates && (
+                <div className="grid grid-cols-2 gap-3 pt-3">
                   <div className="space-y-2">
                     <Label htmlFor="location-lat-input">Latitude</Label>
                     <Input
@@ -380,88 +481,19 @@ export default function LocationManager() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button
-                    type="submit"
-                    data-testid="location-save-btn"
-                    disabled={loading || calculatingDrive}
-                    className="bg-hub hover:bg-hub-strong text-white w-full"
-                  >
-                    {calculatingDrive ? 'Calculating drive time...' : saveLabel}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </APIProvider>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="location-city-input-manual">City Name</Label>
-                <Input
-                  id="location-city-input-manual"
-                  data-testid="location-city-input"
-                  placeholder="e.g. Ames"
-                  value={form.city_name}
-                  onChange={(e) => setForm({ ...form, city_name: e.target.value })}
-                  required
-                  className="bg-muted/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location-drive-time-input-manual">Drive Time from Hub (minutes)</Label>
-                <Input
-                  id="location-drive-time-input-manual"
-                  type="number"
-                  data-testid="location-drive-time-input"
-                  placeholder="e.g. 45"
-                  value={form.drive_time_minutes}
-                  onChange={(e) => {
-                    setForm({ ...form, drive_time_minutes: e.target.value });
-                    setDriveTimeTouched(e.target.value !== '');
-                  }}
-                  required
-                  className="bg-muted/50"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="location-lat-input-manual">Latitude (optional)</Label>
-                  <Input
-                    id="location-lat-input-manual"
-                    type="number"
-                    step="any"
-                    data-testid="location-lat-input"
-                    placeholder="41.5868"
-                    value={form.latitude}
-                    onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                    className="bg-muted/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location-lng-input-manual">Longitude (optional)</Label>
-                  <Input
-                    id="location-lng-input-manual"
-                    type="number"
-                    step="any"
-                    data-testid="location-lng-input"
-                    placeholder="-93.6540"
-                    value={form.longitude}
-                    onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                    className="bg-muted/50"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  data-testid="location-save-btn"
-                  disabled={loading}
-                  className="bg-hub hover:bg-hub-strong text-white w-full"
-                >
-                  {saveLabel}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="submit"
+                data-testid="location-save-btn"
+                disabled={loading || calculatingDrive}
+                className="bg-hub hover:bg-hub-strong text-white w-full"
+              >
+                {calculatingDrive ? 'Calculating drive time...' : saveLabel}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -481,7 +513,7 @@ export default function LocationManager() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-danger hover:bg-danger" onClick={(e) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
+            <AlertDialogAction className="bg-danger hover:bg-danger" onClick={(e: MouseEvent<HTMLButtonElement>) => { e.preventDefault(); handleDelete(deleteTarget?.id); }}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

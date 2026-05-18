@@ -18,6 +18,7 @@ export interface ApiListParams {
 export interface LocationCreate {
   city_name: string;
   drive_time_minutes: number;
+  address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 }
@@ -90,6 +91,7 @@ export interface Location {
   id: string;
   city_name: string;
   drive_time_minutes: number;
+  address?: string | null;
   latitude?: number;
   longitude?: number;
   created_at: string;

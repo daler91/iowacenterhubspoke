@@ -25,10 +25,25 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 LOCATION_NOT_FOUND = "Location not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
+NULLABLE_LOCATION_FIELDS = {"address", "latitude", "longitude"}
 
 # Reference migration for the SoftDeleteRepository pattern — see
 # ``backend/core/repository.py`` module docstring for the upgrade guide.
 locations_repo = SoftDeleteRepository(db, "locations")
+
+
+def build_location_update_data(data: LocationUpdate) -> dict:
+    """Return fields the client intentionally changed.
+
+    Nullable optional fields need to keep explicit ``None`` values so admins
+    can clear an address or coordinates without sending every other field.
+    """
+    raw = data.model_dump(exclude_unset=True)
+    return {
+        key: value
+        for key, value in raw.items()
+        if value is not None or key in NULLABLE_LOCATION_FIELDS
+    }
 
 
 @router.get("", summary="List all locations")
@@ -76,6 +91,7 @@ async def create_location(data: LocationCreate, user: AdminRequired):
         "id": loc_id,
         "city_name": data.city_name,
         "drive_time_minutes": data.drive_time_minutes,
+        "address": data.address,
         "latitude": data.latitude,
         "longitude": data.longitude,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -105,7 +121,7 @@ async def create_location(data: LocationCreate, user: AdminRequired):
 )
 async def update_location(location_id: str, data: LocationUpdate, user: AdminRequired):
     """Update location fields. Triggers background sync of denormalized schedule data."""
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    update_data = build_location_update_data(data)
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
     result = await db.locations.update_one({"id": location_id}, {"$set": update_data})

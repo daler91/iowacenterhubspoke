@@ -60,6 +60,7 @@ class ResetPasswordRequest(BaseModel):
 class LocationCreate(BaseModel):
     city_name: str = Field(..., min_length=1, max_length=120)
     drive_time_minutes: int = Field(..., ge=0, le=1440)
+    address: Optional[str] = Field(None, max_length=_MAX_NAME)
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
 
@@ -67,6 +68,7 @@ class LocationCreate(BaseModel):
 class LocationUpdate(BaseModel):
     city_name: Optional[str] = Field(None, min_length=1, max_length=120)
     drive_time_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    address: Optional[str] = Field(None, max_length=_MAX_NAME)
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
 

@@ -27,20 +27,31 @@ export function useUserAdminActions(refreshUsers: () => Promise<unknown> | void)
 
 export function useLocationDriveTime(setForm: Dispatch<SetStateAction<LocationFormState>>) {
   const [calculatingDrive, setCalculatingDrive] = useState(false);
+  const [driveTimeError, setDriveTimeError] = useState<string | null>(null);
 
   const autoFillDriveTime = useCallback(async (latitude: number, longitude: number) => {
     setCalculatingDrive(true);
+    setDriveTimeError(null);
     try {
       const res = await managerFeatureApi.locations.getDriveTimeFromHub(latitude, longitude);
       setForm(prev => ({ ...prev, drive_time_minutes: String(res.data.drive_time_minutes) }));
+      return true;
     } catch (err) {
-      const fallbackMinutes = '15';
-      setForm(prev => ({ ...prev, drive_time_minutes: fallbackMinutes }));
-      toast.warning(describeApiError(err, `Drive time auto-calc failed. Using ${fallbackMinutes} min estimate.`));
+      const message = describeApiError(err, "Couldn't calculate drive time. Enter it manually.");
+      setDriveTimeError(message);
+      toast.warning(message);
+      return false;
     } finally {
       setCalculatingDrive(false);
     }
   }, [setForm]);
 
-  return { calculatingDrive, autoFillDriveTime };
+  const clearDriveTimeError = useCallback(() => setDriveTimeError(null), []);
+
+  return {
+    calculatingDrive,
+    autoFillDriveTime,
+    driveTimeError,
+    clearDriveTimeError,
+  };
 }

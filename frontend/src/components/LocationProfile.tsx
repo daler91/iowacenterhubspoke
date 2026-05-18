@@ -30,7 +30,12 @@ import { getScheduleStatusStyle } from '../lib/schedule-status';
 
 const PIE_COLORS = ['#4F46E5', '#0D9488', '#F97316', '#DC2626', '#7C3AED', '#2563EB', '#059669', '#D97706'];
 
-export default function LocationProfile({ locationId: propId, onBack: propOnBack } = {}) {
+type LocationProfileProps = {
+  locationId?: string;
+  onBack?: () => void;
+};
+
+export default function LocationProfile({ locationId: propId, onBack: propOnBack }: LocationProfileProps = {}) {
   const params = useParams();
   const navigate = useNavigate();
   const locationId = propId || params.id;
@@ -109,6 +114,11 @@ export default function LocationProfile({ locationId: propId, onBack: propOnBack
                 <MapPin className="w-8 h-8 text-spoke-strong" aria-hidden="true" />
               </div>
               <div className="min-w-0">
+                {location.address && (
+                  <p className="text-sm text-foreground/80 dark:text-muted-foreground truncate">
+                    {location.address}
+                  </p>
+                )}
                 <div className="flex items-center gap-1 mt-1">
                   <Car className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                   <span className="text-sm text-foreground/80 dark:text-muted-foreground">{location.drive_time_minutes} min from Hub</span>

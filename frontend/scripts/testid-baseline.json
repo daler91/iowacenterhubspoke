@@ -13,7 +13,7 @@
   "src/components/EmployeeManager.tsx": 11,
   "src/components/EmployeeProfile.tsx": 2,
   "src/components/KanbanBoard.tsx": 7,
-  "src/components/LocationManager.tsx": 15,
+  "src/components/LocationManager.tsx": 12,
   "src/components/LocationProfile.tsx": 5,
   "src/components/MapView.tsx": 4,
   "src/components/NotificationsPanel.tsx": 5,

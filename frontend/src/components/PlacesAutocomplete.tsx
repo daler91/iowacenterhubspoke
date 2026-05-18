@@ -1,10 +1,75 @@
 import { useEffect, useRef, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { Loader2 } from 'lucide-react';
 
-export default function PlacesAutocomplete({ id, value, onChange, onSelect, placeholder, disabled }) {
-  const inputRef = useRef(null);
-  const autocompleteRef = useRef(null);
+type AddressComponent = {
+  long_name?: string;
+  short_name?: string;
+  types: string[];
+};
+
+type SelectedPlace = {
+  address_components?: AddressComponent[];
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+  name?: string;
+};
+
+type PlacesAutocompleteProps = {
+  id: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  onSelect?: (place: {
+    city_name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+  }) => void;
+  placeholder?: string;
+  disabled?: boolean;
+};
+
+function getAddressComponent(place: SelectedPlace, type: string) {
+  return (place.address_components || []).find(c => c.types.includes(type));
+}
+
+function buildLocationLabel(place: SelectedPlace, formattedAddress: string) {
+  const city = getAddressComponent(place, 'locality')
+    || getAddressComponent(place, 'postal_town')
+    || getAddressComponent(place, 'sublocality')
+    || getAddressComponent(place, 'administrative_area_level_2');
+  const state = getAddressComponent(place, 'administrative_area_level_1');
+
+  if (city?.long_name && state?.short_name) {
+    return `${city.long_name}, ${state.short_name}`;
+  }
+  if (place.name) return place.name;
+  return formattedAddress;
+}
+
+function clearGoogleListeners(instance: object) {
+  const googleGlobal = globalThis as typeof globalThis & {
+    google?: { maps?: { event?: { clearInstanceListeners: (target: object) => void } } };
+  };
+  googleGlobal.google?.maps?.event?.clearInstanceListeners(instance);
+}
+
+export default function PlacesAutocomplete({
+  id,
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+  disabled,
+}: PlacesAutocompleteProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const autocompleteRef = useRef<object | null>(null);
   const places = useMapsLibrary('places');
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -16,41 +81,36 @@ export default function PlacesAutocomplete({ id, value, onChange, onSelect, plac
     }
   }, [value]);
 
-  const handleInput = useCallback((e) => {
-    onChange?.(e.target.value);
+  const handleInput = useCallback((e: FormEvent<HTMLInputElement>) => {
+    onChange?.(e.currentTarget.value);
   }, [onChange]);
 
   useEffect(() => {
     if (!places || !inputRef.current) return;
 
     const autocomplete = new places.Autocomplete(inputRef.current, {
-      types: ['(cities)'],
       componentRestrictions: { country: 'us' },
-      fields: ['name', 'geometry', 'address_components'],
+      fields: ['name', 'formatted_address', 'geometry', 'address_components'],
     });
 
     autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (!place.geometry) return;
+      const place = autocomplete.getPlace() as SelectedPlace;
+      const location = place.geometry?.location;
+      if (!location) return;
 
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
+      const lat = location.lat();
+      const lng = location.lng();
+      const formattedAddress = place.formatted_address || inputRef.current?.value || place.name || '';
+      const cityName = buildLocationLabel(place, formattedAddress);
 
-      let cityName = place.name;
-      const stateComponent = (place.address_components || []).find(c =>
-        c.types.includes('administrative_area_level_1')
-      );
-      if (stateComponent) {
-        cityName = `${place.name}, ${stateComponent.short_name}`;
-      }
-
-      // Update the input to show our formatted name (not Google's full format)
+      // Update the input to show the full selected address.
       if (inputRef.current) {
-        inputRef.current.value = cityName;
+        inputRef.current.value = formattedAddress;
       }
 
       onSelectRef.current?.({
         city_name: cityName,
+        address: formattedAddress,
         latitude: lat,
         longitude: lng,
       });
@@ -60,7 +120,7 @@ export default function PlacesAutocomplete({ id, value, onChange, onSelect, plac
 
     return () => {
       if (autocompleteRef.current) {
-        globalThis.google?.maps?.event?.clearInstanceListeners(autocompleteRef.current);
+        clearGoogleListeners(autocompleteRef.current);
       }
     };
   }, [places]);
@@ -70,8 +130,8 @@ export default function PlacesAutocomplete({ id, value, onChange, onSelect, plac
       <input
         ref={inputRef}
         id={id}
-        data-testid="location-city-input"
-        placeholder={placeholder || 'Search for a city...'}
+        data-testid="location-address-input"
+        placeholder={placeholder || 'Search for an address...'}
         defaultValue={value}
         onInput={handleInput}
         disabled={disabled}
