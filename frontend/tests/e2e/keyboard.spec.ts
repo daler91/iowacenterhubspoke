@@ -19,6 +19,7 @@ const ROUTES: ReadonlyArray<{ path: string; name: string }> = [
   { path: '/kanban', name: 'kanban' },
   { path: '/coordination/board', name: 'project board' },
   { path: '/employees', name: 'employees' },
+  { path: '/portal/test-token', name: 'partner portal home' },
 ];
 
 const TAB_PRESSES = 6;

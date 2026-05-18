@@ -14,6 +14,7 @@ from core.pagination import PaginationParams, paginated_response
 from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.notification_events import notify_project_document_shared
+from services.portal_activity import log_portal_activity
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -114,6 +115,18 @@ async def upload_document(
         "document_uploaded", f"Document '{file.filename}' uploaded",
         "document", doc_id, user.get("name", "System"),
     )
+    if doc.get("visibility") == "shared":
+        await log_portal_activity(
+            partner_org_id=doc.get("partner_org_id"),
+            project_id=project_id,
+            action="document_shared",
+            title="Document shared",
+            body=file.filename or "Document shared",
+            actor_name=user.get("name", "System"),
+            actor_type="internal",
+            entity_type="document",
+            entity_id=doc_id,
+        )
     await notify_project_document_shared(doc, project, user)
     return doc
 
@@ -146,6 +159,18 @@ async def update_visibility(
     updated = await documents_repo.find_one_active({"id": doc_id, "project_id": project_id})
     if not updated:
         raise HTTPException(status_code=404, detail=DOC_NOT_FOUND)
+    if updated.get("visibility") == "shared":
+        await log_portal_activity(
+            partner_org_id=updated.get("partner_org_id"),
+            project_id=project_id,
+            action="document_shared",
+            title="Document shared",
+            body=updated.get("filename", "Document shared"),
+            actor_name=user.get("name", "System"),
+            actor_type="internal",
+            entity_type="document",
+            entity_id=doc_id,
+        )
     return updated
 
 

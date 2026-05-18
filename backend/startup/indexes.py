@@ -102,6 +102,9 @@ async def ensure_indexes(db, logger):
         await _ensure_partial_unique_token_index(db.portal_tokens, "token")
         await _ensure_partial_unique_token_index(db.portal_tokens, "token_digest")
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
+        await db.portal_activity_events.create_index(
+            [("partner_org_id", 1), ("project_id", 1), ("created_at", -1)],
+        )
         await db.projects.create_index([("phase", 1), ("deleted_at", 1), ("updated_at", -1)])
         await _repair_secondary_index_drift(db, logger)
         logger.info("Ensured critical boot-time indexes")

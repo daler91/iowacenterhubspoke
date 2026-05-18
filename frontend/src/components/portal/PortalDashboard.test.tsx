@@ -1,34 +1,41 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { SWRConfig } from 'swr';
 import '@testing-library/jest-dom';
 
 import { portalAPI } from '../../lib/coordination-api';
 import PortalDashboard from './PortalDashboard';
 
 let mockRouteToken = 'bad-token';
+let mockProjectId: string | undefined;
+let mockPathname = '/portal/bad-token';
+const mockNavigate = jest.fn();
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
 
 jest.mock('react-router-dom', () => ({
-  useParams: () => ({ token: mockRouteToken }),
-  useNavigate: () => jest.fn(),
+  useParams: () => ({ token: mockRouteToken, projectId: mockProjectId }),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: mockPathname }),
+}));
+
+jest.mock('next-themes', () => ({
+  useTheme: () => ({ theme: 'light', setTheme: jest.fn() }),
 }));
 
 jest.mock('../../lib/coordination-api', () => ({
   portalAPI: {
     verify: jest.fn(),
-    dashboard: jest.fn(),
+    workspace: jest.fn(),
+    projectWorkspace: jest.fn(),
     requestLink: jest.fn(),
     bulkProjectTasks: jest.fn(),
-    completeTask: jest.fn(),
     updateTask: jest.fn(),
-    taskDetail: jest.fn(),
     projectDocuments: jest.fn(),
     previewDocument: jest.fn(),
     downloadDocument: jest.fn(),
-    projectMessages: jest.fn(),
+    uploadDocument: jest.fn(),
     sendMessage: jest.fn(),
-    projectMembers: jest.fn(),
   },
 }));
 
@@ -40,15 +47,135 @@ jest.mock('sonner', () => ({
 }));
 
 jest.mock('./PortalNotificationsPanel', () => () => null);
+jest.mock('../NotificationPreferences', () => () => <div>Notification settings form</div>);
 
 const mockedPortalAPI = portalAPI as jest.Mocked<typeof portalAPI>;
+
+const org = {
+  id: 'org-1',
+  name: 'Story City Library',
+  community: 'Story City',
+  venue_details: {},
+  co_branding: '',
+  status: 'active',
+  notes: '',
+  created_at: '2026-04-01T00:00:00Z',
+  updated_at: '2026-04-01T00:00:00Z',
+};
+
+const contact = {
+  id: 'contact-1',
+  partner_org_id: 'org-1',
+  name: 'Pat Partner',
+  email: 'pat@example.com',
+  phone: '',
+  role: 'Director',
+  is_primary: true,
+  created_at: '2026-04-01T00:00:00Z',
+};
+
+const project = {
+  id: 'project-1',
+  title: 'Spring Workshop',
+  event_format: 'workshop',
+  partner_org_id: 'org-1',
+  event_date: '2026-05-15T15:00:00Z',
+  phase: 'planning',
+  community: 'Story City',
+  venue_name: 'Main Room',
+  registration_count: 0,
+  notes: '',
+  created_at: '2026-04-01T00:00:00Z',
+  updated_at: '2026-04-01T00:00:00Z',
+  created_by: 'user-1',
+  portal_task_counts: {
+    total: 2,
+    completed: 0,
+    open: 2,
+    overdue: 0,
+  },
+};
+
+const tasks = [
+  {
+    id: 'task-1',
+    project_id: 'project-1',
+    title: 'Confirm room layout',
+    phase: 'planning',
+    owner: 'partner',
+    due_date: '2026-05-01T00:00:00Z',
+    status: 'to_do',
+    completed: false,
+    sort_order: 1,
+    details: 'Send the preferred seating plan.',
+    created_at: '2026-04-01T00:00:00Z',
+  },
+  {
+    id: 'task-2',
+    project_id: 'project-1',
+    title: 'Share flyer',
+    phase: 'promotion',
+    owner: 'both',
+    due_date: '2026-05-03T00:00:00Z',
+    status: 'in_progress',
+    completed: false,
+    sort_order: 2,
+    details: '',
+    created_at: '2026-04-01T00:00:00Z',
+  },
+];
+
+function workspacePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    org,
+    contact,
+    summary: {
+      active_projects: 1,
+      upcoming_classes: 1,
+      open_tasks: 2,
+      overdue_tasks: 0,
+      classes_hosted: 0,
+    },
+    projects: [project],
+    needs_attention: [],
+    org_documents: [],
+    unread_notifications: 0,
+    recent_activity: [],
+    ...overrides,
+  };
+}
+
+function projectWorkspacePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    org,
+    contact,
+    project,
+    tasks,
+    documents: [],
+    messages: [],
+    members: [],
+    recent_activity: [],
+    ...overrides,
+  };
+}
+
+function renderPortal() {
+  return render(
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <PortalDashboard />
+    </SWRConfig>,
+  );
+}
 
 describe('PortalDashboard link recovery', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRouteToken = 'bad-token';
+    mockProjectId = undefined;
+    mockPathname = '/portal/bad-token';
     sessionStorage.clear();
     mockedPortalAPI.verify.mockRejectedValue({ response: { status: 401 } });
+    mockedPortalAPI.workspace.mockRejectedValue({ response: { status: 401 } });
     mockedPortalAPI.requestLink.mockResolvedValue({
       data: { message: 'If that email is registered, a link has been sent.' },
     } as Awaited<ReturnType<typeof portalAPI.requestLink>>);
@@ -57,7 +184,7 @@ describe('PortalDashboard link recovery', () => {
   it('keeps partners on the portal page and lets them request a new link', async () => {
     sessionStorage.setItem('portal_session_token', 'stale-token');
 
-    render(<PortalDashboard />);
+    renderPortal();
 
     expect(await screen.findByText('Request a new portal link')).toBeInTheDocument();
     expect(screen.getByText('This portal link is invalid or expired.')).toBeInTheDocument();
@@ -77,102 +204,38 @@ describe('PortalDashboard link recovery', () => {
   });
 });
 
-describe('PortalDashboard task board and message confirmations', () => {
-  const org = {
-    id: 'org-1',
-    name: 'Story City Library',
-    community: 'Story City',
-    venue_details: {},
-    co_branding: '',
-    status: 'active',
-    notes: '',
-    created_at: '2026-04-01T00:00:00Z',
-    updated_at: '2026-04-01T00:00:00Z',
-  };
-  const contact = {
-    id: 'contact-1',
-    partner_org_id: 'org-1',
-    name: 'Pat Partner',
-    email: 'pat@example.com',
-    phone: '',
-    role: 'Director',
-    is_primary: true,
-    created_at: '2026-04-01T00:00:00Z',
-  };
-  const project = {
-    id: 'project-1',
-    title: 'Spring Workshop',
-    event_format: 'workshop',
-    partner_org_id: 'org-1',
-    event_date: '2026-05-15T15:00:00Z',
-    phase: 'planning',
-    community: 'Story City',
-    venue_name: 'Main Room',
-    registration_count: 0,
-    notes: '',
-    created_at: '2026-04-01T00:00:00Z',
-    updated_at: '2026-04-01T00:00:00Z',
-    created_by: 'user-1',
-  };
-
+describe('PortalDashboard route pages', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRouteToken = 'good-token';
+    mockProjectId = undefined;
+    mockPathname = '/portal/good-token';
     sessionStorage.clear();
     mockedPortalAPI.verify.mockResolvedValue({ data: { org, contact } } as Awaited<ReturnType<typeof portalAPI.verify>>);
-    mockedPortalAPI.dashboard.mockResolvedValue({
-      data: {
-        upcoming_classes: 1,
-        open_tasks: 2,
-        overdue_tasks: 0,
-        classes_hosted: 0,
-        projects: [project],
-      },
-    } as Awaited<ReturnType<typeof portalAPI.dashboard>>);
+    mockedPortalAPI.workspace.mockResolvedValue({ data: workspacePayload() } as Awaited<ReturnType<typeof portalAPI.workspace>>);
+    mockedPortalAPI.projectWorkspace.mockResolvedValue({ data: projectWorkspacePayload() } as Awaited<ReturnType<typeof portalAPI.projectWorkspace>>);
     mockedPortalAPI.bulkProjectTasks.mockResolvedValue({
-      data: {
-        items: {
-          'project-1': [
-            {
-              id: 'task-1',
-              project_id: 'project-1',
-              title: 'Confirm room layout',
-              phase: 'planning',
-              owner: 'partner',
-              due_date: '2026-05-01T00:00:00Z',
-              status: 'to_do',
-              completed: false,
-              sort_order: 1,
-              details: 'Send the preferred seating plan.',
-              created_at: '2026-04-01T00:00:00Z',
-            },
-            {
-              id: 'task-2',
-              project_id: 'project-1',
-              title: 'Share flyer',
-              phase: 'promotion',
-              owner: 'both',
-              due_date: '2026-05-03T00:00:00Z',
-              status: 'in_progress',
-              completed: false,
-              sort_order: 2,
-              details: '',
-              created_at: '2026-04-01T00:00:00Z',
-            },
-          ],
-        },
-      },
+      data: { items: { 'project-1': tasks } },
     } as Awaited<ReturnType<typeof portalAPI.bulkProjectTasks>>);
-    mockedPortalAPI.projectMessages.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
-    mockedPortalAPI.projectMembers.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMembers>>);
     mockedPortalAPI.projectDocuments.mockResolvedValue({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
     mockedPortalAPI.updateTask.mockResolvedValue({ data: {} } as Awaited<ReturnType<typeof portalAPI.updateTask>>);
+    mockedPortalAPI.sendMessage.mockResolvedValue({ data: { id: 'message-1' } } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
   });
 
-  it('keeps task due dates on their calendar day and lets partners switch to a Kanban board', async () => {
-    render(<PortalDashboard />);
+  it('renders a project-first portal home inside the partner shell', async () => {
+    renderPortal();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
+    expect(await screen.findByTestId('portal-shell')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Partner Home' })).toBeInTheDocument();
+    expect(screen.getByText('Spring Workshop')).toBeInTheDocument();
+    expect(screen.getByTestId('portal-nav-projects')).toBeInTheDocument();
+  });
+
+  it('keeps task due dates on their calendar day and lets partners switch to a board', async () => {
+    mockPathname = '/portal/good-token/tasks';
+
+    renderPortal();
+
     await waitFor(() => {
       expect(mockedPortalAPI.bulkProjectTasks).toHaveBeenCalledWith(['project-1'], 'good-token');
     });
@@ -189,6 +252,7 @@ describe('PortalDashboard task board and message confirmations', () => {
   });
 
   it('shows fallback delivery summary when API omits notification_summary', async () => {
+    mockPathname = '/portal/good-token/messages';
     mockedPortalAPI.sendMessage.mockResolvedValue({
       data: {
         id: 'msg-1',
@@ -197,14 +261,13 @@ describe('PortalDashboard task board and message confirmations', () => {
       },
     } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
 
-    render(<PortalDashboard />);
+    renderPortal();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Messages' }));
     await waitFor(() => {
-      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledWith('project-1', 'good-token');
+      expect(mockedPortalAPI.projectWorkspace).toHaveBeenCalledWith('project-1', 'good-token');
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/type a message/i), {
+    fireEvent.change(screen.getByLabelText('Message'), {
       target: { value: 'hello @pat' },
     });
     fireEvent.click(screen.getByRole('button', { name: /send message/i }));
@@ -213,64 +276,58 @@ describe('PortalDashboard task board and message confirmations', () => {
     expect(screen.getByText('Mentions resolved/notified: 1 / 0')).toBeInTheDocument();
   });
 
-  it('shows an actionable task retry state instead of an empty list after load failure', async () => {
+  it('shows actionable retry states for task, document, and message load failures', async () => {
+    mockPathname = '/portal/good-token/tasks';
     mockedPortalAPI.bulkProjectTasks
       .mockRejectedValueOnce(new Error('network down'))
       .mockResolvedValueOnce({ data: { items: { 'project-1': [] } } } as Awaited<ReturnType<typeof portalAPI.bulkProjectTasks>>);
 
-    render(<PortalDashboard />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
+    const { rerender } = renderPortal();
 
     expect(await screen.findByText('Tasks could not be loaded.')).toBeInTheDocument();
-    expect(screen.queryByText('No tasks assigned to you')).not.toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', { name: /retry tasks/i }));
-
-    await waitFor(() => {
-      expect(mockedPortalAPI.bulkProjectTasks).toHaveBeenCalledTimes(2);
-    });
+    await waitFor(() => expect(mockedPortalAPI.bulkProjectTasks).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('No tasks assigned to you')).toBeInTheDocument();
-  });
 
-  it('shows document and message load errors with retry actions', async () => {
+    mockPathname = '/portal/good-token/documents';
     mockedPortalAPI.projectDocuments
       .mockRejectedValueOnce(new Error('documents unavailable'))
       .mockResolvedValueOnce({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
-    mockedPortalAPI.projectMessages
-      .mockRejectedValueOnce(new Error('messages unavailable'))
-      .mockResolvedValueOnce({ data: { items: [] } } as Awaited<ReturnType<typeof portalAPI.projectMessages>>);
-
-    render(<PortalDashboard />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Documents' }));
+    rerender(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <PortalDashboard />
+      </SWRConfig>,
+    );
     expect(await screen.findByText('Documents could not be loaded.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /retry documents/i }));
-    await waitFor(() => {
-      expect(mockedPortalAPI.projectDocuments).toHaveBeenCalledTimes(2);
-    });
+    await waitFor(() => expect(mockedPortalAPI.projectDocuments).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('No shared documents')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Messages' }));
+    mockPathname = '/portal/good-token/messages';
+    mockedPortalAPI.projectWorkspace
+      .mockRejectedValueOnce(new Error('messages unavailable'))
+      .mockResolvedValueOnce({ data: projectWorkspacePayload() } as Awaited<ReturnType<typeof portalAPI.projectWorkspace>>);
+    rerender(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <PortalDashboard />
+      </SWRConfig>,
+    );
     expect(await screen.findByText('Messages could not be loaded.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /retry messages/i }));
-    await waitFor(() => {
-      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledTimes(2);
-    });
+    await waitFor(() => expect(mockedPortalAPI.projectWorkspace).toHaveBeenCalled());
     expect(await screen.findByText('No messages yet')).toBeInTheDocument();
   });
 
   it('guards rapid task toggles while the update is pending', async () => {
+    mockPathname = '/portal/good-token/tasks';
     let resolveUpdate!: (value: Awaited<ReturnType<typeof portalAPI.updateTask>>) => void;
     mockedPortalAPI.updateTask.mockReturnValue(
       new Promise((resolve) => { resolveUpdate = resolve; }) as ReturnType<typeof portalAPI.updateTask>,
     );
 
-    render(<PortalDashboard />);
+    renderPortal();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Your Tasks' }));
     const toggle = await screen.findByRole('button', { name: /mark complete: confirm room layout/i });
-
     fireEvent.click(toggle);
     await waitFor(() => expect(toggle).toBeDisabled());
     fireEvent.click(toggle);
@@ -278,79 +335,5 @@ describe('PortalDashboard task board and message confirmations', () => {
     expect(mockedPortalAPI.updateTask).toHaveBeenCalledTimes(1);
     resolveUpdate({ data: {} } as Awaited<ReturnType<typeof portalAPI.updateTask>>);
     await waitFor(() => expect(toggle).not.toBeDisabled());
-  });
-
-  it('guards send while pending and exposes document icon button names', async () => {
-    mockedPortalAPI.projectDocuments.mockResolvedValue({
-      data: {
-        items: [{
-          id: 'doc-1',
-          project_id: 'project-1',
-          filename: 'partner-packet.pdf',
-          file_type: 'pdf',
-          file_path: 'partner-packet.pdf',
-          visibility: 'shared',
-          uploaded_by: 'user-1',
-          uploaded_at: '2026-04-01T00:00:00Z',
-          version: 1,
-        }],
-      },
-    } as Awaited<ReturnType<typeof portalAPI.projectDocuments>>);
-    let resolveSend!: (value: Awaited<ReturnType<typeof portalAPI.sendMessage>>) => void;
-    mockedPortalAPI.sendMessage.mockReturnValue(
-      new Promise((resolve) => { resolveSend = resolve; }) as ReturnType<typeof portalAPI.sendMessage>,
-    );
-
-    render(<PortalDashboard />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Documents' }));
-    expect(await screen.findByRole('button', { name: /preview partner-packet.pdf/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /download partner-packet.pdf/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Messages' }));
-    await waitFor(() => {
-      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledWith('project-1', 'good-token');
-    });
-    fireEvent.change(screen.getByLabelText('Message'), {
-      target: { value: 'Hello team' },
-    });
-    const send = screen.getByRole('button', { name: /send message/i });
-    fireEvent.click(send);
-    await waitFor(() => expect(send).toBeDisabled());
-    fireEvent.click(send);
-    expect(mockedPortalAPI.sendMessage).toHaveBeenCalledTimes(1);
-    resolveSend({ data: { id: 'msg-1', mentions: [] } } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
-  });
-
-  it('confirms how many recipients were notified when API returns notification_summary', async () => {
-    mockedPortalAPI.sendMessage.mockResolvedValue({
-      data: {
-        id: 'message-1',
-        notification_summary: {
-          mentions_requested: 0,
-          mentions_resolved: 0,
-          message_recipients_notified: 2,
-          mention_recipients_notified: 0,
-        },
-      },
-    } as Awaited<ReturnType<typeof portalAPI.sendMessage>>);
-
-    render(<PortalDashboard />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Messages' }));
-    await waitFor(() => {
-      expect(mockedPortalAPI.projectMessages).toHaveBeenCalledWith('project-1', 'good-token');
-    });
-
-    fireEvent.change(screen.getByPlaceholderText(/type a message/i), {
-      target: { value: 'Hello team' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send message/i }));
-
-    await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith(
-        'Message sent. Notifications sent to 2 recipients.',
-      );
-    });
   });
 });

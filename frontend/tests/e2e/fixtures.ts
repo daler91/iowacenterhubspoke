@@ -80,6 +80,45 @@ const FAKE_CONTACT = {
   created_at: FIXED_DATE,
 };
 
+const FAKE_PROJECT = {
+  id: 'project-1',
+  title: 'Test Partner Project',
+  event_format: 'workshop',
+  partner_org_id: TEST_ORG_ID,
+  event_date: FIXED_DATE,
+  phase: 'planning',
+  community: 'Test Community',
+  venue_name: 'Test Room',
+  registration_count: 0,
+  notes: '',
+  created_at: FIXED_DATE,
+  updated_at: FIXED_DATE,
+  created_by: 'user_test_1',
+  portal_task_counts: {
+    total: 0,
+    completed: 0,
+    open: 0,
+    overdue: 0,
+  },
+};
+
+const EMPTY_PORTAL_WORKSPACE = {
+  org: FAKE_ORG,
+  contact: FAKE_CONTACT,
+  summary: {
+    active_projects: 1,
+    upcoming_classes: 1,
+    open_tasks: 0,
+    overdue_tasks: 0,
+    classes_hosted: 0,
+  },
+  projects: [FAKE_PROJECT],
+  needs_attention: [],
+  org_documents: [],
+  unread_notifications: 0,
+  recent_activity: [],
+};
+
 /**
  * Exact-path → body map for endpoints that need a specific response.
  * Using a lookup table keeps `resolveMock` below Sonar's cognitive
@@ -93,6 +132,8 @@ const EXACT_RESPONSES: Record<string, unknown> = {
   '/coordination/partner-health': { partners: [] },
   '/coordination/summary': {},
   '/coordination/by-community': [],
+  '/portal/auth/verify': { org: FAKE_ORG, contact: FAKE_CONTACT },
+  '/portal/workspace': EMPTY_PORTAL_WORKSPACE,
   '/portal/dashboard': {
     upcoming_classes: 0,
     open_tasks: 0,
@@ -100,6 +141,17 @@ const EXACT_RESPONSES: Record<string, unknown> = {
     classes_hosted: 0,
     projects: [],
   },
+  '/portal/projects/project-1/workspace': {
+    org: FAKE_ORG,
+    contact: FAKE_CONTACT,
+    project: FAKE_PROJECT,
+    tasks: [],
+    documents: [],
+    messages: [],
+    members: [],
+    recent_activity: [],
+  },
+  '/portal/notifications/inbox': { items: [] },
   '/system/config': { hub_lat: 41.5868, hub_lng: -93.625 },
   '/dashboard/stats': {
     total_schedules: 0,

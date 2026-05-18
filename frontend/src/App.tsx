@@ -117,7 +117,6 @@ const ProjectDetail = lazy(() => import("./components/coordination/ProjectDetail
 const PartnerManager = lazy(() => import("./components/coordination/PartnerManager"));
 const PartnerProfile = lazy(() => import("./components/coordination/PartnerProfile"));
 const PortalDashboard = lazy(() => import("./components/portal/PortalDashboard"));
-const PortalProjectDetail = lazy(() => import("./components/portal/PortalProjectDetail"));
 const WebhookManager = lazy(() => import("./components/coordination/WebhookManager"));
 
 function AppRoutes() {
@@ -201,8 +200,13 @@ function AppRoutes() {
           </Route>
           <Route path="/portal" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/portal/:token" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
-          <Route path="/portal/projects/:projectId" element={<RouteBoundary><PortalProjectDetail /></RouteBoundary>} />
-          <Route path="/portal/:token/projects/:projectId" element={<RouteBoundary><PortalProjectDetail /></RouteBoundary>} />
+          <Route path="/portal/projects/:projectId" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/projects" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/projects/:projectId" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/tasks" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/documents" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/messages" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
+          <Route path="/portal/:token/settings" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />
         </Routes>
       </Suspense>

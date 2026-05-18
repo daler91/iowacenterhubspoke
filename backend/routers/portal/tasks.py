@@ -25,6 +25,7 @@ from services.notification_prefs import (
     principals_for_project,
 )
 from services.phase_advance import maybe_auto_advance_phase_for_task
+from services.portal_activity import log_portal_activity
 
 from ._shared import (
     INVALID_TOKEN,
@@ -194,6 +195,17 @@ async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext
             completed_task_phase=task.get("phase"),
             actor={"id": contact.get("id"), "name": contact.get("name", "Partner")},
         )
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="task_completed" if new_completed else "task_reopened",
+        title="Task marked complete" if new_completed else "Task reopened",
+        body=task.get("title", ""),
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="task",
+        entity_id=task_id,
+    )
     return task
 
 
@@ -287,6 +299,17 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
                     "contact_id": contact.get("id"),
                 },
             )
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="task_completed" if payload.completed and not was_completed else "task_updated",
+        title="Task marked complete" if payload.completed and not was_completed else "Task updated",
+        body=task.get("title", ""),
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="task",
+        entity_id=task_id,
+    )
     return task
 
 
@@ -359,6 +382,17 @@ async def portal_upload_task_attachment(
     }
     await db.task_attachments.insert_one(doc)
     doc.pop("_id", None)
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="task_attachment_uploaded",
+        title="Task attachment uploaded",
+        body=file.filename or "Attachment uploaded",
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="task_attachment",
+        entity_id=att_id,
+    )
     return doc
 
 
@@ -463,6 +497,17 @@ async def portal_post_task_comment(
     }
     await db.task_comments.insert_one(doc)
     doc.pop("_id", None)
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="task_comment_posted",
+        title="Task comment posted",
+        body=task.get("title", ""),
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="task_comment",
+        entity_id=comment_id,
+    )
     actor = {
         "id": ctx["contact"]["id"],
         "user_id": ctx["contact"]["id"],

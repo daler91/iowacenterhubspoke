@@ -12,6 +12,7 @@ from core.logger import get_logger
 from core.portal_auth import PortalContext
 from core.upload import stream_upload_to_disk
 from database import db
+from services.portal_activity import log_portal_activity
 
 from ._shared import (
     INVALID_TOKEN,
@@ -83,6 +84,17 @@ async def portal_upload_document(
     }
     await db.documents.insert_one(doc)
     doc.pop("_id", None)
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="document_uploaded",
+        title="Document uploaded",
+        body=file.filename or "Document uploaded",
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="document",
+        entity_id=doc_id,
+    )
     return doc
 
 

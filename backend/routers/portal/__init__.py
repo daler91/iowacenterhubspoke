@@ -13,7 +13,7 @@ continue to expose a single ``portal.router`` mount point.
 
 from fastapi import APIRouter
 
-from . import auth, dashboard, documents, messages, tasks
+from . import auth, dashboard, documents, messages, tasks, workspace
 
 router = APIRouter()
 router.include_router(auth.router)
@@ -21,5 +21,6 @@ router.include_router(dashboard.router)
 router.include_router(tasks.router)
 router.include_router(documents.router)
 router.include_router(messages.router)
+router.include_router(workspace.router)
 
 __all__ = ["router"]

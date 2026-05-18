@@ -1,5 +1,7 @@
 // ── Phase & Status Constants ─────────────────────────────────────────
 
+import type { ElementType } from 'react';
+
 export const PROJECT_PHASES = ['planning', 'promotion', 'delivery', 'follow_up'] as const;
 export const ALL_PHASES = [...PROJECT_PHASES, 'complete'] as const;
 export type ProjectPhase = typeof ALL_PHASES[number];
@@ -252,6 +254,70 @@ export interface Message {
   mentions?: Mention[];
   created_at: string;
   read_by: string[];
+}
+
+export interface PortalActivityEvent {
+  id: string;
+  partner_org_id: string;
+  project_id?: string | null;
+  action: string;
+  title: string;
+  body?: string;
+  actor_name: string;
+  actor_type: 'internal' | 'partner' | string;
+  entity_type?: string;
+  entity_id?: string;
+  created_at: string;
+}
+
+export interface PortalTaskSummary extends Task {
+  project_title?: string;
+  project_event_date?: string;
+  project_phase?: string;
+  project_venue_name?: string;
+  is_overdue?: boolean;
+}
+
+export interface PortalWorkspace {
+  org: PartnerOrg;
+  contact: PartnerContact;
+  summary: {
+    active_projects: number;
+    upcoming_classes: number;
+    open_tasks: number;
+    overdue_tasks: number;
+    classes_hosted: number;
+  };
+  projects: Array<Project & {
+    portal_task_counts?: {
+      total: number;
+      completed: number;
+      open: number;
+      overdue: number;
+    };
+  }>;
+  needs_attention: PortalTaskSummary[];
+  org_documents: ProjectDocument[];
+  unread_notifications: number;
+  recent_activity: PortalActivityEvent[];
+}
+
+export interface PortalProjectWorkspace {
+  org: PartnerOrg;
+  contact: PartnerContact;
+  project: Project;
+  tasks: Task[];
+  documents: ProjectDocument[];
+  messages: Message[];
+  members: ProjectMember[];
+  recent_activity: PortalActivityEvent[];
+}
+
+export interface PortalNavItem {
+  id: string;
+  label: string;
+  path: string;
+  icon: ElementType;
 }
 
 export interface ProjectTemplate {

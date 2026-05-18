@@ -22,6 +22,8 @@ const ROUTES: ReadonlyArray<{ path: string; name: string }> = [
   { path: '/classes', name: 'classes' },
   { path: '/coordination', name: 'coordination dashboard' },
   { path: '/coordination/board', name: 'coordination board' },
+  { path: '/portal/test-token', name: 'partner portal home' },
+  { path: '/portal/test-token/projects/project-1', name: 'partner project hub' },
 ];
 
 for (const { path, name } of ROUTES) {

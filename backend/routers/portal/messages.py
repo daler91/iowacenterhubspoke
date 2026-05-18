@@ -16,6 +16,7 @@ from services.notification_events import (
     notify_project_message_mentions,
 )
 from services.notification_prefs import prepare_mentions
+from services.portal_activity import log_portal_activity
 
 from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND
 
@@ -98,6 +99,17 @@ async def portal_send_message(
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
+    await log_portal_activity(
+        partner_org_id=ctx.get("partner_org_id"),
+        project_id=project_id,
+        action="message_sent",
+        title="Message sent",
+        body=project.get("title", ""),
+        actor_name=(ctx.get("contact") or {}).get("name", "Partner"),
+        actor_type="partner",
+        entity_type="message",
+        entity_id=msg_id,
+    )
     actor = {
         "id": ctx["contact"]["id"],
         "user_id": ctx["contact"]["id"],

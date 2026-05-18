@@ -1,38 +1,90 @@
-import { useState, useEffect, useMemo, type Dispatch, type FormEvent, type SetStateAction } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Card } from '../ui/card';
+import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import useSWR from 'swr';
+import {
+  AlertTriangle,
+  Bell,
+  Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  CheckSquare,
+  Columns3,
+  Download,
+  Eye,
+  FileText,
+  GraduationCap,
+  Inbox,
+  List,
+  Mail,
+  MessageSquare,
+  Paperclip,
+  RefreshCw,
+  Search,
+  Send,
+  Upload,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { Card } from '../ui/card';
 import { Input } from '../ui/input';
-import {
-  CalendarDays, CheckSquare, GraduationCap, AlertTriangle,
-  FileText, Send, Download, Eye, Mail, Columns3, List,
-} from 'lucide-react';
-import { portalAPI } from '../../lib/coordination-api';
-import {
-  PHASE_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, OWNER_COLORS, OWNER_LABELS,
-} from '../../lib/coordination-types';
-import type {
-  PartnerOrg, PartnerContact, Project, Task, ProjectDocument, Message,
-  Mention, ProjectMember, TaskStatus,
-} from '../../lib/coordination-types';
-import { canPreview, previewKind } from '../../lib/attachment-preview';
-import { describeApiError } from '../../lib/error-messages';
-import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
+import { PageShell } from '../ui/page-shell';
+import { SearchableSelect } from '../ui/searchable-select';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
-import { cn } from '../../lib/utils';
-import { toast } from 'sonner';
-import PortalLayout from './PortalLayout';
-import PortalTaskBoard from './PortalTaskBoard';
 import NotificationPreferences from '../NotificationPreferences';
+import { canPreview, previewKind } from '../../lib/attachment-preview';
+import { portalAPI } from '../../lib/coordination-api';
+import {
+  EVENT_FORMAT_LABELS,
+  OWNER_COLORS,
+  OWNER_LABELS,
+  PHASE_DOT_COLORS,
+  PHASE_LABELS,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_LABELS,
+  TASK_STATUSES,
+  type Mention,
+  type Message,
+  type PortalActivityEvent,
+  type PortalWorkspace,
+  type Project,
+  type ProjectDocument,
+  type ProjectMember,
+  type Task,
+  type TaskStatus,
+} from '../../lib/coordination-types';
+import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
+import { describeApiError } from '../../lib/error-messages';
+import { cn } from '../../lib/utils';
+import { usePortalProjectWorkspace, usePortalSession, usePortalWorkspace } from '../../hooks/usePortalData';
+import PortalShell from './PortalShell';
+import PortalTaskBoard from './PortalTaskBoard';
 import PortalTaskDetailModal from './PortalTaskDetailModal';
 
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
 const LEGACY_PORTAL_TOKEN_KEY = 'portal_session_token';
-type TaskViewMode = 'list' | 'kanban';
-type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+const ALL_PROJECTS = 'all';
+const ALL_STATUSES = 'all';
+const OVERDUE_ONLY = 'overdue';
+
+type PortalSection = 'home' | 'projects' | 'project' | 'tasks' | 'documents' | 'messages' | 'settings';
+type TaskViewMode = 'list' | 'board';
+
+interface NotificationSummary {
+  mentions_requested?: number;
+  mentions_resolved?: number;
+  message_recipients_notified?: number;
+  mention_recipients_notified?: number;
+}
+
+interface PreviewState {
+  doc: ProjectDocument;
+  url: string;
+}
+
+type ProjectSummary = PortalWorkspace['projects'][number];
 
 function setPendingKey(
   setter: Dispatch<SetStateAction<Record<string, boolean>>>,
@@ -54,41 +106,34 @@ function taskActionKey(projectId: string, taskId: string) {
 function documentActionKey(action: 'preview' | 'download', projectId: string, docId: string) {
   return `${action}:${projectId}:${docId}`;
 }
-interface NotificationSummary {
-  mentions_requested?: number;
-  mentions_resolved?: number;
-  message_recipients_notified?: number;
-  mention_recipients_notified?: number;
+
+function portalPath(token: string, section: string, projectId?: string) {
+  if (projectId) return `/portal/${token}/projects/${projectId}`;
+  if (section === 'home') return `/portal/${token}`;
+  return `/portal/${token}/${section}`;
 }
 
-interface TaskRowProps {
-  projectId: string;
-  task: Task;
-  onToggleTask: (projectId: string, taskId: string, completed: boolean) => void;
-  onOpenTask: (projectId: string, taskId: string) => void;
+function routeSection(pathname: string, projectId?: string): PortalSection {
+  if (projectId) return 'project';
+  if (pathname.includes('/tasks')) return 'tasks';
+  if (pathname.includes('/documents')) return 'documents';
+  if (pathname.includes('/messages')) return 'messages';
+  if (pathname.includes('/settings')) return 'settings';
+  if (pathname.endsWith('/projects')) return 'projects';
+  return 'home';
 }
-
-interface ProjectTaskSectionProps {
-  project: Project;
-  tasks: Task[];
-  onToggleTask: (projectId: string, taskId: string, completed: boolean) => void;
-  onOpenTask: (projectId: string, taskId: string) => void;
-}
-
 
 function pluralizeRecipients(count: number): string {
   return `${count} recipient${count === 1 ? '' : 's'}`;
 }
 
-
 function buildDeliverySummaryFromMessageDoc(messageDoc: unknown, mentionsSent: number): NotificationSummary {
-  const doc = (messageDoc && typeof messageDoc == 'object') ? (messageDoc as { mentions?: unknown[] }) : null;
+  const doc = (messageDoc && typeof messageDoc === 'object') ? (messageDoc as { mentions?: unknown[] }) : null;
   const resolvedMentions = Array.isArray(doc?.mentions) ? doc.mentions.length : 0;
   return {
     mentions_requested: mentionsSent,
     mentions_resolved: resolvedMentions,
-    mention_recipients_notified: resolvedMentions,
-    // Backend currently returns message doc without delivery fanout counts.
+    mention_recipients_notified: 0,
     message_recipients_notified: 0,
   };
 }
@@ -110,378 +155,132 @@ function messageDeliveryText(summary: NotificationSummary | undefined, mentionsS
   return 'Message sent';
 }
 
-function TaskRow({ projectId, task, onToggleTask, onOpenTask }: Readonly<TaskRowProps>) {
-  const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
+function activityLabel(action: string) {
+  return action
+    .split('_').join(' ')
+    .replace(/\b\w/g, (char: string) => char.toUpperCase());
+}
 
+function projectProgress(project: ProjectSummary | Project, taskOverride?: readonly Task[]) {
+  if (taskOverride) {
+    const total = taskOverride.length;
+    const completed = taskOverride.filter((task) => task.completed).length;
+    return { total, completed, percent: total ? Math.round((completed / total) * 100) : 0 };
+  }
+  const counts = 'portal_task_counts' in project ? project.portal_task_counts : undefined;
+  const total = counts?.total ?? project.task_total ?? 0;
+  const completed = counts?.completed ?? project.task_completed ?? 0;
+  return { total, completed, percent: total ? Math.round((completed / total) * 100) : 0 };
+}
+
+function statusForTask(task: Task): TaskStatus {
+  return task.completed ? 'completed' : (task.status || 'to_do');
+}
+
+function phaseBadgeClass(phase: string) {
+  switch (phase) {
+    case 'planning':
+      return 'bg-info-soft text-info-strong border-info/20';
+    case 'promotion':
+      return 'bg-warn-soft text-warn-strong border-warn/20';
+    case 'delivery':
+      return 'bg-spoke-soft text-spoke-strong border-spoke/20';
+    case 'follow_up':
+      return 'bg-ownership-partner-soft text-ownership-partner-strong border-ownership-partner/20';
+    default:
+      return 'bg-muted text-foreground/80 border-border';
+  }
+}
+
+function neutralBadgeClass(extra = '') {
+  return cn('bg-muted text-foreground/80 border-border', extra);
+}
+
+function ProgressBar({ percent, label = 'Progress' }: Readonly<{ percent: number; label?: string }>) {
   return (
-    <Card className={cn('p-3 border', task.completed && 'opacity-60')}>
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          onClick={() => onToggleTask(projectId, task.id, task.completed)}
-          aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
-          className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
-        >
-          {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-        </button>
-        <div className="min-w-0 flex-1">
-          <button type="button" onClick={() => onOpenTask(projectId, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
-          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-            <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{formatCalendarDate(task.due_date)}</span>
-            <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
-          </div>
-        </div>
-      </div>
-    </Card>
+    <div
+      className="h-2 w-full rounded-full bg-muted overflow-hidden"
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div className="h-full rounded-full bg-spoke transition-all" style={{ width: `${percent}%` }} />
+    </div>
   );
 }
 
-function ProjectTaskSection({ project, tasks, onToggleTask, onOpenTask }: Readonly<ProjectTaskSectionProps>) {
+function hasPartnerWriteAccess(task: Task) {
+  return task.owner === 'partner' || task.owner === 'both';
+}
+
+function usePortalTasks(token: string, projects: readonly ProjectSummary[] | undefined) {
+  const projectIds = useMemo(() => (projects ?? []).map(project => project.id), [projects]);
+  const key = token && projectIds.length ? ['portal-tasks', token, projectIds.join('|')] : null;
+  const { data, error, isLoading, mutate } = useSWR<Record<string, Task[]>>(
+    key,
+    async () => {
+      const res = await portalAPI.bulkProjectTasks(projectIds, token);
+      const items = (res.data?.items || {}) as Record<string, Task[]>;
+      return Object.fromEntries(projectIds.map(id => [id, items[id] || []]));
+    },
+    { shouldRetryOnError: false },
+  );
+  return {
+    allTasks: data ?? Object.fromEntries(projectIds.map(id => [id, []])),
+    error,
+    isLoading,
+    mutateTasks: mutate,
+  };
+}
+
+function usePortalDocuments(token: string, projects: readonly ProjectSummary[] | undefined) {
+  const projectIds = useMemo(() => (projects ?? []).map(project => project.id), [projects]);
+  const key = token && projectIds.length ? ['portal-documents', token, projectIds.join('|')] : null;
+  const { data, error, isLoading, mutate } = useSWR<Record<string, ProjectDocument[]>>(
+    key,
+    async () => {
+      const entries = await Promise.all(projectIds.map(async (projectId) => {
+        const res = await portalAPI.projectDocuments(projectId, token);
+        return [projectId, (res.data?.items || []) as ProjectDocument[]] as const;
+      }));
+      return Object.fromEntries(entries);
+    },
+    { shouldRetryOnError: false },
+  );
+  return {
+    documents: data ?? Object.fromEntries(projectIds.map(id => [id, []])),
+    error,
+    isLoading,
+    mutateDocuments: mutate,
+  };
+}
+
+function PortalLoading() {
   return (
-    <section>
-      <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
-      <div className="space-y-2">
-        {tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            projectId={project.id}
-            task={task}
-            onToggleTask={onToggleTask}
-            onOpenTask={onOpenTask}
-          />
-        ))}
+    <div
+      className="flex h-screen bg-background overflow-hidden"
+      role="status"
+      aria-label="Loading portal"
+      aria-live="polite"
+    >
+      <div className="hidden md:block w-[260px] border-r border-border bg-card" />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-14 border-b border-border bg-card shrink-0" />
+        <main className="flex-1 flex items-center justify-center">
+          <span className="w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin" />
+        </main>
       </div>
-    </section>
+    </div>
   );
 }
 
-export default function PortalDashboard() {
-  const { token: urlToken } = useParams<{ token: string }>();
-  const token = urlToken || '';
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function PortalRecovery() {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [requestingLink, setRequestingLink] = useState(false);
   const [requestLinkMessage, setRequestLinkMessage] = useState('');
   const [requestLinkError, setRequestLinkError] = useState('');
-
-  const [org, setOrg] = useState<PartnerOrg | null>(null);
-  const [contact, setContact] = useState<PartnerContact | null>(null);
-  const [dashboardData, setDashboardData] = useState<{
-    upcoming_classes: number;
-    open_tasks: number;
-    overdue_tasks: number;
-    classes_hosted: number;
-    projects: Project[];
-  } | null>(null);
-
-  // Tab-specific state
-  const [allTasks, setAllTasks] = useState<Record<string, Task[]>>({});
-  const [tasksStatus, setTasksStatus] = useState<LoadStatus>('idle');
-  const [tasksError, setTasksError] = useState('');
-  const [documents, setDocuments] = useState<Record<string, ProjectDocument[]>>({});
-  const [documentsStatus, setDocumentsStatus] = useState<LoadStatus>('idle');
-  const [documentsError, setDocumentsError] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [messagesStatus, setMessagesStatus] = useState<LoadStatus>('idle');
-  const [msgError, setMsgError] = useState('');
-  const [msgBody, setMsgBody] = useState('');
-  const [msgMentions, setMsgMentions] = useState<Mention[]>([]);
-  const [members, setMembers] = useState<ProjectMember[]>([]);
-  const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
-  const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
-  const [documentActionIds, setDocumentActionIds] = useState<Record<string, boolean>>({});
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [activeProject, setActiveProject] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>('list');
-  const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
-  const [previewingDoc, setPreviewingDoc] = useState<
-    { doc: ProjectDocument; url: string } | null
-  >(null);
-
-  // Portal auth is bearer-token only, so an <iframe> can't load the server
-  // URL directly — fetch the bytes as a blob and hand the dialog an object
-  // URL instead. We revoke on close (or unmount) to free the blob.
-  async function openDocPreview(projectId: string, doc: ProjectDocument) {
-    const key = documentActionKey('preview', projectId, doc.id);
-    if (documentActionIds[key]) return;
-    setPendingKey(setDocumentActionIds, key, true);
-    try {
-      const res = await portalAPI.previewDocument(projectId, doc.id, token);
-      const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
-      const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
-      const url = URL.createObjectURL(blob);
-      setPreviewingDoc({ doc, url });
-    } catch (err) {
-      toast.error(describeApiError(err, "Couldn't load that preview."));
-    } finally {
-      setPendingKey(setDocumentActionIds, key, false);
-    }
-  }
-
-  function closeDocPreview() {
-    if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
-    setPreviewingDoc(null);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
-    };
-  }, [previewingDoc]);
-
-  useEffect(() => {
-    if (!token) { setError(INVALID_PORTAL_LINK_MESSAGE); setLoading(false); return; }
-    (async () => {
-      try {
-        const verifyRes = await portalAPI.verify(token);
-        setOrg(verifyRes.data.org);
-        setContact(verifyRes.data.contact);
-
-        const dashRes = await portalAPI.dashboard(token);
-        setDashboardData(dashRes.data);
-      } catch {
-        sessionStorage.removeItem(LEGACY_PORTAL_TOKEN_KEY);
-        setError(INVALID_PORTAL_LINK_MESSAGE);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [token]);
-
-  const loadTasks = async () => {
-    if (!token || !dashboardData?.projects) return;
-    setTasksStatus('loading');
-    setTasksError('');
-    // Single bulk request instead of N parallel /tasks calls. Backend
-    // groups tasks by project_id and authz-clamps to projects this token
-    // actually owns.
-    const projectIds = dashboardData.projects.map(p => p.id);
-    try {
-      const res = await portalAPI.bulkProjectTasks(projectIds, token);
-      const items = (res.data?.items || {}) as Record<string, Task[]>;
-      // Make sure every project has an entry, even if it has no tasks.
-      const filled: Record<string, Task[]> = {};
-      projectIds.forEach(id => { filled[id] = items[id] || []; });
-      setAllTasks(filled);
-      setTasksStatus('ready');
-    } catch (err) {
-      setTasksError(describeApiError(err, "We couldn't load your tasks."));
-      setTasksStatus('error');
-    }
-  };
-
-  const loadDocuments = async () => {
-    if (!token || !dashboardData?.projects) return;
-    setDocumentsStatus('loading');
-    setDocumentsError('');
-    try {
-      const results = await Promise.all(
-        dashboardData.projects.map(async (p) => {
-          const res = await portalAPI.projectDocuments(p.id, token);
-          return [p.id, res.data.items || []] as const;
-        })
-      );
-      setDocuments(Object.fromEntries(results));
-      setDocumentsStatus('ready');
-    } catch (err) {
-      setDocumentsError(describeApiError(err, "We couldn't load shared documents."));
-      setDocumentsStatus('error');
-    }
-  };
-
-  const loadMessages = async (projectId: string) => {
-    if (!token) return;
-    setMessagesStatus('loading');
-    setMsgError('');
-    try {
-      const res = await portalAPI.projectMessages(projectId, token);
-      setMessages(res.data.items || []);
-      setActiveProject(projectId);
-      // Refresh the mentionable roster alongside messages so switching
-      // project tabs always updates the @ popover to the correct set.
-      try {
-        const mem = await portalAPI.projectMembers(projectId, token);
-        setMembers(mem.data?.items ?? []);
-      } catch {
-        setMembers([]);
-      }
-      setMessagesStatus('ready');
-    } catch (err) {
-      setMsgError(describeApiError(err, "We couldn't load messages for this project."));
-      setMessagesStatus('error');
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'tasks') loadTasks();
-    if (activeTab === 'documents') loadDocuments();
-    if (activeTab === 'messages' && dashboardData?.projects?.[0]) {
-      loadMessages(dashboardData.projects[0].id);
-    }
-  }, [activeTab, dashboardData]);
-
-  const handleToggleTask = async (projectId: string, taskId: string, completed: boolean) => {
-    if (!token) return;
-    const key = taskActionKey(projectId, taskId);
-    if (pendingTaskIds[key]) return;
-    setPendingKey(setPendingTaskIds, key, true);
-    try {
-      await portalAPI.updateTask(projectId, taskId, token, { completed: !completed });
-      await loadTasks();
-      toast.success('Task updated', {
-        action: {
-          label: 'Undo',
-          onClick: async () => {
-            try {
-              await portalAPI.updateTask(projectId, taskId, token, { completed });
-              await loadTasks();
-              toast.success('Task reverted');
-            } catch {
-              toast.error('Failed to undo');
-            }
-          },
-        },
-        duration: 5000,
-      });
-    } catch {
-      toast.error('Failed to update task');
-    } finally {
-      setPendingKey(setPendingTaskIds, key, false);
-    }
-  };
-
-
-  const handleMoveTask = async (projectId: string, task: Task, status: TaskStatus) => {
-    if (!token) return { ok: false, message: 'Missing portal session.' };
-    const key = taskActionKey(projectId, task.id);
-    if (pendingTaskIds[key]) return { ok: false, message: 'That task update is still saving.' };
-    setPendingKey(setPendingTaskIds, key, true);
-    // Keep partner permissions conservative: if backend rejects a phase/status
-    // update, preserve source-of-truth and explain inline.
-    try {
-      await portalAPI.updateTask(projectId, task.id, token, {
-        status,
-        completed: status === 'completed',
-      });
-      await loadTasks();
-      return { ok: true };
-    } catch (err) {
-      const message = describeApiError(err, 'You do not have permission to move that task to this status.');
-      toast.error(message);
-      return { ok: false, message };
-    } finally {
-      setPendingKey(setPendingTaskIds, key, false);
-    }
-  };
-
-
-  const visibleProjects = useMemo(() => {
-    if (!dashboardData?.projects) return [];
-    return selectedProjectId === 'all'
-      ? dashboardData.projects
-      : dashboardData.projects.filter((p) => p.id === selectedProjectId);
-  }, [dashboardData, selectedProjectId]);
-
-  const openTaskDetail = (projectId: string, taskId: string) => {
-    setSelectedTask({ projectId, taskId });
-  };
-
-  const closeTaskDetail = () => {
-    setSelectedTask(null);
-  };
-
-  const visibleTaskCount = visibleProjects.reduce((count, project) => count + (allTasks[project.id] || []).length, 0);
-
-  const renderProjectFilter = (selectId: string) => (
-    <div className="flex items-center gap-2">
-      <label htmlFor={selectId} className="text-sm text-foreground/80">Project</label>
-      <select
-        id={selectId}
-        value={selectedProjectId}
-        onChange={(e) => setSelectedProjectId(e.target.value)}
-        className="border border-border rounded-md px-2 py-1 text-sm bg-background"
-      >
-        <option value="all">All projects</option>
-        {dashboardData?.projects.map((project) => (
-          <option key={project.id} value={project.id}>{project.title}</option>
-        ))}
-      </select>
-    </div>
-  );
-
-  const renderTaskCard = (projectId: string, task: Task) => {
-    const isOverdue = !task.completed && isPastCalendarDate(task.due_date);
-    const isTaskPending = !!pendingTaskIds[taskActionKey(projectId, task.id)];
-    return (
-      <Card key={task.id} className={cn('p-3 border', task.completed && 'opacity-60')}>
-        <div className="flex items-start gap-2">
-          <button
-            type="button"
-            onClick={() => handleToggleTask(projectId, task.id, task.completed)}
-            disabled={isTaskPending}
-            aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
-            className={cn('mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50', task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub')}
-          >
-            {task.completed && <span className="text-xs" aria-hidden="true">&#10003;</span>}
-          </button>
-          <div className="min-w-0 flex-1">
-            <button type="button" onClick={() => openTaskDetail(projectId, task.id)} className={cn('text-sm font-medium text-left hover:underline w-full', task.completed && 'line-through text-muted-foreground')}>{task.title}</button>
-            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-              <span className={cn('text-[11px]', isOverdue ? 'text-danger-strong font-semibold' : 'text-muted-foreground')}>{formatCalendarDate(task.due_date)}</span>
-              <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>{OWNER_LABELS[task.owner]}</Badge>
-            </div>
-          </div>
-        </div>
-      </Card>
-    );
-  };
-
-  const renderProjectTasks = (project: Project) => {
-    const tasks = allTasks[project.id] || [];
-    if (tasks.length === 0) return null;
-    return (
-      <section key={project.id}>
-        <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
-        <div className="space-y-2">
-          {tasks.map((task) => renderTaskCard(project.id, task))}
-        </div>
-      </section>
-    );
-  };
-
-  const renderTaskList = () => (
-    <div className="space-y-4">{visibleProjects.map(renderProjectTasks)}</div>
-  );
-
-  const handleSendMessage = async () => {
-    if (!token || !activeProject || !msgBody.trim() || sendingMessage) return;
-    setSendingMessage(true);
-    try {
-      const project = dashboardData?.projects.find(p => p.id === activeProject);
-      const res = await portalAPI.sendMessage(activeProject, token, {
-        channel: project?.title || 'general',
-        body: msgBody.trim(),
-        mentions: msgMentions,
-      });
-      const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
-      const fallbackSummary = buildDeliverySummaryFromMessageDoc(res.data, msgMentions.length);
-      const resolvedSummary = notificationSummary || fallbackSummary;
-      setLastDeliverySummary(resolvedSummary);
-      toast.success(messageDeliveryText(resolvedSummary, msgMentions.length));
-      setMsgBody('');
-      setMsgMentions([]);
-      loadMessages(activeProject);
-    } catch {
-      setLastDeliverySummary(null);
-      toast.error('Failed to send message');
-    } finally {
-      setSendingMessage(false);
-    }
-  };
 
   const handleRequestLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -501,437 +300,1439 @@ export default function PortalDashboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
-        <output aria-label="Loading portal">
-          <span className="block w-10 h-10 border-4 border-hub border-t-transparent rounded-full animate-spin" />
-        </output>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
+      <Card className="p-6 sm:p-8 w-full max-w-md" role="alert" data-testid="portal-recovery">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full bg-warn-soft flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-6 h-6 text-warn-strong" aria-hidden="true" />
+          </div>
+          <p className="text-xs uppercase text-foreground/60 font-semibold mb-1">
+            HubSpoke Partner Portal
+          </p>
+          <h2 className="text-xl font-semibold mb-2">Request a new portal link</h2>
+          <p className="text-sm text-foreground/80">{INVALID_PORTAL_LINK_MESSAGE}</p>
+        </div>
+
+        <form className="mt-6 space-y-3" onSubmit={handleRequestLink}>
+          <label htmlFor="portal-recovery-email" className="text-sm font-medium text-foreground">
+            Email address
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              id="portal-recovery-email"
+              type="email"
+              autoComplete="email"
+              value={recoveryEmail}
+              onChange={(event) => {
+                setRecoveryEmail(event.target.value);
+                setRequestLinkError('');
+                setRequestLinkMessage('');
+              }}
+              placeholder="name@example.com"
+              className="min-w-0"
+            />
+            <Button
+              type="submit"
+              disabled={requestingLink || !recoveryEmail.trim()}
+              className="shrink-0"
+            >
+              <Mail className="w-4 h-4 mr-2" aria-hidden="true" />
+              {requestingLink ? 'Sending...' : 'Send new link'}
+            </Button>
+          </div>
+          {requestLinkMessage && (
+            <output className="text-sm text-spoke-strong block" aria-live="polite" aria-atomic="true">
+              {requestLinkMessage}
+            </output>
+          )}
+          {requestLinkError && (
+            <p className="text-sm text-warn-strong" role="alert">
+              {requestLinkError}
+            </p>
+          )}
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  icon,
+  tone = 'hub',
+  detail,
+}: Readonly<{
+  label: string;
+  value: number;
+  icon: ReactNode;
+  tone?: 'hub' | 'spoke' | 'warn';
+  detail?: ReactNode;
+}>) {
+  const toneClasses = {
+    hub: 'bg-hub-soft text-hub-strong',
+    spoke: 'bg-spoke-soft text-spoke-strong',
+    warn: 'bg-warn-soft text-warn-strong',
+  };
+  return (
+    <Card className="p-4 flex items-center gap-3 border" data-testid={`portal-metric-${label.toLowerCase().split(' ').join('-')}`}>
+      <div className={cn('h-10 w-10 rounded-lg flex items-center justify-center shrink-0', toneClasses[tone])}>
+        {icon}
       </div>
+      <div className="min-w-0">
+        <p className="text-2xl font-bold text-foreground">{value}</p>
+        <p className="text-xs text-foreground/80">{label}</p>
+        {detail && <div className="mt-1 text-xs text-muted-foreground">{detail}</div>}
+      </div>
+    </Card>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+  icon,
+}: Readonly<{
+  title: string;
+  description: string;
+  icon?: ReactNode;
+}>) {
+  return (
+    <Card className="p-8 text-center" data-testid="portal-empty-state">
+      <div className="mb-3 flex justify-center text-muted-foreground">
+        {icon ?? <Inbox className="w-10 h-10" aria-hidden="true" />}
+      </div>
+      <p className="font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">{description}</p>
+    </Card>
+  );
+}
+
+function ProjectCard({
+  project,
+  onOpen,
+}: Readonly<{
+  project: ProjectSummary;
+  onOpen: () => void;
+}>) {
+  const progress = projectProgress(project);
+  const overdue = project.portal_task_counts?.overdue ?? project.partner_overdue ?? 0;
+  return (
+    <Card className="border hover:shadow-md transition-shadow" data-testid={`portal-project-card-${project.id}`}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full p-4 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-2"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', PHASE_DOT_COLORS[project.phase])} aria-hidden="true" />
+              <h3 className="font-semibold text-foreground line-clamp-2">{project.title}</h3>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatCalendarDate(project.event_date)} - {project.venue_name}
+            </p>
+            <p className="text-xs text-muted-foreground">{project.community}</p>
+          </div>
+          {overdue > 0 && (
+            <Badge className="bg-warn-soft text-warn-strong border-0 shrink-0">
+              {overdue} overdue
+            </Badge>
+          )}
+        </div>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <Badge className={neutralBadgeClass('text-[10px] px-1.5')}>
+            {EVENT_FORMAT_LABELS[project.event_format] || project.event_format}
+          </Badge>
+          <Badge className={cn('text-[10px] px-1.5', phaseBadgeClass(project.phase))}>
+            {PHASE_LABELS[project.phase]}
+          </Badge>
+        </div>
+        <div className="mt-4">
+          <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+            <span>{progress.completed}/{progress.total} tasks</span>
+            <span>{progress.percent}%</span>
+          </div>
+          <ProgressBar percent={progress.percent} label={`${project.title} progress`} />
+        </div>
+      </button>
+    </Card>
+  );
+}
+
+function ActivityList({
+  events,
+  emptyTitle = 'No recent activity',
+}: Readonly<{
+  events: readonly PortalActivityEvent[];
+  emptyTitle?: string;
+}>) {
+  if (!events.length) {
+    return (
+      <EmptyState
+        title={emptyTitle}
+        description="Shared task, document, and message updates will appear here."
+        icon={<Bell className="w-10 h-10" aria-hidden="true" />}
+      />
     );
   }
-
-  if (error || !org || !contact) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
-        <Card className="p-6 sm:p-8 w-full max-w-md" role="alert">
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-full bg-warn-soft flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6 text-warn-strong" aria-hidden="true" />
-            </div>
-            <p className="text-xs uppercase text-foreground/60 font-semibold mb-1">
-              HubSpoke Partner Portal
-            </p>
-            <h2 className="text-xl font-semibold mb-2">Request a new portal link</h2>
-            <p className="text-sm text-foreground/80">{error || INVALID_PORTAL_LINK_MESSAGE}</p>
+  return (
+    <Card className="divide-y divide-border" data-testid="portal-activity-list">
+      {events.map((event) => (
+        <div key={event.id} className="p-4 flex items-start gap-3">
+          <div className="h-8 w-8 rounded-lg bg-hub-soft text-hub-strong flex items-center justify-center shrink-0">
+            <Bell className="h-4 w-4" aria-hidden="true" />
           </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">{event.title || activityLabel(event.action)}</p>
+            {event.body && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{event.body}</p>}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {event.actor_name} - {formatCalendarDate(event.created_at)}
+            </p>
+          </div>
+          <Badge className={neutralBadgeClass('text-[10px] shrink-0')}>
+            {activityLabel(event.action)}
+          </Badge>
+        </div>
+      ))}
+    </Card>
+  );
+}
 
-          <form className="mt-6 space-y-3" onSubmit={handleRequestLink}>
-            <label htmlFor="portal-recovery-email" className="text-sm font-medium text-foreground">
-              Email address
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Input
-                id="portal-recovery-email"
-                type="email"
-                autoComplete="email"
-                value={recoveryEmail}
-                onChange={(event) => {
-                  setRecoveryEmail(event.target.value);
-                  setRequestLinkError('');
-                  setRequestLinkMessage('');
-                }}
-                placeholder="name@example.com"
-                className="min-w-0"
-              />
-              <Button
-                type="submit"
-                disabled={requestingLink || !recoveryEmail.trim()}
-                className="shrink-0"
-              >
-                <Mail className="w-4 h-4 mr-2" aria-hidden="true" />
-                {requestingLink ? 'Sending...' : 'Send new link'}
-              </Button>
-            </div>
-            {requestLinkMessage && (
-              <output className="text-sm text-spoke-strong block" aria-live="polite" aria-atomic="true">
-                {requestLinkMessage}
-              </output>
+function TaskCard({
+  task,
+  project,
+  pending,
+  onToggle,
+  onOpen,
+}: Readonly<{
+  task: Task;
+  project?: Project | ProjectSummary;
+  pending: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}>) {
+  const overdue = !task.completed && isPastCalendarDate(task.due_date);
+  const status = statusForTask(task);
+  return (
+    <Card className={cn('p-3 border', task.completed && 'opacity-65', overdue && 'border-warn/60')} data-testid={`portal-task-card-${task.id}`}>
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={pending || !hasPartnerWriteAccess(task)}
+          aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+          className={cn(
+            'mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            task.completed ? 'bg-spoke border-spoke text-white' : 'border-border hover:border-hub',
+          )}
+        >
+          {task.completed && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={onOpen}
+            className={cn(
+              'w-full text-left text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub rounded',
+              task.completed && 'line-through text-muted-foreground',
             )}
-            {requestLinkError && (
-              <p className="text-sm text-warn-strong" role="alert">
-                {requestLinkError}
-              </p>
+          >
+            {task.title}
+          </button>
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className={cn('text-[11px]', overdue ? 'text-warn-strong font-semibold' : 'text-muted-foreground')}>
+              {formatCalendarDate(task.due_date)}
+            </span>
+            <Badge className={cn('text-[10px] px-1.5', OWNER_COLORS[task.owner])}>
+              {OWNER_LABELS[task.owner]}
+            </Badge>
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className={cn('h-2 w-2 rounded-full', TASK_STATUS_COLORS[status])} aria-hidden="true" />
+              {TASK_STATUS_LABELS[status]}
+            </span>
+            {project && <span className="text-[11px] text-muted-foreground truncate max-w-[16rem]">{project.title}</span>}
+            {(task.attachment_count ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Paperclip className="h-3 w-3" aria-hidden="true" />
+                {task.attachment_count}
+              </span>
             )}
-          </form>
-        </Card>
+            {(task.comment_count ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <MessageSquare className="h-3 w-3" aria-hidden="true" />
+                {task.comment_count}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
+    </Card>
+  );
+}
+
+function TaskList({
+  tasks,
+  projectsById,
+  pendingTaskIds,
+  onToggleTask,
+  onOpenTask,
+}: Readonly<{
+  tasks: readonly Task[];
+  projectsById: Record<string, Project | ProjectSummary>;
+  pendingTaskIds: Record<string, boolean>;
+  onToggleTask: (projectId: string, task: Task) => void;
+  onOpenTask: (projectId: string, taskId: string) => void;
+}>) {
+  if (!tasks.length) {
+    return (
+      <EmptyState
+        title="No tasks assigned to you"
+        description="Partner-visible tasks will show here as each project moves forward."
+        icon={<CheckSquare className="w-10 h-10" aria-hidden="true" />}
+      />
     );
   }
 
   return (
-    <PortalLayout org={org} contact={contact} activeTab={activeTab} onTabChange={setActiveTab} token={token}>
-      {/* Overview Tab */}
-      {activeTab === 'overview' && dashboardData && (
-        <div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
-            <Card className="p-4 flex items-center gap-3">
-              <CalendarDays className="w-8 h-8 text-hub shrink-0" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-2xl font-bold">{dashboardData.upcoming_classes}</p>
-                <p className="text-xs text-foreground/80">Upcoming Classes</p>
-              </div>
-            </Card>
-            <Card className="p-4 flex items-center gap-3">
-              <CheckSquare
-                className={cn('w-8 h-8 shrink-0', dashboardData.overdue_tasks > 0 ? 'text-warn-strong' : 'text-spoke-strong')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-2xl font-bold">
-                  {dashboardData.open_tasks}
-                  {dashboardData.overdue_tasks > 0 && (
-                    <span className="text-xs text-warn-strong ml-1">({dashboardData.overdue_tasks} overdue)</span>
-                  )}
-                </p>
-                <p className="text-xs text-foreground/80">Open Tasks</p>
-              </div>
-            </Card>
-            <Card className="p-4 flex items-center gap-3 sm:col-span-2 lg:col-span-1">
-              <GraduationCap className="w-8 h-8 text-spoke-strong shrink-0" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-2xl font-bold">{dashboardData.classes_hosted}</p>
-                <p className="text-xs text-foreground/80">Classes Hosted</p>
-              </div>
-            </Card>
-          </div>
-
-          <h2 className="text-lg font-semibold mb-3">Upcoming Classes</h2>
-          <div className="space-y-3">
-            {dashboardData.projects.map(project => (
-              <Card key={project.id} className="p-4 cursor-pointer hover:shadow-sm" onClick={() => navigate(`/portal/${token}/projects/${project.id}`)}>
-                <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', PHASE_DOT_COLORS[project.phase])} aria-hidden="true" />
-                      <h3 className="font-semibold text-foreground min-w-0">
-                        {project.title}
-                      </h3>
-                    </div>
-                  </div>
-                  <Badge className={cn('text-[10px] shrink-0', PHASE_COLORS[project.phase], 'text-white')}>
-                    {PHASE_LABELS[project.phase]}
-                  </Badge>
-                </div>
-                <p className="text-sm text-foreground/80">
-                  {formatCalendarDate(project.event_date)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project.venue_name || 'Venue TBD'}
-                </p>
-              </Card>
-            ))}
-            {dashboardData.projects.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No upcoming classes</p>
-            )}
-          </div>
-          {lastDeliverySummary && (
-            <Card className="mt-3 p-3 bg-muted/40">
-              <p className="text-xs text-muted-foreground">Last delivery</p>
-              <p className="text-sm text-foreground">
-                Message notifications delivered: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
-              </p>
-              <p className="text-sm text-foreground">
-                Mentions resolved/notified: {(lastDeliverySummary.mentions_resolved ?? 0)} / {(lastDeliverySummary.mentions_requested ?? 0)}
-              </p>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* Tasks Tab */}
-      {activeTab === 'tasks' && dashboardData && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            {renderProjectFilter('portal-task-project-filter')}
-            <div className="inline-flex rounded-md border border-border bg-background p-0.5" aria-label="Task view">
-              <button type="button" onClick={() => setTaskViewMode('list')} aria-pressed={taskViewMode === 'list'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'list' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><List className="w-4 h-4" aria-hidden="true" />List</button>
-              <button type="button" onClick={() => setTaskViewMode('kanban')} aria-pressed={taskViewMode === 'kanban'} className={cn('inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm transition-colors', taskViewMode === 'kanban' ? 'bg-hub-soft text-hub-strong' : 'text-foreground/80 hover:bg-muted')}><Columns3 className="w-4 h-4" aria-hidden="true" />Board</button>
-            </div>
-          </div>
-
-          {tasksStatus === 'loading' && (
-            <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
-              Loading tasks...
-            </output>
-          )}
-          {tasksStatus === 'error' && (
-            <Card className="p-4 border-danger/30 bg-danger-soft/20" role="alert">
-              <p className="text-sm font-medium text-danger-strong">Tasks could not be loaded.</p>
-              <p className="text-sm text-foreground/80 mt-1">{tasksError}</p>
-              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadTasks}>
-                Retry tasks
-              </Button>
-            </Card>
-          )}
-          {tasksStatus === 'ready' && (
-            taskViewMode === 'list' ? renderTaskList() : (
-              <PortalTaskBoard
-                projects={visibleProjects}
-                allTasks={allTasks as Record<string, Task[]>}
-                onOpenTask={openTaskDetail}
-                onMoveTask={handleMoveTask}
-              />
-            )
-          )}
-          {tasksStatus === 'ready' && visibleTaskCount === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned to you</p>
-          )}
-        </div>
-      )}
-
-      {selectedTask && (
-        <PortalTaskDetailModal
-          open={!!selectedTask}
-          onOpenChange={(open) => { if (!open) closeTaskDetail(); }}
-          projectId={selectedTask.projectId}
-          taskId={selectedTask.taskId}
-          token={token}
-          onRefresh={loadTasks}
+    <div className="space-y-2" data-testid="portal-task-list">
+      {tasks.map((task) => (
+        <TaskCard
+          key={task.id}
+          task={task}
+          project={projectsById[task.project_id]}
+          pending={!!pendingTaskIds[taskActionKey(task.project_id, task.id)]}
+          onToggle={() => onToggleTask(task.project_id, task)}
+          onOpen={() => onOpenTask(task.project_id, task.id)}
         />
-      )}
+      ))}
+    </div>
+  );
+}
 
-      {/* Documents Tab */}
-      {activeTab === 'documents' && dashboardData && (
-        <div className="space-y-6">
-          {renderProjectFilter('portal-document-project-filter')}
-          {documentsStatus === 'loading' && (
-            <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
-              Loading shared documents...
-            </output>
-          )}
-          {documentsStatus === 'error' && (
-            <Card className="p-4 border-danger/30 bg-danger-soft/20" role="alert">
-              <p className="text-sm font-medium text-danger-strong">Documents could not be loaded.</p>
-              <p className="text-sm text-foreground/80 mt-1">{documentsError}</p>
-              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadDocuments}>
-                Retry documents
-              </Button>
-            </Card>
-          )}
-          {documentsStatus === 'ready' && visibleProjects.map(project => {
-            const docs = documents[project.id] || [];
-            if (docs.length === 0) return null;
-            return (
-              <div key={project.id}>
-                <h3 className="font-semibold text-foreground mb-2">{project.title}</h3>
-                <div className="space-y-2">
-                  {docs.map(doc => (
-                    <Card key={doc.id} className="p-3 flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{doc.filename}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {doc.file_type.toUpperCase()} &middot; {new Date(doc.uploaded_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px]">{doc.file_type.toUpperCase()}</Badge>
-                      {canPreview(doc.file_type) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openDocPreview(project.id, doc)}
-                          disabled={!!documentActionIds[documentActionKey('preview', project.id, doc.id)]}
-                          className="shrink-0"
-                          aria-label={`Preview ${doc.filename}`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          const key = documentActionKey('download', project.id, doc.id);
-                          if (documentActionIds[key]) return;
-                          setPendingKey(setDocumentActionIds, key, true);
-                          try {
-                            const res = await portalAPI.downloadDocument(project.id, doc.id, token);
-                            const blob = new Blob([res.data]);
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = doc.filename;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          } catch (err) {
-                            toast.error(describeApiError(err, 'Download failed'));
-                          } finally {
-                            setPendingKey(setDocumentActionIds, key, false);
-                          }
-                        }}
-                        disabled={!!documentActionIds[documentActionKey('download', project.id, doc.id)]}
-                        className="shrink-0"
-                        aria-label={`Download ${doc.filename}`}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {documentsStatus === 'ready' && visibleProjects.every((project) => (documents[project.id] || []).length === 0) && (
-            <p className="text-sm text-muted-foreground text-center py-8">No shared documents</p>
-          )}
-        </div>
-      )}
+function TaskDetailLauncher({
+  selectedTask,
+  token,
+  onClose,
+  onRefresh,
+}: Readonly<{
+  selectedTask: { projectId: string; taskId: string } | null;
+  token: string;
+  onClose: () => void;
+  onRefresh: () => Promise<void> | void;
+}>) {
+  if (!selectedTask) return null;
+  return (
+    <PortalTaskDetailModal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      projectId={selectedTask.projectId}
+      taskId={selectedTask.taskId}
+      token={token}
+      onRefresh={onRefresh}
+    />
+  );
+}
 
-      {/* Messages Tab */}
-      {activeTab === 'messages' && dashboardData && (
-        <div>
-          {/* Channel switcher */}
-          <div className="flex gap-2 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Message channels">
-            {dashboardData.projects.map(project => (
-              <button
-                key={project.id}
-                type="button"
-                role="tab"
-                aria-selected={activeProject === project.id}
-                disabled={messagesStatus === 'loading' && activeProject === project.id}
-                onClick={() => loadMessages(project.id)}
-                className={cn(
-                  'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors shrink-0 disabled:cursor-not-allowed disabled:opacity-60',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hub focus-visible:ring-offset-1',
-                  activeProject === project.id
-                    ? 'bg-hub-soft text-hub-strong'
-                    : 'bg-muted text-foreground/80 hover:bg-muted',
-                )}
-              >
-                {project.title}
-              </button>
-            ))}
-          </div>
+function TaskControls({
+  projectOptions,
+  projectFilter,
+  statusFilter,
+  viewMode,
+  onProjectFilter,
+  onStatusFilter,
+  onViewMode,
+}: Readonly<{
+  projectOptions: { value: string; label: string }[];
+  projectFilter: string;
+  statusFilter: string;
+  viewMode: TaskViewMode;
+  onProjectFilter: (value: string) => void;
+  onStatusFilter: (value: string) => void;
+  onViewMode: (value: TaskViewMode) => void;
+}>) {
+  const statusOptions = [
+    { value: ALL_STATUSES, label: 'All statuses' },
+    { value: OVERDUE_ONLY, label: 'Overdue' },
+    ...TASK_STATUSES.map(status => ({ value: status, label: TASK_STATUS_LABELS[status] })),
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-3" data-testid="portal-task-controls">
+      <div className="w-full sm:w-56">
+        <SearchableSelect
+          id="portal-task-project-filter"
+          options={projectOptions}
+          value={projectFilter}
+          onValueChange={(value) => onProjectFilter(value || ALL_PROJECTS)}
+          placeholder="Project"
+          searchPlaceholder="Search projects..."
+        />
+      </div>
+      <div className="w-full sm:w-44">
+        <SearchableSelect
+          id="portal-task-status-filter"
+          options={statusOptions}
+          value={statusFilter}
+          onValueChange={(value) => onStatusFilter(value || ALL_STATUSES)}
+          placeholder="Status"
+          searchPlaceholder="Search statuses..."
+        />
+      </div>
+      <div className="ml-auto inline-flex rounded-lg border border-border bg-card p-1">
+        <Button
+          type="button"
+          variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => onViewMode('list')}
+          aria-pressed={viewMode === 'list'}
+        >
+          <List className="h-4 w-4 mr-1" aria-hidden="true" />
+          List
+        </Button>
+        <Button
+          type="button"
+          variant={viewMode === 'board' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => onViewMode('board')}
+          aria-pressed={viewMode === 'board'}
+        >
+          <Columns3 className="h-4 w-4 mr-1" aria-hidden="true" />
+          Board
+        </Button>
+      </div>
+    </div>
+  );
+}
 
-          {/* Messages */}
-          <Card className="p-4 mb-3 max-h-96 overflow-y-auto">
-            {messagesStatus === 'loading' ? (
-              <output className="block text-sm text-muted-foreground text-center py-8" aria-live="polite">
-                Loading messages...
-              </output>
-            ) : messagesStatus === 'error' ? (
-              <div role="alert" className="text-center py-6">
-                <p className="text-sm font-medium text-danger-strong">Messages could not be loaded.</p>
-                <p className="text-sm text-foreground/80 mt-1">{msgError}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => loadMessages(activeProject || dashboardData.projects[0]?.id || '')}
-                  disabled={!activeProject && dashboardData.projects.length === 0}
-                >
-                  Retry messages
-                </Button>
-              </div>
-            ) : dashboardData.projects.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No message channels available yet</p>
-            ) : messages.length > 0 ? (
-              <div className="space-y-3">
-                {messages.map(msg => (
-                  <div key={msg.id} className="flex gap-3">
-                    <div
-                      className={cn(
-                        'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0',
-                        msg.sender_type === 'partner'
-                          ? 'bg-ownership-partner-soft text-ownership-partner-strong'
-                          : 'bg-ownership-internal-soft text-ownership-internal-strong',
-                      )}
-                      aria-hidden="true"
-                    >
-                      {msg.sender_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-sm font-medium">{msg.sender_name}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {new Date(msg.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground dark:text-muted-foreground mt-0.5 break-words">
-                        {renderMentionBody(msg.body, msg.mentions)}
-                      </p>
-                    </div>
+function DocumentList({
+  token,
+  projects,
+  documentsByProject,
+  orgDocuments = [],
+  onUploaded,
+}: Readonly<{
+  token: string;
+  projects: readonly (Project | ProjectSummary)[];
+  documentsByProject: Record<string, ProjectDocument[]>;
+  orgDocuments?: readonly ProjectDocument[];
+  onUploaded: () => Promise<void> | void;
+}>) {
+  const [documentActionIds, setDocumentActionIds] = useState<Record<string, boolean>>({});
+  const [previewingDoc, setPreviewingDoc] = useState<PreviewState | null>(null);
+  const [uploadingProjectId, setUploadingProjectId] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+    };
+  }, [previewingDoc]);
+
+  const openPreview = async (projectId: string, doc: ProjectDocument) => {
+    const key = documentActionKey('preview', projectId, doc.id);
+    if (documentActionIds[key]) return;
+    setPendingKey(setDocumentActionIds, key, true);
+    try {
+      const res = await portalAPI.previewDocument(projectId, doc.id, token);
+      const contentType = (res.headers?.['content-type'] as string | undefined) ?? '';
+      const blob = new Blob([res.data], contentType ? { type: contentType } : undefined);
+      setPreviewingDoc({ doc, url: URL.createObjectURL(blob) });
+    } catch (err) {
+      toast.error(describeApiError(err, "Couldn't load that preview."));
+    } finally {
+      setPendingKey(setDocumentActionIds, key, false);
+    }
+  };
+
+  const downloadDocument = async (projectId: string, doc: ProjectDocument) => {
+    const key = documentActionKey('download', projectId, doc.id);
+    if (documentActionIds[key]) return;
+    setPendingKey(setDocumentActionIds, key, true);
+    try {
+      const res = await portalAPI.downloadDocument(projectId, doc.id, token);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(describeApiError(err, 'Download failed'));
+    } finally {
+      setPendingKey(setDocumentActionIds, key, false);
+    }
+  };
+
+  const uploadDocument = async (projectId: string, file?: File) => {
+    if (!file || uploadingProjectId) return;
+    setUploadingProjectId(projectId);
+    try {
+      await portalAPI.uploadDocument(projectId, token, file);
+      toast.success('Document uploaded');
+      await onUploaded();
+    } catch (err) {
+      toast.error(describeApiError(err, 'Upload failed'));
+    } finally {
+      setUploadingProjectId('');
+    }
+  };
+
+  const hasProjectDocs = projects.some(project => (documentsByProject[project.id] || []).length > 0);
+  const hasDocs = orgDocuments.length > 0 || hasProjectDocs || projects.length > 0;
+
+  return (
+    <>
+      <div className="space-y-4" data-testid="portal-document-list">
+        {orgDocuments.length > 0 && (
+          <Card className="p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-hub" aria-hidden="true" />
+              <h3 className="text-sm font-semibold">Organization documents</h3>
+            </div>
+            <div className="divide-y divide-border">
+              {orgDocuments.map((doc) => (
+                <div key={doc.id} className="py-3 flex items-center gap-3">
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{doc.filename}</p>
+                    <p className="text-xs text-muted-foreground">Shared with your organization</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">No messages yet</p>
-            )}
+                  <Badge className={neutralBadgeClass('text-[10px]')}>Org</Badge>
+                </div>
+              ))}
+            </div>
           </Card>
+        )}
 
-          {/* Input */}
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-white dark:bg-card px-3 py-1">
-            <label htmlFor="portal-message-input" className="sr-only">Message</label>
-            <MentionTextarea
-              id="portal-message-input"
-              value={msgBody}
-              mentions={msgMentions}
-              members={members}
-              onChange={(b, m) => { setMsgBody(b); setMsgMentions(m); }}
-              onSubmit={handleSendMessage}
-              disabled={sendingMessage || messagesStatus === 'loading' || !activeProject}
-              aria-label="Message"
-              placeholder="Type a message — @ to mention..."
-            />
-            <Button
-              type="button"
-              onClick={handleSendMessage}
-              disabled={sendingMessage || !msgBody.trim() || !activeProject}
-              aria-label="Send message"
-              className="bg-hub hover:bg-hub/90 text-white px-4 shrink-0"
+        {projects.map((project) => {
+          const docs = documentsByProject[project.id] || [];
+          return (
+            <Card key={project.id} className="p-4">
+              <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold truncate">{project.title}</h3>
+                  <p className="text-xs text-muted-foreground">{docs.length} shared document{docs.length === 1 ? '' : 's'}</p>
+                </div>
+                <label className={cn('inline-flex', uploadingProjectId === project.id && 'opacity-60')}>
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={!!uploadingProjectId}
+                    onChange={(event) => {
+                      const input = event.currentTarget;
+                      void uploadDocument(project.id, input.files?.[0]).finally(() => {
+                        input.value = '';
+                      });
+                    }}
+                  />
+                  <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm font-medium hover:bg-muted cursor-pointer">
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    {uploadingProjectId === project.id ? 'Uploading...' : 'Upload'}
+                  </span>
+                </label>
+              </div>
+
+              {docs.length === 0 ? (
+                <p className="py-4 text-sm text-muted-foreground">No shared documents</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {docs.map((doc) => {
+                    const previewKey = documentActionKey('preview', project.id, doc.id);
+                    const downloadKey = documentActionKey('download', project.id, doc.id);
+                    return (
+                      <div key={doc.id} className="py-3 flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{doc.filename}</p>
+                          <p className="text-xs text-muted-foreground">Version {doc.version} - {formatCalendarDate(doc.uploaded_at)}</p>
+                        </div>
+                        {canPreview(doc.file_type) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void openPreview(project.id, doc)}
+                            disabled={!!documentActionIds[previewKey]}
+                            aria-label={`Preview ${doc.filename}`}
+                          >
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void downloadDocument(project.id, doc)}
+                          disabled={!!documentActionIds[downloadKey]}
+                          aria-label={`Download ${doc.filename}`}
+                        >
+                          <Download className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+
+        {!hasDocs && (
+          <EmptyState
+            title="No shared documents"
+            description="Documents shared by the HubSpoke team or uploaded by your organization will appear here."
+            icon={<FileText className="w-10 h-10" aria-hidden="true" />}
+          />
+        )}
+      </div>
+
+      <AttachmentPreviewDialog
+        open={!!previewingDoc}
+        onOpenChange={(open) => {
+          if (!open && previewingDoc) URL.revokeObjectURL(previewingDoc.url);
+          if (!open) setPreviewingDoc(null);
+        }}
+        url={previewingDoc?.url || ''}
+        kind={previewingDoc ? previewKind(previewingDoc.doc.file_type) ?? 'pdf' : 'pdf'}
+        filename={previewingDoc?.doc.filename || ''}
+      />
+    </>
+  );
+}
+
+function MessageThread({
+  token,
+  project,
+  messages,
+  members,
+  onRefresh,
+}: Readonly<{
+  token: string;
+  project: Project | ProjectSummary;
+  messages: readonly Message[];
+  members: readonly ProjectMember[];
+  onRefresh: () => Promise<void> | void;
+}>) {
+  const [body, setBody] = useState('');
+  const [mentions, setMentions] = useState<Mention[]>([]);
+  const [sending, setSending] = useState(false);
+  const [lastDeliverySummary, setLastDeliverySummary] = useState<NotificationSummary | null>(null);
+
+  const handleSendMessage = async () => {
+    const trimmed = body.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      const res = await portalAPI.sendMessage(project.id, token, {
+        channel: project.title || 'general',
+        body: trimmed,
+        mentions,
+      });
+      const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
+      const fallbackSummary = buildDeliverySummaryFromMessageDoc(res.data, mentions.length);
+      const resolvedSummary = notificationSummary || fallbackSummary;
+      setLastDeliverySummary(resolvedSummary);
+      toast.success(messageDeliveryText(resolvedSummary, mentions.length));
+      setBody('');
+      setMentions([]);
+      await onRefresh();
+    } catch (err) {
+      setLastDeliverySummary(null);
+      toast.error(describeApiError(err, 'Failed to send message'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card className="p-4 space-y-4" data-testid="portal-message-thread">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground truncate">{project.title}</h3>
+          <p className="text-xs text-muted-foreground">Project conversation</p>
+        </div>
+        <Badge className={neutralBadgeClass('text-[10px]')}>{messages.length} messages</Badge>
+      </div>
+
+      <div className="space-y-3 max-h-[24rem] overflow-y-auto pr-1" aria-live="polite">
+        {messages.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No messages yet</p>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={cn(
+                'rounded-lg border p-3',
+                message.sender_type === 'partner' ? 'bg-spoke-soft/30 border-spoke/20' : 'bg-muted/40',
+              )}
             >
-              <Send className="w-4 h-4" aria-hidden="true" />
+              <div className="mb-1 flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-foreground">{message.sender_name}</span>
+                <Badge
+                  className={cn(
+                    'text-[10px]',
+                    message.sender_type === 'partner'
+                      ? 'bg-ownership-partner-soft text-ownership-partner-strong'
+                      : 'bg-ownership-internal-soft text-ownership-internal-strong',
+                  )}
+                >
+                  {message.sender_type === 'partner' ? 'Partner' : 'HubSpoke'}
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">{formatCalendarDate(message.created_at)}</span>
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-wrap">
+                {renderMentionBody(message.body, message.mentions)}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="rounded-lg border border-input bg-background px-3 py-2">
+        <label htmlFor={`portal-message-${project.id}`} className="sr-only">Message</label>
+        <MentionTextarea
+          id={`portal-message-${project.id}`}
+          value={body}
+          mentions={mentions}
+          members={members}
+          onChange={(nextBody, nextMentions) => {
+            setBody(nextBody);
+            setMentions(nextMentions);
+          }}
+          onSubmit={handleSendMessage}
+          placeholder="Type a message. Use @ to mention someone."
+          rows={2}
+          disabled={sending}
+          aria-label="Message"
+          textareaClassName="min-h-[4rem]"
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {lastDeliverySummary ? (
+          <div className="text-xs text-muted-foreground" data-testid="portal-delivery-summary">
+            <p className="font-medium text-foreground">Last delivery</p>
+            <p>
+              Mentions resolved/notified: {lastDeliverySummary.mentions_resolved ?? 0}
+              {' / '}
+              {lastDeliverySummary.mention_recipients_notified ?? 0}
+            </p>
+            <p>Message recipients notified: {lastDeliverySummary.message_recipients_notified ?? 0}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Messages notify eligible project members.</p>
+        )}
+        <Button
+          type="button"
+          onClick={() => void handleSendMessage()}
+          disabled={sending || !body.trim()}
+          className="bg-hub hover:bg-hub-strong text-white"
+          aria-label="Send message"
+        >
+          <Send className="h-4 w-4 mr-2" aria-hidden="true" />
+          {sending ? 'Sending...' : 'Send message'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function HomePage({
+  workspace,
+  token,
+}: Readonly<{
+  workspace: PortalWorkspace;
+  token: string;
+}>) {
+  const navigate = useNavigate();
+  const projectsById = useMemo(() => Object.fromEntries(workspace.projects.map(project => [project.id, project])), [workspace.projects]);
+  return (
+    <PageShell
+      testId="portal-home-page"
+      title="Partner Home"
+      subtitle="Your project workspace, active classes, shared resources, and conversation in one place."
+      actions={
+        <Button
+          type="button"
+          className="bg-hub hover:bg-hub-strong text-white"
+          onClick={() => navigate(portalPath(token, 'projects'))}
+        >
+          <Briefcase className="h-4 w-4 mr-2" aria-hidden="true" />
+          Open Projects
+        </Button>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Active Projects"
+          value={workspace.summary.active_projects}
+          icon={<Briefcase className="h-5 w-5" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="Open Tasks"
+          value={workspace.summary.open_tasks}
+          tone={workspace.summary.overdue_tasks > 0 ? 'warn' : 'spoke'}
+          icon={<CheckSquare className="h-5 w-5" aria-hidden="true" />}
+          detail={workspace.summary.overdue_tasks > 0 ? `${workspace.summary.overdue_tasks} overdue` : 'On track'}
+        />
+        <MetricCard
+          label="Upcoming Classes"
+          value={workspace.summary.upcoming_classes}
+          icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="Classes Hosted"
+          value={workspace.summary.classes_hosted}
+          tone="spoke"
+          icon={<GraduationCap className="h-5 w-5" aria-hidden="true" />}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="space-y-3" aria-labelledby="portal-home-projects">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="portal-home-projects" className="text-lg font-semibold text-foreground">Active projects</h2>
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(portalPath(token, 'projects'))}>
+              View all
             </Button>
           </div>
-          {lastDeliverySummary && (
-            <Card className="mt-3 p-3 bg-muted/40">
-              <p className="text-xs text-muted-foreground">Last delivery</p>
-              <p className="text-sm text-foreground">
-                Message notifications delivered: {lastDeliverySummary.message_recipients_notified ?? 0} recipient(s)
-              </p>
-              <p className="text-sm text-foreground">
-                Mentions resolved/notified: {(lastDeliverySummary.mentions_resolved ?? 0)} / {(lastDeliverySummary.mentions_requested ?? 0)}
-              </p>
-            </Card>
+          {workspace.projects.length === 0 ? (
+            <EmptyState
+              title="No active projects"
+              description="When HubSpoke shares projects with your organization, they will appear here."
+              icon={<Briefcase className="w-10 h-10" aria-hidden="true" />}
+            />
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {workspace.projects.slice(0, 6).map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  onOpen={() => navigate(portalPath(token, 'projects', project.id))}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      )}
+        </section>
 
-      {/* Settings Tab — notification preferences. Partners don't get
-          password/calendar settings (magic-link auth), so this tab is
-          dedicated to communication controls. */}
-      {activeTab === 'settings' && (
-        <div className="max-w-2xl">
-          <Card className="p-4 sm:p-6">
-            <h2 className="text-lg font-semibold mb-1">Notifications</h2>
-            <p className="text-sm text-foreground/80 mb-4">
-              Choose which emails and in-portal alerts you receive.
-            </p>
-            <NotificationPreferences mode="portal" portalToken={token} />
-          </Card>
+        <aside className="space-y-4">
+          <section aria-labelledby="portal-home-attention">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="portal-home-attention" className="text-lg font-semibold text-foreground">Needs attention</h2>
+              <Button type="button" variant="ghost" size="sm" onClick={() => navigate(portalPath(token, 'tasks'))}>
+                Tasks
+              </Button>
+            </div>
+            <TaskList
+              tasks={workspace.needs_attention}
+              projectsById={projectsById}
+              pendingTaskIds={{}}
+              onToggleTask={() => undefined}
+              onOpenTask={(projectId, taskId) => navigate(`${portalPath(token, 'tasks')}?project=${projectId}&task=${taskId}`)}
+            />
+          </section>
+        </aside>
+      </div>
+
+      <section className="space-y-3" aria-labelledby="portal-home-activity">
+        <h2 id="portal-home-activity" className="text-lg font-semibold text-foreground">Recent portal activity</h2>
+        <ActivityList events={workspace.recent_activity} />
+      </section>
+    </PageShell>
+  );
+}
+
+function ProjectsPage({
+  workspace,
+  token,
+}: Readonly<{
+  workspace: PortalWorkspace;
+  token: string;
+}>) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+  const visibleProjects = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return workspace.projects;
+    return workspace.projects.filter(project => [
+      project.title,
+      project.community,
+      project.venue_name,
+      PHASE_LABELS[project.phase],
+    ].some(value => (value || '').toLowerCase().includes(q)));
+  }, [workspace.projects, query]);
+
+  return (
+    <PageShell
+      testId="portal-projects-page"
+      title="Projects"
+      subtitle="Open a project hub to review tasks, documents, messages, and shared activity."
+      actions={
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <label htmlFor="portal-project-search" className="sr-only">Search projects</label>
+          <Input
+            id="portal-project-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search projects..."
+            className="pl-8"
+          />
+        </div>
+      }
+    >
+      {visibleProjects.length === 0 ? (
+        <EmptyState
+          title="No projects match"
+          description="Try a different project, community, venue, or phase search."
+          icon={<Briefcase className="w-10 h-10" aria-hidden="true" />}
+        />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="portal-project-grid">
+          {visibleProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onOpen={() => navigate(portalPath(token, 'projects', project.id))}
+            />
+          ))}
         </div>
       )}
-      {previewingDoc && previewKind(previewingDoc.doc.file_type) && (
-        <AttachmentPreviewDialog
-          open={true}
-          onOpenChange={(open) => { if (!open) closeDocPreview(); }}
-          filename={previewingDoc.doc.filename}
-          kind={previewKind(previewingDoc.doc.file_type)!}
-          url={previewingDoc.url}
+    </PageShell>
+  );
+}
+
+function TasksPage({
+  workspace,
+  token,
+  refreshWorkspace,
+}: Readonly<{
+  workspace: PortalWorkspace;
+  token: string;
+  refreshWorkspace: () => Promise<void> | void;
+}>) {
+  const { allTasks, error, isLoading, mutateTasks } = usePortalTasks(token, workspace.projects);
+  const [projectFilter, setProjectFilter] = useState(ALL_PROJECTS);
+  const [statusFilter, setStatusFilter] = useState(ALL_STATUSES);
+  const [viewMode, setViewMode] = useState<TaskViewMode>('list');
+  const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
+  const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
+
+  const projectsById = useMemo(() => Object.fromEntries(workspace.projects.map(project => [project.id, project])), [workspace.projects]);
+  const selectedProjects = useMemo(() => (
+    projectFilter === ALL_PROJECTS
+      ? workspace.projects
+      : workspace.projects.filter(project => project.id === projectFilter)
+  ), [projectFilter, workspace.projects]);
+  const filteredTasks = useMemo(() => selectedProjects.flatMap((project) => (
+    (allTasks[project.id] || []).filter((task) => {
+      if (statusFilter === OVERDUE_ONLY) return !task.completed && isPastCalendarDate(task.due_date);
+      if (statusFilter !== ALL_STATUSES) return statusForTask(task) === statusFilter;
+      return true;
+    })
+  )), [allTasks, selectedProjects, statusFilter]);
+  const filteredTaskMap = useMemo(() => Object.fromEntries(selectedProjects.map((project) => [
+    project.id,
+    (allTasks[project.id] || []).filter(task => filteredTasks.some(visible => visible.id === task.id)),
+  ])), [allTasks, filteredTasks, selectedProjects]);
+
+  const refreshTasks = async () => {
+    await mutateTasks();
+    await refreshWorkspace();
+  };
+
+  const handleToggleTask = async (projectId: string, task: Task) => {
+    const key = taskActionKey(projectId, task.id);
+    if (pendingTaskIds[key] || !hasPartnerWriteAccess(task)) return;
+    setPendingKey(setPendingTaskIds, key, true);
+    try {
+      const completed = !task.completed;
+      await portalAPI.updateTask(projectId, task.id, token, {
+        completed,
+        status: completed ? 'completed' : 'to_do',
+      });
+      await refreshTasks();
+      toast.success('Task updated');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Failed to update task'));
+    } finally {
+      setPendingKey(setPendingTaskIds, key, false);
+    }
+  };
+
+  const handleMoveTask = async (projectId: string, task: Task, status: TaskStatus) => {
+    const key = taskActionKey(projectId, task.id);
+    if (pendingTaskIds[key]) return { ok: false, message: 'That task update is still saving.' };
+    setPendingKey(setPendingTaskIds, key, true);
+    try {
+      await portalAPI.updateTask(projectId, task.id, token, {
+        status,
+        completed: status === 'completed',
+      });
+      await refreshTasks();
+      return { ok: true };
+    } catch (err) {
+      const message = describeApiError(err, 'You do not have permission to move that task to this status.');
+      toast.error(message);
+      return { ok: false, message };
+    } finally {
+      setPendingKey(setPendingTaskIds, key, false);
+    }
+  };
+
+  const projectOptions = [
+    { value: ALL_PROJECTS, label: 'All projects' },
+    ...workspace.projects.map(project => ({ value: project.id, label: project.title })),
+  ];
+
+  if (workspace.projects.length === 0) {
+    return (
+      <PageShell testId="portal-tasks-page" title="Tasks" subtitle="Tasks needing partner action across your shared projects.">
+        <EmptyState
+          title="No active projects"
+          description="Tasks will appear when a project is shared with your organization."
+          icon={<CheckSquare className="w-10 h-10" aria-hidden="true" />}
+        />
+      </PageShell>
+    );
+  }
+
+  return (
+    <PageShell
+      testId="portal-tasks-page"
+      title="Tasks"
+      subtitle="Your task inbox, with filters and a board view for project work."
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={() => void refreshTasks()}>
+          <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+          Refresh
+        </Button>
+      }
+      status={isLoading ? { kind: 'loading', variant: 'rows' } : { kind: 'ready' }}
+    >
+      <TaskControls
+        projectOptions={projectOptions}
+        projectFilter={projectFilter}
+        statusFilter={statusFilter}
+        viewMode={viewMode}
+        onProjectFilter={setProjectFilter}
+        onStatusFilter={setStatusFilter}
+        onViewMode={setViewMode}
+      />
+
+      {error ? (
+        <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
+          <p className="text-sm font-semibold text-foreground">Tasks could not be loaded.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load your tasks.")}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateTasks()}>
+            Retry tasks
+          </Button>
+        </Card>
+      ) : viewMode === 'board' ? (
+        filteredTasks.length === 0 ? (
+          <EmptyState title="No tasks assigned to you" description="Try changing the project or status filters." />
+        ) : (
+          <PortalTaskBoard
+            projects={selectedProjects}
+            allTasks={filteredTaskMap}
+            onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
+            onMoveTask={handleMoveTask}
+          />
+        )
+      ) : (
+        <TaskList
+          tasks={filteredTasks}
+          projectsById={projectsById}
+          pendingTaskIds={pendingTaskIds}
+          onToggleTask={handleToggleTask}
+          onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
         />
       )}
-    </PortalLayout>
+
+      <TaskDetailLauncher
+        selectedTask={selectedTask}
+        token={token}
+        onClose={() => setSelectedTask(null)}
+        onRefresh={refreshTasks}
+      />
+    </PageShell>
+  );
+}
+
+function DocumentsPage({
+  workspace,
+  token,
+  refreshWorkspace,
+}: Readonly<{
+  workspace: PortalWorkspace;
+  token: string;
+  refreshWorkspace: () => Promise<void> | void;
+}>) {
+  const { documents, error, isLoading, mutateDocuments } = usePortalDocuments(token, workspace.projects);
+  const refreshDocuments = async () => {
+    await mutateDocuments();
+    await refreshWorkspace();
+  };
+
+  return (
+    <PageShell
+      testId="portal-documents-page"
+      title="Documents"
+      subtitle="Shared organization files and project documents, grouped by project."
+      status={isLoading ? { kind: 'loading', variant: 'rows' } : { kind: 'ready' }}
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={() => void refreshDocuments()}>
+          <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+          Refresh
+        </Button>
+      }
+    >
+      {error ? (
+        <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
+          <p className="text-sm font-semibold text-foreground">Documents could not be loaded.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load shared documents.")}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateDocuments()}>
+            Retry documents
+          </Button>
+        </Card>
+      ) : (
+        <DocumentList
+          token={token}
+          projects={workspace.projects}
+          documentsByProject={documents}
+          orgDocuments={workspace.org_documents}
+          onUploaded={refreshDocuments}
+        />
+      )}
+    </PageShell>
+  );
+}
+
+function MessagesPage({
+  workspace,
+  token,
+}: Readonly<{
+  workspace: PortalWorkspace;
+  token: string;
+}>) {
+  const [activeProjectId, setActiveProjectId] = useState(() => workspace.projects[0]?.id || '');
+  useEffect(() => {
+    if (!activeProjectId && workspace.projects[0]?.id) setActiveProjectId(workspace.projects[0].id);
+  }, [activeProjectId, workspace.projects]);
+
+  const { projectWorkspace, error, isLoading, mutateProjectWorkspace } = usePortalProjectWorkspace(token, activeProjectId);
+  const activeProject = workspace.projects.find(project => project.id === activeProjectId);
+  const projectOptions = workspace.projects.map(project => ({ value: project.id, label: project.title }));
+
+  return (
+    <PageShell
+      testId="portal-messages-page"
+      title="Messages"
+      subtitle="Project-specific partner conversations with delivery confirmation."
+      status={isLoading ? { kind: 'loading', variant: 'rows' } : { kind: 'ready' }}
+      actions={workspace.projects.length > 0 ? (
+        <div className="w-full sm:w-72">
+          <SearchableSelect
+            id="portal-message-project"
+            options={projectOptions}
+            value={activeProjectId}
+            onValueChange={(value) => setActiveProjectId(value || workspace.projects[0]?.id || '')}
+            placeholder="Choose a project"
+            searchPlaceholder="Search projects..."
+          />
+        </div>
+      ) : undefined}
+    >
+      {workspace.projects.length === 0 ? (
+        <EmptyState
+          title="No project threads"
+          description="Messages become available when a project is shared with your organization."
+          icon={<MessageSquare className="w-10 h-10" aria-hidden="true" />}
+        />
+      ) : error || !activeProject ? (
+        <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
+          <p className="text-sm font-semibold text-foreground">Messages could not be loaded.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load messages for this project.")}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateProjectWorkspace()}>
+            Retry messages
+          </Button>
+        </Card>
+      ) : (
+        <MessageThread
+          token={token}
+          project={activeProject}
+          messages={projectWorkspace?.messages || []}
+          members={projectWorkspace?.members || []}
+          onRefresh={async () => { await mutateProjectWorkspace(); }}
+        />
+      )}
+    </PageShell>
+  );
+}
+
+function SettingsPage({ token }: Readonly<{ token: string }>) {
+  return (
+    <PageShell
+      testId="portal-settings-page"
+      title="Settings"
+      subtitle="Manage portal notification preferences for your partner contact."
+    >
+      <Card className="p-4">
+        <NotificationPreferences mode="portal" portalToken={token} />
+      </Card>
+    </PageShell>
+  );
+}
+
+function ProjectHubPage({
+  token,
+  projectId,
+  refreshWorkspace,
+}: Readonly<{
+  token: string;
+  projectId: string;
+  refreshWorkspace: () => Promise<void> | void;
+}>) {
+  const { projectWorkspace, error, isLoading, mutateProjectWorkspace } = usePortalProjectWorkspace(token, projectId);
+  const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({});
+  const [selectedTask, setSelectedTask] = useState<{ projectId: string; taskId: string } | null>(null);
+
+  const refreshProject = async () => {
+    await mutateProjectWorkspace();
+    await refreshWorkspace();
+  };
+
+  const handleToggleTask = async (projectTaskId: string, task: Task) => {
+    const key = taskActionKey(projectTaskId, task.id);
+    if (pendingTaskIds[key] || !hasPartnerWriteAccess(task)) return;
+    setPendingKey(setPendingTaskIds, key, true);
+    try {
+      const completed = !task.completed;
+      await portalAPI.updateTask(projectTaskId, task.id, token, {
+        completed,
+        status: completed ? 'completed' : 'to_do',
+      });
+      await refreshProject();
+      toast.success('Task updated');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Failed to update task'));
+    } finally {
+      setPendingKey(setPendingTaskIds, key, false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <PageShell
+        testId="portal-project-hub-page"
+        title="Project Hub"
+        subtitle="Loading project workspace..."
+        status={{ kind: 'loading', variant: 'cards' }}
+      />
+    );
+  }
+
+  if (error || !projectWorkspace) {
+    return (
+      <PageShell
+        testId="portal-project-hub-page"
+        title="Project Hub"
+        subtitle="This project could not be loaded."
+        status={{ kind: 'error', error: { message: describeApiError(error, 'Project workspace could not be loaded.') }, onRetry: () => void mutateProjectWorkspace() }}
+      />
+    );
+  }
+
+  const { project, tasks, documents, messages, members, recent_activity: recentActivity } = projectWorkspace;
+  const progress = projectProgress(project, tasks);
+  const overdue = tasks.filter(task => !task.completed && isPastCalendarDate(task.due_date)).length;
+  const projectsById = { [project.id]: project };
+
+  return (
+    <PageShell
+      testId="portal-project-hub-page"
+      breadcrumbs={[{ label: 'Portal' }, { label: 'Projects', path: portalPath(token, 'projects') }, { label: project.title }]}
+      title={project.title}
+      subtitle={`${formatCalendarDate(project.event_date)} - ${project.venue_name} - ${project.community}`}
+      actions={
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge className={phaseBadgeClass(project.phase)}>{PHASE_LABELS[project.phase]}</Badge>
+          {overdue > 0 && <Badge className="bg-warn-soft text-warn-strong border-0">{overdue} overdue</Badge>}
+        </div>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Progress"
+          value={progress.percent}
+          tone="spoke"
+          icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+          detail={`${progress.completed}/${progress.total} tasks complete`}
+        />
+        <MetricCard
+          label="Open Tasks"
+          value={tasks.filter(task => !task.completed).length}
+          tone={overdue > 0 ? 'warn' : 'hub'}
+          icon={<CheckSquare className="h-5 w-5" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="Documents"
+          value={documents.length}
+          icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="Messages"
+          value={messages.length}
+          icon={<MessageSquare className="h-5 w-5" aria-hidden="true" />}
+        />
+      </div>
+
+      <Card className="p-4">
+        <div className="mb-2 flex justify-between text-xs text-muted-foreground">
+          <span>Project progress</span>
+          <span>{progress.percent}%</span>
+        </div>
+        <ProgressBar percent={progress.percent} label={`${project.title} project progress`} />
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="space-y-3" aria-labelledby="portal-project-tasks">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="portal-project-tasks" className="text-lg font-semibold text-foreground">Tasks</h2>
+            <Badge className={neutralBadgeClass('text-[10px]')}>{tasks.length} total</Badge>
+          </div>
+          <TaskList
+            tasks={tasks}
+            projectsById={projectsById}
+            pendingTaskIds={pendingTaskIds}
+            onToggleTask={handleToggleTask}
+            onOpenTask={(nextProjectId, taskId) => setSelectedTask({ projectId: nextProjectId, taskId })}
+          />
+        </section>
+        <section className="space-y-3" aria-labelledby="portal-project-activity">
+          <h2 id="portal-project-activity" className="text-lg font-semibold text-foreground">Activity</h2>
+          <ActivityList events={recentActivity} emptyTitle="No project activity yet" />
+        </section>
+      </div>
+
+      <section className="space-y-3" aria-labelledby="portal-project-documents">
+        <h2 id="portal-project-documents" className="text-lg font-semibold text-foreground">Documents</h2>
+        <DocumentList
+          token={token}
+          projects={[project]}
+          documentsByProject={{ [project.id]: documents }}
+          onUploaded={refreshProject}
+        />
+      </section>
+
+      <section className="space-y-3" aria-labelledby="portal-project-messages">
+        <h2 id="portal-project-messages" className="text-lg font-semibold text-foreground">Messages</h2>
+        <MessageThread
+          token={token}
+          project={project}
+          messages={messages}
+          members={members}
+          onRefresh={refreshProject}
+        />
+      </section>
+
+      <TaskDetailLauncher
+        selectedTask={selectedTask}
+        token={token}
+        onClose={() => setSelectedTask(null)}
+        onRefresh={refreshProject}
+      />
+    </PageShell>
+  );
+}
+
+export default function PortalDashboard() {
+  const { token: urlToken, projectId } = useParams<{ token?: string; projectId?: string }>();
+  const token = urlToken || '';
+  const location = useLocation();
+  const section = routeSection(location.pathname, projectId);
+  const { session, error: sessionError, isLoading: sessionLoading } = usePortalSession(token);
+  const { workspace, error: workspaceError, isLoading: workspaceLoading, mutateWorkspace } = usePortalWorkspace(token);
+
+  useEffect(() => {
+    if (!token || sessionError) {
+      sessionStorage.removeItem(LEGACY_PORTAL_TOKEN_KEY);
+    }
+  }, [sessionError, token]);
+
+  if (!token || sessionError) {
+    return <PortalRecovery />;
+  }
+
+  if ((sessionLoading && !session) || (workspaceLoading && !workspace && !session)) {
+    return <PortalLoading />;
+  }
+
+  const org = workspace?.org ?? session?.org;
+  const contact = workspace?.contact ?? session?.contact;
+
+  if (!org || !contact) {
+    return <PortalLoading />;
+  }
+
+  const refreshWorkspace = async () => {
+    await mutateWorkspace();
+  };
+
+  return (
+    <PortalShell
+      token={token}
+      org={org}
+      contact={contact}
+      activeSection={section === 'project' ? 'projects' : section}
+    >
+      {workspaceError && !workspace ? (
+        <PageShell
+          testId="portal-workspace-error"
+          title="Partner Home"
+          subtitle="Your partner workspace could not be loaded."
+          status={{ kind: 'error', error: { message: describeApiError(workspaceError, "We couldn't load your portal workspace.") }, onRetry: () => void mutateWorkspace() }}
+        />
+      ) : !workspace ? (
+        <PageShell
+          testId="portal-workspace-loading"
+          title="Partner Home"
+          subtitle="Loading your partner workspace..."
+          status={{ kind: 'loading', variant: 'cards' }}
+        />
+      ) : (
+        <>
+          {section === 'home' && <HomePage workspace={workspace} token={token} />}
+          {section === 'projects' && <ProjectsPage workspace={workspace} token={token} />}
+          {section === 'project' && projectId && (
+            <ProjectHubPage
+              token={token}
+              projectId={projectId}
+              refreshWorkspace={refreshWorkspace}
+            />
+          )}
+          {section === 'tasks' && (
+            <TasksPage
+              workspace={workspace}
+              token={token}
+              refreshWorkspace={refreshWorkspace}
+            />
+          )}
+          {section === 'documents' && (
+            <DocumentsPage
+              workspace={workspace}
+              token={token}
+              refreshWorkspace={refreshWorkspace}
+            />
+          )}
+          {section === 'messages' && <MessagesPage workspace={workspace} token={token} />}
+          {section === 'settings' && <SettingsPage token={token} />}
+        </>
+      )}
+    </PortalShell>
   );
 }

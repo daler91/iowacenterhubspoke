@@ -22,6 +22,7 @@ from services.notification_events import (
 )
 from services.notification_prefs import prepare_mentions
 from services.phase_advance import maybe_auto_advance_phase_for_task
+from services.portal_activity import log_portal_activity
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -519,7 +520,7 @@ async def upload_task_attachment(
     user: EditorRequired,
     file: Annotated[UploadFile, File(...)],
 ):
-    await _verify_task(project_id, task_id)
+    task = await _verify_task(project_id, task_id)
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     att_id = str(uuid.uuid4())
@@ -543,6 +544,22 @@ async def upload_task_attachment(
     }
     await db.task_attachments.insert_one(doc)
     doc.pop("_id", None)
+    if task.get("owner") in {"partner", "both"}:
+        project = await db.projects.find_one(
+            {"id": project_id},
+            {"_id": 0, "id": 1, "title": 1, "partner_org_id": 1},
+        ) or {"id": project_id}
+        await log_portal_activity(
+            partner_org_id=project.get("partner_org_id"),
+            project_id=project_id,
+            action="task_attachment_uploaded",
+            title="Task attachment uploaded",
+            body=file.filename or "Attachment uploaded",
+            actor_name=user.get("name", "System"),
+            actor_type="internal",
+            entity_type="task_attachment",
+            entity_id=att_id,
+        )
     return doc
 
 
@@ -694,6 +711,18 @@ async def post_task_comment(
         {"id": task_id, "project_id": project_id}, {"_id": 0},
     )
     if task:
+        if task.get("owner") in {"partner", "both"}:
+            await log_portal_activity(
+                partner_org_id=project.get("partner_org_id"),
+                project_id=project_id,
+                action="task_comment_posted",
+                title="Task comment posted",
+                body=task.get("title", ""),
+                actor_name=user.get("name", "Unknown"),
+                actor_type="internal",
+                entity_type="task_comment",
+                entity_id=comment_id,
+            )
         mention_ids = {p.id for p in mentioned}
         notification_summary["comment_recipients_notified"] = await notify_task_comment(
             doc, task, project, user, mention_ids=mention_ids,

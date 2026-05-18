@@ -11,6 +11,7 @@ from services.notification_events import (
     notify_project_message_mentions,
 )
 from services.notification_prefs import prepare_mentions
+from services.portal_activity import log_portal_activity
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -98,6 +99,18 @@ async def send_message(project_id: str, data: MessageCreate, user: EditorRequire
     }
     await db.messages.insert_one(doc)
     doc.pop("_id", None)
+    if doc.get("visibility") != "internal":
+        await log_portal_activity(
+            partner_org_id=project.get("partner_org_id"),
+            project_id=project_id,
+            action="message_sent",
+            title="Message sent",
+            body=project.get("title", ""),
+            actor_name=user.get("name", "Unknown"),
+            actor_type="internal",
+            entity_type="message",
+            entity_id=msg_id,
+        )
     mention_ids = {p.id for p in mentioned}
     notification_summary = {
         "mentions_requested": len(data.mentions or []),
