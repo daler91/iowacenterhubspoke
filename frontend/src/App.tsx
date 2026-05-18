@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { SWRConfig } from "swr";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { recoverAppPathFromMangledLocation } from "./lib/appLinks";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -94,6 +95,14 @@ function PublicRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? <Navigate to="/" replace /> : children;
+}
+
+function MalformedAppLinkRedirect() {
+  const location = useLocation();
+  const repaired = recoverAppPathFromMangledLocation(
+    `${location.pathname}${location.search}${location.hash}`,
+  );
+  return repaired ? <Navigate to={repaired} replace /> : null;
 }
 
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -208,6 +217,7 @@ function AppRoutes() {
           <Route path="/portal/:token/messages" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/portal/:token/settings" element={<RouteBoundary><PortalDashboard /></RouteBoundary>} />
           <Route path="/privacy" element={<RouteBoundary><PrivacyPage /></RouteBoundary>} />
+          <Route path="*" element={<MalformedAppLinkRedirect />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

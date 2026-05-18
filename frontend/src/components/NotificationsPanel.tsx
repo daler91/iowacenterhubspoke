@@ -4,6 +4,7 @@ import { Bell, AlertTriangle, CalendarDays, CheckCheck, UserX, X, Settings as Se
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { notificationsAPI } from '../lib/api';
+import { normalizeAppLink } from '../lib/appLinks';
 import { cn } from '../lib/utils';
 
 /**
@@ -274,7 +275,12 @@ export default function NotificationsPanel() {
       try { await notificationsAPI.markRead(n.id); } catch { /* reconcile on poll */ }
     }
     if (n.link) {
-      navigate(n.link);
+      const normalized = normalizeAppLink(n.link);
+      if (normalized.kind === 'app') {
+        navigate(normalized.path);
+      } else if (normalized.kind === 'external') {
+        window.open(normalized.href, '_blank', 'noopener,noreferrer');
+      }
       setOpen(false);
     }
   };

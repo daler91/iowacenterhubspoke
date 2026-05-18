@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Bell, CalendarDays, CheckCheck, RefreshCw, X } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { portalAPI } from '../../lib/coordination-api';
+import { mapAppPathToPortalPath, normalizeAppLink } from '../../lib/appLinks';
 import { cn } from '../../lib/utils';
 
 interface InboxNotification {
@@ -46,6 +48,7 @@ function mapNotification(n: Record<string, unknown>): InboxNotification {
 }
 
 export default function PortalNotificationsPanel({ token, onOpenSettings }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<InboxNotification[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -139,7 +142,17 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
   const handleClickItem = async (n: InboxNotification) => {
     if (!n.read_at) await handleMarkRead(n.id);
     if (n.link) {
-      window.open(n.link, '_blank', 'noopener,noreferrer');
+      const normalized = normalizeAppLink(n.link);
+      if (normalized.kind === 'app') {
+        const portalPath = mapAppPathToPortalPath(normalized.path, token);
+        if (portalPath) {
+          navigate(portalPath);
+        } else {
+          window.open(normalized.path, '_blank', 'noopener,noreferrer');
+        }
+      } else if (normalized.kind === 'external') {
+        window.open(normalized.href, '_blank', 'noopener,noreferrer');
+      }
     }
     setOpen(false);
   };
