@@ -242,7 +242,7 @@ async def portal_project_workspace(project_id: str, ctx: PortalContext):
 @router.get(
     "/activity",
     summary="Partner portal activity",
-    responses={401: {"description": INVALID_TOKEN}},
+    responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_activity(
     ctx: PortalContext,

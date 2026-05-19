@@ -27,6 +27,7 @@ projects_repo = SoftDeleteRepository(db, "projects")
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 DOC_NOT_FOUND = "Document not found"
 PROJECT_NOT_FOUND = "Project not found"
+DOCUMENT_SHARED = "Document shared"
 
 # Only allow safe characters in file extensions
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
@@ -120,8 +121,8 @@ async def upload_document(
             partner_org_id=doc.get("partner_org_id"),
             project_id=project_id,
             action="document_shared",
-            title="Document shared",
-            body=file.filename or "Document shared",
+            title=DOCUMENT_SHARED,
+            body=file.filename or DOCUMENT_SHARED,
             actor_name=user.get("name", "System"),
             actor_type="internal",
             entity_type="document",
@@ -164,8 +165,8 @@ async def update_visibility(
             partner_org_id=updated.get("partner_org_id"),
             project_id=project_id,
             action="document_shared",
-            title="Document shared",
-            body=updated.get("filename", "Document shared"),
+            title=DOCUMENT_SHARED,
+            body=updated.get("filename", DOCUMENT_SHARED),
             actor_name=user.get("name", "System"),
             actor_type="internal",
             entity_type="document",

@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { portalAPI } from '../../lib/coordination-api';
 import { mapAppPathToPortalPath, normalizeAppLink } from '../../lib/appLinks';
 import { cn } from '../../lib/utils';
+import { runPortalAsync } from './async';
 
 interface InboxNotification {
   readonly id: string;
@@ -73,7 +74,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
   }, [status, token]);
 
   useEffect(() => {
-    if (open && status === 'idle') void fetchInbox(true);
+    if (open && status === 'idle') {
+      runPortalAsync(fetchInbox(true), 'load portal notifications');
+    }
   }, [fetchInbox, open, status]);
 
   useEffect(() => {
@@ -82,11 +85,12 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     const jitterBuf = new Uint32Array(1);
     globalThis.crypto.getRandomValues(jitterBuf);
     const pollMs = 25000 + Math.floor((jitterBuf[0] / 4294967296) * 10000);
-    const interval = setInterval(() => {
-      void fetchInbox(false);
-    }, pollMs);
+    const refreshInbox = () => {
+      runPortalAsync(fetchInbox(false), 'refresh portal notifications');
+    };
+    const interval = setInterval(refreshInbox, pollMs);
     const onVisibility = () => {
-      if (!document.hidden) void fetchInbox(false);
+      if (!document.hidden) refreshInbox();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -114,7 +118,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     try {
       await portalAPI.dismissInbox(token, id);
     } catch {
-      void fetchInbox(false);
+      runPortalAsync(fetchInbox(false), 'reload portal notifications after dismiss failed');
     }
   };
 
@@ -124,7 +128,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     try {
       await portalAPI.markInboxRead(token, id);
     } catch {
-      void fetchInbox(false);
+      runPortalAsync(fetchInbox(false), 'reload portal notifications after mark read failed');
     }
   };
 
@@ -135,7 +139,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
     try {
       await Promise.all(unread.map(i => portalAPI.markInboxRead(token, i.id)));
     } catch {
-      void fetchInbox(false);
+      runPortalAsync(fetchInbox(false), 'reload portal notifications after mark all read failed');
     }
   };
 
@@ -210,7 +214,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => void fetchInbox(true)}
+                  onClick={() => {
+                    runPortalAsync(fetchInbox(true), 'retry portal notifications');
+                  }}
                   aria-label="Retry notifications"
                 >
                   <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
@@ -219,7 +225,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
               {unreadCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => void handleMarkAllRead()}
+                  onClick={() => {
+                    runPortalAsync(handleMarkAllRead(), 'mark all portal notifications read');
+                  }}
                   className="text-xs text-hub hover:text-hub-strong font-medium flex items-center gap-1"
                   aria-label="Mark all as read"
                 >
@@ -238,7 +246,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                 variant="outline"
                 size="sm"
                 className="mt-2"
-                onClick={() => void fetchInbox(true)}
+                onClick={() => {
+                  runPortalAsync(fetchInbox(true), 'retry portal notifications');
+                }}
               >
                 Retry
               </Button>
@@ -291,7 +301,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                         <button
                           type="button"
                           className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 appearance-none bg-transparent border-0 text-left"
-                          onClick={() => void handleClickItem(n)}
+                          onClick={() => {
+                            runPortalAsync(handleClickItem(n), 'open portal notification');
+                          }}
                         >
                           {content}
                         </button>
@@ -302,7 +314,10 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
                       )}
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); void handleDismiss(n.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          runPortalAsync(handleDismiss(n.id), 'dismiss portal notification');
+                        }}
                         className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
                         aria-label="Dismiss notification"
                       >

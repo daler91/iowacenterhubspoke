@@ -61,6 +61,7 @@ import { usePortalProjectWorkspace, usePortalSession, usePortalWorkspace } from 
 import PortalShell from './PortalShell';
 import PortalTaskBoard from './PortalTaskBoard';
 import PortalTaskDetailModal from './PortalTaskDetailModal';
+import { runPortalAsync } from './async';
 
 const INVALID_PORTAL_LINK_MESSAGE = 'This portal link is invalid or expired.';
 const REQUEST_LINK_SUCCESS_MESSAGE = 'If that email is registered, a new link has been sent.';
@@ -71,6 +72,7 @@ const OVERDUE_ONLY = 'overdue';
 
 type PortalSection = 'home' | 'projects' | 'project' | 'tasks' | 'documents' | 'messages' | 'settings';
 type TaskViewMode = 'list' | 'board';
+type TasksByProject = Record<string, Task[]>;
 
 interface NotificationSummary {
   mentions_requested?: number;
@@ -175,6 +177,38 @@ function projectProgress(project: ProjectSummary | Project, taskOverride?: reado
 
 function statusForTask(task: Task): TaskStatus {
   return task.completed ? 'completed' : (task.status || 'to_do');
+}
+
+function taskMatchesStatusFilter(task: Task, statusFilter: string) {
+  if (statusFilter === OVERDUE_ONLY) return !task.completed && isPastCalendarDate(task.due_date);
+  if (statusFilter !== ALL_STATUSES) return statusForTask(task) === statusFilter;
+  return true;
+}
+
+function filteredTasksForProject(
+  project: ProjectSummary,
+  allTasks: TasksByProject,
+  statusFilter: string,
+) {
+  return (allTasks[project.id] || []).filter((task) => taskMatchesStatusFilter(task, statusFilter));
+}
+
+function buildFilteredTasks(
+  projects: readonly ProjectSummary[],
+  allTasks: TasksByProject,
+  statusFilter: string,
+) {
+  return projects.flatMap((project) => filteredTasksForProject(project, allTasks, statusFilter));
+}
+
+function buildFilteredTaskMap(
+  projects: readonly ProjectSummary[],
+  allTasks: TasksByProject,
+  statusFilter: string,
+) {
+  return Object.fromEntries(
+    projects.map((project) => [project.id, filteredTasksForProject(project, allTasks, statusFilter)]),
+  );
 }
 
 function phaseBadgeClass(phase: string) {
@@ -825,9 +859,12 @@ function DocumentList({
                     disabled={!!uploadingProjectId}
                     onChange={(event) => {
                       const input = event.currentTarget;
-                      void uploadDocument(project.id, input.files?.[0]).finally(() => {
-                        input.value = '';
-                      });
+                      runPortalAsync(
+                        uploadDocument(project.id, input.files?.[0]).finally(() => {
+                          input.value = '';
+                        }),
+                        'upload portal document',
+                      );
                     }}
                   />
                   <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm font-medium hover:bg-muted cursor-pointer">
@@ -856,7 +893,9 @@ function DocumentList({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => void openPreview(project.id, doc)}
+                            onClick={() => {
+                              runPortalAsync(openPreview(project.id, doc), 'preview portal document');
+                            }}
                             disabled={!!documentActionIds[previewKey]}
                             aria-label={`Preview ${doc.filename}`}
                           >
@@ -867,7 +906,9 @@ function DocumentList({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => void downloadDocument(project.id, doc)}
+                          onClick={() => {
+                            runPortalAsync(downloadDocument(project.id, doc), 'download portal document');
+                          }}
                           disabled={!!documentActionIds[downloadKey]}
                           aria-label={`Download ${doc.filename}`}
                         >
@@ -1028,7 +1069,9 @@ function MessageThread({
         )}
         <Button
           type="button"
-          onClick={() => void handleSendMessage()}
+          onClick={() => {
+            runPortalAsync(handleSendMessage(), 'send portal message');
+          }}
           disabled={sending || !body.trim()}
           className="bg-hub hover:bg-hub-strong text-white"
           aria-label="Send message"
@@ -1228,17 +1271,14 @@ function TasksPage({
       ? workspace.projects
       : workspace.projects.filter(project => project.id === projectFilter)
   ), [projectFilter, workspace.projects]);
-  const filteredTasks = useMemo(() => selectedProjects.flatMap((project) => (
-    (allTasks[project.id] || []).filter((task) => {
-      if (statusFilter === OVERDUE_ONLY) return !task.completed && isPastCalendarDate(task.due_date);
-      if (statusFilter !== ALL_STATUSES) return statusForTask(task) === statusFilter;
-      return true;
-    })
-  )), [allTasks, selectedProjects, statusFilter]);
-  const filteredTaskMap = useMemo(() => Object.fromEntries(selectedProjects.map((project) => [
-    project.id,
-    (allTasks[project.id] || []).filter(task => filteredTasks.some(visible => visible.id === task.id)),
-  ])), [allTasks, filteredTasks, selectedProjects]);
+  const filteredTasks = useMemo(
+    () => buildFilteredTasks(selectedProjects, allTasks, statusFilter),
+    [allTasks, selectedProjects, statusFilter],
+  );
+  const filteredTaskMap = useMemo(
+    () => buildFilteredTaskMap(selectedProjects, allTasks, statusFilter),
+    [allTasks, selectedProjects, statusFilter],
+  );
 
   const refreshTasks = async () => {
     await mutateTasks();
@@ -1307,7 +1347,14 @@ function TasksPage({
       title="Tasks"
       subtitle="Your task inbox, with filters and a board view for project work."
       actions={
-        <Button type="button" variant="outline" size="sm" onClick={() => void refreshTasks()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            runPortalAsync(refreshTasks(), 'refresh portal tasks');
+          }}
+        >
           <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
           Refresh
         </Button>
@@ -1328,7 +1375,15 @@ function TasksPage({
         <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
           <p className="text-sm font-semibold text-foreground">Tasks could not be loaded.</p>
           <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load your tasks.")}</p>
-          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateTasks()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              runPortalAsync(mutateTasks(), 'retry portal tasks');
+            }}
+          >
             Retry tasks
           </Button>
         </Card>
@@ -1385,7 +1440,14 @@ function DocumentsPage({
       subtitle="Shared organization files and project documents, grouped by project."
       status={isLoading ? { kind: 'loading', variant: 'rows' } : { kind: 'ready' }}
       actions={
-        <Button type="button" variant="outline" size="sm" onClick={() => void refreshDocuments()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            runPortalAsync(refreshDocuments(), 'refresh portal documents');
+          }}
+        >
           <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
           Refresh
         </Button>
@@ -1395,7 +1457,15 @@ function DocumentsPage({
         <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
           <p className="text-sm font-semibold text-foreground">Documents could not be loaded.</p>
           <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load shared documents.")}</p>
-          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateDocuments()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              runPortalAsync(mutateDocuments(), 'retry portal documents');
+            }}
+          >
             Retry documents
           </Button>
         </Card>
@@ -1457,7 +1527,15 @@ function MessagesPage({
         <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
           <p className="text-sm font-semibold text-foreground">Messages could not be loaded.</p>
           <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load messages for this project.")}</p>
-          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void mutateProjectWorkspace()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              runPortalAsync(mutateProjectWorkspace(), 'retry portal messages');
+            }}
+          >
             Retry messages
           </Button>
         </Card>
@@ -1542,7 +1620,13 @@ function ProjectHubPage({
         testId="portal-project-hub-page"
         title="Project Hub"
         subtitle="This project could not be loaded."
-        status={{ kind: 'error', error: { message: describeApiError(error, 'Project workspace could not be loaded.') }, onRetry: () => void mutateProjectWorkspace() }}
+        status={{
+          kind: 'error',
+          error: { message: describeApiError(error, 'Project workspace could not be loaded.') },
+          onRetry: () => {
+            runPortalAsync(mutateProjectWorkspace(), 'retry portal project workspace');
+          },
+        }}
       />
     );
   }
@@ -1695,7 +1779,13 @@ export default function PortalDashboard() {
           testId="portal-workspace-error"
           title="Partner Home"
           subtitle="Your partner workspace could not be loaded."
-          status={{ kind: 'error', error: { message: describeApiError(workspaceError, "We couldn't load your portal workspace.") }, onRetry: () => void mutateWorkspace() }}
+          status={{
+            kind: 'error',
+            error: { message: describeApiError(workspaceError, "We couldn't load your portal workspace.") },
+            onRetry: () => {
+              runPortalAsync(mutateWorkspace(), 'retry portal workspace');
+            },
+          }}
         />
       ) : !workspace ? (
         <PageShell
