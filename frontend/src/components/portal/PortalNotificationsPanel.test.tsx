@@ -55,7 +55,7 @@ describe('PortalNotificationsPanel links', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
-    openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+    openSpy = jest.spyOn(globalThis, 'open').mockImplementation(() => null);
   });
 
   afterEach(() => {

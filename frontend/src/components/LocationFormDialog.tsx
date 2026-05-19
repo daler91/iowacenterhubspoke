@@ -29,12 +29,12 @@ type PlaceSelection = {
   longitude: number;
 };
 
-type LocationFormDialogProps = {
+type LocationFormDialogProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingLocation?: EditableLocation | null;
   onSaved: () => unknown;
-};
+}>;
 
 function getMapsKey() {
   return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
@@ -66,7 +66,7 @@ function formFromLocation(location: EditableLocation): LocationFormState {
 
 function nullableString(value: string) {
   const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  return trimmed || null;
 }
 
 function nullableNumber(value: string) {

@@ -264,7 +264,7 @@ export interface PortalActivityEvent {
   title: string;
   body?: string;
   actor_name: string;
-  actor_type: 'internal' | 'partner' | string;
+  actor_type: string;
   entity_type?: string;
   entity_id?: string;
   created_at: string;

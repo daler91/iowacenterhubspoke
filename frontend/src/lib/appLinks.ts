@@ -65,7 +65,7 @@ export function recoverAppPathFromMangledLocation(raw: string): string | null {
 }
 
 export function mapAppPathToPortalPath(appPath: string, token: string): string | null {
-  const match = appPath.match(/^\/coordination\/projects\/([^/?#]+)/);
+  const match = /^\/coordination\/projects\/([^/?#]+)/.exec(appPath);
   if (!match) return null;
   const suffix = appPath.slice(match[0].length);
   return `/portal/${encodeURIComponent(token)}/projects/${match[1]}${suffix}`;

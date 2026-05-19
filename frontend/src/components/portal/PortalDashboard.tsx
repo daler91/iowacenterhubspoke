@@ -1796,16 +1796,7 @@ export default function PortalDashboard() {
         }}
       />
     );
-  } else if (!workspace) {
-    workspaceContent = (
-      <PageShell
-        testId="portal-workspace-loading"
-        title="Partner Home"
-        subtitle="Loading your partner workspace..."
-        status={{ kind: 'loading', variant: 'cards' }}
-      />
-    );
-  } else {
+  } else if (workspace) {
     workspaceContent = (
       <>
         {section === 'home' && <HomePage workspace={workspace} token={token} />}
@@ -1834,6 +1825,15 @@ export default function PortalDashboard() {
         {section === 'messages' && <MessagesPage workspace={workspace} token={token} />}
         {section === 'settings' && <SettingsPage token={token} />}
       </>
+    );
+  } else {
+    workspaceContent = (
+      <PageShell
+        testId="portal-workspace-loading"
+        title="Partner Home"
+        subtitle="Loading your partner workspace..."
+        status={{ kind: 'loading', variant: 'cards' }}
+      />
     );
   }
 

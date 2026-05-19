@@ -21,7 +21,7 @@ type SelectedPlace = {
   name?: string;
 };
 
-type PlacesAutocompleteProps = {
+type PlacesAutocompleteProps = Readonly<{
   id: string;
   value?: string;
   onChange?: (value: string) => void;
@@ -33,7 +33,7 @@ type PlacesAutocompleteProps = {
   }) => void;
   placeholder?: string;
   disabled?: boolean;
-};
+}>;
 
 function getAddressComponent(place: SelectedPlace, type: string) {
   return (place.address_components || []).find(c => c.types.includes(type));

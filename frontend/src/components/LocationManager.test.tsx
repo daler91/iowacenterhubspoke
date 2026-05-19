@@ -11,8 +11,8 @@ const mockUseOutletContext = jest.fn();
 
 jest.mock('react-router-dom', () => {
   const { TextDecoder, TextEncoder } = require('node:util');
-  global.TextEncoder = global.TextEncoder || TextEncoder;
-  global.TextDecoder = global.TextDecoder || TextDecoder;
+  globalThis.TextEncoder = globalThis.TextEncoder || TextEncoder;
+  globalThis.TextDecoder = globalThis.TextDecoder || TextDecoder;
   const actual = jest.requireActual('react-router-dom');
   return {
     ...actual,

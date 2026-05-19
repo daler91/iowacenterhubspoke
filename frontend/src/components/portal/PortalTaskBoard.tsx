@@ -12,6 +12,9 @@ import { formatCalendarDate, isPastCalendarDate } from '../../lib/date-format';
 import { cn } from '../../lib/utils';
 
 const DND_ID = 'portal-task-board-dnd';
+const objectHasOwn = (Object as ObjectConstructor & {
+  hasOwn: (object: object, property: PropertyKey) => boolean;
+}).hasOwn;
 
 function statusForTask(task: Task): TaskStatus {
   return task.completed ? 'completed' : (task.status || 'to_do');
@@ -66,7 +69,7 @@ function ProjectBoardSection({ project, tasks, onOpenTask }: Readonly<{ project:
 
   tasks.forEach((task) => {
     const status = statusForTask(task);
-    if (!Object.prototype.hasOwnProperty.call(tasksByStatus, status)) return;
+    if (!objectHasOwn(tasksByStatus, status)) return;
     tasksByStatus[status].push(task);
   });
 
