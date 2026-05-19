@@ -135,7 +135,7 @@ async def test_password_reset_job_stores_token_digest_only(monkeypatch):
 
     inserted = {}
 
-    async def _insert(doc):
+    def _insert(doc):
         inserted.update(doc)
 
     fake_db = MagicMock()
@@ -163,7 +163,7 @@ async def test_partner_magic_link_job_stores_token_digest_only(monkeypatch):
 
     inserted = {}
 
-    async def _insert(doc):
+    def _insert(doc):
         inserted.update(doc)
 
     fake_db = MagicMock()
@@ -200,7 +200,7 @@ async def test_direct_partner_invite_stores_token_digest_only(monkeypatch):
 
     inserted = {}
 
-    async def _insert(doc):
+    def _insert(doc):
         inserted.update(doc)
 
     fake_db = MagicMock()

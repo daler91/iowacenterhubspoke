@@ -10,7 +10,7 @@ import LocationManager from './LocationManager';
 const mockUseOutletContext = jest.fn();
 
 jest.mock('react-router-dom', () => {
-  const { TextDecoder, TextEncoder } = require('util');
+  const { TextDecoder, TextEncoder } = require('node:util');
   global.TextEncoder = global.TextEncoder || TextEncoder;
   global.TextDecoder = global.TextDecoder || TextDecoder;
   const actual = jest.requireActual('react-router-dom');

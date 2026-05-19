@@ -231,17 +231,14 @@ function neutralBadgeClass(extra = '') {
 }
 
 function ProgressBar({ percent, label = 'Progress' }: Readonly<{ percent: number; label?: string }>) {
+  const value = Math.max(0, Math.min(percent, 100));
   return (
-    <div
-      className="h-2 w-full rounded-full bg-muted overflow-hidden"
-      role="progressbar"
+    <progress
+      className="h-2 w-full overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-spoke [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-spoke"
+      value={value}
+      max={100}
       aria-label={label}
-      aria-valuenow={percent}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      <div className="h-full rounded-full bg-spoke transition-all" style={{ width: `${percent}%` }} />
-    </div>
+    />
   );
 }
 
@@ -1341,6 +1338,48 @@ function TasksPage({
     );
   }
 
+  let taskContent: ReactNode;
+  if (error) {
+    taskContent = (
+      <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
+        <p className="text-sm font-semibold text-foreground">Tasks could not be loaded.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load your tasks.")}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => {
+            runPortalAsync(mutateTasks(), 'retry portal tasks');
+          }}
+        >
+          Retry tasks
+        </Button>
+      </Card>
+    );
+  } else if (viewMode === 'board') {
+    taskContent = filteredTasks.length === 0 ? (
+      <EmptyState title="No tasks assigned to you" description="Try changing the project or status filters." />
+    ) : (
+      <PortalTaskBoard
+        projects={selectedProjects}
+        allTasks={filteredTaskMap}
+        onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
+        onMoveTask={handleMoveTask}
+      />
+    );
+  } else {
+    taskContent = (
+      <TaskList
+        tasks={filteredTasks}
+        projectsById={projectsById}
+        pendingTaskIds={pendingTaskIds}
+        onToggleTask={handleToggleTask}
+        onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
+      />
+    );
+  }
+
   return (
     <PageShell
       testId="portal-tasks-page"
@@ -1371,42 +1410,7 @@ function TasksPage({
         onViewMode={setViewMode}
       />
 
-      {error ? (
-        <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
-          <p className="text-sm font-semibold text-foreground">Tasks could not be loaded.</p>
-          <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load your tasks.")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => {
-              runPortalAsync(mutateTasks(), 'retry portal tasks');
-            }}
-          >
-            Retry tasks
-          </Button>
-        </Card>
-      ) : viewMode === 'board' ? (
-        filteredTasks.length === 0 ? (
-          <EmptyState title="No tasks assigned to you" description="Try changing the project or status filters." />
-        ) : (
-          <PortalTaskBoard
-            projects={selectedProjects}
-            allTasks={filteredTaskMap}
-            onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
-            onMoveTask={handleMoveTask}
-          />
-        )
-      ) : (
-        <TaskList
-          tasks={filteredTasks}
-          projectsById={projectsById}
-          pendingTaskIds={pendingTaskIds}
-          onToggleTask={handleToggleTask}
-          onOpenTask={(projectId, taskId) => setSelectedTask({ projectId, taskId })}
-        />
-      )}
+      {taskContent}
 
       <TaskDetailLauncher
         selectedTask={selectedTask}
@@ -1498,6 +1502,45 @@ function MessagesPage({
   const activeProject = workspace.projects.find(project => project.id === activeProjectId);
   const projectOptions = workspace.projects.map(project => ({ value: project.id, label: project.title }));
 
+  let messageContent: ReactNode;
+  if (workspace.projects.length === 0) {
+    messageContent = (
+      <EmptyState
+        title="No project threads"
+        description="Messages become available when a project is shared with your organization."
+        icon={<MessageSquare className="w-10 h-10" aria-hidden="true" />}
+      />
+    );
+  } else if (error || !activeProject) {
+    messageContent = (
+      <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
+        <p className="text-sm font-semibold text-foreground">Messages could not be loaded.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load messages for this project.")}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => {
+            runPortalAsync(mutateProjectWorkspace(), 'retry portal messages');
+          }}
+        >
+          Retry messages
+        </Button>
+      </Card>
+    );
+  } else {
+    messageContent = (
+      <MessageThread
+        token={token}
+        project={activeProject}
+        messages={projectWorkspace?.messages || []}
+        members={projectWorkspace?.members || []}
+        onRefresh={async () => { await mutateProjectWorkspace(); }}
+      />
+    );
+  }
+
   return (
     <PageShell
       testId="portal-messages-page"
@@ -1517,37 +1560,7 @@ function MessagesPage({
         </div>
       ) : undefined}
     >
-      {workspace.projects.length === 0 ? (
-        <EmptyState
-          title="No project threads"
-          description="Messages become available when a project is shared with your organization."
-          icon={<MessageSquare className="w-10 h-10" aria-hidden="true" />}
-        />
-      ) : error || !activeProject ? (
-        <Card className="p-5 border-danger/30 bg-danger-soft" role="alert">
-          <p className="text-sm font-semibold text-foreground">Messages could not be loaded.</p>
-          <p className="mt-1 text-sm text-muted-foreground">{describeApiError(error, "We couldn't load messages for this project.")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => {
-              runPortalAsync(mutateProjectWorkspace(), 'retry portal messages');
-            }}
-          >
-            Retry messages
-          </Button>
-        </Card>
-      ) : (
-        <MessageThread
-          token={token}
-          project={activeProject}
-          messages={projectWorkspace?.messages || []}
-          members={projectWorkspace?.members || []}
-          onRefresh={async () => { await mutateProjectWorkspace(); }}
-        />
-      )}
+      {messageContent}
     </PageShell>
   );
 }
@@ -1767,6 +1780,63 @@ export default function PortalDashboard() {
     await mutateWorkspace();
   };
 
+  let workspaceContent: ReactNode;
+  if (workspaceError && !workspace) {
+    workspaceContent = (
+      <PageShell
+        testId="portal-workspace-error"
+        title="Partner Home"
+        subtitle="Your partner workspace could not be loaded."
+        status={{
+          kind: 'error',
+          error: { message: describeApiError(workspaceError, "We couldn't load your portal workspace.") },
+          onRetry: () => {
+            runPortalAsync(mutateWorkspace(), 'retry portal workspace');
+          },
+        }}
+      />
+    );
+  } else if (!workspace) {
+    workspaceContent = (
+      <PageShell
+        testId="portal-workspace-loading"
+        title="Partner Home"
+        subtitle="Loading your partner workspace..."
+        status={{ kind: 'loading', variant: 'cards' }}
+      />
+    );
+  } else {
+    workspaceContent = (
+      <>
+        {section === 'home' && <HomePage workspace={workspace} token={token} />}
+        {section === 'projects' && <ProjectsPage workspace={workspace} token={token} />}
+        {section === 'project' && projectId && (
+          <ProjectHubPage
+            token={token}
+            projectId={projectId}
+            refreshWorkspace={refreshWorkspace}
+          />
+        )}
+        {section === 'tasks' && (
+          <TasksPage
+            workspace={workspace}
+            token={token}
+            refreshWorkspace={refreshWorkspace}
+          />
+        )}
+        {section === 'documents' && (
+          <DocumentsPage
+            workspace={workspace}
+            token={token}
+            refreshWorkspace={refreshWorkspace}
+          />
+        )}
+        {section === 'messages' && <MessagesPage workspace={workspace} token={token} />}
+        {section === 'settings' && <SettingsPage token={token} />}
+      </>
+    );
+  }
+
   return (
     <PortalShell
       token={token}
@@ -1774,55 +1844,7 @@ export default function PortalDashboard() {
       contact={contact}
       activeSection={section === 'project' ? 'projects' : section}
     >
-      {workspaceError && !workspace ? (
-        <PageShell
-          testId="portal-workspace-error"
-          title="Partner Home"
-          subtitle="Your partner workspace could not be loaded."
-          status={{
-            kind: 'error',
-            error: { message: describeApiError(workspaceError, "We couldn't load your portal workspace.") },
-            onRetry: () => {
-              runPortalAsync(mutateWorkspace(), 'retry portal workspace');
-            },
-          }}
-        />
-      ) : !workspace ? (
-        <PageShell
-          testId="portal-workspace-loading"
-          title="Partner Home"
-          subtitle="Loading your partner workspace..."
-          status={{ kind: 'loading', variant: 'cards' }}
-        />
-      ) : (
-        <>
-          {section === 'home' && <HomePage workspace={workspace} token={token} />}
-          {section === 'projects' && <ProjectsPage workspace={workspace} token={token} />}
-          {section === 'project' && projectId && (
-            <ProjectHubPage
-              token={token}
-              projectId={projectId}
-              refreshWorkspace={refreshWorkspace}
-            />
-          )}
-          {section === 'tasks' && (
-            <TasksPage
-              workspace={workspace}
-              token={token}
-              refreshWorkspace={refreshWorkspace}
-            />
-          )}
-          {section === 'documents' && (
-            <DocumentsPage
-              workspace={workspace}
-              token={token}
-              refreshWorkspace={refreshWorkspace}
-            />
-          )}
-          {section === 'messages' && <MessagesPage workspace={workspace} token={token} />}
-          {section === 'settings' && <SettingsPage token={token} />}
-        </>
-      )}
+      {workspaceContent}
     </PortalShell>
   );
 }

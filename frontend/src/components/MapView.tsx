@@ -1,22 +1,52 @@
-import { memo, useMemo } from 'react';
-import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
-import { MapPin, Car, Navigation } from 'lucide-react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { APIProvider, AdvancedMarker, Map } from '@vis.gl/react-google-maps';
+import { Car, MapPin, Navigation, Plus } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import type { NavigateFunction } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
+import type { Location, Schedule } from '../lib/types';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { PageShell } from './ui/page-shell';
+import LocationFormDialog from './LocationFormDialog';
 
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 const HUB = { lat: 41.5868, lng: -93.654 };
-// Stable empty-array reference so `SpokeMarker`'s memo doesn't invalidate when
-// a location has no schedules (a fresh `[]` would be a new ref each render).
-const EMPTY_LIST: never[] = [];
+const EMPTY_LIST: Schedule[] = [];
 
-import { useOutletContext, useNavigate } from 'react-router-dom';
+type MappedLocation = Location & {
+  latitude: number;
+  longitude: number;
+};
+
+type MapViewContext = {
+  locations?: Location[];
+  schedules?: Schedule[];
+  loadingState?: { locations?: boolean };
+  fetchLocations: () => unknown;
+  fetchActivities: () => unknown;
+};
+
+type SpokeMarkerProps = {
+  loc: MappedLocation;
+  locSchedules: Schedule[];
+  navigate: NavigateFunction;
+};
+
+function getMapsKey() {
+  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+}
+
+function hasUsableMapsKey(key: string | undefined): key is string {
+  return !!key && key !== 'YOUR_GOOGLE_MAPS_API_KEY';
+}
+
+function hasCoordinates(location: Location): location is MappedLocation {
+  return location.latitude != null && location.longitude != null;
+}
 
 // Memoised so adding/updating a single schedule doesn't re-render every marker
-// on the map — only the one(s) whose `locSchedules` array reference changed.
-// `navigate` is a stable ref from react-router, so building the click handler
-// inline here is memo-safe (unlike passing `() => navigate(...)` from the
-// parent map, which would create a fresh function per render per marker).
-const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
+// on the map - only the marker(s) whose schedule array reference changed.
+const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }: SpokeMarkerProps) {
   const classCountLabel = locSchedules.length === 1 ? '1 class today' : `${locSchedules.length} classes today`;
   return (
     <AdvancedMarker position={{ lat: loc.latitude, lng: loc.longitude }}>
@@ -64,23 +94,32 @@ const SpokeMarker = memo(function SpokeMarker({ loc, locSchedules, navigate }) {
 });
 
 export default function MapView() {
-  const { locations, schedules } = useOutletContext();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const { locations = [], schedules = [], loadingState, fetchLocations, fetchActivities } = useOutletContext<MapViewContext>();
   const navigate = useNavigate();
-  const validLocations = useMemo(() =>
-    (locations || []).filter(l => l.latitude && l.longitude),
-    [locations]
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const mapsKey = getMapsKey();
+  const mapsEnabled = hasUsableMapsKey(mapsKey);
+
+  const validLocations = useMemo(
+    () => locations.filter(hasCoordinates),
+    [locations],
   );
+
+  const handleLocationSaved = useCallback(() => {
+    fetchLocations();
+    fetchActivities();
+  }, [fetchActivities, fetchLocations]);
 
   // Recompute on every render so a tab left open past midnight rolls over to
   // the new day. `todayStr` is a string primitive, so useMemo below compares
-  // it by value — same-day renders hit the cache, next-day renders invalidate.
+  // it by value - same-day renders hit the cache, next-day renders invalidate.
   const todayStr = new Date().toISOString().split('T')[0];
   const todayByLoc = useMemo(() => {
-    const map: Record<string, typeof schedules> = {};
-    (schedules || []).forEach(s => {
+    const map: Record<string, Schedule[]> = {};
+    schedules.forEach(s => {
       if (s.date !== todayStr) return;
-      // Split the lazy-init out of the `.push(...)` call so there's no
-      // assignment inside a sub-expression (Sonar typescript:S6660).
       let bucket = map[s.location_id];
       if (!bucket) {
         bucket = [];
@@ -91,30 +130,52 @@ export default function MapView() {
     return map;
   }, [schedules, todayStr]);
 
-  if (!MAPS_KEY || MAPS_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
+  const actions = isAdmin ? (
+    <Button
+      data-testid="map-add-location-btn"
+      onClick={() => setDialogOpen(true)}
+      disabled={!!loadingState?.locations}
+      className="bg-hub hover:bg-hub-strong text-white rounded-lg shadow-sm hover:shadow-md transition-all"
+    >
+      <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
+      Add Location
+    </Button>
+  ) : undefined;
+
+  const locationDialog = (
+    <LocationFormDialog
+      open={dialogOpen}
+      onOpenChange={setDialogOpen}
+      onSaved={handleLocationSaved}
+    />
+  );
+
+  if (!mapsEnabled) {
     return (
-      <div className="space-y-6 animate-slide-in" data-testid="map-view-fallback">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Map View</h2>
-          <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">Google Maps API key not configured</p>
-        </div>
+      <PageShell
+        testId="map-view-fallback"
+        title="Map View"
+        subtitle="Google Maps API key not configured"
+        actions={actions}
+      >
         <div className="bg-muted/50 dark:bg-muted rounded-lg border border-border p-12 text-center">
           <MapPin className="w-16 h-16 mx-auto text-muted-foreground dark:text-foreground/80 mb-4" />
           <p className="text-foreground/80 dark:text-muted-foreground">Add a Google Maps API key to enable the map view</p>
         </div>
-      </div>
+        {locationDialog}
+      </PageShell>
     );
   }
 
   return (
-    <div className="space-y-6 animate-slide-in" data-testid="map-view">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Map View</h2>
-        <p className="text-sm text-foreground/80 dark:text-muted-foreground mt-1">Hub and Spoke locations across Iowa</p>
-      </div>
-
+    <PageShell
+      testId="map-view"
+      title="Map View"
+      subtitle="Hub and Spoke locations across Iowa"
+      actions={actions}
+    >
       <div className="rounded-lg overflow-hidden border border-border shadow-sm" style={{ height: '500px' }}>
-        <APIProvider apiKey={MAPS_KEY}>
+        <APIProvider apiKey={mapsKey}>
           <Map
             style={{ width: '100%', height: '100%' }}
             defaultCenter={HUB}
@@ -126,7 +187,6 @@ export default function MapView() {
             mapTypeControl={false}
             streetViewControl={false}
           >
-            {/* Hub marker */}
             <AdvancedMarker position={HUB}>
               <button
                 type="button"
@@ -150,7 +210,6 @@ export default function MapView() {
               </button>
             </AdvancedMarker>
 
-            {/* Spoke markers */}
             {validLocations.map(loc => (
               <SpokeMarker
                 key={loc.id}
@@ -163,7 +222,6 @@ export default function MapView() {
         </APIProvider>
       </div>
 
-      {/* Location legend */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div className="bg-white dark:bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <div className="w-8 h-8 bg-hub rounded-full flex items-center justify-center">
@@ -191,7 +249,8 @@ export default function MapView() {
           </button>
         ))}
       </div>
-    </div>
+
+      {locationDialog}
+    </PageShell>
   );
 }
-

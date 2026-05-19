@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Bell, CalendarDays, CheckCheck, RefreshCw, X } from 'lucide-react';
 import { Badge } from '../ui/badge';
@@ -165,6 +165,86 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
   if (status === 'error') bellLabel = 'Notifications unavailable';
   if (items.length > 0) bellLabel = `Notifications, ${unreadCount} unread`;
 
+  let notificationsContent: ReactNode;
+  if (status === 'loading' && items.length === 0) {
+    notificationsContent = (
+      <output className="block p-8 text-center text-sm text-muted-foreground" aria-live="polite">
+        Loading notifications...
+      </output>
+    );
+  } else if (items.length === 0) {
+    notificationsContent = (
+      <div className="p-8 text-center">
+        <Bell className="w-8 h-8 text-muted-foreground dark:text-foreground mx-auto mb-2" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">All caught up!</p>
+      </div>
+    );
+  } else {
+    notificationsContent = (
+      <div className="divide-y divide-border">
+        {items.map(n => {
+          const config = SEVERITY_CONFIG[n.severity] || SEVERITY_CONFIG.info;
+          const Icon = config.icon;
+          const isUnread = !n.read_at;
+          const hasLink = Boolean(n.link);
+          const content = (
+            <>
+              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', config.bg)}>
+                <Icon className={cn('w-4 h-4', config.color)} aria-hidden="true" />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center gap-2">
+                  {isUnread && (
+                    <span
+                      aria-label="Unread"
+                      className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
+                    />
+                  )}
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {n.title}
+                  </p>
+                </div>
+                <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
+                  {n.body}
+                </p>
+              </div>
+            </>
+          );
+          return (
+            <div key={n.id} className="flex items-start gap-0">
+              {hasLink ? (
+                <button
+                  type="button"
+                  className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 appearance-none bg-transparent border-0 text-left"
+                  onClick={() => {
+                    runPortalAsync(handleClickItem(n), 'open portal notification');
+                  }}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className="flex-1 p-4 flex gap-3">
+                  {content}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  runPortalAsync(handleDismiss(n.id), 'dismiss portal notification');
+                }}
+                className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="relative" ref={ref} data-testid="portal-notifications">
       <button
@@ -191,9 +271,9 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-12 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-card rounded-lg shadow-xl border border-border z-50"
-          role="dialog"
+        <dialog
+          open
+          className="absolute right-0 top-12 m-0 w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-card rounded-lg shadow-xl border border-border z-50 p-0 text-inherit"
           aria-label="Portal notifications"
           data-testid="portal-notifications-panel"
         >
@@ -256,78 +336,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
           )}
 
           <div className="max-h-[400px] overflow-y-auto">
-            {status === 'loading' && items.length === 0 ? (
-              <output className="block p-8 text-center text-sm text-muted-foreground" aria-live="polite">
-                Loading notifications...
-              </output>
-            ) : items.length === 0 ? (
-              <div className="p-8 text-center">
-                <Bell className="w-8 h-8 text-muted-foreground dark:text-foreground mx-auto mb-2" aria-hidden="true" />
-                <p className="text-sm text-muted-foreground">All caught up!</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {items.map(n => {
-                  const config = SEVERITY_CONFIG[n.severity] || SEVERITY_CONFIG.info;
-                  const Icon = config.icon;
-                  const isUnread = !n.read_at;
-                  const hasLink = Boolean(n.link);
-                  const content = (
-                    <>
-                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', config.bg)}>
-                        <Icon className={cn('w-4 h-4', config.color)} aria-hidden="true" />
-                      </div>
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center gap-2">
-                          {isUnread && (
-                            <span
-                              aria-label="Unread"
-                              className="w-1.5 h-1.5 rounded-full bg-hub-strong shrink-0"
-                            />
-                          )}
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {n.title}
-                          </p>
-                        </div>
-                        <p className="text-xs text-foreground/80 dark:text-muted-foreground mt-0.5 line-clamp-2">
-                          {n.body}
-                        </p>
-                      </div>
-                    </>
-                  );
-                  return (
-                    <div key={n.id} className="flex items-start gap-0">
-                      {hasLink ? (
-                        <button
-                          type="button"
-                          className="flex-1 p-4 hover:bg-muted/50 transition-colors flex gap-3 appearance-none bg-transparent border-0 text-left"
-                          onClick={() => {
-                            runPortalAsync(handleClickItem(n), 'open portal notification');
-                          }}
-                        >
-                          {content}
-                        </button>
-                      ) : (
-                        <div className="flex-1 p-4 flex gap-3">
-                          {content}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          runPortalAsync(handleDismiss(n.id), 'dismiss portal notification');
-                        }}
-                        className="text-muted-foreground hover:text-foreground/80 shrink-0 p-4 pl-0"
-                        aria-label="Dismiss notification"
-                      >
-                        <X className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {notificationsContent}
           </div>
 
           {onOpenSettings && (
@@ -341,7 +350,7 @@ export default function PortalNotificationsPanel({ token, onOpenSettings }: Prop
               </button>
             </div>
           )}
-        </div>
+        </dialog>
       )}
     </div>
   );

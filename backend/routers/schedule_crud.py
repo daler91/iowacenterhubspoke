@@ -575,7 +575,7 @@ def _is_replica_set_transaction_error(exc: OperationFailure) -> bool:
     return "Transaction numbers are only allowed on a replica set member or mongos" in str(exc)
 
 
-async def _run_relocate_with_fallback(schedule_id: str, run_relocate):
+async def _run_relocate_with_fallback(run_relocate):
     try:
         session_ctx = await db.client.start_session()
         async with session_ctx as session:
@@ -758,7 +758,7 @@ async def relocate_schedule(
         original_start,
         original_version,
         inserted_claim_ids,
-    ) = await _run_relocate_with_fallback(schedule_id, _run_relocate)
+    ) = await _run_relocate_with_fallback(_run_relocate)
 
     await _ensure_relocate_update_succeeded(
         schedule_id,

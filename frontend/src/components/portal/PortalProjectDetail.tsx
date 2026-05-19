@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -268,6 +268,35 @@ export default function PortalProjectDetail() {
   }
 
   const projectContextType = (project as Project & { context_type?: string }).context_type;
+  let projectMessagesContent: ReactNode;
+  if (messagesStatus === 'loading') {
+    projectMessagesContent = (
+      <output className="block text-sm text-muted-foreground text-center py-6" aria-live="polite">
+        Loading project messages...
+      </output>
+    );
+  } else if (messagesStatus === 'error') {
+    projectMessagesContent = (
+      <div role="alert" className="text-center py-6">
+        <p className="text-sm font-medium text-danger-strong">Messages could not be loaded.</p>
+        <p className="text-sm text-foreground/80 mt-1">{messagesError}</p>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadMessages}>
+          Retry messages
+        </Button>
+      </div>
+    );
+  } else if (messages.length > 0) {
+    projectMessagesContent = messages.map(msg => (
+      <div key={msg.id} className="mb-3">
+        <p className="text-xs text-muted-foreground">{msg.sender_name} • {new Date(msg.created_at).toLocaleString()}</p>
+        <p className="text-sm">{renderMentionBody(msg.body, msg.mentions)}</p>
+      </div>
+    ));
+  } else {
+    projectMessagesContent = (
+      <p className="text-sm text-muted-foreground text-center py-6">No messages yet for this project</p>
+    );
+  }
 
   return (
     <PortalLayout org={org} contact={contact} activeTab="overview" onTabChange={() => {}} token={token}>
@@ -411,23 +440,7 @@ export default function PortalProjectDetail() {
         <section>
           <h2 className="font-semibold mb-2">Project messages</h2>
           <Card className="p-4 mb-2 max-h-80 overflow-y-auto">
-            {messagesStatus === 'loading' ? (
-              <output className="block text-sm text-muted-foreground text-center py-6" aria-live="polite">
-                Loading project messages...
-              </output>
-            ) : messagesStatus === 'error' ? (
-              <div role="alert" className="text-center py-6">
-                <p className="text-sm font-medium text-danger-strong">Messages could not be loaded.</p>
-                <p className="text-sm text-foreground/80 mt-1">{messagesError}</p>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={loadMessages}>
-                  Retry messages
-                </Button>
-              </div>
-            ) : messages.length > 0 ? (
-              messages.map(msg => <div key={msg.id} className="mb-3"><p className="text-xs text-muted-foreground">{msg.sender_name} • {new Date(msg.created_at).toLocaleString()}</p><p className="text-sm">{renderMentionBody(msg.body, msg.mentions)}</p></div>)
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-6">No messages yet for this project</p>
-            )}
+            {projectMessagesContent}
           </Card>
           <form onSubmit={handleSendMessage} className="flex items-center gap-2 border rounded-lg p-2">
             <Mail className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
