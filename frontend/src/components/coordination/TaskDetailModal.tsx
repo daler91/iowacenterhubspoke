@@ -15,7 +15,7 @@ import { canPreview, previewKind } from '../../lib/attachment-preview';
 import DeleteTaskDialog from './DeleteTaskDialog';
 import AttachmentPreviewDialog from './AttachmentPreviewDialog';
 import { TaskDescriptionEditor } from './TaskDescriptionEditor';
-import MentionTextarea, { renderMentionBody } from './MentionTextarea';
+import MentionTextarea, { renderMentionBody, tokenizeBody } from './MentionTextarea';
 import {
   PHASE_LABELS, PHASE_COLORS,
   TASK_STATUSES, TASK_STATUS_LABELS, TASK_STATUS_COLORS,
@@ -453,7 +453,7 @@ export function ConversationsPanel({ comments, members, onPostComment }: Readonl
             </button>
           </div>
         )}
-        <div className="flex items-center gap-2 rounded-full border-2 border-hub-soft dark:border-hub-soft/60 focus-within:border-hub-soft dark:focus-within:border-hub bg-white dark:bg-card pl-4 pr-1.5 py-1 transition-colors">
+        <div className="flex items-end gap-2 rounded-2xl border-2 border-hub-soft dark:border-hub-soft/60 focus-within:border-hub-soft dark:focus-within:border-hub bg-white dark:bg-card pl-4 pr-1.5 py-1.5 transition-colors">
           <MentionTextarea
             value={body}
             mentions={mentions}
@@ -461,12 +461,13 @@ export function ConversationsPanel({ comments, members, onPostComment }: Readonl
             onChange={(b, m) => { setBody(b); setMentions(m); }}
             onSubmit={handleSend}
             placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : 'Type a message — @ to mention...'}
+            rows={4}
           />
           <Button
             size="icon"
             onClick={handleSend}
             disabled={sending || !body.trim()}
-            className="rounded-full bg-hub hover:bg-hub-strong text-white h-8 w-8 shrink-0"
+            className="rounded-full bg-hub hover:bg-hub-strong text-white h-8 w-8 shrink-0 mb-0.5"
             aria-label="Send message"
           >
             <Send className="w-3.5 h-3.5" aria-hidden="true" />
@@ -991,7 +992,8 @@ export default function TaskDetailModal({
               comments={task.comments ?? []}
               members={members}
               onPostComment={async (body, parentCommentId, mentions) => {
-                return submitComment({ body, parentCommentId, mentions });
+                const tokenized = tokenizeBody(body, mentions ?? []);
+                return submitComment({ body: tokenized, parentCommentId, mentions });
               }}
             />
           </div>

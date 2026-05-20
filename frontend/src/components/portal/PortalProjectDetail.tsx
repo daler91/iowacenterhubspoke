@@ -12,7 +12,7 @@ import { portalAPI } from '../../lib/coordination-api';
 import { cn } from '../../lib/utils';
 import type { Message, Mention, PartnerContact, PartnerOrg, Project, ProjectDocument, ProjectMember, Task, TaskStatus } from '../../lib/coordination-types';
 import { OWNER_COLORS, OWNER_LABELS, PHASE_COLORS, PHASE_DOT_COLORS, PHASE_LABELS } from '../../lib/coordination-types';
-import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
+import MentionTextarea, { renderMentionBody, tokenizeBody } from '../coordination/MentionTextarea';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
 import { describeApiError } from '../../lib/error-messages';
@@ -202,7 +202,7 @@ export default function PortalProjectDetail() {
     try {
       await portalAPI.sendMessage(projectId, token, {
         channel: project?.title || 'general',
-        body: msgBody.trim(),
+        body: tokenizeBody(msgBody.trim(), msgMentions),
         mentions: msgMentions,
       });
       setMsgBody('');
@@ -442,8 +442,8 @@ export default function PortalProjectDetail() {
           <Card className="p-4 mb-2 max-h-80 overflow-y-auto">
             {projectMessagesContent}
           </Card>
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 border rounded-lg p-2">
-            <Mail className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <form onSubmit={handleSendMessage} className="flex items-end gap-2 border rounded-lg p-2 bg-white dark:bg-card">
+            <Mail className="w-4 h-4 text-muted-foreground mb-3" aria-hidden="true" />
             <label htmlFor="portal-project-message-input" className="sr-only">Message this project</label>
             <MentionTextarea
               id="portal-project-message-input"
@@ -452,11 +452,12 @@ export default function PortalProjectDetail() {
               onChange={(body, mentions) => { setMsgBody(body); setMsgMentions(mentions); }}
               members={members}
               placeholder="Message this project"
-              className="min-h-[44px]"
+              className="min-h-[6rem]"
               disabled={sendingMessage || messagesStatus === 'loading'}
               aria-label="Message this project"
+              rows={4}
             />
-            <Button type="submit" size="sm" disabled={sendingMessage || !msgBody.trim()} aria-label="Send project message">
+            <Button type="submit" size="sm" className="mb-1" disabled={sendingMessage || !msgBody.trim()} aria-label="Send project message">
               <Send className="w-4 h-4" aria-hidden="true" />
             </Button>
           </form>

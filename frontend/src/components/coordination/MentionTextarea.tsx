@@ -13,6 +13,17 @@ export function encodeMentionToken(m: Mention): string {
   return `@[${m.name}](user:${m.id}:${m.kind})`;
 }
 
+export function tokenizeBody(body: string, mentions: Mention[]): string {
+  let tokenized = body;
+  const sortedMentions = [...mentions].sort((a, b) => b.name.length - a.name.length);
+  for (const m of sortedMentions) {
+    const escapedName = m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`@${escapedName}(?!\\w)`, 'g');
+    tokenized = tokenized.replace(regex, encodeMentionToken(m));
+  }
+  return tokenized;
+}
+
 // Render a body string into React nodes, replacing mention tokens with
 // styled chips. Falls back to the raw body when no tokens are present —
 // that covers messages posted before tokenization shipped (we stored the
@@ -76,7 +87,7 @@ function filterMembers(members: readonly ProjectMember[], query: string): Projec
 
 export default function MentionTextarea({
   id, value, mentions, members, onChange, onSubmit,
-  placeholder, rows = 1, className, textareaClassName, disabled,
+  placeholder, rows = 4, className, textareaClassName, disabled,
   'aria-label': ariaLabel,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -116,10 +127,10 @@ export default function MentionTextarea({
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value;
     const caret = e.target.selectionStart ?? next.length;
-    // Drop mention entries whose token no longer appears in the body so the
+    // Drop mention entries whose friendly name no longer appears in the body so the
     // companion array never diverges from the visible content.
     const stillPresent = mentions.filter(m =>
-      next.includes(encodeMentionToken(m)),
+      next.includes(`@${m.name}`),
     );
     onChange(next, stillPresent);
     setTrigger(detectTrigger(next, caret));
@@ -131,15 +142,15 @@ export default function MentionTextarea({
     const before = value.slice(0, trigger.start);
     const after = value.slice(trigger.start + 1 + trigger.query.length);
     const mention: Mention = { id: member.id, kind: member.kind, name: member.name };
-    const token = encodeMentionToken(mention);
-    const next = `${before}${token} ${after}`;
+    const friendlyName = `@${member.name}`;
+    const next = `${before}${friendlyName} ${after}`;
     const newMentions = mentions.some(m => m.id === mention.id && m.kind === mention.kind)
       ? mentions
       : [...mentions, mention];
     onChange(next, newMentions);
     setTrigger(null);
-    // Move the caret past the inserted token + trailing space.
-    const caret = before.length + token.length + 1;
+    // Move the caret past the inserted friendly name + trailing space.
+    const caret = before.length + friendlyName.length + 1;
     requestAnimationFrame(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();

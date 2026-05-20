@@ -31,7 +31,7 @@ import { Input } from '../ui/input';
 import { PageShell } from '../ui/page-shell';
 import { SearchableSelect } from '../ui/searchable-select';
 import AttachmentPreviewDialog from '../coordination/AttachmentPreviewDialog';
-import MentionTextarea, { renderMentionBody } from '../coordination/MentionTextarea';
+import MentionTextarea, { renderMentionBody, tokenizeBody } from '../coordination/MentionTextarea';
 import NotificationPreferences from '../NotificationPreferences';
 import { canPreview, previewKind } from '../../lib/attachment-preview';
 import { portalAPI } from '../../lib/coordination-api';
@@ -968,7 +968,7 @@ function MessageThread({
     try {
       const res = await portalAPI.sendMessage(project.id, token, {
         channel: project.title || 'general',
-        body: trimmed,
+        body: tokenizeBody(trimmed, mentions),
         mentions,
       });
       const notificationSummary = res.data?.notification_summary as NotificationSummary | undefined;
@@ -1044,10 +1044,10 @@ function MessageThread({
           }}
           onSubmit={handleSendMessage}
           placeholder="Type a message. Use @ to mention someone."
-          rows={2}
+          rows={4}
           disabled={sending}
           aria-label="Message"
-          textareaClassName="min-h-[4rem]"
+          textareaClassName="min-h-[6rem]"
         />
       </div>
       <div className="flex items-center justify-between gap-3 flex-wrap">
