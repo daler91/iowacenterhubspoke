@@ -14,7 +14,7 @@ sys.modules.setdefault("motor", MagicMock())
 sys.modules.setdefault("motor.motor_asyncio", MagicMock())
 sys.modules.setdefault("dotenv", MagicMock())
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
-os.environ.setdefault("JWT_SECRET", "test_secret")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 
 from routers import exports  # noqa: E402
 from routers.portal import documents as portal_documents  # noqa: E402

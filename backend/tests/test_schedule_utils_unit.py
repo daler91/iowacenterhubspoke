@@ -30,7 +30,7 @@ except ImportError:
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
-os.environ.setdefault("JWT_SECRET", "test_secret")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 
 import pytest
 from datetime import date

@@ -2,12 +2,12 @@ import os
 import sys
 
 # Set environment variable before importing core.auth
-os.environ["JWT_SECRET"] = "test_secret"
+os.environ["JWT_SECRET"] = "test-jwt-secret-32-bytes-long!!!"
 
 from core.auth import create_token  # noqa: E402
 import jwt  # noqa: E402
 
-JWT_SECRET = "test_secret"
+JWT_SECRET = "test-jwt-secret-32-bytes-long!!!"
 
 
 def test_token_role():

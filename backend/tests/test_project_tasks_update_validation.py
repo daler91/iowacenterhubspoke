@@ -13,7 +13,7 @@ sys.modules.setdefault('motor', MagicMock())
 sys.modules.setdefault('motor.motor_asyncio', MagicMock())
 sys.modules.setdefault('dotenv', MagicMock())
 os.environ.setdefault('MONGO_URL', 'mongodb://localhost:27017')
-os.environ.setdefault('JWT_SECRET', 'test_secret')
+os.environ.setdefault('JWT_SECRET', 'test-jwt-secret-32-bytes-long!!!')
 
 from routers import project_tasks  # noqa: E402
 from models.coordination_schemas import TaskUpdate  # noqa: E402

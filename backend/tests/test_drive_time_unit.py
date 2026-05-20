@@ -10,7 +10,7 @@ for _mod in ["motor", "motor.motor_asyncio", "dotenv", "httpx", "sentry_sdk"]:
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
-os.environ.setdefault("JWT_SECRET", "test_secret")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 
 from services.drive_time import (  # noqa: E402
     _haversine_miles,

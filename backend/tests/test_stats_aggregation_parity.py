@@ -8,7 +8,7 @@ import pytest
 # Set required environment variables before importing anything
 os.environ['MONGO_URL'] = 'mongodb://localhost:27017'
 os.environ['DB_NAME'] = 'test_db'
-os.environ['JWT_SECRET'] = 'test_secret'
+os.environ['JWT_SECRET'] = 'test-jwt-secret-32-bytes-long!!!'
 
 from database import db
 from routers.classes import get_class_stats

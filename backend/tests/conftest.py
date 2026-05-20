@@ -25,7 +25,7 @@ import os
 
 # Must run before any ``from server import app`` or motor import so the
 # token-vault / database production guards see a dev-mode environment.
-os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-chars-long!!")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
 # Force ENVIRONMENT to dev even if a local ``.env`` sets it to production —
@@ -39,7 +39,7 @@ from unittest.mock import AsyncMock  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _patch_pwd_cache_lookup(monkeypatch):
-    """Stop ``_get_pwd_changed_ts`` from needing a real MongoDB.
+    """Stop auth invalidation lookups from needing a real MongoDB.
 
     The password-change cache is a production defence (invalidate old
     JWTs after a password change). Under pytest there's no real DB, so
@@ -52,6 +52,9 @@ def _patch_pwd_cache_lookup(monkeypatch):
         from core import auth as _auth
     except ImportError:
         return
+    monkeypatch.setattr(
+        _auth, "_load_pwd_invalidation_state", AsyncMock(return_value=(0, False, None)),
+    )
     # Returns ``(changed_ts, is_deleted)``; ``(None, False)`` means
     # "no password change, user is live" — the correct no-op state for
     # synthetic test tokens.

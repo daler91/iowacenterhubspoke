@@ -49,7 +49,12 @@ jobs:
       - name: Install dependency scanners
         run: pip install pip-audit mypy
       - name: Dependency vulnerability scan
-        run: pip-audit -r requirements.txt --strict
+        run: |
+          # PYSEC-2025-183 / CVE-2025-45768 has no fixed PyJWT release and
+          # is disputed upstream because HMAC key strength is chosen by the
+          # application. backend/core/auth.py enforces >=32-byte JWT_SECRET
+          # before PyJWT can sign or verify HS256 tokens.
+          pip-audit -r requirements.txt --strict --ignore-vuln PYSEC-2025-183
       - name: Static type check
         run: mypy . --ignore-missing-imports --follow-imports=silent --no-strict-optional
         continue-on-error: true

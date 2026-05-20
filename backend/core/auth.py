@@ -34,9 +34,25 @@ def _looks_multi_worker() -> bool:
 
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
+JWT_ALGORITHM = 'HS256'
+_JWT_MIN_SECRET_BYTES = 32
 _WEAK_JWT_SECRETS = {
     'change-me-to-a-random-secret',
 }
+
+
+def _jwt_secret_size(secret: str) -> int:
+    return len(secret.encode('utf-8'))
+
+
+def _validate_jwt_secret(secret: str) -> None:
+    if _jwt_secret_size(secret) < _JWT_MIN_SECRET_BYTES:
+        raise ValueError(
+            "CRITICAL: JWT_SECRET must be at least 32 bytes for HS256."
+            " Generate a strong random secret before starting the server."
+        )
+
+
 if JWT_SECRET and JWT_SECRET.strip().lower() in _WEAK_JWT_SECRETS:
     raise ValueError(
         "CRITICAL: JWT_SECRET uses an insecure placeholder value."
@@ -68,7 +84,7 @@ if not JWT_SECRET:
         " not survive a restart and requests balanced to sibling workers"
         " will 401."
     )
-JWT_ALGORITHM = 'HS256'
+_validate_jwt_secret(JWT_SECRET)
 
 # CSRF protection - double-submit cookie pattern
 CSRF_SECRET = os.environ.get('CSRF_SECRET', JWT_SECRET)

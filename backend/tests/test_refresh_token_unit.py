@@ -82,6 +82,18 @@ def test_refresh_token_is_signed_with_jwt_secret():
         decode_refresh_token(bogus)
 
 
+def test_jwt_secret_requires_hs256_minimum(monkeypatch):
+    import importlib
+
+    try:
+        monkeypatch.setenv("JWT_SECRET", "short-secret")
+        with pytest.raises(ValueError, match="at least 32 bytes"):
+            importlib.reload(_auth)
+    finally:
+        monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
+        importlib.reload(_auth)
+
+
 def test_deleted_user_token_rejected_on_protected_auth_gate(monkeypatch):
     """Existing access token should 401 once account has been deleted."""
     token = create_token("deleted-user-123", "u@example.com", "U", "viewer")
@@ -94,7 +106,7 @@ def test_deleted_user_token_rejected_on_protected_auth_gate(monkeypatch):
     request = Request(scope)
 
     # Simulate post-self-delete auth state check.
-    monkeypatch.setattr(_auth, "_get_pwd_changed_ts", AsyncMock(return_value=(None, True)))
+    monkeypatch.setattr(_auth, "_load_pwd_invalidation_state", AsyncMock(return_value=(0, True, None)))
 
     async def _call():
         await _auth.get_current_user(request, authorization=f"Bearer {token}")
