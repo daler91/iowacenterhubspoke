@@ -379,7 +379,12 @@ async def _resolve_task_assignee(
 async def _resolve_internal_user_by_name(name: str) -> Optional[Principal]:
     """Resolve exactly one internal user by display name."""
     user_matches = await db.users.find(
-        {"name": name}, {"_id": 0, "password_hash": 0},
+        {
+            "name": name,
+            "status": "approved",
+            "role": {"$in": ["admin", "editor", "scheduler"]},
+        },
+        {"_id": 0, "password_hash": 0},
     ).to_list(2)
     if len(user_matches) == 1:
         return _principal_from_user(user_matches[0])

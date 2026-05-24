@@ -401,9 +401,9 @@ async def test_task_assigned_rejects_ambiguous_internal_name(
         partner_contacts = _FakePrincipalColl([])
         users = _FakePrincipalColl([
             {"id": "u-jane-a", "name": "Jane Smith",
-             "email": "jane.a@x.com"},
+             "email": "jane.a@x.com", "role": "admin", "status": "approved"},
             {"id": "u-jane-b", "name": "Jane Smith",
-             "email": "jane.b@x.com"},
+             "email": "jane.b@x.com", "role": "editor", "status": "approved"},
         ])
 
     monkeypatch.setattr(events_mod, "db", _DB)
@@ -413,6 +413,31 @@ async def test_task_assigned_rejects_ambiguous_internal_name(
         task, {"id": "p-1"}, {"id": "a", "name": "A"},
     )
     assert capture_dispatch == []
+
+
+@pytest.mark.asyncio
+async def test_task_assigned_ignores_pending_name_collision(
+    capture_dispatch, stub_recipient_helpers, stub_app_url, monkeypatch,
+):
+    """Pending self-registered duplicates must not block internal delivery."""
+    class _DB:
+        partner_contacts = _FakePrincipalColl([])
+        users = _FakePrincipalColl([
+            {"id": "u-jane-a", "name": "Jane Smith",
+             "email": "jane.a@x.com", "role": "admin", "status": "approved"},
+            {"id": "u-jane-pending", "name": "Jane Smith",
+             "email": "attacker@x.com", "role": "viewer", "status": "pending"},
+        ])
+
+    monkeypatch.setattr(events_mod, "db", _DB)
+
+    task = {"id": "t-1", "title": "Draft", "assigned_to": "Jane Smith"}
+    await notify_task_assigned(
+        task, {"id": "p-1"}, {"id": "a", "name": "A"},
+    )
+    assert len(capture_dispatch) == 1
+    principal, _ = capture_dispatch[0]
+    assert principal.id == "u-jane-a"
 
 
 @pytest.mark.asyncio
