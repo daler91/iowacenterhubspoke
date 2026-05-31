@@ -1,11 +1,12 @@
 from datetime import date as dt_date, timedelta as td
 from fastapi import APIRouter
-from typing import List, Optional, Tuple
+from typing import Optional
 from collections import defaultdict
 from itertools import combinations, product
 from database import db
 from core.auth import CurrentUser
 from services.schedule_utils import calculate_class_minutes
+from core.math_utils import linear_regression
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,34 +31,6 @@ def _warn_on_truncation(rows: list, query: dict, endpoint: str) -> None:
             _ANALYTICS_CAP,
             extra={"entity": {"endpoint": endpoint, "query": query}},
         )
-
-
-def _linear_regression(y_vals: List[float]) -> Tuple[float, float]:
-    """Ordinary least-squares slope/intercept for y over x = 0..n-1.
-
-    Returns (slope, intercept). Equivalent to ``numpy.polyfit(x, y, 1)`` in
-    terms of forecast output for the degenerate (n < 2) case we fall back
-    on, but avoids pulling in the full numpy dependency for six lines of
-    closed-form math. Evaluated against numpy: matches to within ~1e-10 on
-    randomly generated inputs.
-    """
-    n = len(y_vals)
-    if n < 2:
-        return 0.0, (y_vals[0] if n else 0.0)
-    sum_y = 0.0
-    sum_xy = 0.0
-    for i, y in enumerate(y_vals):
-        sum_y += y
-        sum_xy += i * y
-    sum_x = n * (n - 1) / 2
-    # Closed-form sum of squares 0^2 + 1^2 + ... + (n-1)^2.
-    sum_xx = (n - 1) * n * (2 * n - 1) / 6
-    denom = n * sum_xx - sum_x * sum_x
-    if denom == 0:
-        return 0.0, sum_y / n
-    slope = (n * sum_xy - sum_x * sum_y) / denom
-    intercept = (sum_y - slope * sum_x) / n
-    return slope, intercept
 
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -197,9 +170,9 @@ async def get_forecast(
         }
 
     # Linear regression on each metric (closed-form least squares over x = 0..n-1).
-    classes_slope, classes_intercept = _linear_regression([h["classes"] for h in historical])
-    class_hrs_slope, class_hrs_intercept = _linear_regression([h["class_hours"] for h in historical])
-    drive_hrs_slope, drive_hrs_intercept = _linear_regression([h["drive_hours"] for h in historical])
+    classes_slope, classes_intercept = linear_regression([h["classes"] for h in historical])
+    class_hrs_slope, class_hrs_intercept = linear_regression([h["class_hours"] for h in historical])
+    drive_hrs_slope, drive_hrs_intercept = linear_regression([h["drive_hours"] for h in historical])
 
     # Project future weeks
     forecast = []
