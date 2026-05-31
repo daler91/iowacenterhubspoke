@@ -38,7 +38,8 @@ from services.schedule_utils import (
     time_to_minutes,
     calculate_class_minutes,
     add_months,
-    get_start_weekday_value
+    get_start_weekday_value,
+    _build_monthly_dates
 )
 
 schedule_utils = sys.modules["services.schedule_utils"]
@@ -111,6 +112,36 @@ def test_add_months():
     assert add_months(date(2024, 12, 1), 2) == date(2025, 2, 1)
     # Multiple years wrap
     assert add_months(date(2024, 1, 1), 24) == date(2026, 1, 1)
+
+
+def test_build_monthly_dates():
+    # 1. Standard case, interval=1
+    dates = _build_monthly_dates(date(2024, 1, 15), 1, 3, None)
+    assert dates == ["2024-01-15", "2024-02-15", "2024-03-15"]
+
+    # 2. Preserve day, leap year, Jan 31 -> Feb 29 -> Mar 31 -> Apr 30
+    dates = _build_monthly_dates(date(2024, 1, 31), 1, 4, None)
+    assert dates == ["2024-01-31", "2024-02-29", "2024-03-31", "2024-04-30"]
+
+    # 3. Preserve day, non-leap year, Jan 31 -> Feb 28 -> Mar 31 -> Apr 30
+    dates = _build_monthly_dates(date(2023, 1, 31), 1, 4, None)
+    assert dates == ["2023-01-31", "2023-02-28", "2023-03-31", "2023-04-30"]
+
+    # 4. No preserve day (drifting), Jan 31 -> Feb 28 -> Mar 28 -> Apr 28 (non-leap year)
+    dates = _build_monthly_dates(date(2023, 1, 31), 1, 4, None, preserve_day=False)
+    assert dates == ["2023-01-31", "2023-02-28", "2023-03-28", "2023-04-28"]
+
+    # 5. Interval=2, occurrence_limit=3
+    dates = _build_monthly_dates(date(2024, 1, 10), 2, 3, None)
+    assert dates == ["2024-01-10", "2024-03-10", "2024-05-10"]
+
+    # 6. Stop due to end_date
+    dates = _build_monthly_dates(date(2024, 1, 15), 1, None, date(2024, 3, 15))
+    assert dates == ["2024-01-15", "2024-02-15", "2024-03-15"]
+
+    # 7. Stop due to end_date (before occurrence limit)
+    dates = _build_monthly_dates(date(2024, 1, 15), 1, 10, date(2024, 3, 10))
+    assert dates == ["2024-01-15", "2024-02-15"]
 
 def test_get_start_weekday_value():
     assert get_start_weekday_value(date(2025, 2, 23)) == 0
