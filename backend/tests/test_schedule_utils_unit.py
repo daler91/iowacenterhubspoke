@@ -15,10 +15,12 @@ sys.modules.setdefault("dotenv", MagicMock())
 try:
     from pydantic import BaseModel  # noqa: F401
 except ImportError:
+
     class BaseModel:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     mock_pydantic = MagicMock()
     mock_pydantic.BaseModel = BaseModel
     sys.modules.setdefault("pydantic", mock_pydantic)
@@ -32,13 +34,12 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 
-import pytest
-from datetime import date
-from services.schedule_utils import (
+from datetime import date  # noqa: E402
+from services.schedule_utils import (  # noqa: E402 (
     time_to_minutes,
     calculate_class_minutes,
     add_months,
-    get_start_weekday_value
+    get_start_weekday_value,
 )
 
 schedule_utils = sys.modules["services.schedule_utils"]
@@ -69,6 +70,7 @@ class FakeSchedulesCollection:
         self.last_projection = projection
         return AsyncCursor(self.docs)
 
+
 def test_time_to_minutes():
     assert time_to_minutes("00:00") == 0
     assert time_to_minutes("01:30") == 90
@@ -76,10 +78,12 @@ def test_time_to_minutes():
     assert time_to_minutes("23:59") == 1439
     assert time_to_minutes("9:00") == 540
 
+
 def test_calculate_class_minutes():
     assert calculate_class_minutes("10:00", "11:30") == 90
     assert calculate_class_minutes("10:00", "10:00") == 0
     assert calculate_class_minutes("11:00", "10:00") == -60
+
 
 def test_add_months():
     # Negative months (subtraction)
@@ -111,6 +115,31 @@ def test_add_months():
     assert add_months(date(2024, 12, 1), 2) == date(2025, 2, 1)
     # Multiple years wrap
     assert add_months(date(2024, 1, 1), 24) == date(2026, 1, 1)
+
+    # --- anchor_day tests ---
+
+    # Basic anchor_day usage (snaps to end of short month, restores in long month)  # noqa: E501
+    assert add_months(date(2024, 1, 31), 1, anchor_day=31) == date(2024, 2, 29)
+    assert add_months(date(2024, 2, 29), 1, anchor_day=31) == date(2024, 3, 31)
+
+    assert add_months(date(2023, 1, 31), 1, anchor_day=31) == date(2023, 2, 28)
+    assert add_months(date(2023, 2, 28), 1, anchor_day=31) == date(2023, 3, 31)
+
+    # 30-day to 31-day transitions
+    assert add_months(date(2023, 4, 30), 1, anchor_day=31) == date(2023, 5, 31)
+    assert add_months(date(2023, 5, 31), 1, anchor_day=31) == date(2023, 6, 30)
+
+    # 31-day to 30-day transitions
+    assert add_months(date(2023, 8, 31), 1, anchor_day=31) == date(2023, 9, 30)
+
+    # Negative months with anchor_day
+    assert add_months(date(2023, 3, 31), -1, anchor_day=31) == date(2023, 2, 28)  # noqa: E501
+    assert add_months(date(2024, 3, 31), -1, anchor_day=31) == date(2024, 2, 29)  # noqa: E501
+    assert add_months(date(2023, 5, 31), -1, anchor_day=31) == date(2023, 4, 30)  # noqa: E501
+
+    # Target day is smaller than max days in month (anchor_day doesn't exceed bounds)  # noqa: E501
+    assert add_months(date(2023, 1, 15), 1, anchor_day=15) == date(2023, 2, 15)
+
 
 def test_get_start_weekday_value():
     assert get_start_weekday_value(date(2025, 2, 23)) == 0
@@ -156,7 +185,7 @@ def test_check_conflicts_handles_more_than_100_candidates(monkeypatch):
 
     assert len(conflicts) == 1
     assert conflicts[0]["schedule_id"] == "overlap-after-100"
-    assert fake_schedules.last_projection == schedule_utils.SCHEDULE_CONFLICT_PROJECTION
+    assert fake_schedules.last_projection == schedule_utils.SCHEDULE_CONFLICT_PROJECTION  # noqa: E501
 
 
 def test_check_conflicts_bulk_handles_more_than_10000_candidates(monkeypatch):
@@ -210,4 +239,4 @@ def test_check_conflicts_bulk_handles_more_than_10000_candidates(monkeypatch):
     assert conflicts_by_date[dates[0]][0]["schedule_id"] == "overlap-a"
     assert len(conflicts_by_date[dates[1]]) == 1
     assert conflicts_by_date[dates[1]][0]["schedule_id"] == "overlap-b"
-    assert fake_schedules.last_projection == schedule_utils.SCHEDULE_CONFLICT_PROJECTION
+    assert fake_schedules.last_projection == schedule_utils.SCHEDULE_CONFLICT_PROJECTION  # noqa: E501
