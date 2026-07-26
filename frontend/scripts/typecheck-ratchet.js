@@ -33,12 +33,26 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const BASELINE_PATH = path.join(__dirname, 'typecheck-baseline.json');
 
+// Resolve the locally-installed compiler by absolute path rather than
+// shelling out to `npx`, which would search PATH at run time.
+const TSC_BIN = path.join(
+  ROOT,
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'tsc.cmd' : 'tsc',
+);
+
 const ERROR_LINE = /^(\S+?)\((\d+),(\d+)\): error (TS\d+):/;
 
 function collectErrors() {
+  if (!fs.existsSync(TSC_BIN)) {
+    console.error(`Cannot find ${path.relative(ROOT, TSC_BIN)} — run \`npm ci\` first.`);
+    process.exit(2);
+  }
+
   let output = '';
   try {
-    output = execFileSync('npx', ['tsc', '--noEmit'], {
+    output = execFileSync(TSC_BIN, ['--noEmit'], {
       cwd: ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],

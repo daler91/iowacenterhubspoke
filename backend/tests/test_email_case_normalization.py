@@ -12,6 +12,7 @@ These tests pin every leg of that trap.
 """
 
 import asyncio
+import secrets
 
 import pytest
 from fastapi import Response
@@ -22,7 +23,13 @@ from routers import auth
 from services import email_jobs
 
 
-_PASSWORD = "Dummy_password_123"  # noqa: S105 — test-only placeholder
+# Generated per run rather than written as a literal: these tests only need a
+# value that satisfies UserRegister's complexity rules and compares equal to
+# itself, and a literal here would be a hard-coded credential in new code.
+_PASSWORD = f"Aa1-{secrets.token_urlsafe(16)}"
+
+# Never verified against — `verify_password` is stubbed in every test below.
+_STUB_HASH = f"stub-hash-{secrets.token_hex(8)}"
 
 
 class FakeCollection:
@@ -99,7 +106,7 @@ def test_login_succeeds_when_casing_differs_from_signup(monkeypatch):
     """The core lockout: stored lower-case, typed mixed-case."""
     db = FakeDB(users=[{
         "id": "u1", "email": "bob@example.com", "name": "Bob",
-        "password_hash": "h", "role": "viewer", "status": "approved",
+        "password_hash": _STUB_HASH, "role": "viewer", "status": "approved",
     }])
     monkeypatch.setattr(auth, "db", db)
     monkeypatch.setattr(
