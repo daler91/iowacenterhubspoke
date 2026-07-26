@@ -33,11 +33,23 @@ def test_no_full_buffer_file_reads_in_upload_or_webhook_paths():
 
 
 def test_project_board_and_schedule_list_have_pagination_budgets():
-    """Lock endpoint limits so accidental budget inflation fails CI."""
+    """Lock endpoint limits so accidental budget inflation fails CI.
+
+    The board overfetch assertion reads ``services/projects_query_service.py``,
+    not the router. The router used to carry its own ``_fetch_phase_projects``
+    copy, and this guard matched ``.limit(limit + 1)`` against *that* — a dead
+    duplicate the board endpoint stopped calling when the query service was
+    extracted. So the guard passed while the live overfetch went unchecked:
+    deleting it from the service would not have failed CI. Assert against the
+    module the endpoint actually calls.
+    """
     projects = _read("routers/projects.py")
+    board = _read("services/projects_query_service.py")
     schedules = _read("routers/schedule_crud.py")
 
     assert "BOARD_PHASE_LIMIT_MAX" in projects
-    assert ".limit(limit + 1)" in projects
+    assert "BOARD_PHASE_LIMIT_MAX = 200" in board
+    # Overfetch by one to detect a further page without a second count query.
+    assert ".limit(phase_limit + 1)" in board
     assert "_SCHEDULE_LIST_LIMIT_MAX = 200" in schedules
     assert ".limit(pagination.limit)" in schedules

@@ -67,9 +67,6 @@ _CLASS_ID_FIELD = "$class_id"
 # ── Projects ──────────────────────────────────────────────────────────
 
 
-_SCHEDULE_LIST_LIMIT_MAX = project_queries.LIST_LIMIT_MAX
-
-
 def _clamp_limit(value: int, max_value: int) -> int:
     """Backward-compatible wrapper for legacy test/import callers."""
     return project_queries.clamp_limit(value, max_value)
@@ -87,58 +84,6 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
         }
         for project_id, dto in stats.items()
     }
-
-
-def _phase_match(phase: str) -> dict:
-    """Build the phase predicate for a single board column.
-
-    The legacy implementation used ``phase != complete`` then defaulted
-    ``phase.get("phase", "planning")`` in Python, so legacy/imported
-    projects with a null or missing ``phase`` field rendered under
-    Planning. The exact-equality queries we use for the paged fetches
-    would silently hide those records, so the Planning predicate is
-    widened to also match null / missing / empty values.
-    """
-    if phase == "planning":
-        return {
-            "$or": [
-                {"phase": "planning"},
-                {"phase": {"$in": [None, ""]}},
-                {"phase": {"$exists": False}},
-            ],
-        }
-    return {"phase": phase}
-
-
-async def _fetch_phase_projects(
-    base_query: dict, phase: str, limit: int,
-) -> tuple[str, list, bool]:
-    """Load the newest ``limit`` projects for a single phase.
-
-    Overfetches by one document to detect whether more rows exist beyond
-    the page boundary without a second count query. The extra row is
-    discarded before returning; the flag tells the caller whether the
-    UI should display a "more available" indicator for that column.
-    """
-    phase_query = {**base_query, **_phase_match(phase)}
-    rows = (
-        await db.projects.find(phase_query, {"_id": 0})
-        .sort("updated_at", -1)
-        .limit(limit + 1)
-        .to_list(limit + 1)
-    )
-    truncated = len(rows) > limit
-    page = rows[:limit]
-    # Normalize the phase field on the payload. For the Planning query
-    # this catches legacy/imported rows with null/empty/missing phase
-    # that would otherwise return as-is. The frontend drag handler uses
-    # `PROJECT_PHASES.indexOf(project.phase)` to decide whether a move
-    # is a gated forward advance; a `-1` there silently bypasses the
-    # task-completion warning flow. Writing the canonical value here is
-    # idempotent for the other phases where the query is exact-match.
-    for row in page:
-        row["phase"] = phase
-    return phase, page, truncated
 
 
 @router.get("/board", summary="Portfolio kanban board")
