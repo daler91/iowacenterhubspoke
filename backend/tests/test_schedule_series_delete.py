@@ -7,9 +7,12 @@ Three branches matter:
 3. Series exists but every date is in the past → 200, deleted_count == 0
    (no-op, not an error).
 
-We monkeypatch ``routers.schedule_crud.db`` with a MagicMock the same
-way ``test_brute_force_unit.py`` does, because Motor returns a fresh
-collection proxy on every attribute access.
+We inject a MagicMock db the same way ``test_brute_force_unit.py`` does,
+because Motor returns a fresh collection proxy on every attribute access.
+It goes through ``use_fake_db`` rather than a bare ``setattr`` so the
+router's ``SoftDeleteRepository`` instances are repointed too — they capture
+their collection handle at construction, so patching ``db`` alone leaves
+them talking to the real database.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -17,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
+from conftest import use_fake_db
+from routers import schedule_crud
 from routers.schedule_crud import delete_series
 
 
@@ -31,10 +36,7 @@ def _fake_db(modified_count: int, any_existing):
 
 @pytest.mark.asyncio
 async def test_delete_series_unknown_returns_404(monkeypatch):
-    monkeypatch.setattr(
-        "routers.schedule_crud.db",
-        _fake_db(modified_count=0, any_existing=None),
-    )
+    use_fake_db(monkeypatch, schedule_crud, _fake_db(0, any_existing=None))
     with pytest.raises(HTTPException) as exc:
         await delete_series("no-such-series", {"name": "tester"})
     assert exc.value.status_code == 404
@@ -42,10 +44,7 @@ async def test_delete_series_unknown_returns_404(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_delete_series_with_future_dates_returns_count(monkeypatch):
-    monkeypatch.setattr(
-        "routers.schedule_crud.db",
-        _fake_db(modified_count=3, any_existing={"id": "s1"}),
-    )
+    use_fake_db(monkeypatch, schedule_crud, _fake_db(3, any_existing={"id": "s1"}))
     # log_activity / invalidate_workload_cache are awaited on success;
     # stub them to no-ops to keep the test free of side effects.
     monkeypatch.setattr(
@@ -63,9 +62,8 @@ async def test_delete_series_with_future_dates_returns_count(monkeypatch):
 async def test_delete_series_past_only_returns_zero_not_404(monkeypatch):
     # update_many matches nothing (all dates in past), but find_one finds
     # at least one record for the series → not a 404, just a no-op 200.
-    monkeypatch.setattr(
-        "routers.schedule_crud.db",
-        _fake_db(modified_count=0, any_existing={"id": "s-past"}),
+    use_fake_db(
+        monkeypatch, schedule_crud, _fake_db(0, any_existing={"id": "s-past"}),
     )
     result = await delete_series("series-past", {"name": "tester"})
     assert result == {"deleted_count": 0, "series_id": "series-past"}
@@ -84,7 +82,7 @@ async def test_delete_series_is_idempotent_after_first_delete(monkeypatch):
     fake.schedules.find_one = AsyncMock(
         return_value={"id": "s-already-deleted"},
     )
-    monkeypatch.setattr("routers.schedule_crud.db", fake)
+    use_fake_db(monkeypatch, schedule_crud, fake)
 
     result = await delete_series("series-deleted", {"name": "tester"})
     assert result == {"deleted_count": 0, "series_id": "series-deleted"}

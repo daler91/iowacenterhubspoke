@@ -19,11 +19,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# router file -> the collection whose access has been migrated to the repository
+# router file -> the collection(s) whose access has been migrated.
+#
+# A router can own more than one: schedule_crud.py migrated its own
+# ``schedules`` and also the ``projects`` rows it keeps in sync, because
+# ``projects`` became repository-managed when that router migrated. Locking
+# in only one of the two would leave the other free to regrow raw filters.
 MIGRATED = {
-    "backend/routers/project_docs.py": "documents",
-    "backend/routers/employees.py": "employees",
-    "backend/routers/projects.py": "projects",
+    "backend/routers/project_docs.py": ("documents",),
+    "backend/routers/employees.py": ("employees",),
+    "backend/routers/projects.py": ("projects",),
+    "backend/routers/schedule_crud.py": ("schedules", "projects"),
 }
 
 
@@ -38,12 +44,15 @@ def _raw_filter_pattern(collection: str) -> re.Pattern:
 
 def test_no_new_raw_deleted_at_none_filters_in_migrated_routers():
     offenders = []
-    for rel_path, collection in MIGRATED.items():
+    for rel_path, collections in MIGRATED.items():
         text = (REPO_ROOT / rel_path).read_text(encoding="utf-8")
-        match = _raw_filter_pattern(collection).search(text)
-        if match:
-            line = text.count("\n", 0, match.start()) + 1
-            offenders.append(f"{rel_path}:{line} raw soft-delete filter on db.{collection}")
+        for collection in collections:
+            match = _raw_filter_pattern(collection).search(text)
+            if match:
+                line = text.count("\n", 0, match.start()) + 1
+                offenders.append(
+                    f"{rel_path}:{line} raw soft-delete filter on db.{collection}"
+                )
 
     assert offenders == [], (
         "Migrated routers must go through SoftDeleteRepository:\n  "

@@ -5,7 +5,9 @@ import pytest
 from fastapi import HTTPException
 from pymongo.errors import OperationFailure
 
+from conftest import use_fake_db
 from models.schemas import ScheduleRelocate
+from routers import schedule_crud
 from routers.schedule_crud import relocate_schedule
 
 
@@ -135,7 +137,7 @@ class _FakeClaims:
 
 
 def test_competing_relocations_only_one_succeeds(monkeypatch):
-    monkeypatch.setattr("routers.schedule_crud.db", FakeDB())
+    use_fake_db(monkeypatch, schedule_crud, FakeDB())
 
     _patch_relocate_side_effects(monkeypatch)
 
@@ -159,7 +161,7 @@ def test_competing_relocations_only_one_succeeds(monkeypatch):
 
 
 def test_relocate_falls_back_without_transactions(monkeypatch):
-    monkeypatch.setattr("routers.schedule_crud.db", StandaloneFakeDB())
+    use_fake_db(monkeypatch, schedule_crud, StandaloneFakeDB())
 
     _patch_relocate_side_effects(monkeypatch)
 
@@ -175,7 +177,7 @@ def test_fallback_rolls_back_partial_claims(monkeypatch):
     # Force a duplicate only on the second claim insert so the first claim
     # would otherwise remain stale without cleanup.
     db.schedule_slot_claims._ids.add("e-2:2026-06-01:13:00:14:00")
-    monkeypatch.setattr("routers.schedule_crud.db", db)
+    use_fake_db(monkeypatch, schedule_crud, db)
 
     _patch_relocate_side_effects(monkeypatch)
 
@@ -188,7 +190,7 @@ def test_fallback_rolls_back_partial_claims(monkeypatch):
 
 def test_fallback_cleans_claims_on_stale_update(monkeypatch):
     db = StandaloneFakeDB()
-    monkeypatch.setattr("routers.schedule_crud.db", db)
+    use_fake_db(monkeypatch, schedule_crud, db)
 
     original_find_one_and_update = db.schedules.find_one_and_update
 

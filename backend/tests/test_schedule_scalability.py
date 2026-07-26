@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from conftest import use_fake_db
 from routers import schedule_crud
 
 
@@ -29,7 +30,9 @@ def test_get_schedules_clamps_limit_and_has_more(monkeypatch):
             find=lambda *_a, **_k: FakeCursor([]),
         ),
     )
-    monkeypatch.setattr(schedule_crud, "db", fake_db)
+    # Repoints the router's repositories too — they resolve db[...] at
+    # construction, so patching db alone would leave them on the real one.
+    use_fake_db(monkeypatch, schedule_crud, fake_db)
 
     pagination = SimpleNamespace(skip=0, limit=1000)
     res = asyncio.run(schedule_crud.get_schedules(user={"id": "u1"}, pagination=pagination))
