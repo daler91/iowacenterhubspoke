@@ -1,17 +1,20 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { coordinationFeatureApi } from './api';
-import type { TaskCommentDraft, TaskCommentPayload } from './types';
-import { describeApiError } from '../../lib/error-messages';
+import { projectTasksAPI } from '../lib/coordination-api';
+import type { Mention } from '../lib/coordination-types';
+import { describeApiError } from '../lib/error-messages';
 
-function toPayload(draft: TaskCommentDraft): TaskCommentPayload {
-  return {
-    body: draft.body,
-    mentions: draft.mentions,
-    ...(draft.parentCommentId ? { parent_comment_id: draft.parentCommentId } : {}),
-  };
-}
+export type TaskCommentDraft = {
+  body: string;
+  mentions: Mention[];
+  parentCommentId?: string | null;
+};
 
+/**
+ * Posts a task comment (optionally as a reply) and refreshes the thread.
+ * Rethrows after toasting so the caller can keep the draft on screen instead
+ * of clearing an unsent comment.
+ */
 export function useTaskCommentActions(projectId: string, taskId: string, onRefresh: () => Promise<unknown> | void) {
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,7 +22,13 @@ export function useTaskCommentActions(projectId: string, taskId: string, onRefre
     if (!draft.body.trim()) return null;
     setSubmitting(true);
     try {
-      const res = await coordinationFeatureApi.postComment(projectId, taskId, toPayload(draft));
+      const res = await projectTasksAPI.postComment(
+        projectId,
+        taskId,
+        draft.body,
+        draft.parentCommentId ?? undefined,
+        draft.mentions,
+      );
       await onRefresh();
       return res.data?.id ?? null;
     } catch (error) {

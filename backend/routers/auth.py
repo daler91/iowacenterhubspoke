@@ -583,13 +583,12 @@ _INVALID_RESET_TOKEN = "Invalid or expired reset link"
 
 async def _find_valid_reset_token(token: str):
     """Look up a password_resets row that is unused and not expired."""
+    # Digest-only lookup — see core.portal_auth for the same removal. Reset
+    # tokens live PASSWORD_RESET_EXPIRY_HOURS (default 24), so the transitional
+    # raw-token fallback outlived every row it existed for.
     row = await db.password_resets.find_one(
         {"token_digest": token_digest(token), "used_at": None}, {"_id": 0},
     )
-    if not row:
-        row = await db.password_resets.find_one(
-            {"token": token, "used_at": None}, {"_id": 0},
-        )
     if not row:
         return None
     raw_expires = row.get("expires_at")

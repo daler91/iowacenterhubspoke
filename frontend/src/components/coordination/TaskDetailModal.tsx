@@ -26,7 +26,7 @@ import {
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../ui/searchable-select';
-import { useTaskCommentActions } from '../../features/coordination/hooks';
+import { useTaskCommentActions } from '../../hooks/useTaskCommentActions';
 
 const CUSTOM_ASSIGNEE_OPTION_VALUE = '__custom_assignee_option__';
 

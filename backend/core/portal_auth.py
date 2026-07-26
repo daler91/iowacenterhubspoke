@@ -35,11 +35,13 @@ def _client_ip(request: Optional[Request]) -> Optional[str]:
 
 async def validate_portal_token(token: str, request: Optional[Request] = None) -> dict:
     """Validate a portal token string and return contact + org context."""
+    # Digest-only lookup. A raw ``{"token": token}`` fallback used to sit here
+    # for rolling-deploy compatibility while pre-digest rows aged out; portal
+    # tokens live PORTAL_TOKEN_EXPIRY_DAYS (default 3), so every such row
+    # expired long ago and the fallback was only keeping a plaintext-token
+    # read path alive.
     lookup_filter: dict = {"token_digest": token_digest(token)}
     token_doc = await db.portal_tokens.find_one(lookup_filter, {"_id": 0})
-    if not token_doc:
-        lookup_filter = {"token": token}
-        token_doc = await db.portal_tokens.find_one(lookup_filter, {"_id": 0})
     if not token_doc:
         raise HTTPException(status_code=401, detail=INVALID_TOKEN)
     if token_doc.get("revoked_at"):

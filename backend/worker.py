@@ -21,16 +21,12 @@ from jobs.reminders_digest.jobs import (
     process_notification_digests,
     process_task_reminders,
 )
+from services.schedule_utils import time_to_minutes
 
 load_dotenv()
 # Set up JSON structured logging
 setup_logging()
 logger = get_logger("Worker")
-
-
-def time_to_minutes(time_str: str) -> int:
-    h, m = time_str.split(":")
-    return int(h) * 60 + int(m)
 
 
 def _check_day_conflicts(day_schedules, new_start, new_end):

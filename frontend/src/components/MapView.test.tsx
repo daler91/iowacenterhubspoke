@@ -3,7 +3,6 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { managerFeatureApi } from '../features/manager/api';
 import { locationsAPI } from '../lib/api';
 import MapView from './MapView';
 
@@ -32,12 +31,7 @@ jest.mock('../lib/api', () => ({
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-  },
-}));
-
-jest.mock('../features/manager/api', () => ({
-  managerFeatureApi: {
-    locations: { getDriveTimeFromHub: jest.fn() },
+    getDriveTimeFromHub: jest.fn(),
   },
 }));
 
@@ -76,7 +70,6 @@ jest.mock('./PlacesAutocomplete', () => ({
 }));
 
 const mockedLocationsAPI = locationsAPI as jest.Mocked<typeof locationsAPI>;
-const mockedManagerApi = managerFeatureApi as jest.Mocked<typeof managerFeatureApi>;
 
 function renderMap({
   role = 'admin',
@@ -114,7 +107,7 @@ describe('MapView add location action', () => {
     process.env.VITE_GOOGLE_MAPS_API_KEY = '';
     process.env.REACT_APP_GOOGLE_MAPS_API_KEY = '';
     mockedLocationsAPI.create.mockResolvedValue({ data: {} } as Awaited<ReturnType<typeof locationsAPI.create>>);
-    (mockedManagerApi.locations.getDriveTimeFromHub as jest.Mock).mockResolvedValue({
+    (mockedLocationsAPI.getDriveTimeFromHub as jest.Mock).mockResolvedValue({
       data: { drive_time_minutes: 42 },
     });
   });

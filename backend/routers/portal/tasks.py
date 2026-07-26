@@ -32,6 +32,7 @@ from ._shared import (
     PROJECT_NOT_FOUND,
     TASK_NOT_FOUND,
     UPLOAD_DIR,
+    require_partner_project,
     safe_stored_name,
 )
 
@@ -68,15 +69,6 @@ def _is_partner_task_owner(owner: object) -> bool:
     return _normalized_owner(owner) in {"partner", "both"}
 
 
-async def _require_partner_project(project_id: str, ctx: dict) -> dict:
-    project = await db.projects.find_one(
-        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
-    )
-    if not project:
-        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    return project
-
-
 async def _require_partner_task(task_id: str, project_id: str) -> dict:
     task = await db.tasks.find_one(
         {
@@ -104,7 +96,7 @@ async def _require_partner_task(task_id: str, project_id: str) -> dict:
     responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_project_tasks(project_id: str, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
 
     tasks = await db.tasks.find(
         {
@@ -171,7 +163,7 @@ async def portal_project_tasks_bulk(
     responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_complete_task(project_id: str, task_id: str, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     task = await _require_partner_task(task_id, project_id)
     task.pop("_id", None)
     task.pop("details", None)
@@ -254,7 +246,7 @@ def _build_task_update(payload: PortalTaskUpdate, ctx: PortalContext) -> dict:
     },
 )
 async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskUpdate, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     task = await _require_partner_task(task_id, project_id)
     was_completed = bool(task.get("completed", False))
     update = _build_task_update(payload, ctx)
@@ -319,7 +311,7 @@ async def portal_update_task(project_id: str, task_id: str, payload: PortalTaskU
     responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
 )
 async def portal_task_detail(project_id: str, task_id: str, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     task = await _require_partner_task(task_id, project_id)
     task.pop("_id", None)
     task.pop("details", None)
@@ -341,7 +333,7 @@ async def portal_task_detail(project_id: str, task_id: str, ctx: PortalContext):
     responses={401: {"description": INVALID_TOKEN}, 404: {"description": TASK_NOT_FOUND}},
 )
 async def portal_task_attachments(project_id: str, task_id: str, ctx: PortalContext):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     await _require_partner_task(task_id, project_id)
     atts = await db.task_attachments.find(
         {"task_id": task_id, "project_id": project_id}, {"_id": 0},
@@ -358,7 +350,7 @@ async def portal_upload_task_attachment(
     project_id: str, task_id: str, ctx: PortalContext,
     file: Annotated[UploadFile, File(...)],
 ):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     await _require_partner_task(task_id, project_id)
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -405,7 +397,7 @@ async def portal_download_task_attachment(
     project_id: str, task_id: str, att_id: str, ctx: PortalContext,
     inline: bool = False,
 ):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     await _require_partner_task(task_id, project_id)
     att = await db.task_attachments.find_one(
         {"id": att_id, "task_id": task_id, "project_id": project_id},
@@ -433,7 +425,7 @@ async def portal_task_comments(
     project_id: str, task_id: str, ctx: PortalContext,
     pagination: Paginated,
 ):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
     await _require_partner_task(task_id, project_id)
     child_scope = {"task_id": task_id, "project_id": project_id}
     total = await db.task_comments.count_documents(child_scope)
@@ -460,7 +452,7 @@ async def portal_post_task_comment(
     project_id: str, task_id: str, ctx: PortalContext,
     data: TaskCommentCreate,
 ):
-    project = await _require_partner_project(project_id, ctx)
+    project = await require_partner_project(project_id, ctx)
     task = await _require_partner_task(task_id, project_id)
 
     if data.parent_comment_id:
@@ -551,7 +543,7 @@ async def portal_post_task_comment(
     responses={401: {"description": INVALID_TOKEN}, 404: {"description": PROJECT_NOT_FOUND}},
 )
 async def portal_project_members(project_id: str, ctx: PortalContext):
-    project = await _require_partner_project(project_id, ctx)
+    project = await require_partner_project(project_id, ctx)
     principals = await principals_for_project(
         project_id=project_id,
         partner_org_id=project.get("partner_org_id"),

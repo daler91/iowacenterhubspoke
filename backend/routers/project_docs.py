@@ -6,9 +6,9 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.params import Depends, Query
 from fastapi.responses import FileResponse
-from database import db, ROOT_DIR
+from database import db
 from models.coordination_schemas import DocumentVisibilityUpdate
-from core.upload import stream_upload_to_disk
+from core.upload import UPLOAD_DIR, stream_upload_to_disk
 from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from core.pagination import PaginationParams, paginated_response
 from core.repository import SoftDeleteRepository
@@ -23,8 +23,6 @@ router = APIRouter(prefix="/projects/{project_id}/documents", tags=["project-doc
 documents_repo = SoftDeleteRepository(db, "documents")
 projects_repo = SoftDeleteRepository(db, "projects")
 
-# See project_tasks.py for the rationale on env-var overrides.
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 DOC_NOT_FOUND = "Document not found"
 PROJECT_NOT_FOUND = "Project not found"
 DOCUMENT_SHARED = "Document shared"

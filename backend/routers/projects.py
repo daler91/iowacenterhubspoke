@@ -185,32 +185,6 @@ async def _aggregate_completed_metrics() -> dict:
     return await project_queries.aggregate_completed_metrics()
 
 
-async def _aggregate_completed_metrics_legacy_impl() -> dict:
-    """Return completed count and totals from Mongo aggregation."""
-    pipeline = [
-        {_AGG_MATCH: {"deleted_at": None, "phase": "complete"}},
-        {
-            _AGG_GROUP: {
-                "_id": None,
-                "classes_delivered": {"$sum": 1},
-                "total_attendance": {
-                    "$sum": {_AGG_IF_NULL: [_ATTENDANCE_FIELD, 0]},
-                },
-                "warm_leads": {"$sum": {_AGG_IF_NULL: [_WARM_LEADS_FIELD, 0]}},
-            },
-        },
-    ]
-    rows = await db.projects.aggregate(pipeline).to_list(1)
-    if not rows:
-        return {"classes_delivered": 0, "total_attendance": 0, "warm_leads": 0}
-    row = rows[0]
-    return {
-        "classes_delivered": row.get("classes_delivered", 0),
-        "total_attendance": row.get("total_attendance", 0),
-        "warm_leads": row.get("warm_leads", 0),
-    }
-
-
 async def _aggregate_community_breakdown() -> tuple[list, bool]:
     """Group projects by community with delivery/upcoming and phase stats."""
     pipeline = [
@@ -443,38 +417,6 @@ async def get_dashboard(
         "truncated": truncated,
         "communities_truncated": communities_truncated,
         "class_breakdown_truncated": class_breakdown_truncated,
-    }
-
-
-def _build_trends(projects: list, period_days: int) -> dict:
-    """Build monthly trend buckets for delivered classes and attendance."""
-    cutoff = (
-        datetime.now(timezone.utc) - timedelta(days=period_days)
-    ).isoformat()
-    recent = [
-        p for p in projects
-        if p.get("phase") == "complete"
-        and (p.get("event_date") or "") >= cutoff
-    ]
-    months: dict = {}
-    for p in recent:
-        month = (p.get("event_date") or "")[:7]  # YYYY-MM
-        community = p.get("community", "Unknown")
-        if month not in months:
-            months[month] = {}
-        if community not in months[month]:
-            months[month][community] = {
-                "delivered": 0, "attendance": 0,
-            }
-        months[month][community]["delivered"] += 1
-        months[month][community]["attendance"] += (
-            p.get("attendance_count") or 0
-        )
-    return {
-        "months": sorted(months.keys()),
-        "by_month": {
-            m: months[m] for m in sorted(months.keys())
-        },
     }
 
 

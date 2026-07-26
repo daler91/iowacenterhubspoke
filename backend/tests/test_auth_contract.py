@@ -134,7 +134,7 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
     now = datetime.now(timezone.utc)
     db = FakeDB(
         users=[{"id": "u1", "email": "u@example.com", "password_hash": "old", "status": "approved"}],
-        password_resets=[{"token": "t1", "user_id": "u1", "used_at": None, "expires_at": now + timedelta(minutes=5)}],
+        password_resets=[{"token_digest": token_digest("t1"), "user_id": "u1", "used_at": None, "expires_at": now + timedelta(minutes=5)}],
     )
     monkeypatch.setattr(auth, "db", db)
     monkeypatch.setattr(auth, "hash_password", lambda p: asyncio.sleep(0, result=f"hashed:{p}"))
@@ -172,7 +172,7 @@ def test_password_reset_change_and_multi_worker_cache_coherence(monkeypatch):
 
 
 @pytest.mark.auth_contract
-def test_reset_token_lookup_accepts_digest_rows_and_legacy_plaintext_rows(monkeypatch):
+def test_reset_token_lookup_accepts_digest_rows_only(monkeypatch):
     now = datetime.now(timezone.utc)
     db = FakeDB(
         password_resets=[
@@ -196,4 +196,8 @@ def test_reset_token_lookup_accepts_digest_rows_and_legacy_plaintext_rows(monkey
     legacy_row = asyncio.run(auth._find_valid_reset_token("legacy-token"))
 
     assert digest_row["user_id"] == "u-digest"
-    assert legacy_row["user_id"] == "u-legacy"
+    # Pre-digest rows are no longer honoured: reset tokens live
+    # PASSWORD_RESET_EXPIRY_HOURS (default 24), so the transitional
+    # raw-token fallback outlived every row it existed for and only kept a
+    # plaintext read path alive. This used to assert the opposite.
+    assert legacy_row is None

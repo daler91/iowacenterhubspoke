@@ -90,7 +90,8 @@ async def ensure_indexes(db, logger):
         await db.invitations.create_index("token", unique=True)
         await db.invitations.create_index("expires_at", expireAfterSeconds=0)
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
-        await _ensure_partial_unique_token_index(db.password_resets, "token")
+        # Only the digest is indexed: new rows never store a raw ``token``
+        # field, and the transitional raw-token lookup has been removed.
         await _ensure_partial_unique_token_index(db.password_resets, "token_digest")
         await db.google_oauth_states.create_index("state", unique=True)
         await db.google_oauth_states.create_index("created_at", expireAfterSeconds=1800)
@@ -99,7 +100,6 @@ async def ensure_indexes(db, logger):
         await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
         await db.login_failures.create_index("email", unique=True)
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
-        await _ensure_partial_unique_token_index(db.portal_tokens, "token")
         await _ensure_partial_unique_token_index(db.portal_tokens, "token_digest")
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
         await db.portal_activity_events.create_index(

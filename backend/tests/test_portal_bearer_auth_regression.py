@@ -124,7 +124,15 @@ def test_validate_portal_token_accepts_digest_backed_rows(monkeypatch):
     assert portal_tokens.update_calls[0][0] == {"id": "pt-1"}
 
 
-def test_validate_portal_token_accepts_legacy_plaintext_rows(monkeypatch):
+def test_validate_portal_token_rejects_legacy_plaintext_rows(monkeypatch):
+    """Pre-digest rows are no longer honoured.
+
+    A raw ``{"token": token}`` fallback existed while pre-digest rows aged
+    out. Portal tokens live PORTAL_TOKEN_EXPIRY_DAYS (default 3), so every
+    such row expired long ago and the fallback was only keeping a
+    plaintext-token read path alive. This asserts it is gone — the inverse
+    of what this test used to check.
+    """
     expires = datetime.now(timezone.utc) + timedelta(days=1)
     portal_tokens = _FakeCollection(
         [{"id": "pt-legacy", "contact_id": "c1", "token": "legacy-token", "expires_at": expires}]
@@ -136,11 +144,11 @@ def test_validate_portal_token_accepts_legacy_plaintext_rows(monkeypatch):
     )
     monkeypatch.setattr(portal_auth, "db", fake_db)
 
-    out = asyncio.run(portal_auth.validate_portal_token("legacy-token"))
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(portal_auth.validate_portal_token("legacy-token"))
 
-    assert out["contact_id"] == "c1"
-    assert out["partner_org_id"] == "org1"
-    assert portal_tokens.update_calls[0][0] == {"id": "pt-legacy"}
+    assert exc.value.status_code == 401
+    assert portal_tokens.update_calls == []
 
 
 def test_portal_token_admin_list_excludes_token_digest(monkeypatch):
