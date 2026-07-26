@@ -33,9 +33,23 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+      # Redis too, not just Mongo. /api/v1/health 503s whenever Redis is
+      # unavailable — CSRF validation and rate limiting depend on it — so
+      # without this the health endpoint could not be asserted healthy. It
+      # also stops arq burning five connection retries per enqueue attempt.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: hubspoke_ci
+      REDIS_URL: redis://localhost:6379
       # Turns the integration suite's "no Mongo, skip" into a hard failure,
       # so a broken service container cannot make the suite silently vacuous.
       REQUIRE_MONGO: "1"

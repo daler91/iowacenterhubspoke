@@ -204,11 +204,22 @@ async def test_legacy_api_mount_is_gone(clean_collections):
 
 @pytest.mark.asyncio
 async def test_health_reports_component_status(clean_collections):
+    """Both backing services are up in CI, so this must be a 200.
+
+    /health 503s if *either* Mongo or Redis is unavailable — CSRF validation
+    and rate limiting depend on Redis — which is why the workflow runs both
+    service containers. No arq worker runs in CI, so the worker heartbeat is
+    absent; that is reported in the payload but deliberately does not 503 the
+    API, since killing the API because the worker is down would take
+    scheduling offline for everyone.
+    """
     async with _client() as ac:
         res = await ac.get("/api/v1/health")
         assert res.status_code == 200, res.text
         body = res.json()
-        assert "status" in body
+        assert body["mongo"] == "ok", body
+        assert body["redis"] == "ok", body
+        assert body["status"] in {"healthy", "worker_degraded"}, body
 
 
 def _rows(payload):

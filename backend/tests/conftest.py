@@ -33,9 +33,26 @@ os.environ.setdefault("DB_NAME", "test_db")
 os.environ["ENVIRONMENT"] = "development"
 os.environ.pop("RAILWAY_ENVIRONMENT", None)
 
+# Import the real drivers here, before pytest imports any test module.
+#
+# A dozen unit-test modules install MagicMock stand-ins via
+# ``sys.modules.setdefault("motor.motor_asyncio", MagicMock())`` so they can
+# import application code without a database. ``setdefault`` is a no-op once
+# the genuine module is present — so importing it here means those stubs
+# never take effect, while modules that only ever touch the mock are
+# unaffected.
+#
+# Without this, the stub leaks into anything needing the real driver:
+# ``AsyncIOMotorClient`` resolved to a MagicMock and the integration suite
+# died on ``TypeError: object MagicMock can't be used in 'await' expression``.
+# ``test_pagination.py`` already carried a local workaround for the same
+# hazard with ``httpx``; this fixes the class of problem in one place.
+import httpx  # noqa: E402,F401
+import motor.motor_asyncio  # noqa: E402,F401
+
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
-from unittest.mock import AsyncMock  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +141,15 @@ async def mongo_db(mongo_url):
     silently vanish where it matters.
     """
     from motor.motor_asyncio import AsyncIOMotorClient
+
+    if isinstance(AsyncIOMotorClient, MagicMock):
+        # Belt-and-braces: a test module stubbed motor despite the real import
+        # at the top of this file. Say so plainly rather than reporting it as
+        # an unreachable database.
+        pytest.fail(
+            "motor.motor_asyncio is a MagicMock — a test module stubbed it via "
+            "sys.modules before the integration fixtures ran."
+        )
 
     probe = AsyncIOMotorClient(
         mongo_url, serverSelectionTimeoutMS=_MONGO_PING_TIMEOUT_MS,

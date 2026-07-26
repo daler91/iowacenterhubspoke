@@ -189,3 +189,35 @@ def test_unknown_user_login_still_pays_a_bcrypt_verification(monkeypatch):
     assert len(calls) == 1
     assert calls[0][1] == auth_core._DUMMY_PASSWORD_HASH
     assert auth_core._DUMMY_PASSWORD_HASH.startswith("$2")
+
+
+# ── test-isolation guard ──────────────────────────────────────────────
+
+def test_real_motor_driver_survives_sibling_module_stubs():
+    """A dozen test modules install MagicMock stand-ins for motor via
+    ``sys.modules.setdefault`` so they can import app code without a database.
+    Those run at collection time, so the stub leaked into anything that needed
+    the genuine driver — the integration suite died on
+    ``TypeError: object MagicMock can't be used in 'await' expression``.
+
+    conftest imports the real driver first, which makes every ``setdefault``
+    a no-op. This asserts that still holds.
+    """
+    from unittest.mock import MagicMock
+
+    import motor.motor_asyncio
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+    assert not isinstance(motor.motor_asyncio, MagicMock)
+    assert not isinstance(AsyncIOMotorClient, MagicMock)
+    assert isinstance(AsyncIOMotorClient, type)
+
+
+def test_real_httpx_survives_sibling_module_stubs():
+    """Same hazard, previously worked around locally in test_pagination.py."""
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    assert not isinstance(httpx, MagicMock)
+    assert isinstance(httpx.AsyncClient, type)
