@@ -2,18 +2,18 @@ fastapi==0.133.1
 uvicorn==0.25.0
 boto3==1.34.129
 requests-oauthlib==2.0.0
-cryptography==46.0.7
+cryptography==49.0.0
 python-dotenv==1.2.2
 pymongo==4.6.3
 pydantic==2.7.4
 email-validator==2.2.0
-pyjwt==2.12.1
+pyjwt==2.13.0
 bcrypt==4.1.3
 tzdata==2024.2
 motor==3.3.2
 requests==2.33.0
 pandas==2.2.0
-python-multipart==0.0.27
+python-multipart==0.0.32
 typer==0.9.0
 arq==0.25.0
 redis==5.0.0
@@ -22,16 +22,18 @@ httpx==0.27.0
 sentry-sdk[fastapi]==2.8.0
 google-auth==2.29.0
 aiofiles==24.1.0
-aiosmtplib==3.0.2
+aiosmtplib==5.1.2
 openpyxl==3.1.5
 reportlab==4.2.5
 # Explicit pins to address pip-audit CVE findings in transitive deps:
-# starlette (<1.0.1 → PYSEC-2026-161, <0.47.2 → CVE-2025-54121,
-# <0.40.0 → CVE-2024-47874) comes in via fastapi; pyasn1 (<0.6.3
-# → CVE-2026-30922) comes in via google-auth. fastapi==0.133.1 is
-# the minimum that drops the starlette<1.0.0 cap so 1.0.1 can install.
-starlette==1.0.1
-pyasn1==0.6.3
+# starlette comes in via fastapi (<1.3.1 → CVE-2026-54283 form()
+# limits silently ignored, <1.3.0 → CVE-2026-54282, <1.1.0 →
+# CVE-2026-48818 StaticFiles UNC paths + CVE-2026-48817); pyasn1
+# comes in via google-auth (<0.6.4 → CVE-2026-59884/59885/59886).
+# fastapi==0.133.1 is the minimum that drops the starlette<1.0.0
+# cap, and declares starlette>=0.40.0 with no upper bound.
+starlette==1.3.1
+pyasn1==0.6.4
 
 # Keep pytest patched for tmpdir vulnerability (GHSA-xxxx / pytest <9.0.3).
 pytest==9.0.3
