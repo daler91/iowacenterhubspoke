@@ -72,6 +72,15 @@ class SoftDeleteRepository:
         """Expose the underlying Motor collection for specialized calls."""
         return self._db[self._collection_name]
 
+    @property
+    def collection_name(self) -> str:
+        """Name of the backing collection.
+
+        Public so test helpers can rebuild a repository against a fake db
+        without reaching into private state — see ``tests/conftest.py``.
+        """
+        return self._collection_name
+
     # ------------------------------------------------------------------
     # Query helpers
     # ------------------------------------------------------------------
@@ -86,20 +95,35 @@ class SoftDeleteRepository:
         self,
         query: Mapping[str, Any],
         projection: Optional[Mapping[str, Any]] = None,
+        session=None,
     ) -> Optional[dict]:
         """Return a single non-deleted document matching ``query``."""
         merged = self._with_active_filter(query)
         if projection is None:
             projection = {"_id": 0}
-        return await self.collection.find_one(merged, projection)
+        return await self.collection.find_one(merged, projection, session=session)
 
     async def get_by_id(
         self,
         doc_id: str,
         projection: Optional[Mapping[str, Any]] = None,
+        session=None,
     ) -> Optional[dict]:
         """Convenience wrapper around ``find_one_active`` for id lookups."""
-        return await self.find_one_active({self._id_field: doc_id}, projection)
+        return await self.find_one_active(
+            {self._id_field: doc_id}, projection, session=session,
+        )
+
+    async def distinct_active(
+        self,
+        field: str,
+        query: Optional[Mapping[str, Any]] = None,
+        session=None,
+    ) -> list:
+        """Distinct values of ``field`` across the active set."""
+        return await self.collection.distinct(
+            field, self._with_active_filter(query), session=session,
+        )
 
     async def find_active(
         self,
@@ -108,12 +132,13 @@ class SoftDeleteRepository:
         sort: Optional[Sequence[Tuple[str, int]]] = None,
         skip: int = 0,
         limit: int = 0,
+        session=None,
     ) -> list[dict]:
         """Return a list of non-deleted documents matching ``query``."""
         merged = self._with_active_filter(query)
         if projection is None:
             projection = {"_id": 0}
-        cursor = self.collection.find(merged, projection)
+        cursor = self.collection.find(merged, projection, session=session)
         if sort:
             cursor = cursor.sort(list(sort))
         if skip:
@@ -123,10 +148,10 @@ class SoftDeleteRepository:
         return await cursor.to_list(limit or None)
 
     async def count_active(
-        self, query: Optional[Mapping[str, Any]] = None,
+        self, query: Optional[Mapping[str, Any]] = None, session=None,
     ) -> int:
         return await self.collection.count_documents(
-            self._with_active_filter(query)
+            self._with_active_filter(query), session=session,
         )
 
     async def paginate(
@@ -168,6 +193,7 @@ class SoftDeleteRepository:
         self,
         doc_id: str,
         deleted_by: Optional[str] = None,
+        session=None,
     ) -> bool:
         """Mark a document deleted. Returns True if a row was modified."""
         update: dict = {
@@ -178,21 +204,61 @@ class SoftDeleteRepository:
         result = await self.collection.update_one(
             {self._id_field: doc_id, "deleted_at": None},
             {"$set": update},
+            session=session,
         )
         return result.modified_count > 0
 
+    async def soft_delete_many(
+        self,
+        query: Mapping[str, Any],
+        deleted_by: Optional[str] = None,
+        session=None,
+    ) -> int:
+        """Soft-delete every active document matching ``query``.
+
+        Returns the modified count. Bulk soft-deletes are the one place the
+        per-document helpers do not cover — a series delete has to stamp many
+        rows in one round trip, and doing it row by row would leave a partly
+        deleted series behind if the request died halfway.
+        """
+        update: dict = {"deleted_at": datetime.now(timezone.utc).isoformat()}
+        if deleted_by is not None:
+            update["deleted_by"] = deleted_by
+        result = await self.collection.update_many(
+            self._with_active_filter(query), {"$set": update}, session=session,
+        )
+        return result.modified_count
+
     async def restore(self, doc_id: str) -> bool:
-        """Unset ``deleted_at`` / ``deleted_by`` on a previously-deleted doc."""
+        """Unset ``deleted_at`` / ``deleted_by`` on a previously-deleted doc.
+
+        Returns False both when the id does not exist *and* when the document
+        exists but is already active. Callers that need to tell those apart —
+        an idempotent restore endpoint should 200 on the second call, not 404
+        — must probe for existence themselves; see ``restore_schedule``.
+        """
         result = await self.collection.update_one(
             {self._id_field: doc_id, "deleted_at": {"$ne": None}},
             {"$set": {"deleted_at": None}, "$unset": {"deleted_by": ""}},
         )
         return result.modified_count > 0
 
+    async def exists(self, doc_id: str, session=None) -> bool:
+        """True if the id exists at all, deleted or not.
+
+        Deliberately ignores ``deleted_at``: this answers "is this a real id?",
+        which is what separates a 404 from an already-in-that-state no-op.
+        """
+        found = await self.collection.find_one(
+            {self._id_field: doc_id}, {"_id": 1}, session=session,
+        )
+        return found is not None
+
     async def update_active(
         self,
         doc_id: str,
         fields: Mapping[str, Any],
+        session=None,
     ) -> bool:
         """Apply ``$set`` updates to a non-deleted document."""
         if not fields:
@@ -200,6 +266,7 @@ class SoftDeleteRepository:
         result = await self.collection.update_one(
             {self._id_field: doc_id, "deleted_at": None},
             {"$set": dict(fields)},
+            session=session,
         )
         return result.modified_count > 0
 
@@ -207,6 +274,7 @@ class SoftDeleteRepository:
         self,
         query: Mapping[str, Any],
         fields: Mapping[str, Any],
+        session=None,
     ) -> tuple[int, int]:
         """Update one active document matching ``query``.
 
@@ -218,5 +286,52 @@ class SoftDeleteRepository:
         result = await self.collection.update_one(
             self._with_active_filter(query),
             {"$set": dict(fields)},
+            session=session,
         )
         return result.matched_count, result.modified_count
+
+    # ------------------------------------------------------------------
+    # Raw-update helpers
+    #
+    # The methods above take a plain field mapping and wrap it in ``$set``,
+    # which covers most call sites. These take a *whole* update document
+    # instead, because some writes need operators the field form cannot
+    # express — ``$inc`` on an optimistic-concurrency version counter being
+    # the case that forced them. The soft-delete filter is still injected
+    # into the query, which is the guarantee that matters.
+    # ------------------------------------------------------------------
+
+    async def update_many_active(
+        self,
+        query: Mapping[str, Any],
+        update: Mapping[str, Any],
+        session=None,
+    ) -> tuple[int, int]:
+        """Apply a raw update document to every active match."""
+        result = await self.collection.update_many(
+            self._with_active_filter(query), dict(update), session=session,
+        )
+        return result.matched_count, result.modified_count
+
+    async def find_one_and_update_active(
+        self,
+        query: Mapping[str, Any],
+        update: Mapping[str, Any],
+        projection: Optional[Mapping[str, Any]] = None,
+        return_document=None,
+        session=None,
+    ) -> Optional[dict]:
+        """Atomic find-and-update over the active set.
+
+        Exists for compare-and-swap call sites: the query doubles as the CAS
+        predicate, so a caller pinning ``version``/``date`` gets "no document
+        returned" when another writer got there first.
+        """
+        if projection is None:
+            projection = {"_id": 0}
+        kwargs: dict = {"projection": projection, "session": session}
+        if return_document is not None:
+            kwargs["return_document"] = return_document
+        return await self.collection.find_one_and_update(
+            self._with_active_filter(query), dict(update), **kwargs,
+        )

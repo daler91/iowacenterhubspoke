@@ -98,6 +98,53 @@ def csrf_headers():
     }
 
 
+# ── Fake-db injection for migrated routers ───────────────────────────
+
+class _ItemAccessAdapter:
+    """Makes ``fake["schedules"]`` resolve to ``fake.schedules``.
+
+    Router fakes in this suite are MagicMocks or SimpleNamespaces exposing
+    collections as *attributes*, but ``SoftDeleteRepository`` looks them up
+    as *items*. Without this, a MagicMock would happily hand back a fresh
+    child mock for ``db["schedules"]`` — a different object from the
+    ``db.schedules`` the test asserts against, so the test would watch a
+    mock nothing ever called.
+    """
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getitem__(self, name):
+        return getattr(self._inner, name)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def use_fake_db(monkeypatch, module, fake_db):
+    """Point a router's ``db`` *and* its repositories at ``fake_db``.
+
+    Patching ``module.db`` alone stops working the moment a router migrates
+    onto ``SoftDeleteRepository``: the repository resolves
+    ``db["<collection>"]`` and captures the handle when it is constructed at
+    import time, so it keeps talking to whatever ``db`` was then — in a unit
+    test, the real one, which surfaces as a ServerSelectionTimeout or a
+    cross-event-loop RuntimeError rather than an obvious wiring error.
+
+    Rebuilding every repository the module holds keeps that failure from
+    being rediscovered once per migration.
+    """
+    from core.repository import SoftDeleteRepository
+
+    adapter = _ItemAccessAdapter(fake_db)
+    monkeypatch.setattr(module, "db", fake_db)
+    for attr, value in list(vars(module).items()):
+        if isinstance(value, SoftDeleteRepository):
+            monkeypatch.setattr(
+                module, attr, SoftDeleteRepository(adapter, value.collection_name),
+            )
+
+
 # ── Integration-test support ─────────────────────────────────────────
 # Everything above this line runs against monkeypatched module globals.
 # The fixtures below give tests a *real* MongoDB, which is the only way to

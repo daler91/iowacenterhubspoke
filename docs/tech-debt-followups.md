@@ -20,14 +20,19 @@ the code did not have.
 
 ### Migrate remaining routers onto `SoftDeleteRepository`
 
-`backend/core/repository.py::SoftDeleteRepository` is used by seven routers:
+`backend/core/repository.py::SoftDeleteRepository` is used by eight routers:
 `locations.py`, `classes.py`, `employees.py`, `partner_orgs.py`,
-`project_docs.py`, `schedule_bulk.py`, `projects.py`. **198 hand-written
-`{"deleted_at": None}` filters remain** across `backend/routers/` (down from
-207). Highest-value remaining targets, counted over routers that have not been
-migrated at all: `schedule_crud.py` (22), `reports.py` (16),
+`project_docs.py`, `schedule_bulk.py`, `projects.py`, `schedule_crud.py`.
+**176 hand-written `{"deleted_at": None}` filters remain** across
+`backend/routers/` (down from 207). Highest-value remaining targets, counted
+over routers that have not been migrated at all: `reports.py` (16),
 `project_tasks.py` (12), `schedule_helpers.py` (11), `users.py` (10),
-`auth.py` (10).
+`auth.py` (10), `system.py` (7).
+
+`project_tasks.py` is the best next one: it owns `tasks`, `task_comments` and
+`task_attachments`, and needs nothing the repository does not already do.
+`reports.py` is read-only and spreads 16 filters across eight collections it
+does not own, so it is better done after those owners migrate.
 
 Note the count does not fall to zero per migrated router. A migration is scoped
 to *one collection*; `projects.py` still carries 21 hand-written filters after
@@ -47,10 +52,21 @@ also queries un-migrated collections can still be locked in.
 
 Two things that bite on every migration:
 
-- Tests using `patch.object(db, '<collection>')` stop working. The repository
+- Tests that patch `db` as a module attribute stop working. The repository
   resolves `db["<collection>"]` and holds the handle it was constructed with,
-  so attribute patching no longer intercepts it — patch the repo method instead
-  (see `tests/test_employee_stats.py` for the pattern).
+  so attribute patching no longer intercepts it — the repo keeps talking to
+  the real database, which surfaces as a `ServerSelectionTimeoutError` or a
+  cross-event-loop `RuntimeError` rather than an obvious wiring error. Use
+  `use_fake_db(monkeypatch, module, fake)` from `tests/conftest.py`: it
+  repoints `db` *and* every repository the module holds, and adapts
+  attribute-style fakes to the item-style lookup the repository does. For
+  patching a single method rather than the whole db, see
+  `tests/test_employee_stats.py`.
+- Guards that pin a call shape break on migration. Two did:
+  `test_security_and_performance_guards.py` asserted `.limit(pagination.limit)`
+  and `.limit(limit + 1)`, neither of which survives moving onto the
+  repository, though the budgets they protect were unchanged. Pin the number
+  or the clamp, not the call that consumes it.
 - `tests/test_endpoints_integration.py::test_soft_deleted_rows_disappear_from_list_endpoints`
   is the end-to-end safety net for this work. Extend it per migrated router —
   see `test_soft_deleted_projects_disappear_from_list_and_detail` for the

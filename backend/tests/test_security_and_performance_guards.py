@@ -52,4 +52,9 @@ def test_project_board_and_schedule_list_have_pagination_budgets():
     # Overfetch by one to detect a further page without a second count query.
     assert ".limit(phase_limit + 1)" in board
     assert "_SCHEDULE_LIST_LIMIT_MAX = 200" in schedules
-    assert ".limit(pagination.limit)" in schedules
+    # Pin the clamp, not the call that consumes it. This used to assert
+    # ".limit(pagination.limit)", which broke when the list moved onto
+    # SoftDeleteRepository even though the budget was unchanged — a guard
+    # matching an incidental call shape reports refactors as regressions
+    # while saying nothing about the number it exists to protect.
+    assert "min(pagination.limit, _SCHEDULE_LIST_LIMIT_MAX)" in schedules

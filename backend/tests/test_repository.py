@@ -105,18 +105,38 @@ class _FakeCursor:
         return results
 
 
+def _apply_update(doc: Dict[str, Any], update: Dict[str, Any]) -> None:
+    """Apply the update operators the repository actually issues."""
+    doc.update(update.get("$set", {}))
+    for key in update.get("$unset", {}):
+        doc.pop(key, None)
+    for key, amount in update.get("$inc", {}).items():
+        doc[key] = doc.get(key, 0) + amount
+
+
 class _FakeCollection:
+    """Minimal Motor stand-in.
+
+    Every method takes ``session=None``. The repository forwards a session to
+    the driver on every call so transactional callers (schedule relocate) keep
+    their atomicity; a fake that rejected the kwarg would make the repository
+    untestable here while passing in production — the wrong way round.
+    """
+
     def __init__(self, seed: Optional[List[Dict[str, Any]]] = None):
         self.docs: List[Dict[str, Any]] = list(seed or [])
+        self.sessions_seen: List[Any] = []
 
-    async def find_one(self, query=None, projection=None):  # NOSONAR — mirrors Motor collection API
+    async def find_one(self, query=None, projection=None, session=None):  # NOSONAR — mirrors Motor collection API
+        self.sessions_seen.append(session)
         query = query or {}
         for doc in self.docs:
             if _matches(doc, query):
                 return {k: v for k, v in doc.items() if k != "_id"}
         return None
 
-    def find(self, query=None, projection=None):
+    def find(self, query=None, projection=None, session=None):
+        self.sessions_seen.append(session)
         query = query or {}
         matched = [
             {k: v for k, v in doc.items() if k != "_id"}
@@ -125,20 +145,41 @@ class _FakeCollection:
         ]
         return _FakeCursor(matched)
 
-    async def count_documents(self, query=None):  # NOSONAR — mirrors Motor collection API
+    async def count_documents(self, query=None, session=None):  # NOSONAR — mirrors Motor collection API
         query = query or {}
         return sum(1 for doc in self.docs if _matches(doc, query))
 
-    async def update_one(self, filter_query, update):  # NOSONAR — mirrors Motor collection API
+    async def distinct(self, field, query=None, session=None):  # NOSONAR — mirrors Motor collection API
+        query = query or {}
+        seen = []
+        for doc in self.docs:
+            if _matches(doc, query) and doc.get(field) not in seen:
+                seen.append(doc.get(field))
+        return seen
+
+    async def update_one(self, filter_query, update, session=None):  # NOSONAR — mirrors Motor collection API
         for doc in self.docs:
             if _matches(doc, filter_query):
-                set_ops = update.get("$set", {})
-                unset_ops = update.get("$unset", {})
-                doc.update(set_ops)
-                for key in unset_ops:
-                    doc.pop(key, None)
+                _apply_update(doc, update)
                 return _UpdateResult(matched_count=1, modified_count=1)
         return _UpdateResult(matched_count=0, modified_count=0)
+
+    async def update_many(self, filter_query, update, session=None):  # NOSONAR — mirrors Motor collection API
+        count = 0
+        for doc in self.docs:
+            if _matches(doc, filter_query):
+                _apply_update(doc, update)
+                count += 1
+        return _UpdateResult(matched_count=count, modified_count=count)
+
+    async def find_one_and_update(  # NOSONAR — mirrors Motor collection API
+        self, filter_query, update, projection=None, return_document=None, session=None,
+    ):
+        for doc in self.docs:
+            if _matches(doc, filter_query):
+                _apply_update(doc, update)
+                return {k: v for k, v in doc.items() if k != "_id"}
+        return None
 
 
 class _FakeDB:
@@ -252,3 +293,93 @@ def test_update_active_sets_fields(repo):
 
 def test_update_active_ignores_soft_deleted(repo):
     assert _run(repo.update_active("c", {"name": "Should not apply"})) is False
+
+
+# ---------- Additions for the schedule_crud migration ----------------------
+#
+# schedule_crud.py is the first router the repository could not absorb as
+# written: it relocates inside a transaction (needs a session forwarded on
+# every call), bumps an optimistic-concurrency counter with $inc (needs a raw
+# update document), edits a whole recurrence series at once (needs
+# update_many), and reads distinct future dates for a DST check.
+
+
+def test_distinct_active_excludes_soft_deleted(repo):
+    _run(repo.collection.update_one({"id": "d"}, {"$set": {"name": "Gamma"}}))
+    names = _run(repo.distinct_active("name"))
+    # "Gamma" on the soft-deleted "c" must not appear on its own; it is only
+    # here because active "d" now carries it too.
+    assert sorted(names) == ["Alpha", "Beta", "Gamma"]
+    assert _run(repo.distinct_active("name", {"id": "c"})) == []
+
+
+def test_soft_delete_many_only_touches_active_matches(repo):
+    modified = _run(repo.soft_delete_many({"id": {"$in": ["a", "b", "c"]}}))
+    # "c" was already deleted, so only two rows change.
+    assert modified == 2
+    assert _run(repo.count_active()) == 1
+    assert _run(repo.get_by_id("d")) is not None
+
+
+def test_soft_delete_many_records_deleted_by(repo):
+    _run(repo.soft_delete_many({"id": "a"}, deleted_by="tester"))
+    raw = _run(repo.collection.find_one({"id": "a"}))
+    assert raw["deleted_by"] == "tester"
+    assert raw["deleted_at"] is not None
+
+
+def test_update_many_active_applies_raw_operators(repo):
+    matched, modified = _run(
+        repo.update_many_active({}, {"$set": {"phase": "x"}, "$inc": {"version": 1}}),
+    )
+    assert (matched, modified) == (3, 3)  # the soft-deleted "c" is excluded
+    assert _run(repo.get_by_id("a"))["version"] == 1
+    # The soft-deleted row was not touched by either operator.
+    assert "phase" not in _run(repo.collection.find_one({"id": "c"}))
+
+
+def test_find_one_and_update_active_is_a_cas(repo):
+    _run(repo.update_active("a", {"version": 7}))
+
+    # Matching predicate: the swap happens and the new doc comes back.
+    updated = _run(
+        repo.find_one_and_update_active(
+            {"id": "a", "version": 7}, {"$inc": {"version": 1}},
+        ),
+    )
+    assert updated is not None and updated["version"] == 8
+
+    # Stale predicate: no document, and nothing is written.
+    assert _run(
+        repo.find_one_and_update_active(
+            {"id": "a", "version": 7}, {"$inc": {"version": 1}},
+        ),
+    ) is None
+    assert _run(repo.get_by_id("a"))["version"] == 8
+
+
+def test_find_one_and_update_active_will_not_resurrect_a_deleted_doc(repo):
+    assert _run(
+        repo.find_one_and_update_active({"id": "c"}, {"$set": {"name": "Zeta"}}),
+    ) is None
+
+
+def test_exists_ignores_soft_delete(repo):
+    assert _run(repo.exists("c")) is True   # deleted, but a real id
+    assert _run(repo.exists("a")) is True
+    assert _run(repo.exists("nope")) is False
+
+
+def test_session_is_forwarded_to_the_driver(repo):
+    """A transactional caller's session must reach every driver call.
+
+    Relocate runs its read, its CAS and its claim inserts in one transaction.
+    If the repository dropped the session, those reads would run outside the
+    transaction and the CAS would compare against uncommitted-elsewhere state
+    — the exact race the version pin exists to prevent.
+    """
+    sentinel = object()
+    repo.collection.sessions_seen.clear()
+    _run(repo.get_by_id("a", session=sentinel))
+    _run(repo.find_active({}, session=sentinel))
+    assert repo.collection.sessions_seen == [sentinel, sentinel]

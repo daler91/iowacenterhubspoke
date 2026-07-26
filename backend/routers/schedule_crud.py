@@ -18,6 +18,7 @@ from models.schemas import (
 )
 from core.auth import CurrentUser, SchedulerRequired
 from core.pagination import Paginated
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.notification_events import notify_schedule_changed
 from services.schedule_utils import check_conflicts
@@ -44,6 +45,13 @@ from routers.schedule_create import create_schedule as _create_schedule
 
 router = APIRouter(tags=["schedules"])
 
+# Soft-delete access goes through the repository so the ``deleted_at: None``
+# filter cannot be forgotten on a new call site. See docs/repository-pattern.md.
+# ``projects`` is here too because this router reads and writes linked project
+# rows, and that collection is repository-managed as of the projects migration.
+schedules_repo = SoftDeleteRepository(db, "schedules")
+projects_repo = SoftDeleteRepository(db, "projects")
+
 _SCHEDULE_LIST_LIMIT_MAX = 200
 
 
@@ -58,7 +66,7 @@ async def get_schedules(
     date_to: Optional[str] = None,
     employee_id: Optional[str] = None,
 ):
-    query = {"deleted_at": None}
+    query: dict = {}
     if date_from and date_to:
         query["date"] = {"$gte": date_from, "$lte": date_to}
     elif date_from:
@@ -71,13 +79,12 @@ async def get_schedules(
     start_ts = perf_counter()
     pagination.limit = max(1, min(pagination.limit, _SCHEDULE_LIST_LIMIT_MAX))
 
-    total = await db.schedules.count_documents(query)
-    schedules = (
-        await db.schedules.find(query, {"_id": 0})
-        .sort([("date", 1), ("start_time", 1)])
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .to_list(pagination.limit)
+    total = await schedules_repo.count_active(query)
+    schedules = await schedules_repo.find_active(
+        query,
+        sort=[("date", 1), ("start_time", 1)],
+        skip=pagination.skip,
+        limit=pagination.limit,
     )
     # Enrich with linked project summaries
     schedule_ids = [s["id"] for s in schedules]
@@ -87,11 +94,12 @@ async def get_schedules(
         # hit the cap so ops can tune this rather than silently dropping
         # project links.
         _LINKED_PROJECTS_LIMIT = 2000
-        linked_projects = await db.projects.find(
-            {"schedule_id": {"$in": schedule_ids}, "deleted_at": None},
-            {"_id": 0, "schedule_id": 1, "id": 1, "title": 1, "phase": 1,
-             "partner_org_id": 1, "task_total": 1, "task_completed": 1},
-        ).to_list(_LINKED_PROJECTS_LIMIT)
+        linked_projects = await projects_repo.find_active(
+            {"schedule_id": {"$in": schedule_ids}},
+            projection={"_id": 0, "schedule_id": 1, "id": 1, "title": 1, "phase": 1,
+                        "partner_org_id": 1, "task_total": 1, "task_completed": 1},
+            limit=_LINKED_PROJECTS_LIMIT,
+        )
         if len(linked_projects) == _LINKED_PROJECTS_LIMIT:
             logger.warning(
                 "linked_projects truncated at %d; consider raising the cap",
@@ -138,9 +146,7 @@ async def get_schedules(
     },
 )
 async def get_schedule(schedule_id: str, user: CurrentUser):
-    schedule = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
+    schedule = await schedules_repo.get_by_id(schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     return schedule
@@ -209,9 +215,8 @@ async def _enforce_dst_across_series(
     if not (new_start or new_end):
         return
     from services.schedule_utils import validate_local_time_exists
-    future_dates = await db.schedules.distinct(
-        "date",
-        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+    future_dates = await schedules_repo.distinct_active(
+        "date", {"series_id": series_id, "date": {"$gte": today}},
     )
     for sched_date in future_dates:
         try:
@@ -226,17 +231,16 @@ async def _enforce_dst_across_series(
 async def _sync_linked_project_date(schedule_id: str, new_date: str) -> None:
     """If this schedule backs a coordination project, mirror the date
     change onto the project so the coordination view stays in sync."""
-    linked = await db.projects.find_one(
-        {"schedule_id": schedule_id, "deleted_at": None},
-        {"_id": 0, "id": 1},
+    linked = await projects_repo.find_one_active(
+        {"schedule_id": schedule_id}, {"_id": 0, "id": 1},
     )
     if linked:
-        await db.projects.update_one(
-            {"id": linked["id"]},
-            {"$set": {
+        await projects_repo.update_active(
+            linked["id"],
+            {
                 "event_date": new_date,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-            }},
+            },
         )
 
 
@@ -267,9 +271,7 @@ async def update_schedule(
     if not update_data:
         raise HTTPException(status_code=400, detail=NO_FIELDS_TO_UPDATE)
 
-    old_schedule = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
+    old_schedule = await schedules_repo.get_by_id(schedule_id)
     if not old_schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
@@ -285,15 +287,17 @@ async def update_schedule(
     await resolve_update_relations(schedule_id, update_data)
     update_data["version"] = current_version + 1
 
-    match_filter = {"id": schedule_id, "deleted_at": None}
+    # The version pin stays in the *query* so the write is still a
+    # compare-and-swap; the repository adds the soft-delete predicate to it.
+    match_filter: dict = {"id": schedule_id}
     if expected_version is not None:
         match_filter["version"] = current_version
 
-    result = await db.schedules.update_one(match_filter, {"$set": update_data})
-    if result.matched_count == 0:
+    matched, _ = await schedules_repo.update_one_active(match_filter, update_data)
+    if matched == 0:
         # Race or missing doc. One probe tells us which to return.
-        still_exists = await db.schedules.find_one(
-            {"id": schedule_id, "deleted_at": None}, {"_id": 0, "version": 1},
+        still_exists = await schedules_repo.get_by_id(
+            schedule_id, {"_id": 0, "version": 1},
         )
         if still_exists and expected_version is not None:
             raise _version_conflict(still_exists.get("version", 0), expected_version)
@@ -310,9 +314,7 @@ async def update_schedule(
         extra={"entity": {"schedule_id": schedule_id}},
     )
     await invalidate_workload_cache()
-    return await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
+    return await schedules_repo.get_by_id(schedule_id)
 
 
 # --- Delete / Restore ---
@@ -325,17 +327,11 @@ async def update_schedule(
     },
 )
 async def delete_schedule(schedule_id: str, user: SchedulerRequired):
-    schedule = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
-    )
+    schedule = await schedules_repo.get_by_id(schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
-    result = await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None},
-        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    if result.matched_count == 0:
+    if not await schedules_repo.soft_delete(schedule_id, deleted_by=user.get("name")):
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     logger.info(
         f"Schedule soft-deleted: {schedule_id}",
@@ -368,11 +364,14 @@ async def delete_schedule(schedule_id: str, user: SchedulerRequired):
     },
 )
 async def restore_schedule(schedule_id: str, user: SchedulerRequired):
-    result = await db.schedules.update_one(
-        {"id": schedule_id}, {"$set": {"deleted_at": None}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
+    # ``restore`` returns False for "no such id" *and* for "already active".
+    # This endpoint has always been idempotent — restoring a live schedule is
+    # a 200, so a double-click or a client retry after a successful restore
+    # does not turn into a spurious 404 — so only the genuinely-unknown id
+    # 404s. That is why the probe deliberately ignores ``deleted_at``.
+    if not await schedules_repo.restore(schedule_id):
+        if not await schedules_repo.exists(schedule_id):
+            raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     logger.info(
         f"Schedule restored: {schedule_id}",
         extra={"entity": {"schedule_id": schedule_id}},
@@ -407,18 +406,18 @@ async def update_schedule_status(
         STATUS_COMPLETED,
     ]:
         raise HTTPException(status_code=400, detail="Invalid status")
-    result = await db.schedules.update_one(
-        {"id": schedule_id, "deleted_at": None},
+    # One round trip instead of update-then-read: the same call that applies
+    # the status returns the updated document.
+    updated = await schedules_repo.find_one_and_update_active(
+        {"id": schedule_id},
         {"$set": {"status": data.status}, "$inc": {"version": 1}},
+        return_document=ReturnDocument.AFTER,
     )
-    if result.matched_count == 0:
+    if not updated:
         raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
     logger.info(
         f"Schedule status updated: {schedule_id} to {data.status}",
         extra={"entity": {"schedule_id": schedule_id, "status": data.status}},
-    )
-    updated = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None}, {"_id": 0}
     )
     await log_activity(
         action=f"status_{data.status}",
@@ -431,8 +430,8 @@ async def update_schedule_status(
     linked_project_summary = None
     target_phase = SCHEDULE_STATUS_TO_PROJECT_PHASE.get(data.status)
     if target_phase:
-        linked_project = await db.projects.find_one(
-            {"schedule_id": schedule_id, "deleted_at": None},
+        linked_project = await projects_repo.find_one_active(
+            {"schedule_id": schedule_id},
             {"_id": 0, "id": 1, "phase": 1, "title": 1},
         )
         if linked_project:
@@ -445,9 +444,9 @@ async def update_schedule_status(
             target_idx = PROJECT_PHASE_ORDER.get(target_phase, 0)
             if target_idx > current_idx:
                 now = datetime.now(timezone.utc).isoformat()
-                await db.projects.update_one(
-                    {"id": linked_project["id"]},
-                    {"$set": {"phase": target_phase, "updated_at": now}},
+                await projects_repo.update_active(
+                    linked_project["id"],
+                    {"phase": target_phase, "updated_at": now},
                 )
                 linked_project_summary["phase"] = target_phase
                 await log_activity(
@@ -474,12 +473,10 @@ async def update_schedule_status(
 )
 async def delete_series(series_id: str, user: SchedulerRequired):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    now = datetime.now(timezone.utc).isoformat()
-    result = await db.schedules.update_many(
-        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
-        {"$set": {"deleted_at": now}},
+    deleted_count = await schedules_repo.soft_delete_many(
+        {"series_id": series_id, "date": {"$gte": today}},
+        deleted_by=user.get("name"),
     )
-    deleted_count = result.modified_count
     if deleted_count == 0:
         # Distinguish "series doesn't exist" from "series exists but all
         # its schedules are already in the past, or were already deleted
@@ -487,6 +484,8 @@ async def delete_series(series_id: str, user: SchedulerRequired):
         # therefore intentionally omits ``deleted_at: None`` so a retry
         # after a successful delete (network timeout, double-click,
         # idempotent client retry) is still a 200 with deleted_count=0.
+        # This is the one read here that must NOT go through the repository:
+        # the repository's whole job is injecting that filter.
         any_existing = await db.schedules.find_one(
             {"series_id": series_id},
             {"_id": 0, "id": 1},
@@ -530,18 +529,17 @@ async def update_series(
 
     # Resolve relations (location name, employee snapshots, class snapshot)
     # Use a representative schedule to resolve drive overrides
-    sample = await db.schedules.find_one(
-        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+    sample = await schedules_repo.find_one_active(
+        {"series_id": series_id, "date": {"$gte": today}},
         {"_id": 0, "id": 1},
     )
     if sample:
         await resolve_update_relations(sample["id"], update_data)
 
-    result = await db.schedules.update_many(
-        {"series_id": series_id, "date": {"$gte": today}, "deleted_at": None},
+    _, updated_count = await schedules_repo.update_many_active(
+        {"series_id": series_id, "date": {"$gte": today}},
         {"$set": update_data, "$inc": {"version": 1}},
     )
-    updated_count = result.modified_count
     if updated_count > 0:
         logger.info(f"Series {series_id}: updated {updated_count} future schedules")
         await log_activity(
@@ -654,9 +652,8 @@ async def _ensure_relocate_update_succeeded(
         return
     if inserted_claim_ids:
         await db.schedule_slot_claims.delete_many({"_id": {"$in": inserted_claim_ids}})
-    latest = await db.schedules.find_one(
-        {"id": schedule_id, "deleted_at": None},
-        {"_id": 0, "version": 1, "date": 1, "start_time": 1},
+    latest = await schedules_repo.get_by_id(
+        schedule_id, {"_id": 0, "version": 1, "date": 1, "start_time": 1},
     )
     raise HTTPException(
         status_code=409,
@@ -689,9 +686,7 @@ async def relocate_schedule(
     _validate_relocation_dst(data.date, data.start_time, data.end_time)
 
     async def _run_relocate(session=None):
-        schedule = await db.schedules.find_one(
-            {"id": schedule_id, "deleted_at": None}, {"_id": 0}, session=session
-        )
+        schedule = await schedules_repo.get_by_id(schedule_id, session=session)
         if not schedule:
             raise HTTPException(status_code=404, detail=SCHEDULE_NOT_FOUND)
 
@@ -702,14 +697,13 @@ async def relocate_schedule(
         original_version = int(schedule.get("version", 0))
         conflict_predicate = {
             "id": {"$ne": schedule_id},
-            "deleted_at": None,
             "date": data.date,
             "employee_ids": {"$in": schedule.get("employee_ids", [])},
             "start_time": {"$lt": data.end_time},
             "end_time": {"$gt": data.start_time},
         }
-        slot_taken = await db.schedules.find_one(
-            conflict_predicate, {"_id": 0, "id": 1}, session=session
+        slot_taken = await schedules_repo.find_one_active(
+            conflict_predicate, {"_id": 0, "id": 1}, session=session,
         )
         if slot_taken:
             raise HTTPException(
@@ -729,10 +723,9 @@ async def relocate_schedule(
             session=session,
         )
 
-        updated = await db.schedules.find_one_and_update(
+        updated = await schedules_repo.find_one_and_update_active(
             {
                 "id": schedule_id,
-                "deleted_at": None,
                 "date": original_date,
                 "start_time": original_start,
                 "version": original_version,
