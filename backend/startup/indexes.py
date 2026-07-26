@@ -68,6 +68,15 @@ async def ensure_indexes(db, logger):
     All non-critical/read-optimization indexes are migration-managed via
     ``migrations/005_manage_secondary_indexes.py`` and should be applied by
     deployment migration tooling before rolling app instances.
+
+    **Fails closed.** Every index here is a uniqueness or TTL guard that the
+    application's correctness depends on — unique ``invitations.token``,
+    unique ``refresh_tokens.jti``, the per-user schedule idempotency key, TTL
+    expiry on reset and portal tokens. This whole body used to sit inside one
+    ``except Exception: logger.warning(...)``, so a failure on the *first*
+    index silently skipped every one after it and the app booted serving
+    traffic with no uniqueness constraints at all. A boot-time index failure
+    is an operational problem to fix, not one to serve through.
     """
     try:
         # Critical-at-boot: request-path safety and data-integrity guards.
@@ -102,11 +111,29 @@ async def ensure_indexes(db, logger):
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
         await _ensure_partial_unique_token_index(db.portal_tokens, "token_digest")
         await db.portal_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # Relocation slot claims are held for the duration of a single
+        # request. A crash between insert and cleanup used to orphan the
+        # claim forever, permanently blocking that employee/date/time slot
+        # with no recovery short of a manual delete. Ten minutes is far
+        # longer than any relocate takes and far shorter than a human would
+        # wait before retrying.
+        await db.schedule_slot_claims.create_index(
+            "claimed_at", expireAfterSeconds=600,
+        )
         await db.portal_activity_events.create_index(
             [("partner_org_id", 1), ("project_id", 1), ("created_at", -1)],
         )
         await db.projects.create_index([("phase", 1), ("deleted_at", 1), ("updated_at", -1)])
-        await _repair_secondary_index_drift(db, logger)
         logger.info("Ensured critical boot-time indexes")
     except Exception as e:
-        logger.warning(f"Failed to create indexes: {e}")
+        logger.error("Failed to create critical boot-time indexes: %s", e)
+        raise
+
+    # Drift repair is best-effort: it re-runs the *secondary* index migration
+    # when a sentinel is missing (e.g. after a restore from a dump that copied
+    # data but not indexes). Those are read-optimizations, so a failure here
+    # degrades performance rather than correctness and must not block boot.
+    try:
+        await _repair_secondary_index_drift(db, logger)
+    except Exception as e:
+        logger.warning("Secondary index drift repair failed: %s", e)

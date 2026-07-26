@@ -14,6 +14,7 @@ from jobs.calendar.jobs import (
 )
 from jobs.notifications.jobs import (
     deliver_webhook_job,
+    drain_webhook_outbox,
     send_partner_magic_link_email_job,
     send_password_reset_email_job,
 )
@@ -333,6 +334,9 @@ class WorkerSettings:
         # Heartbeat every minute; /health flags "degraded" if the key is
         # missing or older than 90s.
         arq.cron(emit_worker_heartbeat, hour=None, minute=None),
+        # Re-enqueue webhook deliveries parked while Redis was down. Cheap
+        # no-op when the outbox is empty, which is the normal case.
+        arq.cron(drain_webhook_outbox, hour=None, minute={0, 15, 30, 45}),
     ]
     redis_settings = RedisSettings.from_dsn(redis_url)
     # Retry each failed job up to 3 times with arq's built-in exponential

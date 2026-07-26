@@ -11,3 +11,8 @@ async def send_password_reset_email_job(_ctx, email):
 async def send_partner_magic_link_email_job(_ctx, email):
     from services.email_jobs import send_partner_magic_link_email
     return await send_partner_magic_link_email(email)
+
+
+async def drain_webhook_outbox(ctx):
+    from services.webhooks import drain_webhook_outbox as _impl
+    return await _impl(ctx)

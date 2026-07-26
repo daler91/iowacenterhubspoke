@@ -611,6 +611,7 @@ async def _reserve_relocation_claims(
         for emp in schedule.get("employee_ids", [])
     ]
     inserted_claim_ids: list[str] = []
+    claimed_at = datetime.now(timezone.utc)
     try:
         for claim_id in claim_ids:
             await db.schedule_slot_claims.insert_one(
@@ -618,6 +619,12 @@ async def _reserve_relocation_claims(
                     "_id": claim_id,
                     "schedule_id": schedule_id,
                     "employee_id": claim_id.split(":")[0],
+                    # Native datetime for the TTL index in startup/indexes.py.
+                    # Claims are held only for the duration of one relocate;
+                    # without an expiry, a claim orphaned by a crash between
+                    # insert and cleanup blocks that slot permanently, and the
+                    # only recovery is a manual delete in the database.
+                    "claimed_at": claimed_at,
                 },
                 session=session,
             )

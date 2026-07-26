@@ -60,10 +60,10 @@ async def test_viewer_cannot_mutate(csrf_headers):
         token = create_token(str(uuid.uuid4()), "v@e.com", "V", ROLE_VIEWER)
         auth = _auth(token, csrf_headers)
 
-        res = await ac.post("/api/schedules", json={}, headers=auth["headers"])
+        res = await ac.post("/api/v1/schedules", json={}, headers=auth["headers"])
         assert res.status_code == 403, f"Viewer was allowed to POST schedule: {res.status_code}"
 
-        res = await ac.post("/api/employees", json={}, headers=auth["headers"])
+        res = await ac.post("/api/v1/employees", json={}, headers=auth["headers"])
         assert res.status_code == 403, f"Viewer was allowed to POST employee: {res.status_code}"
 
 
@@ -80,13 +80,13 @@ async def test_scheduler_can_schedule_but_not_manage_employees(csrf_headers):
 
         # Scheduler → schedule endpoint: RBAC passes; handler may fail
         # on validation/lookups but must not 403.
-        res = await ac.post("/api/schedules", json={}, headers=auth["headers"])
+        res = await ac.post("/api/v1/schedules", json={}, headers=auth["headers"])
         assert res.status_code in _NOT_A_ROLE_REJECTION, (
             f"Scheduler was role-rejected on POST /api/schedules: {res.status_code}"
         )
 
         # Scheduler → employees: admin-only, should 403.
-        res = await ac.post("/api/employees", json={}, headers=auth["headers"])
+        res = await ac.post("/api/v1/employees", json={}, headers=auth["headers"])
         assert res.status_code == 403, f"Scheduler was allowed to POST employee: {res.status_code}"
 
 
@@ -101,7 +101,7 @@ async def test_admin_can_manage_employees(csrf_headers):
         token = create_token(str(uuid.uuid4()), "a@e.com", "A", ROLE_ADMIN)
         auth = _auth(token, csrf_headers)
 
-        res = await ac.post("/api/employees", json={}, headers=auth["headers"])
+        res = await ac.post("/api/v1/employees", json={}, headers=auth["headers"])
         assert res.status_code in _NOT_A_ROLE_REJECTION, (
             f"Admin was role-rejected on POST /api/employees: {res.status_code}"
         )

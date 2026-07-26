@@ -138,16 +138,69 @@ async def fire_webhook_event(event: str, payload: dict):
                 "deliver_webhook_job", sub["id"], event, payload,
             )
         else:
-            # Persist to outbox for async processing (Redis unavailable)
+            # Redis is down, so there is no queue to enqueue onto. Park the
+            # delivery in the outbox; ``drain_webhook_outbox`` (a worker cron)
+            # picks it up once Redis is back. Until that job existed, rows
+            # written here were never read by anything.
             await db.webhook_outbox.insert_one({
                 "id": str(uuid.uuid4()),
                 "subscription_id": sub["id"],
                 "event": event,
                 "payload": payload,
                 "status": "pending",
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(timezone.utc),
             })
             logger.info("Webhook queued to outbox (Redis unavailable)")
+
+
+# How many parked deliveries to move per drain pass. Bounded so a large
+# backlog after a long Redis outage is worked off over several minutes
+# rather than in one burst that re-floods the queue.
+_OUTBOX_DRAIN_BATCH = 200
+
+
+async def drain_webhook_outbox(_ctx=None) -> int:
+    """Re-enqueue webhook deliveries parked while Redis was unavailable.
+
+    Returns the number of rows drained. Safe to run when the outbox is empty
+    (the common case) — one indexed query and done.
+    """
+    pending = await db.webhook_outbox.find(
+        {"status": "pending"}, {"_id": 0},
+    ).sort("created_at", 1).to_list(_OUTBOX_DRAIN_BATCH)
+    if not pending:
+        return 0
+
+    pool = await get_redis_pool()
+    if not pool:
+        logger.warning(
+            "Webhook outbox has %d pending row(s) but Redis is still unavailable",
+            len(pending),
+        )
+        return 0
+
+    drained = 0
+    for row in pending:
+        try:
+            await pool.enqueue_job(
+                "deliver_webhook_job",
+                row["subscription_id"],
+                row["event"],
+                row["payload"],
+            )
+        except Exception as e:
+            # Leave the row pending so the next pass retries it.
+            logger.warning("Failed to drain outbox row %s: %s", row.get("id"), e)
+            continue
+        await db.webhook_outbox.update_one(
+            {"id": row["id"]},
+            {"$set": {"status": "queued", "queued_at": datetime.now(timezone.utc)}},
+        )
+        drained += 1
+
+    if drained:
+        logger.info("Drained %d webhook(s) from the outbox", drained)
+    return drained
 
 
 async def deliver_webhook(

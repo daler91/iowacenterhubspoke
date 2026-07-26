@@ -11,7 +11,7 @@ from models.schemas import (
     ForgotPasswordRequest, ResetPasswordRequest,
 )
 from core.auth import (
-    hash_password, verify_password, create_token,
+    hash_password, verify_password, verify_password_dummy, create_token,
     create_refresh_token, decode_refresh_token,
     CurrentUser, invalidate_pwd_cache,
     REFRESH_TOKEN_LIFETIME_SECONDS, TOKEN_LIFETIME_SECONDS,
@@ -382,7 +382,17 @@ async def login(request: Request, data: UserLogin, response: Response):
         )
 
     user = await db.users.find_one({"email": normalized_email, "deleted_at": None}, {"_id": 0})
-    if not user or not await verify_password(data.password, user['password_hash']):
+    if user:
+        credentials_ok = await verify_password(data.password, user['password_hash'])
+    else:
+        # Burn an equivalent bcrypt verification so an unknown email costs the
+        # same ~100ms as a known one. `not user or not await verify_password(...)`
+        # short-circuits, which made response time a reliable enumeration
+        # oracle.
+        await verify_password_dummy()
+        credentials_ok = False
+
+    if not credentials_ok:
         await _record_login_failure(normalized_email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

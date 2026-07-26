@@ -1,5 +1,8 @@
 module.exports = {
   testEnvironment: 'jsdom',
+  // Runs before the test framework loads, so the polyfills are in place by
+  // the time a test file's imports are evaluated.
+  setupFiles: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
