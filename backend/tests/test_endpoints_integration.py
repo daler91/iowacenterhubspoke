@@ -25,7 +25,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from core.auth import create_token
-from core.constants import ROLE_ADMIN, ROLE_VIEWER
+from core.constants import ROLE_ADMIN, ROLE_SCHEDULER, ROLE_VIEWER
 from server import app
 
 pytestmark = pytest.mark.integration
@@ -194,6 +194,70 @@ async def test_soft_deleted_rows_disappear_from_list_endpoints(clean_collections
         listed = await ac.get("/api/v1/locations", headers=headers)
         names = [row["city_name"] for row in _rows(listed.json())]
         assert "Ottumwa" not in names, "soft-deleted row still visible"
+
+
+@pytest.mark.asyncio
+async def test_soft_deleted_projects_disappear_from_list_and_detail(
+    clean_collections, csrf_headers,
+):
+    """Same visibility property, for the router migrated onto the repository.
+
+    Projects are worth covering separately from locations: the list endpoint
+    clamps to its own LIST_LIMIT_MAX instead of using ``pagination.limit``, and
+    the delete path cascades to tasks/documents/messages/outcomes. A repository
+    migration that dropped the filter on any one of those reads would still
+    return 200 here, so assert the row is actually gone rather than that the
+    call succeeded.
+    """
+    token = create_token(str(uuid.uuid4()), "sched@example.com", "S", ROLE_SCHEDULER)
+    async with _client(csrf_headers) as ac:
+        headers = _auth_headers(token, csrf_headers)
+
+        org = await ac.post(
+            "/api/v1/partner-orgs",
+            json={"name": "Ames Chamber", "community": "Ames", "status": "active"},
+            headers=headers,
+        )
+        assert org.status_code in {200, 201}, org.text
+        org_id = org.json().get("id")
+        assert org_id, f"no id in partner org response: {org.text}"
+
+        created = await ac.post(
+            "/api/v1/projects",
+            json={
+                "title": "Soft delete visibility check",
+                "event_format": "workshop",
+                "partner_org_id": org_id,
+                "event_date": "2026-09-15",
+            },
+            headers=headers,
+        )
+        assert created.status_code in {200, 201}, created.text
+        project_id = created.json().get("id")
+        assert project_id, f"no id in project response: {created.text}"
+
+        listed = await ac.get("/api/v1/projects", headers=headers)
+        assert project_id in [row["id"] for row in _rows(listed.json())]
+        assert (await ac.get(f"/api/v1/projects/{project_id}", headers=headers)).status_code == 200
+
+        # Deleting requires admin; the scheduler token above cannot.
+        admin = create_token(str(uuid.uuid4()), "admin@example.com", "A", ROLE_ADMIN)
+        admin_headers = _auth_headers(admin, csrf_headers)
+        removed = await ac.delete(f"/api/v1/projects/{project_id}", headers=admin_headers)
+        assert removed.status_code in {200, 204}, removed.text
+
+        listed = await ac.get("/api/v1/projects", headers=headers)
+        assert project_id not in [row["id"] for row in _rows(listed.json())], (
+            "soft-deleted project still visible in the list endpoint"
+        )
+        detail = await ac.get(f"/api/v1/projects/{project_id}", headers=headers)
+        assert detail.status_code == 404, (
+            f"soft-deleted project still readable by id: {detail.status_code}"
+        )
+
+    stored = await clean_collections.projects.find_one({"id": project_id})
+    assert stored is not None, "delete must soft-delete, not remove the row"
+    assert stored["deleted_at"] is not None
 
 
 # ── unmatched routes ──────────────────────────────────────────────────

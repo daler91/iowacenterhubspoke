@@ -8,6 +8,7 @@ from models.coordination_schemas import ProjectCreate, ProjectUpdate, PhaseAdvan
 from core.auth import AdminRequired, CurrentUser, SchedulerRequired
 from core.constants import PROJECT_PHASES, PROJECT_PHASE_ORDER, ROLE_ADMIN
 from core.pagination import Paginated, paginated_response
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.notification_events import (
     notify_project_deleted,
@@ -20,6 +21,17 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# Soft-delete access to ``projects`` goes through the repository so the
+# ``deleted_at: None`` filter cannot be forgotten on a new call site.
+# See docs/repository-pattern.md.
+#
+# Aggregations stay on the raw ``db.projects`` handle: the repository injects
+# into query *filters*, and it cannot reach inside a ``$match`` stage, so a
+# pipeline's soft-delete predicate is hand-written either way. Routing them
+# through the repo would move the code without moving the guarantee. This is
+# also why the migration guard deliberately does not scan ``aggregate``.
+projects_repo = SoftDeleteRepository(db, "projects")
 
 PROJECT_NOT_FOUND = "Project not found"
 PARTNER_ORG_NOT_FOUND = "Partner organization not found"
@@ -67,9 +79,6 @@ _CLASS_ID_FIELD = "$class_id"
 # ── Projects ──────────────────────────────────────────────────────────
 
 
-_SCHEDULE_LIST_LIMIT_MAX = project_queries.LIST_LIMIT_MAX
-
-
 def _clamp_limit(value: int, max_value: int) -> int:
     """Backward-compatible wrapper for legacy test/import callers."""
     return project_queries.clamp_limit(value, max_value)
@@ -87,58 +96,6 @@ async def _build_task_stats(project_ids: list[str]) -> dict:
         }
         for project_id, dto in stats.items()
     }
-
-
-def _phase_match(phase: str) -> dict:
-    """Build the phase predicate for a single board column.
-
-    The legacy implementation used ``phase != complete`` then defaulted
-    ``phase.get("phase", "planning")`` in Python, so legacy/imported
-    projects with a null or missing ``phase`` field rendered under
-    Planning. The exact-equality queries we use for the paged fetches
-    would silently hide those records, so the Planning predicate is
-    widened to also match null / missing / empty values.
-    """
-    if phase == "planning":
-        return {
-            "$or": [
-                {"phase": "planning"},
-                {"phase": {"$in": [None, ""]}},
-                {"phase": {"$exists": False}},
-            ],
-        }
-    return {"phase": phase}
-
-
-async def _fetch_phase_projects(
-    base_query: dict, phase: str, limit: int,
-) -> tuple[str, list, bool]:
-    """Load the newest ``limit`` projects for a single phase.
-
-    Overfetches by one document to detect whether more rows exist beyond
-    the page boundary without a second count query. The extra row is
-    discarded before returning; the flag tells the caller whether the
-    UI should display a "more available" indicator for that column.
-    """
-    phase_query = {**base_query, **_phase_match(phase)}
-    rows = (
-        await db.projects.find(phase_query, {"_id": 0})
-        .sort("updated_at", -1)
-        .limit(limit + 1)
-        .to_list(limit + 1)
-    )
-    truncated = len(rows) > limit
-    page = rows[:limit]
-    # Normalize the phase field on the payload. For the Planning query
-    # this catches legacy/imported rows with null/empty/missing phase
-    # that would otherwise return as-is. The frontend drag handler uses
-    # `PROJECT_PHASES.indexOf(project.phase)` to decide whether a move
-    # is a gated forward advance; a `-1` there silently bypasses the
-    # task-completion warning flow. Writing the canonical value here is
-    # idempotent for the other phases where the query is exact-match.
-    for row in page:
-        row["phase"] = phase
-    return phase, page, truncated
 
 
 @router.get("/board", summary="Portfolio kanban board")
@@ -376,16 +333,16 @@ async def get_dashboard(
     # Slim projection — only the fields the in-memory aggregations below
     # actually read. Full upcoming-project records are fetched separately
     # (DB-side sort + limit 20) so we don't pay for fields we won't use.
-    all_projects = await db.projects.find(
-        {"deleted_at": None}, _DASHBOARD_AGG_FIELDS,
-    ).to_list(_DASHBOARD_PROJECT_LIMIT)
+    all_projects = await projects_repo.find_active(
+        {}, projection=_DASHBOARD_AGG_FIELDS, limit=_DASHBOARD_PROJECT_LIMIT,
+    )
     truncated = len(all_projects) >= _DASHBOARD_PROJECT_LIMIT
     active_partners = await db.partner_orgs.count_documents(
         {"deleted_at": None, "status": "active"},
     )
     completed_metrics = await _aggregate_completed_metrics()
-    upcoming_count = await db.projects.count_documents(
-        {"deleted_at": None, "phase": {"$ne": "complete"}},
+    upcoming_count = await projects_repo.count_active(
+        {"phase": {"$ne": "complete"}},
     )
 
     overdue_count = 0
@@ -393,9 +350,9 @@ async def get_dashboard(
         now = datetime.now(timezone.utc).isoformat()
         overdue_count = await _count_overdue_tasks_for_upcoming_projects(now)
 
-    upcoming_projects = await db.projects.find(
-        {"deleted_at": None, "phase": {"$ne": "complete"}}, {"_id": 0},
-    ).sort("event_date", 1).limit(20).to_list(20)
+    upcoming_projects = await projects_repo.find_active(
+        {"phase": {"$ne": "complete"}}, sort=[("event_date", 1)], limit=20,
+    )
 
     communities, communities_truncated = await _aggregate_community_breakdown()
     class_breakdown, class_ids, class_breakdown_truncated = await _aggregate_class_breakdown()
@@ -431,7 +388,7 @@ async def list_projects(
     class_id: Optional[str] = None,
     schedule_id: Optional[str] = None,
 ):
-    query = {"deleted_at": None}
+    query: dict = {}
     if community:
         query["community"] = community
     if phase:
@@ -444,16 +401,14 @@ async def list_projects(
         query["class_id"] = class_id
     if schedule_id:
         query["schedule_id"] = schedule_id
-    total = await db.projects.count_documents(query)
+    total = await projects_repo.count_active(query)
+    # Not ``paginate``: this endpoint clamps to the projects-specific
+    # LIST_LIMIT_MAX rather than using pagination.limit directly.
     limit = project_queries.clamp_limit(
         pagination.limit, project_queries.LIST_LIMIT_MAX,
     )
-    items = (
-        await db.projects.find(query, {"_id": 0})
-        .sort("event_date", -1)
-        .skip(pagination.skip)
-        .limit(limit)
-        .to_list(limit)
+    items = await projects_repo.find_active(
+        query, sort=[("event_date", -1)], skip=pagination.skip, limit=limit,
     )
     return paginated_response(items, total, pagination)
 
@@ -542,9 +497,8 @@ async def _auto_create_schedule(
         sched_doc.pop("_id", None)
 
         # Link schedule back to the project
-        await db.projects.update_one(
-            {"id": project_doc["id"]},
-            {"$set": {"schedule_id": sched_doc["id"]}},
+        await projects_repo.update_active(
+            project_doc["id"], {"schedule_id": sched_doc["id"]},
         )
         project_doc["schedule_id"] = sched_doc["id"]
         # New schedule means new class/drive hours flowing into /workload.
@@ -672,9 +626,7 @@ async def create_project(data: ProjectCreate, user: SchedulerRequired):
     responses={404: {"description": PROJECT_NOT_FOUND}},
 )
 async def get_project(project_id: str, user: CurrentUser):
-    project = await db.projects.find_one(
-        {"id": project_id, "deleted_at": None}, {"_id": 0}
-    )
+    project = await projects_repo.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
@@ -752,12 +704,12 @@ async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRe
                 update_data["location_name"] = loc.get("city_name", "")
                 update_data["community"] = loc.get("city_name") or org.get("community", "")
 
-    result = await db.projects.update_one(
-        {"id": project_id, "deleted_at": None}, {"$set": update_data}
+    matched, _ = await projects_repo.update_one_active(
+        {"id": project_id}, update_data,
     )
-    if result.matched_count == 0:
+    if matched == 0:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    updated = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    updated = await projects_repo.get_by_id(project_id)
     # Sync event_date to linked schedule if date changed
     if "event_date" in update_data and updated and updated.get("schedule_id"):
         new_date = update_data["event_date"][:10]  # Extract YYYY-MM-DD
@@ -783,19 +735,17 @@ async def update_project(project_id: str, data: ProjectUpdate, user: SchedulerRe
 async def delete_project(project_id: str, user: AdminRequired):
     # Snapshot before soft-delete so the notification can name the project
     # and still resolve the partner_org_id for recipient resolution.
-    project_snapshot = await db.projects.find_one(
-        {"id": project_id, "deleted_at": None}, {"_id": 0},
-    )
-    now = datetime.now(timezone.utc).isoformat()
-    result = await db.projects.update_one(
-        {"id": project_id, "deleted_at": None},
-        {"$set": {"deleted_at": now}},
-    )
-    if result.matched_count == 0:
+    project_snapshot = await projects_repo.get_by_id(project_id)
+    # ``soft_delete`` filters on ``deleted_at: None``, so a false return is
+    # the same not-found/already-deleted signal the raw ``matched_count == 0``
+    # check gave. It also records ``deleted_by``, which this path did not.
+    if not await projects_repo.soft_delete(project_id, deleted_by=user.get("name")):
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     # Soft-delete associated tasks, documents, messages, outcomes so the
     # audit trail survives. Hard deletes would break any downstream report
-    # that cites a task or document that later vanished.
+    # that cites a task or document that later vanished. These four
+    # collections are not migrated yet, so they still filter by hand.
+    now = datetime.now(timezone.utc).isoformat()
     await db.tasks.update_many(
         {"project_id": project_id, "deleted_at": None},
         {"$set": {"deleted_at": now}},
@@ -837,9 +787,7 @@ async def advance_phase(
 ):
     force = body.force if body else False
 
-    project = await db.projects.find_one(
-        {"id": project_id, "deleted_at": None}, {"_id": 0}
-    )
+    project = await projects_repo.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
@@ -884,9 +832,8 @@ async def advance_phase(
         )
 
     now = datetime.now(timezone.utc).isoformat()
-    await db.projects.update_one(
-        {"id": project_id},
-        {"$set": {"phase": next_phase, "updated_at": now}},
+    await projects_repo.update_active(
+        project_id, {"phase": next_phase, "updated_at": now},
     )
     if force_with_incomplete:
         # Cap the title list so a project with dozens of tasks can't
