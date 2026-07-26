@@ -41,6 +41,11 @@ dist
 *.env.*
 !.env.example
 
+# Docker secrets. docker-compose.prod.yml instructs operators to create
+# ./secrets/jwt_secret, ./secrets/mongo_url, etc. Those files have no
+# extension, so none of the patterns above match them.
+secrets/
+
 *token.json*
 *credentials.json*
 

@@ -83,13 +83,28 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - name: TypeScript typecheck (non-blocking until baseline is clean)
+      - name: TypeScript typecheck (advisory — full error list for the log)
         run: npm run typecheck
         continue-on-error: true
+      # Blocking. The advisory step above cannot fail the build because of a
+      # ~1,000-error strict-mode baseline (implicit-any props, untyped Radix
+      # wrappers), which meant a *new* type error was indistinguishable from
+      # the existing noise — that is how a call to a nonexistent API method
+      # shipped in src/features/coordination/api.ts. The ratchet fails only on
+      # an increase, so new errors are caught while the baseline is paid down.
+      - name: TypeScript error ratchet (blocking)
+        run: npm run check-types-ratchet
       - run: npm run build
       - run: npm test
       - run: npm run check-testids
       - run: npm run lint
+      # TODO(blocking): this repo's history is dominated by dependency-bump
+      # PRs, so the gate that catches vulnerable deps should be able to fail
+      # the build. It cannot be flipped yet — `npm audit` currently reports 2
+      # high findings for GHSA-qwww-vcr4-c8h2 (react-router 7.12.0–8.2.0, RSC
+      # Mode CSRF bypass). This SPA does not use RSC mode, so the advisory
+      # does not apply in practice, but npm audit cannot express that. Resolve
+      # by moving react-router-dom past 8.2.0, then drop continue-on-error.
       - name: Frontend dependency vulnerability scan
         run: npm audit --omit=dev --audit-level=high
         continue-on-error: true

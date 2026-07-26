@@ -6,3 +6,23 @@ data_export
 node_modules
 __pycache__
 *.pyc
+
+# Secrets must never reach an image layer. The Dockerfile does
+# `COPY backend/ ./` into the *final* stage, and docker-compose.yml requires
+# developers to create backend/.env — without these rules a local build bakes
+# live credentials into the published image.
+.env
+*.env
+*.env.*
+!.env.example
+secrets/
+*.pem
+*token.json*
+*credentials.json*
+
+# Local build/tooling noise
+venv
+.venv
+*.log
+.pytest_cache
+.mypy_cache

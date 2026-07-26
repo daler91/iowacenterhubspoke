@@ -1,9 +1,16 @@
-"""Single source of truth for the sensitive-key allowlist + redaction walker.
+"""Credential redaction for **structured application logs**.
 
-Used by both ``core.logger`` (masks structured log payloads) and
-``core.sentry_scrub`` (masks Sentry event payloads). Having these in one
-module keeps the two masks from drifting apart and satisfies the project's
-duplicate-code quality gate.
+Used by ``core.logger`` only. Sentry payloads go through a deliberately
+stricter mask in ``services.observability_scrubber`` (via ``core.sentry_scrub``)
+because they leave our infrastructure: that one additionally redacts ``email``,
+``phone`` and ``ssn``, which this one intentionally preserves so operators can
+correlate log lines to an account. ``tests/test_logger_scrub.py`` pins that
+difference — do not "unify" the two key lists without changing that test on
+purpose.
+
+An earlier version of this docstring claimed to be the single source of truth
+for both paths. It never was: ``core.sentry_scrub`` has always imported from
+``services.observability_scrubber``.
 """
 
 from typing import Any

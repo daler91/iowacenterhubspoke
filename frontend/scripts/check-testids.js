@@ -3,12 +3,14 @@
  * Testid regression check.
  *
  * Design guidelines say "All interactive elements MUST have data-testid
- * attributes." The project has no ESLint config yet, so until Tier C2
- * lands proper lint rules this script provides a lightweight alternative:
- * it captures a baseline of how many data-testid attributes each tracked
- * source file has, then fails CI if any file's count drops below that
- * baseline. Adding testids is always allowed (the baseline is a floor,
- * not a target).
+ * attributes." ESLint (see eslint.config.mjs) runs only jsx-a11y rules and
+ * has nothing that can express this, so the check lives here: it captures a
+ * baseline of how many data-testid attributes each tracked source file has,
+ * then fails CI if any file's count drops below that baseline. Adding
+ * testids is always allowed (the baseline is a floor, not a target).
+ *
+ * See scripts/typecheck-ratchet.js for the same pattern applied to
+ * TypeScript's strict-mode error baseline.
  *
  * Usage:
  *   node scripts/check-testids.js           # check against baseline

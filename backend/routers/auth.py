@@ -17,6 +17,7 @@ from core.auth import (
     REFRESH_TOKEN_LIFETIME_SECONDS, TOKEN_LIFETIME_SECONDS,
 )
 from core.constants import ROLE_VIEWER, ROLE_ADMIN, USER_STATUS_PENDING, USER_STATUS_APPROVED, USER_STATUS_REJECTED
+from core.emails import normalize_email
 from fastapi import Request
 from core.queue import safe_enqueue_job
 from core.rate_limit import limiter
@@ -305,7 +306,11 @@ async def register(request: Request, data: UserRegister, response: Response):
     user_doc = {
         "id": user_id,
         "name": data.name,
-        "email": data.email,
+        # Store the normalised form, not the raw input. The duplicate check
+        # above is case-insensitive, so storing raw meant a user who signed up
+        # as "Bob@Example.com" could not log in as "bob@example.com", could not
+        # re-register, and could not reset their password.
+        "email": normalized_email,
         "password_hash": await hash_password(data.password),
         "role": role,
         "status": status,
@@ -325,9 +330,9 @@ async def register(request: Request, data: UserRegister, response: Response):
     logger.info("User registered", extra={"entity": {"user_id": user_id}})
 
     if is_admin_email or claimed_invitation:
-        await _issue_session_cookies(response, user_id, data.email, data.name, role)
+        await _issue_session_cookies(response, user_id, normalized_email, data.name, role)
         return {
-            "user": {"id": user_id, "name": data.name, "email": data.email, "role": role},
+            "user": {"id": user_id, "name": data.name, "email": normalized_email, "role": role},
         }
 
     # Self-service registration awaiting admin approval.
@@ -350,13 +355,20 @@ async def register(request: Request, data: UserRegister, response: Response):
 @limiter.limit("5/minute")
 async def login(request: Request, data: UserLogin, response: Response):
     """Authenticate and receive a JWT token via HTTP-only cookie. Pending/rejected users are blocked."""
-    locked, remaining = await _is_login_locked(data.email)
+    # Normalise once, up front: emails are stored lower-cased (see core.emails),
+    # so matching the raw input would 401 anyone who typed a different casing
+    # than they registered with. The lockout helpers below lower-case
+    # internally too — passing the same value to all of them keeps the
+    # brute-force counter keyed identically however the address was typed.
+    normalized_email = normalize_email(data.email)
+
+    locked, remaining = await _is_login_locked(normalized_email)
     if locked:
         minutes = max(1, remaining // 60)
         # Surface lockouts at WARNING — ops wants this visible in log
         # aggregation to spot credential-stuffing patterns. Email domain
         # only (no local-part) keeps PII out of the log.
-        _domain = data.email.split("@", 1)[-1].lower() if "@" in data.email else "?"
+        _domain = normalized_email.split("@", 1)[-1] if "@" in normalized_email else "?"
         logger.warning(
             "Login attempt blocked — brute-force lockout active",
             extra={"entity": {"email_domain": _domain, "remaining_minutes": minutes}},
@@ -369,9 +381,9 @@ async def login(request: Request, data: UserLogin, response: Response):
             ),
         )
 
-    user = await db.users.find_one({"email": data.email, "deleted_at": None}, {"_id": 0})
+    user = await db.users.find_one({"email": normalized_email, "deleted_at": None}, {"_id": 0})
     if not user or not await verify_password(data.password, user['password_hash']):
-        await _record_login_failure(data.email)
+        await _record_login_failure(normalized_email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     status = user.get("status", USER_STATUS_APPROVED)
@@ -382,7 +394,7 @@ async def login(request: Request, data: UserLogin, response: Response):
 
     # Successful credential + status check — reset the failure counter so
     # a later mistyped password doesn't start from a tripped threshold.
-    await _clear_login_failures(data.email)
+    await _clear_login_failures(normalized_email)
 
     role = user.get("role", ROLE_VIEWER)
     user_var.set(user['email'])
