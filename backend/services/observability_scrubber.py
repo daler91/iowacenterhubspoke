@@ -1,7 +1,13 @@
-"""Reusable observability payload scrubber for logs/errors/analytics.
+"""Payload scrubber for data that leaves our infrastructure (Sentry).
 
 Scrubs nested mappings/lists by key-name denylist, with explicit allowlist
 exceptions for non-sensitive keys that would otherwise match broad patterns.
+
+Stricter than ``core.sensitive_keys`` (which masks structured application
+logs): this denylist also covers ``email``, ``phone`` and ``ssn``, because the
+payload is sent to a third party. The log-side mask deliberately keeps those
+for operational correlation. Keep the two in sync only where they overlap —
+the extra PII keys here are the intended difference.
 """
 
 from __future__ import annotations

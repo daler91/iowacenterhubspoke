@@ -73,6 +73,7 @@
     "test": "jest --passWithNoTests",
     "test:e2e": "playwright test",
     "check-testids": "node scripts/check-testids.js",
+    "check-types-ratchet": "node scripts/typecheck-ratchet.js",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit"

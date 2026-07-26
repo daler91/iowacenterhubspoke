@@ -129,8 +129,13 @@ async def fire_webhook_event(event: str, payload: dict):
     pool = await get_redis_pool()
     for sub in subs:
         if pool:
+            # Must match the name registered in ``worker.WorkerSettings.functions``
+            # — arq resolves jobs by function ``__name__`` and does not validate
+            # the name at enqueue time, so a mismatch here silently drops every
+            # event-driven webhook while the API still reports a successful
+            # enqueue. ``tests/test_enqueue_job_names.py`` guards this.
             await pool.enqueue_job(
-                "deliver_webhook", sub["id"], event, payload,
+                "deliver_webhook_job", sub["id"], event, payload,
             )
         else:
             # Persist to outbox for async processing (Redis unavailable)

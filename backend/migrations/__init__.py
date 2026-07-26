@@ -15,6 +15,7 @@ from . import (
     add_task_status_fields,
     backfill_project_class_id,
     migrate_multi_employee,
+    normalize_stored_emails,
     rename_class_type_to_event_format,
     manage_secondary_indexes,
 )
@@ -27,4 +28,5 @@ MIGRATIONS: List[Tuple[str, MigrationFn]] = [
     ("003_add_task_status_fields", add_task_status_fields.run),
     ("004_backfill_project_class_id", backfill_project_class_id.run),
     ("005_manage_secondary_indexes", manage_secondary_indexes.run),
+    ("006_normalize_stored_emails", normalize_stored_emails.run),
 ]

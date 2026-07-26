@@ -16,6 +16,7 @@ from services.email import (
     send_portal_invite,
     resolve_app_url,
 )
+from core.emails import normalize_email
 from core.logger import get_logger
 from core.token_digest import token_digest
 
@@ -27,8 +28,11 @@ import os as _os  # noqa: E402
 # (mailbox filtering, offline device) doesn't force the user to restart
 # the flow. Override via PASSWORD_RESET_EXPIRY_HOURS.
 PASSWORD_RESET_EXPIRY_HOURS = int(_os.environ.get("PASSWORD_RESET_EXPIRY_HOURS", "24"))
-# Portal magic links default to 3 days. One-time-use behaviour is enforced
-# separately when the portal records last_used_at.
+# Portal magic links default to 3 days. NOTE: these are *reusable* bearer
+# tokens for that window, not one-time-use — core.portal_auth.validate_portal_token
+# checks only revoked_at and expires_at, and last_used_at is a throttled
+# analytics write, not a consumption marker. (An earlier version of this
+# comment claimed one-time-use enforcement that has never existed.)
 PORTAL_TOKEN_EXPIRY_DAYS = int(_os.environ.get("PORTAL_TOKEN_EXPIRY_DAYS", "3"))
 
 
@@ -39,7 +43,13 @@ async def send_password_reset_email(email: str) -> None:
     mirrors the handler's generic response. Intended to run inside an
     arq worker, off the request path.
     """
-    user = await db.users.find_one({"email": email}, {"_id": 0})
+    user = await db.users.find_one(
+        # Normalised lookup (emails are stored lower-cased) plus a soft-delete
+        # filter — without the latter a deleted account could still be issued a
+        # working reset token.
+        {"email": normalize_email(email), "deleted_at": None},
+        {"_id": 0},
+    )
     if not user:
         logger.info(
             "Password reset requested for unknown email (silent no-op)",
@@ -94,7 +104,7 @@ async def send_partner_magic_link_email(email: str) -> None:
     contact. Intended to run inside an arq worker, off the request path.
     """
     contact = await db.partner_contacts.find_one(
-        {"email": email, "deleted_at": None}, {"_id": 0},
+        {"email": normalize_email(email), "deleted_at": None}, {"_id": 0},
     )
     if not contact:
         logger.info(

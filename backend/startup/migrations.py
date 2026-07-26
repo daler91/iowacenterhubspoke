@@ -1,6 +1,7 @@
 import os
 
 from core.constants import ROLE_ADMIN, USER_STATUS_APPROVED
+from core.emails import normalize_email
 
 _MONGO_EXISTS = "$exists"
 
@@ -17,7 +18,9 @@ async def run_startup_migrations(db, logger):
     except Exception as e:
         logger.warning(f"Failed to migrate user statuses: {e}")
 
-    admin_email = os.getenv("ADMIN_EMAIL")
+    # Normalise: emails are stored lower-cased (core.emails), so an
+    # ADMIN_EMAIL configured with different casing would silently never match.
+    admin_email = normalize_email(os.getenv("ADMIN_EMAIL"))
     if not admin_email:
         return
     try:

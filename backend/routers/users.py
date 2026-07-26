@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from database import db
 from core.auth import AdminRequired, CurrentUser, invalidate_pwd_cache
+from core.emails import normalize_email
 from core.constants import (
     ROLE_ADMIN, ROLE_EDITOR, ROLE_SCHEDULER, ROLE_VIEWER,
     USER_STATUS_APPROVED, USER_STATUS_REJECTED,
 )
 from models.schemas import UserRoleUpdate, InviteCreate, ErrorResponse
 from services.notification_events import notify_role_changed
+from services.notification_prefs import PREFS_FIELD
 from services.activity import log_activity, redact_user_from_activity
 from core.logger import get_logger
 
@@ -239,11 +241,19 @@ async def _stream_user_export(user_doc: dict, user_id: str):
         ("schedules_created", db.schedules, {"created_by": user_id}),
         ("projects_created", db.projects, {"created_by": user_id}),
         ("activity_logs", db.activity_logs, {"user_id": user_id}),
-        ("notification_preferences", db.notification_preferences, {"principal_id": user_id}),
     )
     for key, coll, query in sections:
         async for chunk in _stream_collection_json(key, coll, query):
             yield chunk
+    # Notification preferences are an embedded field on the principal document
+    # (``services.notification_prefs.PREFS_FIELD``), not a collection. This
+    # previously read a ``db.notification_preferences`` collection that has
+    # never existed, so the section was always ``[]`` — the real values were
+    # only visible under ``user`` above. Emit them here from the user doc so
+    # the top-level key means what it says.
+    yield ',\n  "notification_preferences": ' + json.dumps(
+        user_doc.get(PREFS_FIELD) or {}, default=str,
+    )
     yield '\n}\n'
 
 
@@ -333,14 +343,19 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
     if data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
 
+    # Emails are stored normalised (core.emails), so both the existence checks
+    # and the stored invitation must use the same form — otherwise an invite
+    # for "Bob@Example.com" would not collide with the account bob@example.com.
+    invite_email = normalize_email(data.email)
+
     existing_user = await db.users.find_one(
-        {"email": data.email, "status": USER_STATUS_APPROVED}, {"_id": 0}
+        {"email": invite_email, "status": USER_STATUS_APPROVED}, {"_id": 0}
     )
     if existing_user:
         raise HTTPException(status_code=400, detail="A user with this email already exists")
 
     existing_invite = await db.invitations.find_one(
-        {"email": data.email, "status": "pending"}, {"_id": 0}
+        {"email": invite_email, "status": "pending"}, {"_id": 0}
     )
     if existing_invite:
         raise HTTPException(status_code=400, detail="An active invitation already exists for this email")
@@ -348,7 +363,7 @@ async def create_invitation(data: InviteCreate, user: AdminRequired):
     now = datetime.now(timezone.utc)
     invite_doc = {
         "id": str(uuid.uuid4()),
-        "email": data.email,
+        "email": invite_email,
         "name": data.name,
         "role": data.role,
         "token": str(uuid.uuid4()),

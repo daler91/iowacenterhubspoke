@@ -31,6 +31,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
+from core.emails import normalize_email
 from core.notification_types import (
     Channel,
     Frequency,
@@ -86,11 +87,14 @@ async def find_principal_by_email(email: str) -> Optional[Principal]:
     """Find a principal by email (internal first, then partner)."""
     if not email:
         return None
-    user = await db.users.find_one({"email": email}, {"_id": 0, "password_hash": 0})
+    # Emails are stored normalised (core.emails); normalise the lookup too so
+    # a differently-cased caller still resolves to the right principal.
+    normalized = normalize_email(email)
+    user = await db.users.find_one({"email": normalized}, {"_id": 0, "password_hash": 0})
     if user:
         return _principal_from_doc("internal", user)
     contact = await db.partner_contacts.find_one(
-        {"email": email, "deleted_at": None}, {"_id": 0},
+        {"email": normalized, "deleted_at": None}, {"_id": 0},
     )
     if contact:
         return _principal_from_doc("partner", contact)
