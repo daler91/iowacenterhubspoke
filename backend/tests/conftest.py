@@ -124,6 +124,8 @@ _INTEGRATION_COLLECTIONS = (
     "login_failures", "portal_tokens", "partner_contacts", "partner_orgs",
     "projects", "tasks", "locations", "employees", "classes", "schedules",
     "activity_logs",
+    # Deleting a project cascades a soft-delete into these.
+    "documents", "messages", "event_outcomes",
 )
 
 

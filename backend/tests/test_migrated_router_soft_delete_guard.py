@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATED = {
     "backend/routers/project_docs.py": "documents",
     "backend/routers/employees.py": "employees",
+    "backend/routers/projects.py": "projects",
 }
 
 

@@ -20,12 +20,25 @@ the code did not have.
 
 ### Migrate remaining routers onto `SoftDeleteRepository`
 
-`backend/core/repository.py::SoftDeleteRepository` is used by six routers:
+`backend/core/repository.py::SoftDeleteRepository` is used by seven routers:
 `locations.py`, `classes.py`, `employees.py`, `partner_orgs.py`,
-`project_docs.py`, `schedule_bulk.py`. **207 hand-written `{"deleted_at": None}`
-filters remain** across the rest. Highest-value remaining targets by count:
-`projects.py` (30), `schedule_crud.py` (22), `reports.py` (16),
-`project_tasks.py` (12).
+`project_docs.py`, `schedule_bulk.py`, `projects.py`. **198 hand-written
+`{"deleted_at": None}` filters remain** across `backend/routers/` (down from
+207). Highest-value remaining targets, counted over routers that have not been
+migrated at all: `schedule_crud.py` (22), `reports.py` (16),
+`project_tasks.py` (12), `schedule_helpers.py` (11), `users.py` (10),
+`auth.py` (10).
+
+Note the count does not fall to zero per migrated router. A migration is scoped
+to *one collection*; `projects.py` still carries 21 hand-written filters after
+migrating, all on collections it reads but does not own (`tasks`, `documents`,
+`messages`, `event_outcomes`, `partner_orgs`, `locations`, `schedules`).
+Those clear when those collections' own routers migrate.
+
+Aggregation pipelines stay hand-written by design. The repository injects into
+query *filters* and cannot reach inside a `$match` stage, so routing a pipeline
+through it would move code without moving the guarantee — which is why the
+guard test deliberately does not scan `aggregate`.
 
 See `docs/repository-pattern.md` for the recipe. Each router should be its own
 PR, added to `MIGRATED` in `tests/test_migrated_router_soft_delete_guard.py` —
@@ -39,7 +52,11 @@ Two things that bite on every migration:
   so attribute patching no longer intercepts it — patch the repo method instead
   (see `tests/test_employee_stats.py` for the pattern).
 - `tests/test_endpoints_integration.py::test_soft_deleted_rows_disappear_from_list_endpoints`
-  is the end-to-end safety net for this work. Extend it per migrated router.
+  is the end-to-end safety net for this work. Extend it per migrated router —
+  see `test_soft_deleted_projects_disappear_from_list_and_detail` for the
+  shape. Assert the row is *gone*, not that the call returned 200: a leaking
+  list endpoint answers 200 with the deleted row still in it, so a status-code
+  assertion passes straight through the bug.
 
 ### Reduce the frontend strict-mode baseline
 
