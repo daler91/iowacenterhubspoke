@@ -33,7 +33,7 @@ and active docs.
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, TypeScript 5.5, Vite 7, Tailwind CSS 3, Radix UI |
-| Backend API | FastAPI 0.125, Python 3.11, Motor/PyMongo |
+| Backend API | FastAPI 0.133, Python 3.11, Motor/PyMongo |
 | Data | MongoDB 7 |
 | Queue/async jobs | Redis + arq worker |
 | Auth | JWT, refresh-token storage, CSRF double-submit, token digests for reset/portal lookup |

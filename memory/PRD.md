@@ -1,5 +1,15 @@
 # HubSpoke Scheduler - PRD
 
+> **SUPERSEDED — historical.** Last updated March 2026, describing the original
+> scheduler MVP only. It predates the partner coordination module and the
+> partner portal, which are now the largest part of the codebase, and its status
+> claims are stale (it reports "Backend: 100% (23/23 tests passed)" against a
+> suite that is now 60+ files, lists shipped work such as pagination and rate
+> limiting as backlog, and says Outlook is blocked on credentials while
+> `docs/OUTLOOK_SETUP.md` is a complete runbook). See `PARTNER_COORDINATION_PRD.md`
+> for the coordination module and `README.md` for current scope.
+
+
 ## Original Problem Statement
 Build a web-based employee scheduling application that visually accounts for drive times and travel blocks using a Hub and Spoke travel model (Hub: 2210 Grand Ave, Des Moines, IA 50312).
 

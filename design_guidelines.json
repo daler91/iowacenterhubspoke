@@ -1,4 +1,5 @@
 {
+  "_status": "SUPERSEDED \u2014 historical. The palette and type stack here still match the implementation, but the usage guidance does not: this file prescribes raw Tailwind classes (text-slate-900, text-slate-500, ...) while .claude/SKILL.md rule #1 forbids them where a semantic token exists, and docs/UX_ACCESSIBILITY_REVIEW.md flags text-slate-500 as failing AA contrast. The .tsx tree now carries zero raw Tailwind palette classes. Treat .claude/SKILL.md + .claude/tokens.css + frontend/tailwind.config.js as the live design system.",
   "project_name": "HubSpoke Scheduler",
   "theme": "light",
   "design_philosophy": {
@@ -7,7 +8,7 @@
       "Clarity is King: In logistics, ambiguity is fatal. Every pixel must serve a purpose.",
       "Hub & Spoke Metaphor: Visuals should radiate from a central point (The Hub) to the edges (Spokes).",
       "Time is Physical: Visualize time as tangible blocks. Drive time has 'weight' (gray, textured). Class time has 'energy' (vibrant).",
-      "Iowa Grounded: Use an earthy but modern palette—Deep Soil, Corn Gold, Sky Blue—translated into a clean SaaS aesthetic."
+      "Iowa Grounded: Use an earthy but modern palette\u2014Deep Soil, Corn Gold, Sky Blue\u2014translated into a clean SaaS aesthetic."
     ],
     "anti_patterns": [
       "No generic 'Bootstrap' admin templates.",
@@ -112,7 +113,9 @@
     "transitions": "transition-all duration-200 ease-in-out",
     "hover_lift": "hover:-translate-y-0.5 hover:shadow-md",
     "page_transition": "animate-in fade-in slide-in-from-bottom-4 duration-500",
-    "libraries": ["tailwindcss-animate"]
+    "libraries": [
+      "tailwindcss-animate"
+    ]
   },
   "assets": {
     "icons": "Lucide React (default)",
