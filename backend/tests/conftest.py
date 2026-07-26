@@ -34,6 +34,7 @@ os.environ["ENVIRONMENT"] = "development"
 os.environ.pop("RAILWAY_ENVIRONMENT", None)
 
 import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
 from unittest.mock import AsyncMock  # noqa: E402
 
 
@@ -78,3 +79,80 @@ def csrf_headers():
         "headers": {"X-CSRF-Token": token},
         "cookies": {"csrf_token": token},
     }
+
+
+# ── Integration-test support ─────────────────────────────────────────
+# Everything above this line runs against monkeypatched module globals.
+# The fixtures below give tests a *real* MongoDB, which is the only way to
+# exercise the seams where the app's units meet — routing, dependency
+# resolution, index constraints, and the actual query filters. Three of the
+# four bugs found in the codebase review lived in exactly those seams and
+# were invisible to unit tests against fakes.
+#
+# DB_NAME is seeded to "test_db" above, so ``database.db`` — the handle every
+# module binds at import time — already points at a throwaway database.
+#
+# Loop scoping matters here. A Motor client binds to the running event loop
+# on first use, and pytest-asyncio gives each test its own loop by default —
+# so the shared ``database.db`` client would bind to the first integration
+# test's loop and then fail in every later one. Integration tests therefore
+# run on a session-scoped loop (``asyncio_default_test_loop_scope`` in
+# pytest.ini), and these fixtures must be async so they share it rather than
+# spinning up their own via ``asyncio.run``.
+
+_MONGO_PING_TIMEOUT_MS = 1500
+
+_INTEGRATION_COLLECTIONS = (
+    "users", "invitations", "refresh_tokens", "password_resets",
+    "login_failures", "portal_tokens", "partner_contacts", "partner_orgs",
+    "projects", "tasks", "locations", "employees", "classes", "schedules",
+    "activity_logs",
+)
+
+
+@pytest.fixture(scope="session")
+def mongo_url():
+    return os.environ["MONGO_URL"]
+
+
+@pytest_asyncio.fixture(loop_scope="session", scope="session")
+async def mongo_db(mongo_url):
+    """Real MongoDB handle, or skip the test if none is reachable.
+
+    Skips rather than fails so a developer without Mongo running still gets a
+    green unit-test run; CI provides a service container, so these do not
+    silently vanish where it matters.
+    """
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+    probe = AsyncIOMotorClient(
+        mongo_url, serverSelectionTimeoutMS=_MONGO_PING_TIMEOUT_MS,
+    )
+    try:
+        await probe.admin.command("ping")
+    except Exception as exc:  # pragma: no cover - environment dependent
+        # Skipping is right on a laptop with no Mongo running, and useless in
+        # CI — a suite that silently skips is indistinguishable from one that
+        # passes. REQUIRE_MONGO turns the skip into a hard failure so the
+        # workflow cannot quietly stop exercising these.
+        if os.getenv("REQUIRE_MONGO") == "1":
+            pytest.fail(
+                f"REQUIRE_MONGO=1 but no MongoDB at {mongo_url}: {exc}. "
+                "The CI service container is not reachable."
+            )
+        pytest.skip(f"No MongoDB at {mongo_url}: {exc}")
+    finally:
+        probe.close()
+
+    from database import db as _db
+    return _db
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def clean_collections(mongo_db):
+    """Empty the collections a test touches, before and after it runs."""
+    for name in _INTEGRATION_COLLECTIONS:
+        await mongo_db[name].delete_many({})
+    yield mongo_db
+    for name in _INTEGRATION_COLLECTIONS:
+        await mongo_db[name].delete_many({})

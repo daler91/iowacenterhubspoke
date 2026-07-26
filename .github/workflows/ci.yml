@@ -18,6 +18,27 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The integration suite (tests/test_endpoints_integration.py) drives real
+    # HTTP endpoints against this. Without it those tests skip, and the only
+    # coverage left is unit tests against monkeypatched module globals — which
+    # are structurally blind to wiring errors *between* units. Three of the
+    # four bugs found in the July 2026 review were exactly that shape.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: hubspoke_ci
+      # Turns the integration suite's "no Mongo, skip" into a hard failure,
+      # so a broken service container cannot make the suite silently vacuous.
+      REQUIRE_MONGO: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,6 +50,8 @@ jobs:
       - run: python -m flake8 --max-line-length=120 --exclude=__pycache__,tests .
       - run: python -m pytest --collect-only -q -W error::pytest.PytestWarning tests/
       - run: python -m pytest -m auth_contract tests/test_auth_contract.py -v
+      - name: Integration tests (real MongoDB)
+        run: python -m pytest -m integration tests/ -v
       - run: python -m pytest tests/ -v
 
   backend-security:
