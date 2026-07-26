@@ -15,6 +15,7 @@
 // working even if a new ruleset needs triage.
 
 import jsxA11y from 'eslint-plugin-jsx-a11y';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tsParser from '@typescript-eslint/parser';
 import globals from 'globals';
 
@@ -55,6 +56,21 @@ export default [
         ...globals.browser,
         ...globals.es2022,
       },
+    },
+  },
+  {
+    // react-hooks, added on top of the a11y-only baseline. `exhaustive-deps`
+    // is the reason: this codebase leans hard on hook dependency arrays (SWR
+    // keys, useMemo-derived outlet context, useCallback handler identity), and
+    // a wrong dep list there produces stale data or a render loop rather than
+    // a crash. Warnings, not errors, so an existing violation does not block
+    // the build while the list is worked down — `rules-of-hooks` is the one
+    // that is always a real bug, so it is an error.
+    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 ];

@@ -1,5 +1,14 @@
 # Code Review Report — Iowa Center Hub & Spoke
 Generated: 2026-04-16
+> **SUPERSEDED — historical.** This is a snapshot from 2026-04-16. Most of its
+> criticals have since been closed: Sentry `before_send` scrubbing, PostHog
+> consent gating, Docker health checks, CI security gates, `passlib` replaced
+> with direct `bcrypt`, worker heartbeat in `/health`, Docker secrets in prod
+> compose. **Its scores — including Data Privacy 4/10 — do not reflect the
+> current codebase.** For the live picture see `docs/tech-debt-followups.md`,
+> which is verified against code.
+
+
 
 ## Executive Summary
 

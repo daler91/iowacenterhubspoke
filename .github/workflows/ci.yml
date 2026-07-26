@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded runs on a PR. Without this, pushing three times in a row
+# leaves three full matrices burning runners, and the two stale ones report
+# results for code nobody is looking at any more. Never cancel on main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Least-privilege default: every job in this workflow only reads repo
 # contents (install deps, build, test, lint, upload a report artifact).
 # Individual jobs can widen permissions if needed — none do today.
@@ -15,6 +22,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -54,8 +62,8 @@ jobs:
       # so a broken service container cannot make the suite silently vacuous.
       REQUIRE_MONGO: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: "3.11"
           cache: pip
@@ -74,6 +82,7 @@ jobs:
 
   backend-security:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -95,13 +104,16 @@ jobs:
           # is disputed upstream because HMAC key strength is chosen by the
           # application. backend/core/auth.py enforces >=32-byte JWT_SECRET
           # before PyJWT can sign or verify HS256 tokens.
-          pip-audit -r requirements.txt --strict --ignore-vuln PYSEC-2025-183
+          # requirements-dev.txt includes requirements.txt, so this covers both —
+          # previously only the production file was scanned while CI installed dev.
+          pip-audit -r requirements-dev.txt --strict --ignore-vuln PYSEC-2025-183
       - name: Static type check
         run: mypy . --ignore-missing-imports --follow-imports=silent --no-strict-optional
         continue-on-error: true
 
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -113,12 +125,13 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
           cache: npm
@@ -152,13 +165,14 @@ jobs:
 
   frontend-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: frontend
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
           cache: npm
@@ -166,9 +180,88 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: failure()
         with:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Railway deploys this Dockerfile (railway.json). Nothing in CI built it
+    # until now, so a change that broke the image — a bad COPY path, a missing
+    # system package, a frontend build failure inside the builder stage —
+    # merged green and only failed at deploy time. This builds the real
+    # production image and boots it far enough to answer /api/v1/health.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build the production image
+        run: docker build -t hubspoke:ci .
+      # A build that succeeds but produces an image that cannot start is still
+      # a broken deploy, so boot it. Host networking lets the container reach
+      # the service containers on localhost without a shared compose network.
+      - name: Boot the image and wait for /api/v1/health
+        run: |
+          docker run -d --name hubspoke-ci --network host \
+            -e MONGO_URL=mongodb://localhost:27017 \
+            -e DB_NAME=hubspoke_docker_ci \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e JWT_SECRET=ci-only-secret-at-least-32-bytes-long \
+            -e ENVIRONMENT=development \
+            -e PORT=8080 \
+            hubspoke:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/v1/health > /tmp/health.json; then
+              echo "health responded:"; cat /tmp/health.json; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::image never answered /api/v1/health"
+          docker logs hubspoke-ci
+          exit 1
+      # The entrypoint drops to uid 1001 and re-verifies the drop actually
+      # happened (backend/docker-entrypoint.py). Assert it from outside too —
+      # a silent failure there is how a container ends up serving as root.
+      #
+      # Check PID 1 specifically, not `docker exec ... id -u`. `docker exec`
+      # starts a *new* process as the image's configured USER, and this
+      # Dockerfile deliberately omits USER (see its comment: Railway mounts
+      # volumes as root, so the entrypoint needs root long enough to chown the
+      # volume). So `id -u` reports 0 no matter what the server is doing — it
+      # measures the image, not the running process. The entrypoint execs
+      # uvicorn after setuid, so PID 1 *is* the server: stat its /proc entry.
+      #
+      # Compare against 1001 rather than "not 0": if the exec or the stat
+      # fails, $uid is empty, and `test "" != "0"` would pass. Fail closed.
+      - name: Assert the server process is not running as root
+        run: |
+          uid=$(docker exec hubspoke-ci python -c "import os; print(os.stat('/proc/1').st_uid)")
+          echo "server (PID 1) uid: $uid"
+          test "$uid" = "1001"   # must match APP_UID in backend/docker-entrypoint.py
+      - name: Container logs
+        if: always()
+        run: docker logs hubspoke-ci || true
+      - name: Stop
+        if: always()
+        run: docker rm -f hubspoke-ci || true
