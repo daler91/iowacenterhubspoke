@@ -242,12 +242,23 @@ jobs:
           exit 1
       # The entrypoint drops to uid 1001 and re-verifies the drop actually
       # happened (backend/docker-entrypoint.py). Assert it from outside too —
-      # a silent failure here is how a container ends up serving as root.
-      - name: Assert the container is not running as root
+      # a silent failure there is how a container ends up serving as root.
+      #
+      # Check PID 1 specifically, not `docker exec ... id -u`. `docker exec`
+      # starts a *new* process as the image's configured USER, and this
+      # Dockerfile deliberately omits USER (see its comment: Railway mounts
+      # volumes as root, so the entrypoint needs root long enough to chown the
+      # volume). So `id -u` reports 0 no matter what the server is doing — it
+      # measures the image, not the running process. The entrypoint execs
+      # uvicorn after setuid, so PID 1 *is* the server: stat its /proc entry.
+      #
+      # Compare against 1001 rather than "not 0": if the exec or the stat
+      # fails, $uid is empty, and `test "" != "0"` would pass. Fail closed.
+      - name: Assert the server process is not running as root
         run: |
-          uid=$(docker exec hubspoke-ci id -u)
-          echo "container uid: $uid"
-          test "$uid" != "0"
+          uid=$(docker exec hubspoke-ci python -c "import os; print(os.stat('/proc/1').st_uid)")
+          echo "server (PID 1) uid: $uid"
+          test "$uid" = "1001"   # must match APP_UID in backend/docker-entrypoint.py
       - name: Container logs
         if: always()
         run: docker logs hubspoke-ci || true
