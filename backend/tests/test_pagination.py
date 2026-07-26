@@ -18,19 +18,14 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-long!!!")
 
-# A sibling test (`test_drive_time_unit.py`) mocks ``httpx`` via
-# ``sys.modules.setdefault``. If that test runs first in the same pytest
-# session, ``starlette.testclient`` fails to import with a cryptic
-# "metaclass conflict" because its ``WebSocketDenialResponse`` inherits
-# from classes that transitively depend on the real ``httpx`` types.
-# Drop the mock (and any already-imported starlette/fastapi test clients)
-# so the real modules load fresh below.
-for _poisoned in (
-    "httpx",
-    "starlette.testclient",
-    "fastapi.testclient",
-):
-    sys.modules.pop(_poisoned, None)
+# The httpx mock a sibling test installs used to break starlette.testclient's
+# import here, and this file worked around it by popping httpx out of
+# sys.modules and re-importing. conftest.py now imports the real httpx before
+# any test module loads, which makes every sibling ``setdefault`` a no-op — so
+# the workaround is unnecessary, and actively harmful: popping only the
+# top-level ``httpx`` leaves ``httpx._client`` cached, so the re-imported
+# parent never regains that attribute and testclient fails with
+# "module 'httpx' has no attribute '_client'".
 
 import pytest
 from fastapi import FastAPI

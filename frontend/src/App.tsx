@@ -97,14 +97,20 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return user ? <Navigate to="/" replace /> : children;
 }
 
+/**
+ * Catch-all: repair a mangled absolute link if we can, otherwise show a real
+ * 404. This used to `return null` on the non-repairable path, which rendered
+ * a blank white screen for every typo'd or stale URL.
+ */
 function MalformedAppLinkRedirect() {
   const location = useLocation();
   const repaired = recoverAppPathFromMangledLocation(
     `${location.pathname}${location.search}${location.hash}`,
   );
-  return repaired ? <Navigate to={repaired} replace /> : null;
+  return repaired ? <Navigate to={repaired} replace /> : <NotFound />;
 }
 
+const NotFound = lazy(() => import("./pages/NotFound"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const PrivacyPage = lazy(() => import("./pages/Privacy"));

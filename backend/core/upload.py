@@ -2,6 +2,19 @@ import os
 import aiofiles
 from fastapi import HTTPException, UploadFile
 
+from database import ROOT_DIR
+
+# Storage location for attachments / documents. Defaults to ``<repo>/uploads``
+# for local dev, but the ``UPLOAD_DIR`` env var lets container deploys point
+# at a writable mounted volume — ``/app`` is owned by root on the image, so
+# the non-root runtime user cannot create the default path without an env
+# override and a matching volume mount.
+#
+# Single definition on purpose: this was previously computed independently in
+# routers/project_tasks.py, routers/project_docs.py and routers/portal/_shared.py,
+# so a change to the fallback had to be made in three places to take effect.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
+
 _DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 

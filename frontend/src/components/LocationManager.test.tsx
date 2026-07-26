@@ -3,7 +3,6 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { managerFeatureApi } from '../features/manager/api';
 import { locationsAPI } from '../lib/api';
 import LocationManager from './LocationManager';
 
@@ -29,12 +28,7 @@ jest.mock('../lib/api', () => ({
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-  },
-}));
-
-jest.mock('../features/manager/api', () => ({
-  managerFeatureApi: {
-    locations: { getDriveTimeFromHub: jest.fn() },
+    getDriveTimeFromHub: jest.fn(),
   },
 }));
 
@@ -90,7 +84,6 @@ jest.mock('./PlacesAutocomplete', () => ({
 }));
 
 const mockedLocationsAPI = locationsAPI as jest.Mocked<typeof locationsAPI>;
-const mockedManagerApi = managerFeatureApi as jest.Mocked<typeof managerFeatureApi>;
 
 function renderManager() {
   mockUseOutletContext.mockReturnValue({
@@ -112,7 +105,7 @@ describe('LocationManager location entry', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedLocationsAPI.create.mockResolvedValue({ data: {} } as Awaited<ReturnType<typeof locationsAPI.create>>);
-    (mockedManagerApi.locations.getDriveTimeFromHub as jest.Mock).mockResolvedValue({
+    (mockedLocationsAPI.getDriveTimeFromHub as jest.Mock).mockResolvedValue({
       data: { drive_time_minutes: 42 },
     });
     process.env.REACT_APP_GOOGLE_MAPS_API_KEY = '';
@@ -129,7 +122,7 @@ describe('LocationManager location entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use mocked address' }));
 
     await waitFor(() => {
-      expect(mockedManagerApi.locations.getDriveTimeFromHub).toHaveBeenCalledWith(41.5868, -93.654);
+      expect(mockedLocationsAPI.getDriveTimeFromHub).toHaveBeenCalledWith(41.5868, -93.654);
     });
     await waitFor(() => {
       expect(screen.getByTestId('location-drive-time-input')).toHaveValue(42);
@@ -185,6 +178,6 @@ describe('LocationManager location entry', () => {
         longitude: null,
       });
     });
-    expect(mockedManagerApi.locations.getDriveTimeFromHub).not.toHaveBeenCalled();
+    expect(mockedLocationsAPI.getDriveTimeFromHub).not.toHaveBeenCalled();
   });
 });

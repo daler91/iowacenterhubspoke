@@ -129,6 +129,23 @@ async def verify_password(password: str, hashed: str) -> bool:
     return await run_in_threadpool(_verify_password_sync, password, hashed)
 
 
+# A real bcrypt hash of a value nobody can supply, used to burn the same
+# ~100ms on the user-not-found branch of login as on the wrong-password
+# branch. Without it, `if not user or not await verify_password(...)`
+# short-circuits: a nonexistent email answers in single-digit milliseconds
+# while a real one takes ~100ms, which is a reliable account-enumeration
+# oracle — and it undercuts the constant-time work done elsewhere in the
+# auth flow (/forgot-password, /portal/auth/request-link) for exactly this
+# reason. Computed once at import so the cost lands at boot, not on the
+# first unknown-user login.
+_DUMMY_PASSWORD_HASH = _hash_password_sync(secrets.token_urlsafe(32))
+
+
+async def verify_password_dummy() -> None:
+    """Burn one bcrypt verification to equalise login timing."""
+    await run_in_threadpool(_verify_password_sync, "not-the-password", _DUMMY_PASSWORD_HASH)
+
+
 TOKEN_LIFETIME_SECONDS = int(os.environ.get('JWT_LIFETIME_SECONDS', '14400'))  # 4 hours default
 # Refresh token lives much longer so users don't get logged out every 4h.
 # It is stored separately in an HttpOnly cookie and carries a ``typ: refresh``

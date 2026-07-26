@@ -5,13 +5,13 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
-from database import db, ROOT_DIR
+from database import db
 from models.coordination_schemas import (
     TaskCreate, TaskUpdate, TaskReorder, TaskCommentCreate,
 )
 from core.auth import CurrentUser, EditorRequired, SchedulerRequired
 from core.pagination import Paginated, paginated_response
-from core.upload import stream_upload_to_disk
+from core.upload import UPLOAD_DIR, stream_upload_to_disk
 from services.activity import log_activity
 from services.notification_events import (
     notify_task_assigned,
@@ -43,12 +43,6 @@ NULL_NOT_ALLOWED = "Null is only allowed for clearable fields: due_date, assigne
 # schema rename touches one spot.
 _ASSIGNED_TO = "assigned_to"
 
-# Storage location for attachments. Defaults to ``<repo>/uploads`` so local
-# dev just works, but operators can point at a writable mounted volume via
-# the ``UPLOAD_DIR`` env var — essential on container deploys where the
-# image filesystem is read-only for the runtime user (e.g. Railway, where
-# ``/app`` is owned by root but the app runs as appuser).
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
 

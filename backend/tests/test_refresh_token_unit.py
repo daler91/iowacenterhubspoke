@@ -22,6 +22,21 @@ from core.auth import (
 )
 
 
+def test_access_token_carries_identity_and_role_claims():
+    """RBAC reads ``role`` straight off the decoded access token.
+
+    Ported from the orphaned backend/verify_rbac.py, which asserted this but
+    lived outside tests/ and so was never collected by CI.
+    """
+    token = create_token("123", "test@example.com", "Test User", "admin")
+    payload = jwt.decode(token, _auth.JWT_SECRET, algorithms=[_auth.JWT_ALGORITHM])
+
+    assert payload["role"] == "admin"
+    assert payload["email"] == "test@example.com"
+    assert payload["user_id"] == "123"
+    assert payload["typ"] == "access"
+
+
 def test_refresh_token_roundtrip():
     token, jti = create_refresh_token("user-123")
     assert isinstance(token, str)

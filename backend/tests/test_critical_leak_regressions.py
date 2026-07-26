@@ -64,7 +64,7 @@ def _project(row, projection):
 def test_portal_document_download_hides_soft_deleted_shared_docs(monkeypatch):
     monkeypatch.setattr(
         portal_documents,
-        "_require_partner_project",
+        "require_partner_project",
         AsyncMock(return_value={"id": "p1", "partner_org_id": "org1"}),
     )
     fake_db = SimpleNamespace(

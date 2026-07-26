@@ -113,12 +113,24 @@ async def export_partners(
     if status:
         query["status"] = status
     orgs = await db.partner_orgs.find(query, {"_id": 0}).to_list(1000)
+
+    # One query for every org's contacts, grouped in memory. This used to
+    # issue a find() per org inside the loop below — up to 1001 round trips
+    # for a single export.
+    org_ids = [org["id"] for org in orgs]
+    contacts_by_org: dict[str, list] = {}
+    if org_ids:
+        cursor = db.partner_contacts.find(
+            {"partner_org_id": {"$in": org_ids}, "deleted_at": None},
+            {"_id": 0},
+        )
+        async for contact in cursor:
+            contacts_by_org.setdefault(contact["partner_org_id"], []).append(contact)
+
     rows = []
     for org in orgs:
-        contacts = await db.partner_contacts.find(
-            {"partner_org_id": org["id"], "deleted_at": None},
-            {"_id": 0},
-        ).to_list(20)
+        # Same per-org cap the old .to_list(20) applied.
+        contacts = contacts_by_org.get(org["id"], [])[:20]
         primary = next(
             (c for c in contacts if c.get("is_primary")), None,
         )

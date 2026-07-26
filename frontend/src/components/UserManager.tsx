@@ -21,7 +21,7 @@ import { usersAPI } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { extractErrorMessage } from '../lib/types';
 import { VirtualizedWrapper } from './ui/virtualized-wrapper';
-import { useUserAdminActions } from '../features/manager/hooks';
+import { useUserAdminActions } from '../hooks/useUserAdminActions';
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },

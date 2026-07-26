@@ -5,7 +5,8 @@ from fastapi import APIRouter, HTTPException
 from database import db
 from models.schemas import EmployeeCreate, EmployeeUpdate, ErrorResponse
 from core.auth import CurrentUser, AdminRequired
-from core.pagination import Paginated, paginated_response
+from core.pagination import Paginated
+from core.repository import SoftDeleteRepository
 from services.activity import log_activity
 from services.workload_cache import invalidate as invalidate_workload_cache
 from core.logger import get_logger
@@ -19,6 +20,13 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
+# Soft-delete access goes through the repository so the ``deleted_at: None``
+# filter cannot be forgotten on a new call site. See docs/repository-pattern.md.
+employees_repo = SoftDeleteRepository(db, "employees")
+
+# Refresh tokens are never returned to a client.
+_EMPLOYEE_PROJECTION = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
+
 EMPLOYEE_NOT_FOUND = "Employee not found"
 NO_FIELDS_TO_UPDATE = "No fields to update"
 
@@ -26,16 +34,9 @@ NO_FIELDS_TO_UPDATE = "No fields to update"
 @router.get("", summary="List all employees")
 async def get_employees(user: CurrentUser, pagination: Paginated):
     """Return paginated list of active employees."""
-    query = {"deleted_at": None}
-    total = await db.employees.count_documents(query)
-    projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
-    employees = (
-        await db.employees.find(query, projection)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .to_list(pagination.limit)
+    return await employees_repo.paginated_response(
+        {}, pagination, projection=_EMPLOYEE_PROJECTION,
     )
-    return paginated_response(employees, total, pagination)
 
 
 @router.get(
@@ -44,8 +45,7 @@ async def get_employees(user: CurrentUser, pagination: Paginated):
     responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
 )
 async def get_employee(employee_id: str, user: CurrentUser):
-    projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
-    employee = await db.employees.find_one({"id": employee_id, "deleted_at": None}, projection)
+    employee = await employees_repo.get_by_id(employee_id, projection=_EMPLOYEE_PROJECTION)
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     return employee
@@ -140,11 +140,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
             detail=f"Cannot delete: {future_count} future schedule(s) assigned to this employee. "
             "Reassign or delete them first."
         )
-    result = await db.employees.update_one(
-        {"id": employee_id, "deleted_at": None},
-        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    if result.matched_count == 0:
+    if not await employees_repo.soft_delete(employee_id, deleted_by=user.get("name")):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     logger.info(
         "Employee soft-deleted",
@@ -164,11 +160,7 @@ async def delete_employee(employee_id: str, user: AdminRequired):
     responses={404: {"model": ErrorResponse, "description": EMPLOYEE_NOT_FOUND}},
 )
 async def restore_employee(employee_id: str, user: AdminRequired):
-    result = await db.employees.update_one(
-        {"id": employee_id},
-        {"$set": {"deleted_at": None}}
-    )
-    if result.matched_count == 0:
+    if not await employees_repo.restore(employee_id):
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
     logger.info(
         "Employee restored",
@@ -189,11 +181,7 @@ async def restore_employee(employee_id: str, user: AdminRequired):
 )
 async def get_employee_stats(employee_id: str, user: CurrentUser):
     """Return schedule counts, drive/class hours, location breakdown, and recent schedules."""
-    projection = {"_id": 0, "google_refresh_token": 0, "outlook_refresh_token": 0}
-    employee = await db.employees.find_one(
-        {"id": employee_id, "deleted_at": None},
-        projection,
-    )
+    employee = await employees_repo.get_by_id(employee_id, projection=_EMPLOYEE_PROJECTION)
     if not employee:
         raise HTTPException(status_code=404, detail=EMPLOYEE_NOT_FOUND)
 

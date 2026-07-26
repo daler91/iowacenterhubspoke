@@ -41,7 +41,7 @@ class _Cursor:
 
 
 def test_portal_update_task_accepts_partner_owner(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -59,7 +59,7 @@ def test_portal_update_task_accepts_partner_owner(monkeypatch):
 
 
 def test_portal_update_task_accepts_both_owner(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -110,7 +110,7 @@ def test_require_partner_task_scopes_lookup_to_requested_project(monkeypatch):
 def test_portal_task_attachments_requires_partner_project_before_query(monkeypatch):
     monkeypatch.setattr(
         portal_tasks,
-        "_require_partner_project",
+        "require_partner_project",
         AsyncMock(side_effect=HTTPException(status_code=404, detail="Project not found")),
     )
     require_task = AsyncMock()
@@ -127,7 +127,7 @@ def test_portal_task_attachments_requires_partner_project_before_query(monkeypat
 
 
 def test_portal_task_attachments_requires_partner_visible_task(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -144,7 +144,7 @@ def test_portal_task_attachments_requires_partner_visible_task(monkeypatch):
 
 
 def test_portal_task_attachments_filter_by_project_and_task(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -162,7 +162,7 @@ def test_portal_task_attachments_filter_by_project_and_task(monkeypatch):
 
 
 def test_portal_task_comments_filter_count_and_rows_by_project_and_task(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -190,7 +190,7 @@ def test_portal_task_comments_filter_count_and_rows_by_project_and_task(monkeypa
 
 
 def test_portal_task_detail_filters_child_resources_by_project_and_task(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -218,7 +218,7 @@ def test_portal_task_detail_filters_child_resources_by_project_and_task(monkeypa
 def test_portal_download_task_attachment_requires_partner_project_before_query(monkeypatch):
     monkeypatch.setattr(
         portal_tasks,
-        "_require_partner_project",
+        "require_partner_project",
         AsyncMock(side_effect=HTTPException(status_code=404, detail="Project not found")),
     )
     require_task = AsyncMock()
@@ -242,7 +242,7 @@ def test_portal_download_task_attachment_requires_partner_project_before_query(m
 
 
 def test_portal_download_task_attachment_requires_partner_visible_task(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -266,7 +266,7 @@ def test_portal_download_task_attachment_requires_partner_visible_task(monkeypat
 
 
 def test_portal_download_task_attachment_scopes_lookup_to_project(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -293,7 +293,7 @@ def test_portal_download_task_attachment_scopes_lookup_to_project(monkeypatch):
 
 
 def test_portal_download_task_attachment_returns_attachment_response(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -327,7 +327,7 @@ def test_portal_download_task_attachment_returns_attachment_response(monkeypatch
 
 
 def test_portal_preview_task_attachment_returns_inline_response(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",
@@ -361,7 +361,7 @@ def test_portal_preview_task_attachment_returns_inline_response(monkeypatch):
 
 
 def test_portal_update_task_invalid_status(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(portal_tasks, "_require_partner_task", AsyncMock(return_value={"id": "t4", "owner": "partner"}))
 
     with pytest.raises(HTTPException) as exc:
@@ -370,7 +370,7 @@ def test_portal_update_task_invalid_status(monkeypatch):
 
 
 def test_portal_update_task_malformed_due_date(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(portal_tasks, "_require_partner_task", AsyncMock(return_value={"id": "t5", "owner": "partner"}))
 
     with pytest.raises(HTTPException) as exc:
@@ -380,7 +380,7 @@ def test_portal_update_task_malformed_due_date(monkeypatch):
 
 
 def test_portal_update_task_due_date_overflow_returns_400(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(portal_tasks, "_require_partner_task", AsyncMock(return_value={"id": "t7", "owner": "partner"}))
 
     with pytest.raises(HTTPException) as exc:
@@ -396,7 +396,7 @@ def test_portal_update_task_due_date_overflow_returns_400(monkeypatch):
 
 
 def test_portal_update_task_tolerates_auto_advance_failure(monkeypatch):
-    monkeypatch.setattr(portal_tasks, "_require_partner_project", AsyncMock(return_value={"id": "p1"}))
+    monkeypatch.setattr(portal_tasks, "require_partner_project", AsyncMock(return_value={"id": "p1"}))
     monkeypatch.setattr(
         portal_tasks,
         "_require_partner_task",

@@ -1,6 +1,20 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures';
 
+// Run these scans with reduced motion emulated.
+//
+// The app wraps its keyframes in `@media (prefers-reduced-motion: no-preference)`
+// (see src/App.css), so this disables them at the source rather than papering
+// over them with injected CSS. That matters for correctness, not just tidiness:
+// `waitFor({ state: 'visible' })` resolves as soon as an element has a bounding
+// box, which is the *start* of the 300ms `slideIn` opacity fade. Axe would then
+// sample a partially-transparent foreground and compute a contrast ratio lower
+// than the settled one — 4.17 vs the real value for `text-foreground/80`,
+// tripping the serious-impact gate. It passed locally on one worker and failed
+// intermittently in CI on two, which is exactly the shape of that race.
+test.use({ reducedMotion: 'reduce' });
+
+
 /**
  * Accessibility smoke tests. Walks each top-level protected route, runs
  * axe-core, and asserts that there are 0 violations classified as

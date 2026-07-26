@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from core.logger import get_logger
 from core.pagination import Paginated, paginated_response
@@ -18,20 +18,11 @@ from services.notification_events import (
 from services.notification_prefs import prepare_mentions
 from services.portal_activity import log_portal_activity
 
-from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND
+from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND, require_partner_project
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
-
-
-async def _require_partner_project(project_id: str, ctx: dict) -> dict:
-    project = await db.projects.find_one(
-        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
-    )
-    if not project:
-        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    return project
 
 
 @router.get(
@@ -45,7 +36,7 @@ async def portal_project_messages(
     pagination: Paginated,
     channel: Optional[str] = None,
 ):
-    await _require_partner_project(project_id, ctx)
+    await require_partner_project(project_id, ctx)
 
     query = {
         "project_id": project_id,
@@ -73,7 +64,7 @@ async def portal_project_messages(
 async def portal_send_message(
     project_id: str, ctx: PortalContext, data: MessageCreate,
 ):
-    project = await _require_partner_project(project_id, ctx)
+    project = await require_partner_project(project_id, ctx)
 
     mentioned, stored_mentions = await prepare_mentions(
         project_id=project_id,

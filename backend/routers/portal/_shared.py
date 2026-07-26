@@ -3,18 +3,23 @@
 import os
 import re
 
-from database import ROOT_DIR
+from fastapi import HTTPException
 
-# Storage location for attachments / documents. Defaults to ``<repo>/uploads``
-# for local dev, but the ``UPLOAD_DIR`` env var lets container deploys point
-# at a writable mounted volume — ``/app`` is owned by root on the image, so
-# the non-root runtime user cannot create the default path without an env
-# override and a matching volume mount.
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(ROOT_DIR, "uploads")
+from core.portal_auth import INVALID_TOKEN
+from core.upload import UPLOAD_DIR
+from database import db
+
+__all__ = [
+    "INVALID_TOKEN",
+    "UPLOAD_DIR",
+    "PROJECT_NOT_FOUND",
+    "TASK_NOT_FOUND",
+    "safe_stored_name",
+    "require_partner_project",
+]
 
 PROJECT_NOT_FOUND = "Project not found"
 TASK_NOT_FOUND = "Task not found"
-INVALID_TOKEN = "Invalid or expired portal link"
 
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 
@@ -30,3 +35,21 @@ def safe_stored_name(doc_id: str, original_filename: str | None) -> str:
     if not ext or not _SAFE_EXT_RE.match(ext):
         ext = ""
     return f"{doc_id}{ext}"
+
+
+async def require_partner_project(project_id: str, ctx: dict) -> dict:
+    """Load a project scoped to the caller's partner org, or raise 404.
+
+    This is the portal's tenant-isolation boundary: every partner-facing read
+    or write of a project's child resources goes through it, and the
+    ``partner_org_id`` filter is what stops one partner reaching another's
+    data by guessing an id. It lives here, once, because three sub-routers
+    previously carried byte-identical private copies — exactly the shape
+    where a future fix lands in two of three and the third keeps leaking.
+    """
+    project = await db.projects.find_one(
+        {"id": project_id, "partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
+    return project

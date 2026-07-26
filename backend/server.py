@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -239,7 +239,6 @@ from core.auth import generate_csrf_token, validate_csrf_token  # noqa: E402
 
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
-    "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/refresh", "/api/health",
     "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/logout", "/api/v1/auth/refresh", "/api/v1/health",
 }
 
@@ -651,107 +650,87 @@ async def health_check(request: Request):
 
 app.include_router(api_router)
 
-# Backward-compatible: mount same routes under /api/ for existing clients
-# DEPRECATED: These legacy routes will be removed in a future release.
-# Migrate all clients to /api/v1/ endpoints.
-legacy_router = APIRouter(prefix="/api")
-for sub_router in [auth.router, locations.router, employees.router, classes.router,
-                   schedules.router, reports.router, system.router, analytics.router, users.router]:
-    legacy_router.include_router(sub_router)
-
-
-@legacy_router.get("/health", tags=["system"], include_in_schema=False)
-async def health_check_legacy(request: Request):
-    """Backward-compat health check at /api/health."""
-    return await health_check(request)
-
-app.include_router(legacy_router)
-
-# RFC 8594 (Sunset) + draft Deprecation header advertise the planned removal
-# of the legacy ``/api/*`` mount. Clients that still call it see the warning
-# on every response; we also log the first hit per path so we can track
-# real-world traffic before the hard removal in a future release.
-_LEGACY_SUNSET = "Wed, 01 Jul 2026 00:00:00 GMT"
-_LEGACY_ROUTE_PATHS = frozenset(route.path for route in legacy_router.routes)
-_LEGACY_WARNED_PATHS: set[str] = set()
-
-
-@app.middleware("http")
-async def legacy_api_deprecation_middleware(request: Request, call_next):
-    path = request.url.path
-    is_legacy = (
-        path.startswith("/api/")
-        and not path.startswith("/api/v1/")
-        and not path.startswith("/api/docs")
-    )
-    response = await call_next(request)
-    if is_legacy:
-        response.headers["Deprecation"] = "true"
-        response.headers["Sunset"] = _LEGACY_SUNSET
-        response.headers["Link"] = '</api/v1/>; rel="successor-version"'
-        if path in _LEGACY_ROUTE_PATHS and path not in _LEGACY_WARNED_PATHS:
-            _LEGACY_WARNED_PATHS.add(path)
-            logger.warning(
-                "Legacy /api/ route hit: %s — migrate clients to /api/v1/",
-                path,
-            )
-    return response
-
 # Serve frontend static files (built React app)
 _static_dir = ROOT_DIR / "static"
-# Serving built frontend assets
+
+# Two historical build layouts: CRA emitted static/static/, Vite emits
+# static/assets/. Mount whichever is present. The SPA fallback below is
+# defined unconditionally — it used to live inside the ``assets`` branch, so
+# a CRA-shaped deploy mounted its assets but had no route serving index.html
+# and the whole app 404'd.
 if (_static_dir / "static").exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir / "static")), name="frontend-static")
 elif (_static_dir / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(_static_dir / "assets")), name="frontend-assets")
 
-    # Build an allow-set of real files under static_root at startup so
-    # serve_frontend never joins user input into a path at all.
-    _static_root_resolved = _static_dir.resolve()
-    _allowed_files: dict[str, str] = {}  # relative posix path -> absolute str
-    if _static_root_resolved.exists():
-        for p in _static_root_resolved.rglob("*"):
-            if p.is_file():
-                try:
-                    resolved_file = p.resolve(strict=True)
-                    resolved_file.relative_to(_static_root_resolved)
-                except (FileNotFoundError, ValueError):
-                    # Skip files that resolve outside static root
-                    # (e.g., symlinks to external paths).
-                    continue
-                rel = p.relative_to(_static_root_resolved).as_posix()
-                _allowed_files[rel] = str(resolved_file)
+# Build an allow-set of real files under static_root at startup so
+# serve_frontend never joins user input into a path at all.
+_static_root_resolved = _static_dir.resolve()
+_allowed_files: dict[str, str] = {}  # relative posix path -> absolute str
+_INDEX_HTML_PATH = str(_static_root_resolved / "index.html")
 
-    # Hashed Vite chunks are content-addressed; everything under /assets
-    # can be cached forever. index.html must NOT be cached — otherwise a
-    # browser holding onto stale HTML after a deploy keeps requesting
-    # chunk hashes that no longer exist, which is exactly how users end
-    # up with "Failed to fetch dynamically imported module" on idle tabs.
-    _CACHE_CONTROL_HEADER = "Cache-Control"
-    _IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
-    _HTML_CACHE = "no-cache"
+# Only mount the SPA fallback when a built frontend is actually present.
+# It must not exist in API-only deployments, local dev, or the test suite:
+# a catch-all ``@app.get("/{full_path:path}")`` partial-matches every
+# unmatched path, and Starlette answers a partial match with 405 rather
+# than falling through to its trailing-slash redirect — so registering it
+# unconditionally turns ``POST /api/v1/schedules`` (which redirects to
+# ``/schedules/``) into a 405.
+_SERVE_FRONTEND = _static_root_resolved.is_dir() and os.path.isfile(_INDEX_HTML_PATH)
 
-    _INDEX_HTML_PATH = str(_static_root_resolved / "index.html")
+if _static_root_resolved.exists():
+    for p in _static_root_resolved.rglob("*"):
+        if p.is_file():
+            try:
+                resolved_file = p.resolve(strict=True)
+                resolved_file.relative_to(_static_root_resolved)
+            except (FileNotFoundError, ValueError):
+                # Skip files that resolve outside static root
+                # (e.g., symlinks to external paths).
+                continue
+            rel = p.relative_to(_static_root_resolved).as_posix()
+            _allowed_files[rel] = str(resolved_file)
 
-    def _cache_for(full_path: str, resolved: str | None) -> str | None:
-        """Return the Cache-Control value for a served path, or None.
+# Hashed Vite chunks are content-addressed; everything under /assets
+# can be cached forever. index.html must NOT be cached — otherwise a
+# browser holding onto stale HTML after a deploy keeps requesting
+# chunk hashes that no longer exist, which is exactly how users end
+# up with "Failed to fetch dynamically imported module" on idle tabs.
+_CACHE_CONTROL_HEADER = "Cache-Control"
+_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+_HTML_CACHE = "no-cache"
 
-        index.html (and the SPA fallback, which serves it) must revalidate
-        on every request so a new deploy is picked up immediately. Hashed
-        /assets/ files are content-addressed and safe to cache forever.
-        """
-        if (
-            resolved is None
-            or full_path == "index.html"
-            or full_path.endswith(".html")
-        ):
-            return _HTML_CACHE
-        if full_path.startswith("assets/"):
-            return _IMMUTABLE_CACHE
-        return None
 
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
+def _cache_for(full_path: str, resolved: str | None) -> str | None:
+    """Return the Cache-Control value for a served path, or None.
+
+    index.html (and the SPA fallback, which serves it) must revalidate
+    on every request so a new deploy is picked up immediately. Hashed
+    /assets/ files are content-addressed and safe to cache forever.
+    """
+    if (
+        resolved is None
+        or full_path == "index.html"
+        or full_path.endswith(".html")
+    ):
+        return _HTML_CACHE
+    if full_path.startswith("assets/"):
+        return _IMMUTABLE_CACHE
+    return None
+
+
+if _SERVE_FRONTEND:
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _serve_frontend(full_path: str):
+        # This catch-all is registered after api_router, so anything under
+        # ``api/`` that reaches it matched no endpoint. Serving index.html with
+        # HTTP 200 for those made a typo'd or removed API path look like a
+        # successful HTML response to clients and to monitoring; answer with a
+        # real JSON 404 instead.
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+
         # Look up the request path in the pre-built allow-set.
         # No user input is ever joined to a filesystem path.
         resolved = _allowed_files.get(full_path)
