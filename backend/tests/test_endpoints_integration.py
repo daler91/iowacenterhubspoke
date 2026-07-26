@@ -18,6 +18,7 @@ not exist. This is elsewhere.
 Skipped automatically when no MongoDB is reachable; CI provides one.
 """
 
+import itertools
 import uuid
 
 import pytest
@@ -32,9 +33,20 @@ pytestmark = pytest.mark.integration
 _PASSWORD = f"Aa1-{uuid.uuid4().hex}"
 
 
+_client_seq = itertools.count(1)
+
+
 def _client(csrf_headers=None):
+    """AsyncClient bound to the app, with a per-client source IP.
+
+    The rate limiter keys on the client address and, with Redis configured,
+    those counters are shared for a full minute across everything in the
+    process. A fixed 127.0.0.1 meant unrelated tests drew down each other's
+    budget — /auth/register allows 5/minute — turning an expected 400 into a
+    429. One address per client keeps each test in its own bucket.
+    """
     kwargs = {
-        "transport": ASGITransport(app=app),
+        "transport": ASGITransport(app=app, client=(f"10.0.0.{next(_client_seq) % 250 + 1}", 5000)),
         "base_url": "http://test",
         "follow_redirects": True,
     }

@@ -12,6 +12,7 @@ os.environ['JWT_SECRET'] = 'test-jwt-secret-32-bytes-long!!!'
 
 from database import db
 from routers.classes import get_class_stats
+from routers import employees as employees_module
 from routers.employees import get_employee_stats
 from routers.locations import get_location_stats
 
@@ -139,8 +140,12 @@ def test_employee_stats_aggregation_handles_more_than_1000(mock_db_fixture):
     sort_cursor.sort.return_value = recent_cursor
     mock_db_fixture['schedules'].find.return_value = sort_cursor
 
-    with patch.object(db, 'employees') as mock_employees:
-        mock_employees.find_one = AsyncMock(return_value={'id': employee_id, 'name': 'Employee A'})
+    # See test_employee_stats.py: the employee lookup goes through
+    # ``employees_repo``, not the ``db.employees`` attribute.
+    with patch.object(
+        employees_module.employees_repo, 'get_by_id',
+        AsyncMock(return_value={'id': employee_id, 'name': 'Employee A'}),
+    ):
         stats = asyncio.run(get_employee_stats(employee_id, {'id': 'u-1'}))
 
     assert stats['total_classes'] == 1300

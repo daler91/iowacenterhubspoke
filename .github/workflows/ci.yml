@@ -66,7 +66,11 @@ jobs:
       - run: python -m pytest -m auth_contract tests/test_auth_contract.py -v
       - name: Integration tests (real MongoDB)
         run: python -m pytest -m integration tests/ -v
-      - run: python -m pytest tests/ -v
+      # Deselect the integration tests here — the step above already ran them.
+      # Running them twice in one job shares Redis-backed rate-limit counters
+      # across both passes, so /auth/register's 5/minute cap tripped on the
+      # second run and returned 429 where the test expected 400.
+      - run: python -m pytest tests/ -m "not integration" -v
 
   backend-security:
     runs-on: ubuntu-latest

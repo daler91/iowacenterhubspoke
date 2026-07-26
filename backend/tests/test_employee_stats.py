@@ -13,6 +13,7 @@ os.environ['MONGO_URL'] = 'mongodb://localhost:27017'
 os.environ['DB_NAME'] = 'test_db'
 os.environ['JWT_SECRET'] = 'test-jwt-secret-32-bytes-long!!!'
 
+from routers import employees as employees_module
 from routers.employees import get_employee_stats
 from database import db
 
@@ -31,8 +32,13 @@ def test_employee_stats_with_invalid_schedule_times(mock_db_fixture):
     """Test getting stats for an employee when a schedule has invalid start/end time format"""
     employee_id = f"test_emp_{uuid.uuid4().hex[:6]}"
 
-    # Mock employee exists
-    mock_db_fixture['employees'].find_one = AsyncMock(return_value={"id": employee_id, "name": "Test User"})
+    # Mock employee exists. employees.py now reads through
+    # ``employees_repo`` (SoftDeleteRepository), which resolves its collection
+    # as ``db["employees"]`` and holds the db handle it was constructed with —
+    # so patching the ``db.employees`` *attribute* no longer intercepts it.
+    employees_module.employees_repo.get_by_id = AsyncMock(
+        return_value={"id": employee_id, "name": "Test User"},
+    )
 
     # New implementation uses multiple aggregate pipelines + targeted recent query.
     aggregate_cursors = []
