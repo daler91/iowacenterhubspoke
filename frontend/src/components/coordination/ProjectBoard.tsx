@@ -138,6 +138,7 @@ function DraggableProjectCard({ project }: Readonly<{ project: Project }>) {
 }
 
 export default function ProjectBoard() {
+  const navigate = useNavigate();
   const context = useOutletContext<Record<string, unknown>>() ?? {};
   const classes = (context.classes || []) as Array<{ id: string; name: string; color?: string }>;
   const employees = (context.employees || []) as Array<{ id: string; name: string; email?: string; color?: string; created_at: string }>;
@@ -380,8 +381,19 @@ export default function ProjectBoard() {
               {board.columns.complete.map(project => (
                 <Card
                   key={project.id}
-                  className="p-3 cursor-pointer hover:shadow-md transition-shadow border opacity-75 hover:opacity-100"
+                  role="button"
+                  tabIndex={0}
+                  className={cn(
+                    'p-3 cursor-pointer hover:shadow-md transition-shadow border opacity-75 hover:opacity-100',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spoke focus-visible:ring-offset-1',
+                  )}
                   onClick={() => navigate(`/coordination/projects/${project.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/coordination/projects/${project.id}`);
+                    }
+                  }}
                 >
                   <h4 className="text-sm font-semibold text-foreground line-clamp-1">{project.title}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
