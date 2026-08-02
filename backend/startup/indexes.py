@@ -107,6 +107,24 @@ async def ensure_indexes(db, logger):
         await db.outlook_oauth_states.create_index("created_at", expireAfterSeconds=1800)
         await db.refresh_tokens.create_index("jti", unique=True)
         await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # Users' email must be unique. Registration is a case-insensitive
+        # check-then-insert with no DB constraint, so two concurrent
+        # registrations for the same address both pass the existence check and
+        # both insert — duplicate accounts that make login and employee-linkage
+        # ambiguous and let an attacker plant a second credential set under a
+        # victim's in-flight address. Emails are stored normalised (lower-cased)
+        # on write and by migration 006, so a unique constraint on the stored
+        # value is correct. Partial on {email exists & string} mirrors the
+        # token-digest indexes and ignores any doc without a real email rather
+        # than colliding them on null. Fails closed: if a past race already left
+        # duplicate emails, the E11000 build error names the offending address
+        # for the operator to resolve before the app serves without the guard.
+        await db.users.create_index(
+            "email",
+            unique=True,
+            partialFilterExpression={"email": {_MONGO_EXISTS: True, "$type": "string"}},
+            name="users_email_unique",
+        )
         await db.login_failures.create_index("email", unique=True)
         await db.login_failures.create_index("expires_at", expireAfterSeconds=0)
         await _ensure_partial_unique_token_index(db.portal_tokens, "token_digest")

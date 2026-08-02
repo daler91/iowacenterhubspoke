@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Response
+from pymongo.errors import DuplicateKeyError
 from database import db
 from models.schemas import (
     UserRegister, UserLogin, PasswordChange, ErrorResponse,
@@ -321,6 +322,14 @@ async def register(request: Request, data: UserRegister, response: Response):
     }
     try:
         await db.users.insert_one(user_doc)
+    except DuplicateKeyError:
+        # Lost a registration race: the up-front existence check passed for two
+        # concurrent requests, but the unique users.email index rejected the
+        # second insert. Roll back any claimed invitation and return the same
+        # message the existence check would have.
+        if claimed_invitation:
+            await _release_invitation(data.invite_token)
+        raise HTTPException(status_code=400, detail="Email already registered")
     except Exception:
         # If the user insert fails after we already claimed the
         # invitation, roll it back so the user can retry the link.
