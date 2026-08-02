@@ -9,7 +9,7 @@ from core.logger import get_logger
 from core.portal_auth import PortalContext
 from database import db
 
-from ._shared import INVALID_TOKEN
+from ._shared import INVALID_TOKEN, PORTAL_PROJECT_PROJECTION
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,7 @@ async def portal_dashboard(ctx: PortalContext):
 
     projects = await (
         db.projects.find(
-            {"partner_org_id": org_id, "deleted_at": None}, {"_id": 0}
+            {"partner_org_id": org_id, "deleted_at": None}, PORTAL_PROJECT_PROJECTION
         )
         .sort("event_date", 1)
         .to_list(100)
@@ -79,6 +79,7 @@ async def portal_dashboard(ctx: PortalContext):
 )
 async def portal_list_projects(ctx: PortalContext):
     projects = await db.projects.find(
-        {"partner_org_id": ctx["partner_org_id"], "deleted_at": None}, {"_id": 0}
+        {"partner_org_id": ctx["partner_org_id"], "deleted_at": None},
+        PORTAL_PROJECT_PROJECTION,
     ).sort("event_date", -1).to_list(100)
     return {"items": projects, "total": len(projects)}

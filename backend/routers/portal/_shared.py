@@ -14,12 +14,20 @@ __all__ = [
     "UPLOAD_DIR",
     "PROJECT_NOT_FOUND",
     "TASK_NOT_FOUND",
+    "PORTAL_PROJECT_PROJECTION",
     "safe_stored_name",
     "require_partner_project",
 ]
 
 PROJECT_NOT_FOUND = "Project not found"
 TASK_NOT_FOUND = "Task not found"
+
+# Projection for project docs returned to partners. Drops ``_id`` plus the
+# internal-only fields ``notes`` (staff free-text) and ``created_by`` (internal
+# user id); the portal UI renders neither. Use this at every portal query that
+# returns a project document to the client so the exclusion can't drift between
+# the dashboard, workspace, and project-hub endpoints.
+PORTAL_PROJECT_PROJECTION = {"_id": 0, "notes": 0, "created_by": 0}
 
 _SAFE_EXT_RE = re.compile(r"^\.[a-zA-Z0-9]{1,10}$")
 

@@ -7,6 +7,14 @@ from core.token_digest import token_digest
 INVALID_TOKEN = "Invalid or expired portal link"
 _LAST_USED_THROTTLE_SECONDS = 600  # 10 minutes
 
+# Partner-org fields that are internal-only and must never reach a partner
+# through ``ctx["org"]`` (returned by the dashboard, workspace, and
+# /auth/verify endpoints). ``notes`` is internal relationship commentary and
+# ``status`` is the internal prospect/active lifecycle flag; the portal UI
+# renders neither. Excluded at the single point the org doc is loaded so every
+# consumer is covered at once.
+_PORTAL_ORG_PROJECTION = {"_id": 0, "notes": 0, "status": 0}
+
 
 def _to_aware_datetime(value) -> datetime | None:
     """Accept native datetime or ISO string and return an aware UTC datetime."""
@@ -61,7 +69,7 @@ async def validate_portal_token(token: str, request: Optional[Request] = None) -
         raise HTTPException(status_code=401, detail="Contact not found")
 
     org = await db.partner_orgs.find_one(
-        {"id": contact["partner_org_id"], "deleted_at": None}, {"_id": 0}
+        {"id": contact["partner_org_id"], "deleted_at": None}, _PORTAL_ORG_PROJECTION
     )
     if not org:
         raise HTTPException(status_code=401, detail="Partner organization not found")

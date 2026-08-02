@@ -14,7 +14,7 @@ from services.notification_prefs import (
 from services.notifications import count_unread
 from services.portal_activity import list_portal_activity
 
-from ._shared import INVALID_TOKEN, PROJECT_NOT_FOUND
+from ._shared import INVALID_TOKEN, PORTAL_PROJECT_PROJECTION, PROJECT_NOT_FOUND
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
@@ -35,7 +35,9 @@ def _project_query(ctx: dict, project_id: Optional[str] = None) -> dict:
 
 
 async def _require_project(project_id: str, ctx: dict) -> dict:
-    project = await db.projects.find_one(_project_query(ctx, project_id), {"_id": 0})
+    project = await db.projects.find_one(
+        _project_query(ctx, project_id), PORTAL_PROJECT_PROJECTION
+    )
     if not project:
         raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     return project
@@ -93,7 +95,7 @@ async def _project_task_counts(project_ids: list[str]) -> dict[str, dict]:
 
 async def _workspace_projects(ctx: dict) -> list[dict]:
     return await (
-        db.projects.find(_project_query(ctx), {"_id": 0})
+        db.projects.find(_project_query(ctx), PORTAL_PROJECT_PROJECTION)
         .sort("event_date", 1)
         .to_list(_PROJECT_LIMIT)
     )
