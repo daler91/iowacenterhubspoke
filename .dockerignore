@@ -1,28 +1,58 @@
+# Docker matches these patterns against the FULL path from the build-context
+# root, so a bare pattern like `tests` or `.env` only excludes a top-level
+# match — `backend/tests`, `backend/.env`, `frontend/node_modules` would still
+# be sent and COPYed into the image. Every rule below therefore has a `**/`
+# variant so it matches at any depth. Keep both forms: the bare form guards the
+# root, the `**/` form guards nested paths.
+
 .git
+**/.git
+
 memory
 test_reports
-tests
 data_export
+
+tests
+**/tests
+
 node_modules
+**/node_modules
+
 __pycache__
+**/__pycache__
 *.pyc
+**/*.pyc
 
 # Secrets must never reach an image layer. The Dockerfile does
 # `COPY backend/ ./` into the *final* stage, and docker-compose.yml requires
 # developers to create backend/.env — without these rules a local build bakes
-# live credentials into the published image.
+# live credentials into the published image. The `**/` variants are what
+# actually exclude backend/.env (a bare `.env` matches only the root).
 .env
+**/.env
 *.env
+**/*.env
 *.env.*
+**/*.env.*
 !.env.example
+!**/.env.example
 secrets/
+**/secrets/
 *.pem
+**/*.pem
 *token.json*
+**/*token.json*
 *credentials.json*
+**/*credentials.json*
 
 # Local build/tooling noise
 venv
+**/venv
 .venv
+**/.venv
 *.log
+**/*.log
 .pytest_cache
+**/.pytest_cache
 .mypy_cache
+**/.mypy_cache
