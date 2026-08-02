@@ -47,7 +47,7 @@ async def maybe_auto_advance_phase_for_task(
         next_phase = PROJECT_PHASES[current_idx + 1]
 
         total_in_phase = await db.tasks.count_documents(
-            {"project_id": project_id, "phase": current},
+            {"project_id": project_id, "phase": current, "deleted_at": None},
         )
         if total_in_phase == 0:
             return None
@@ -56,6 +56,7 @@ async def maybe_auto_advance_phase_for_task(
                 "project_id": project_id,
                 "phase": current,
                 "completed": {"$ne": True},
+                "deleted_at": None,
             },
         )
         if remaining > 0:
