@@ -73,8 +73,12 @@ async def create_calendar_event_idempotent(
     end_time: str,
     notes: str = "",
     employee_id: str = "",
-    idempotency_key: str = "",
 ):
+    # Idempotency is enforced here, not by the provider: if a calendar event is
+    # already mapped for this (schedule, employee) we skip the create entirely.
+    # The provider functions therefore take only the event fields — do not pass
+    # provider-unknown kwargs (e.g. an idempotency_key), or every job raises
+    # TypeError before reaching the provider.
     existing_event_id = await _get_existing_event_id(db, schedule_id, employee_id, adapter.id_field)
     if existing_event_id:
         return {"status": "skipped", "reason": "already_mapped", "event_id": existing_event_id}
@@ -89,7 +93,6 @@ async def create_calendar_event_idempotent(
         end_time,
         notes or None,
         employee=employee,
-        idempotency_key=idempotency_key or None,
     )
     if not event_id:
         return {"status": "no_event_id"}
@@ -105,9 +108,9 @@ async def create_calendar_event_idempotent(
 
 
 async def delete_calendar_event(
-    *, db, adapter: CalendarProviderAdapter, email: str, event_id: str, employee_id: str = "", idempotency_key: str = ""
+    *, db, adapter: CalendarProviderAdapter, email: str, event_id: str, employee_id: str = ""
 ):
     if adapter.delete_event is None:
         raise ValueError(f"Provider {adapter.name} does not support delete")
     employee = await _load_employee(db, employee_id)
-    return await adapter.delete_event(email, event_id, employee=employee, idempotency_key=idempotency_key or None)
+    return await adapter.delete_event(email, event_id, employee=employee)
