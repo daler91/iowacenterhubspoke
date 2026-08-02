@@ -76,7 +76,7 @@ async def load_principal(kind: PrincipalKind, principal_id: str) -> Optional[Pri
     doc = await _collection_for(kind).find_one(
         {"id": principal_id, "deleted_at": None}, {"_id": 0},
     ) if kind == "partner" else await db.users.find_one(
-        {"id": principal_id}, {"_id": 0, "password_hash": 0},
+        {"id": principal_id, "deleted_at": None}, {"_id": 0, "password_hash": 0},
     )
     if not doc:
         return None
@@ -90,7 +90,9 @@ async def find_principal_by_email(email: str) -> Optional[Principal]:
     # Emails are stored normalised (core.emails); normalise the lookup too so
     # a differently-cased caller still resolves to the right principal.
     normalized = normalize_email(email)
-    user = await db.users.find_one({"email": normalized}, {"_id": 0, "password_hash": 0})
+    user = await db.users.find_one(
+        {"email": normalized, "deleted_at": None}, {"_id": 0, "password_hash": 0}
+    )
     if user:
         return _principal_from_doc("internal", user)
     contact = await db.partner_contacts.find_one(
@@ -120,7 +122,7 @@ async def list_admin_principals() -> list[Principal]:
     Used by ``admin.*`` events to fan out to the admin team.
     """
     cursor = db.users.find(
-        {"role": "admin", "status": "approved"},
+        {"role": "admin", "status": "approved", "deleted_at": None},
         {"_id": 0, "password_hash": 0},
     )
     docs = await cursor.to_list(length=500)
@@ -252,6 +254,7 @@ async def _load_internal_principals(exclude_ids: set[str]) -> list[Principal]:
         {
             "role": {"$in": ["admin", "editor", "scheduler"]},
             "status": "approved",
+            "deleted_at": None,
         },
         {"_id": 0, "password_hash": 0},
     ).to_list(500)
