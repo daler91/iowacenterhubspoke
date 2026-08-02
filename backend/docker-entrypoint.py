@@ -20,6 +20,50 @@ APP_UID = 1001
 APP_GID = 1001
 
 
+def _forwarded_allow_ips(environ: dict) -> str:
+    """Which peer IPs uvicorn should trust ``X-Forwarded-For`` from.
+
+    Rate limiting and brute-force lockouts key on ``request.client.host``.
+    uvicorn only rewrites that from ``X-Forwarded-For`` when the immediate TCP
+    peer is trusted; its default (``127.0.0.1``) trusts nobody behind a proxy,
+    so every request would share the proxy's single IP — collapsing all
+    per-IP limits into one global bucket and letting one client's failed
+    logins lock out the whole app.
+
+    Precedence:
+      * an explicit ``FORWARDED_ALLOW_IPS`` always wins (operator override);
+      * on Railway the container is reachable only through Railway's edge
+        proxy, so the immediate peer is always that proxy — trust it (``*``);
+      * otherwise (direct-publish compose, local dev) keep the safe default
+        that refuses spoofable forwarded headers from arbitrary clients.
+    """
+    explicit = environ.get("FORWARDED_ALLOW_IPS")
+    if explicit:
+        return explicit
+    on_railway = bool(
+        environ.get("RAILWAY_ENVIRONMENT") or environ.get("RAILWAY_DEPLOYMENT_ID")
+    )
+    return "*" if on_railway else "127.0.0.1"
+
+
+def _uvicorn_argv(environ: dict) -> list[str]:
+    """Build the uvicorn argv, including proxy-header trust configuration."""
+    port = environ.get("PORT", "8080")
+    # ``--timeout-graceful-shutdown 15`` gives uvicorn 15s to drain in-flight
+    # requests when SIGTERM arrives (Railway/Heroku send SIGTERM then SIGKILL
+    # ~30s later). Without it, bulk-import or project-create requests can be
+    # killed mid-write. ``--proxy-headers`` + ``--forwarded-allow-ips`` make
+    # per-IP rate limiting see the real client behind Railway's proxy.
+    return [
+        "uvicorn", "server:app",
+        "--host", "0.0.0.0",
+        "--port", port,
+        "--timeout-graceful-shutdown", "15",
+        "--proxy-headers",
+        "--forwarded-allow-ips", _forwarded_allow_ips(environ),
+    ]
+
+
 def _chown_tree(path: str, uid: int, gid: int) -> None:
     """Best-effort recursive chown — log and continue on per-entry errors."""
     for root, dirs, files in os.walk(path):
@@ -62,20 +106,7 @@ def main() -> None:
             )
             sys.exit(1)
 
-    port = os.environ.get("PORT", "8080")
-    # ``--timeout-graceful-shutdown 15`` gives uvicorn 15s to drain
-    # in-flight requests when SIGTERM arrives (Railway/Heroku send
-    # SIGTERM then SIGKILL ~30s later). Without it, bulk-import or
-    # project-create requests can be killed mid-write.
-    os.execvp(
-        "uvicorn",
-        [
-            "uvicorn", "server:app",
-            "--host", "0.0.0.0",
-            "--port", port,
-            "--timeout-graceful-shutdown", "15",
-        ],
-    )
+    os.execvp("uvicorn", _uvicorn_argv(os.environ))
 
 
 if __name__ == "__main__":
